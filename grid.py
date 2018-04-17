@@ -347,6 +347,8 @@ parser.add_argument('-d', '--deg_fwhm',type=float,help='Sets the FWHM in degrees
 parser.add_argument('-t', '--type',type=str,help='Can be put in either "hex" or "square" tiling mode. Default is hex.',default='hex')
 parser.add_argument('-m', '--mode',type=str,help='Program mode used internally by code (needed to start program again after finishing on the slurm queue). "f" is to calculate the fwhm and the default, "g" Calc grid positions and "p" will plot.',default='f')
 parser.add_argument('-l', '--loop',type=int,help='Number  of "loops" around the centre pointing the code will calculate. Default is 1',default=1)
+parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
+
 args=parser.parse_args()
 
 opts_string = ""
@@ -412,12 +414,17 @@ if args.mode == 'c' or args.deg_fwhm:
                 ra_decs.append([rag,decg,az,za,rad,decd])
     print "Recording the poisitons in grid_positions.txt"            
     with open('grid_positions.txt','w') as out_file:
-        out_line = "#ra   dec    az     za\n" 
-        out_file.write(out_line)
+        if args.verbose_file:
+            out_line = "#ra   dec    az     za\n" 
+            out_file.write(out_line)
         for i in range(len(ra_decs)):
-            out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+" "+str(ra_decs[i][2])+" "\
+            if args.verbose_file:
+                out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+" "+str(ra_decs[i][2])+" "\
                             +str(ra_decs[i][3])+" "+str(ra_decs[i][4])+" "\
                             +str(ra_decs[i][5])+"\n" 
+            else:
+                out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+"\n" 
+
             out_file.write(out_line) 
             
     print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
@@ -433,7 +440,7 @@ if args.mode == 'c' or args.deg_fwhm:
             
     #ras, decs, theta, phi, rads, decds
     #TODO change back
-    ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_position_centre.txt',unpack=True)    
+    ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_position.txt',unpack=True)    
     
     import matplotlib
     matplotlib.use('Agg')
