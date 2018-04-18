@@ -423,7 +423,7 @@ if args.mode == 'c' or args.deg_fwhm:
                             +str(ra_decs[i][3])+" "+str(ra_decs[i][4])+" "\
                             +str(ra_decs[i][5])+"\n" 
             else:
-                out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+"\n" 
+                out_line = str(ra_decs[i][4])+" "+str(ra_decs[i][5])+"\n" 
 
             out_file.write(out_line) 
             
