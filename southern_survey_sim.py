@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import os
 import sys
 import math
@@ -139,8 +141,9 @@ def getmeta(service='obs', params=None):
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="""
   A ploting script originaly written by Mengyao but editted by Nick to estimate the number of pointings required to cover the southern sky.
-  python southern_survey_sim.py -d 10 -f -r 3 -m 6 9 11 11 11 11 11 --semester_ra -a
-  python southern_survey_sim.py -d 10 -f  -r 1 -a -m 6 9 11 11 11 11 11 -c -o -l
+  southern_survey_sim.py -d 10 -f -r 3 -m 6 9 11 11 11 11 11 --semester_ra -a
+  southern_survey_sim.py -d 10 -f  -r 1 -a -m 6 9 11 11 11 11 11 -c -o -l
+  southern_survey_sim.py -d 10 -f -r 1 -a -c -o  --obsid_list 1088850560 1090249472
   """)
   parser.add_argument('-f','--fwhm',action='store_true',help='if this options is used the FWHM of each pointing is used. If it is not chosen the FWHM of a zenith pointing is used.')
   parser.add_argument('-d','--degree',type=float,help='The degrees overlap in RA of the observations')
@@ -153,6 +156,8 @@ if __name__ == "__main__":
   parser.add_argument('-m','--manual', nargs='+', type=int, help='Makes the pointing numbers manual, input them as 1 2 3 4 5 6 7')
   parser.add_argument('--semester', action='store_true', help='Changed the colours of the FWHM for each semester')
   parser.add_argument('--semester_ra', action='store_true', help='Similar to semester but uses a RA cut off (changes number per group)')
+  parser.add_argument('-p','--plot_type',type=str,help='Determines the output plot type, Default="png".',default='png')
+  parser.add_argument('--obsid_list',type=str,nargs='+',help='Instead of calculating which positions to use the script will use the input obsids. eg: "1088850560 1090249472"')
   args=parser.parse_args()
 
   #Setting up some of the plots
@@ -208,15 +213,7 @@ if __name__ == "__main__":
     delays_range.append(sweet_delays_range[i])
   print dec_range
   """
-  #setting up some metadata requirements
-  time = 4800 #one hour 
-  channels = range(107,131)
-  minfreq = float(min(channels))
-  maxfreq = float(max(channels))
-  centrefreq = 1.28e6 * (minfreq + (maxfreq-minfreq)/2) #in MHz
 
-  start_obsid = '1117624530'
-  start_ra = 180.
   #setting up RA Dec ranges for power calculations
   res = args.resolution
   map_dec_range = range(-90,91,res)
@@ -227,98 +224,112 @@ if __name__ == "__main__":
       for j in map_ra_range:
           Dec.append(i)
           RA.append(j)
-  Dec_FWHM_calc = []
-  RA_FWHM_calc = []
-  for i in range(-89,89,1):
-    for j in range(0,361,1):
-        Dec_FWHM_calc.append(i)
-        RA_FWHM_calc.append(j)
-          
-  manual_point_num = args.manual   
-          
-  observations = []
-  ra_list =[]
-  dec_list =[]
-  FWHM = []
-  FWHM_Dec = []
-  pointing_count = 0
-  for i in range(len(dec_range)):
-    #calculating the FWHM at this dec
-    cord = [start_obsid, start_ra, dec_range[i], 1, delays_range[i],centrefreq, channels]
-    powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
 
-    powout_RA_line = []
-    powout_Dec_line = []
-    RA_line = []
-    Dec_line = []
-    for p in range(len(powout)):
-      #print int(y[i]/np.pi*180.), int(dec) 
-      if int(Dec_FWHM_calc[p]) == int(dec_range[i]):
-          powout_RA_line.append(float(powout[p]))
-          RA_line.append(float(RA_FWHM_calc[p]))
-      if int (RA_FWHM_calc[p]) == int(start_ra):
-          powout_Dec_line.append(float(powout[p]))
-          Dec_line.append(float(Dec_FWHM_calc[p]))
-    
-    print "\nValues for Dec " + str(dec_range[i])
-    #work out RA FWHM (not including the drift scan, 0sec observation)
-    if args.fwhm:
-        spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
-    else:
-        spline = UnivariateSpline(RA_line, powout_RA_line-np.full(len(powout_RA_line),0.5), s=0)
-    try:
-        r1, r2 = spline.roots()
-    except ValueError:
-        print "No FWHM for " + str(dec_range[i]) + " setting to 1000 to skip"
-        FWHM.append(1000.)
-        pointing_count -=1
-    else:
-        FWHM.append(float(r2-r1))
-        print "FWHM along RA at dec "+ str(dec_range[i]) + ": " + str(FWHM[i])
-    
-    #work out Dec FWHM
-    if args.fwhm:
-        spline = UnivariateSpline(Dec_line, powout_Dec_line-np.max(powout_Dec_line)/2., s=0)
-        r1, r2 = spline.roots()
-        FWHM_Dec.append(float(r2-r1))
-        print "FWHM along Dec at dec "+ str(dec_range[i]) + ": " + str(FWHM_Dec[i])
-    
-    deg_move = total_angle = FWHM[i] - args.degree*math.cos(math.radians(dec_range[i])) + \
-                float(time)/3600.*15.*math.cos(math.radians(dec_range[i]))
-    if args.manual:
-        point_num_this_deg = manual_point_num[i]
-    else:
-        point_num_this_deg = int(360./deg_move) + 1
-    print "Number for this dec: " +str(point_num_this_deg)
-    deg_move = 360. / point_num_this_deg
-    overlap_true = FWHM[i] + float(time)/3600.*15.*math.cos(math.radians(dec_range[i])) -\
-                   360./point_num_this_deg
-    print "True overlap this dec: " + str(overlap_true)
-    
-    # offset every second dec range by half a FWHM in RA
-    if i % 2 == 0:
-        ra_list.append(start_ra)
-        observations.append(start_obsid)
-    else:
-        ra_list.append(start_ra+deg_move/math.cos(math.radians(dec_range[i])))
-        observations.append(str(int(start_obsid)+int(deg_move*120)))
-    dec_list.append(dec_range[i])
-    pointing_count += 1
-    for x in range(point_num_this_deg-1):
-      temp_ra = ra_list[-1]+deg_move
-      if temp_ra > 360.:
-         temp_ra = temp_ra -360.
-      ra_list.append(temp_ra)
-      dec_list.append(dec_range[i])
-      observations.append(str(int(observations[-1])+int(deg_move*240)))
-      total_angle += deg_move
-      pointing_count+=1
   
-  dec_list = [x for _,x in sorted(zip(ra_list,dec_list))]
-  observations = [x for _,x in sorted(zip(ra_list,observations))]
-  ra_list = sorted(ra_list)
-  
-  
+  if not args.obsid_list:
+      #setting up some metadata requirements
+      time = 4800 #one hour 
+      channels = range(107,131)
+      minfreq = float(min(channels))
+      maxfreq = float(max(channels))
+      centrefreq = 1.28e6 * (minfreq + (maxfreq-minfreq)/2) #in MHz
+
+      start_obsid = '1117624530'
+      start_ra = 180.
+      Dec_FWHM_calc = []
+      RA_FWHM_calc = []
+      for i in range(-89,89,1):
+        for j in range(0,361,1):
+            Dec_FWHM_calc.append(i)
+            RA_FWHM_calc.append(j)
+              
+      manual_point_num = args.manual   
+              
+      observations = []
+      ra_list =[]
+      dec_list =[]
+      FWHM = []
+      FWHM_Dec = []
+      pointing_count = 0
+      for i in range(len(dec_range)):
+        #calculating the FWHM at this dec
+        cord = [start_obsid, start_ra, dec_range[i], 1, delays_range[i],centrefreq, channels]
+        powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
+
+        powout_RA_line = []
+        powout_Dec_line = []
+        RA_line = []
+        Dec_line = []
+        for p in range(len(powout)):
+          #print int(y[i]/np.pi*180.), int(dec) 
+          if int(Dec_FWHM_calc[p]) == int(dec_range[i]):
+              powout_RA_line.append(float(powout[p]))
+              RA_line.append(float(RA_FWHM_calc[p]))
+          if int (RA_FWHM_calc[p]) == int(start_ra):
+              powout_Dec_line.append(float(powout[p]))
+              Dec_line.append(float(Dec_FWHM_calc[p]))
+        
+        print "\nValues for Dec " + str(dec_range[i])
+        #work out RA FWHM (not including the drift scan, 0sec observation)
+        if args.fwhm:
+            spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
+        else:
+            spline = UnivariateSpline(RA_line, powout_RA_line-np.full(len(powout_RA_line),0.5), s=0)
+        try:
+            r1, r2 = spline.roots()
+        except ValueError:
+            print "No FWHM for " + str(dec_range[i]) + " setting to 1000 to skip"
+            FWHM.append(1000.)
+            pointing_count -=1
+        else:
+            FWHM.append(float(r2-r1))
+            print "FWHM along RA at dec "+ str(dec_range[i]) + ": " + str(FWHM[i])
+        
+        #work out Dec FWHM
+        if args.fwhm:
+            spline = UnivariateSpline(Dec_line, powout_Dec_line-np.max(powout_Dec_line)/2., s=0)
+            r1, r2 = spline.roots()
+            FWHM_Dec.append(float(r2-r1))
+            print "FWHM along Dec at dec "+ str(dec_range[i]) + ": " + str(FWHM_Dec[i])
+        
+        deg_move = total_angle = FWHM[i] - args.degree*math.cos(math.radians(dec_range[i])) + \
+                    float(time)/3600.*15.*math.cos(math.radians(dec_range[i]))
+        if args.manual:
+            point_num_this_deg = manual_point_num[i]
+        else:
+            point_num_this_deg = int(360./deg_move) + 1
+        print "Number for this dec: " +str(point_num_this_deg)
+        deg_move = 360. / point_num_this_deg
+        overlap_true = FWHM[i] + float(time)/3600.*15.*math.cos(math.radians(dec_range[i])) -\
+                       360./point_num_this_deg
+        print "True overlap this dec: " + str(overlap_true)
+        
+        # offset every second dec range by half a FWHM in RA
+        if i % 2 == 0:
+            ra_list.append(start_ra)
+            observations.append(start_obsid)
+        else:
+            ra_list.append(start_ra+deg_move/math.cos(math.radians(dec_range[i])))
+            observations.append(str(int(start_obsid)+int(deg_move*120)))
+        dec_list.append(dec_range[i])
+        pointing_count += 1
+        for x in range(point_num_this_deg-1):
+          temp_ra = ra_list[-1]+deg_move
+          if temp_ra > 360.:
+             temp_ra = temp_ra -360.
+          ra_list.append(temp_ra)
+          dec_list.append(dec_range[i])
+          observations.append(str(int(observations[-1])+int(deg_move*240)))
+          total_angle += deg_move
+          pointing_count+=1
+      
+      dec_list = [x for _,x in sorted(zip(ra_list,dec_list))]
+      observations = [x for _,x in sorted(zip(ra_list,observations))]
+      ra_list = sorted(ra_list)
+  else:
+      observations = args.obsid_list
+      pointing_count = len(observations)
+      
   s_overlap_z = np.zeros(len(RA))
   s_overlap_x =[]
   s_overlap_y =[]
@@ -326,13 +337,24 @@ if __name__ == "__main__":
   RA_FWHM_atdec =[]
   for i in range(len(observations)):
       ob = observations[i]
-      #print "Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: "
-      #beam_meta_data = getmeta(service='obs', params={'obs_id':ob})
-          
-      ra = ra_list[i]
-      dec = dec_list[i]
-      temp_dec_index = dec_range.index(dec)
-      delays = delays_range[dec_range.index(dec)]
+      if args.obsid_list:
+        print "Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: "
+        beam_meta_data = getmeta(service='obs', params={'obs_id':ob})
+        ra = beam_meta_data[u'metadata'][u'ra_pointing']
+        dec = beam_meta_data[u'metadata'][u'dec_pointing']
+        time = beam_meta_data[u'stoptime'] - beam_meta_data[u'starttime'] #gps time
+        delays = beam_meta_data[u'rfstreams'][u'0'][u'xdelays']
+             
+        minfreq = float(min(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
+        maxfreq = float(max(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
+        centrefreq = 1.28e6 * (minfreq + (maxfreq-minfreq)/2) #in MHz
+        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+      else:
+        ra = ra_list[i]
+        dec = dec_list[i]
+        temp_dec_index = dec_range.index(dec)
+        delays = delays_range[dec_range.index(dec)]
+      
       cord = [ob, ra, dec, time, delays,centrefreq, channels]
   
       z=[] ; z_sens =[] ; x=[] ; y=[]
@@ -416,12 +438,12 @@ if __name__ == "__main__":
                              linewidths=linewidths)
               colors= ['0.5' for _ in xrange(50)] ; colors[0]= 'r'
           #else:
-          levels = np.arange(0.5*max(nz), max(nz), 0.05)
+          levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
       else:
           levels = np.arange(0.5, 1., 0.05)
       
       if (args.semester or args.semester_ra) and i == 0:
-          colour_groups = ['red','green','purple','orange','blue']
+          colour_groups = ['red','green','purple','darkorange','blue']
           for c in range(len(colour_groups)):
               f = open(str(colour_groups[c]) + '_group_file.txt','w')
               f.write('RA\tDec\n')
@@ -482,8 +504,9 @@ if __name__ == "__main__":
                   print min_lim,max_lim
               if c == (len(colour_groups)-1) and max_check:
                   if (min_lim < max_ra and max_ra < 360.) or (0. < max_ra and max_ra <= max_lim):
-                      colors = [colour_groups[c] for _ in xrange(50)]
-                  
+                      colors = ['0.5' for _ in xrange(50)]
+                      colors[0] = colour_groups[c]
+
                       f = open(str(colour_groups[c]) + '_group_file.txt','a+')
                       f.write(str(max_ra) + '\t' + str(dec) + '\n')
                       f.close()
@@ -491,8 +514,9 @@ if __name__ == "__main__":
                       #            lw=0, marker='o', color=colour_groups[c])
 
               if min_lim < max_ra and max_ra <= max_lim:
-                  colors = [colour_groups[c] for _ in xrange(50)]
-                  
+                  colors = ['0.5' for _ in xrange(50)]
+                  colors[0] = colour_groups[c]
+
                   f = open(str(colour_groups[c]) + '_group_file.txt','a+')
                   f.write(str(max_ra) + '\t' + str(dec) + '\n')
                   f.close()
@@ -500,7 +524,7 @@ if __name__ == "__main__":
                   #            lw=0, marker='o', color=colour_groups[c])
            
           
-          alpha = 0.6
+          alpha = 0.5
 
       else:
           alpha = 0.3
@@ -534,21 +558,22 @@ if __name__ == "__main__":
                                    colors=colors,
                                    linewidths=linewidths)
    
-  #sort the output into the right order
-  import glob
-  from operator import itemgetter
-  import csv
-  for g in glob.glob("./*group*"):
-      with open(g) as f:
-        lines = [line.split("\t") for line in f]
-        lines = lines[1:]
-        lines = sorted(lines, key=itemgetter(0))
-        print lines
-      with open(g, 'wb') as csvfile:
-         spamwriter = csv.writer(csvfile, delimiter=',')
-         spamwriter.writerow(['RA','Dec'])
-         for l in lines:
-             spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])
+  if args.semester or args.semester_ra:
+      #sort the output into the right order
+      import glob
+      from operator import itemgetter
+      import csv
+      for g in glob.glob("./*group*"):
+          with open(g) as f:
+            lines = [line.split("\t") for line in f]
+            lines = lines[1:]
+            lines = sorted(lines, key=itemgetter(0))
+            print lines
+          with open(g, 'wb') as csvfile:
+             spamwriter = csv.writer(csvfile, delimiter=',')
+             spamwriter.writerow(['RA','Dec'])
+             for l in lines:
+                 spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])
 
 
   #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
@@ -593,16 +618,21 @@ if __name__ == "__main__":
   if args.semester:
       plot_name += '_semester'
   
+  if args.obsid_list:
+      plot_name += '_obslist'
   if args.manual:
       plot_name += '_manual'
       for m in args.manual:
           plot_name += str(m) + '-'
       plot_name = plot_name[:-1]
+  
   if args.fwhm:
-    plot_name += '_ownFWHM.png'
+    plot_name += '_ownFWHM'
   else:
-    plot_name +='_zenithFWHM.png'
-  #plt.title(plot_name[:-4])
-  plt.savefig(plot_name, dpi=600)
+    plot_name +='_zenithFWHM'
+
+  plot_type = args.plot_type
+  #plt.title(plot_name)
+  plt.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000)
   plt.show()
 
