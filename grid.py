@@ -408,7 +408,18 @@ if args.mode == 'c' or args.deg_fwhm:
                 coord = SkyCoord(rad,decd,unit=(u.deg,u.deg))
                 rag = coord.ra.to_string(unit=u.hour, sep=':')
                 decg = coord.dec.to_string(unit=u.degree, sep=':')
-                
+                #format the ra dec strings 
+                if len(rag) > 11:
+                    rag = rag[:11]
+                if len(decg) > 12:
+                    decg = decg[:12]
+                    
+                if len(rag) == 8:
+                    rag = rag + '.00'
+                if len(decg) == 9:
+                    decg = decg + '.00'
+
+
                 az,za,azd,zad = getTargetAZZA(rag,decg,time)
 
                 ra_decs.append([rag,decg,az,za,rad,decd])
