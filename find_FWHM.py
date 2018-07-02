@@ -1,52 +1,24 @@
+#!/usr/bin/env python
+
 from mwapy.pb import primary_beam as pb
 import argparse
 from scipy.interpolate import UnivariateSpline
 import numpy as np
 
-import urllib
-import urllib2
-import json
+import mwa_metadb_utils as meta
+#import urllib
+#import urllib2
+#import json
 
 from astropy.coordinates import EarthLocation, SkyCoord, AltAz
 from astropy import units as u
 from astropy.time import Time
 from decimal import Decimal
 
-def getmeta(service='obs', params=None):
-    """
-    getmeta(service='obs', params=None)
-    
-    Given a JSON web service ('obs', find, or 'con') and a set of parameters as
-    a Python dictionary, return the RA and Dec in degrees from the Python dictionary.
-    """
-    BASEURL = 'http://mwa-metadata01.pawsey.org.au/metadata/'
-    if params:
-        data = urllib.urlencode(params)  # Turn the dictionary into a string with encoded 'name=value' pairs
-    else:
-        data = ''
-    #Validate the service name
-    if service.strip().lower() in ['obs', 'find', 'con']:
-        service = service.strip().lower()
-    else:
-        print "invalid service name: %s" % service
-        return
-    #Get the data
-    try:
-        result = json.load(urllib2.urlopen(BASEURL + service + '?' + data))
-    except urllib2.HTTPError as error:
-        print "HTTP error from server: code=%d, response:\n %s" % (error.code, error.read())
-        return
-    except urllib2.URLError as error:
-        print "URL or network error: %s" % error.reason
-        return
-    #Return the result dictionary
-    return result
-
-
 def get_obs_metadata(obs):
     from mwapy.pb import mwa_db_query as mwa_dbQ
 
-    beam_meta_data = getmeta(service='obs', params={'obs_id':obs})
+    beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obs})
     channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
     freqs = [float(c)*1.28 for c in channels]
     xdelays = beam_meta_data[u'rfstreams'][u"0"][u'xdelays']
@@ -157,15 +129,15 @@ for i in range(len(amp)):
     if max_phi == float(phi[i]):
         beam_line.append(amp[i])
         beam_za.append(theta[i])
-print "Beam line to be plotted: " + str(beam_line)
+#print "Beam line to be plotted: " + str(beam_line)
 
 print "Plot beam"
 import matplotlib.pyplot as pl
 pl.plot(beam_za, beam_line)
-pl.savefig("zenith_line_plot.png")
+pl.savefig("zenith_line_plot_"+ra+"_"+dec+".png")
 pl.show()
 
 spline = UnivariateSpline(beam_za, beam_line-np.max(beam_line)/2., s=0)
 print spline.roots()
 r1, r2 = spline.roots()
-print str(r1-r2)
+print ra,dec,str(r1-r2)
