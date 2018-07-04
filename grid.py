@@ -258,16 +258,24 @@ def calc_fwhm(obsid, pointing, opts_string):
     print "Code will continue when job completes. Should take around 15 mins assuming no queue time."
 
 
-def hex_grid(ra0,dec0,centre_fwhm):
+def hex_grid(ra0,dec0,centre_fwhm, dec_lim_arg):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
+    orig_centre_fwhm = centre_fwhm
     print "Calculating the tile positions"
+
+    if dec_lim_arg:
+        dec_lim_matrix = np.empty([len(del_lim_arg)/3,3])
+        for i in range(len(dec_lim_arg)):
+            dec_lim_matrix[i/3,i%3] = dec_lim_arg[i]
+
 
     for l in range(1,args.loop+1):
         #different step for each corner
         loop_temp = []
-        
+        if l%50 == 0:
+            print "Calculating loop number: " +str(l)
         for c in range(6):
             corner_temp = []
             if l == 1:
@@ -287,6 +295,12 @@ def hex_grid(ra0,dec0,centre_fwhm):
             else:
                 for n in range(l):
                     if l == (n + 1):
+                        if dec_lim_arg:
+                            centre_fwhm = centre_fwhm_orig
+                            for d in dec_lim_matrix:
+                                if pointing_list[l-1][c+1][0][1] > dec_lim_matrix[d][1] and\
+                                        pointing_list[l-1][c+1][0][1] < dec_lim_matrix[d][2]:
+                                    centre_fwhm = dec_lim_matrix[d][0]
                         #change the 2 for each loop
                         #uses next corner
                         #TODO use updated fwhm
@@ -310,6 +324,13 @@ def hex_grid(ra0,dec0,centre_fwhm):
                                          pointing_list[l-1][0][0][1],centre_fwhm)
                         
                     else:
+                        if dec_lim_arg:
+                            centre_fwhm = centre_fwhm_orig
+                            for d in dec_lim_matrix:
+                                if pointing_list[l-1][c][n][1] > dec_lim_matrix[d][1] and\
+                                        pointing_list[l-1][c][n][1] < dec_lim_matrix[d][2]:
+                                    centre_fwhm = dec_lim_matrix[d][0]
+
                         if c == 0:
                             ra,dec =left(pointing_list[l-1][c][n][0],
                                          pointing_list[l-1][c][n][1],centre_fwhm)
@@ -344,9 +365,12 @@ parser.add_argument('--plot',action="store_true",help='Plots the output')
 parser.add_argument('--gpuq',action="store_true",help='Uses the gpuq (used for when the workq is full).')
 parser.add_argument('-f', '--fraction',type=float,help='Fraction of the full width half maximum to use as the distance between beam centres',default=0.85)
 parser.add_argument('-d', '--deg_fwhm',type=float,help='Sets the FWHM in degrees. The script will not calculate the FWHM',default=0.3098)
+parser.add_argument('--dec_range_fwhm',type=float,nargs='+',help='A list of FWHM and ranges in the order of: "FWHM1 decmin1 decmax1 FWHM2 decmin2 decmax2"')
 parser.add_argument('-t', '--type',type=str,help='Can be put in either "hex" or "square" tiling mode. Default is hex.',default='hex')
 parser.add_argument('-m', '--mode',type=str,help='Program mode used internally by code (needed to start program again after finishing on the slurm queue). "f" is to calculate the fwhm and the default, "g" Calc grid positions and "p" will plot.',default='f')
 parser.add_argument('-l', '--loop',type=int,help='Number  of "loops" around the centre pointing the code will calculate. Default is 1',default=1)
+parser.add_argument('--dec_range',type=float,nargs='+',help='Dec limits: "decmin decmax". Default -90 90', default=[-90,90])
+parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 390', default=[0,360])
 parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
 
 args=parser.parse_args()
@@ -388,7 +412,7 @@ if args.mode == 'c' or args.deg_fwhm:
     
     
     if args.type == 'hex':
-        pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction)
+        pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction, args.dec_range_fwhm)
     #TODO add square
 
     time = Time(float(args.obsid),format='gps')
@@ -397,6 +421,8 @@ if args.mode == 'c' or args.deg_fwhm:
     
     print "Converting to ra dec"                
     for l in range(len(pointing_list)):
+        if l%50 == 0:
+            print "Calculating loop number: " +str(l)
         for c in range(len(pointing_list[l])):
             for n in range(len(pointing_list[l][c])):
                 #format grid pointings
@@ -420,7 +446,10 @@ if args.mode == 'c' or args.deg_fwhm:
                     decg = decg + '.00'
 
 
-                az,za,azd,zad = getTargetAZZA(rag,decg,time)
+                if args.verbose_file:
+                    az,za,azd,zad = getTargetAZZA(rag,decg,time)
+                else:
+                    az,za,azd,zad = [0,0,0,0]
 
                 ra_decs.append([rag,decg,az,za,rad,decd])
     print "Recording the poisitons in grid_positions.txt"            
@@ -439,20 +468,26 @@ if args.mode == 'c' or args.deg_fwhm:
             out_file.write(out_line) 
             
     print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
-    with open('grid_positions_dec_limited.txt','w') as out_file:
+    with open('grid_positions_ra_dec_limited.txt','w') as out_file:
         out_line = "#ra   dec    az     za\n" 
         out_file.write(out_line)
         for i in range(len(ra_decs)):
-            if  (-28.0 < float(ra_decs[i][5]) < -25.25 ) and float(ra_decs[i][4]) < 102.5:
-                out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+" "+str(ra_decs[i][2])+" "\
+            if  (args.dec_range[0] < float(ra_decs[i][5]) < args.dec_range[1] ) and \
+                (args.ra_range[0]  < float(ra_decs[i][4]) < args.ra_range[1]):
+                    if args.verbose_file:
+                        out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+" "+str(ra_decs[i][2])+" "\
                                 +str(ra_decs[i][3])+" "+str(ra_decs[i][4])+" "\
                                 +str(ra_decs[i][5])+"\n" 
-                out_file.write(out_line)
+                    else:
+                         out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+"\n"
+                    out_file.write(out_line)
             
     #ras, decs, theta, phi, rads, decds
     #TODO change back
-    ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_position.txt',unpack=True)    
+    #ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_position.txt',unpack=True)    
     
+    ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
+
     import matplotlib
     matplotlib.use('Agg')
     
@@ -495,7 +530,8 @@ if args.mode == 'c' or args.deg_fwhm:
     
     #ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/pabeam/output/grid_positions_dec_limited.txt',unpack=True) 
     """
-    ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_positions_dec_limited.txt',unpack=True) 
+    
+    ras, decs, theta, phi, rads, decds = np.genfromtxt('./grid_positions_ra_dec_limited.txt',unpack=True) 
     #dec limited plot
     plt.xlabel("ra (degrees)")
     plt.ylabel("dec (degrees)")
