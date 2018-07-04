@@ -485,8 +485,10 @@ if args.mode == 'c' or args.deg_fwhm:
     #ras, decs, theta, phi, rads, decds
     #TODO change back
     #ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_position.txt',unpack=True)    
-    
-    ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
+    if args.verbose_file:
+        ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
+    else:
+        ras, decs = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
 
     import matplotlib
     matplotlib.use('Agg')

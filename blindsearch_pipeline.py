@@ -8,6 +8,8 @@ import urllib2
 import json
 from time import sleep
 import blindsearch_database
+import mwa_metadb_utils as meta
+import glob
 
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1133329792 -p 19:45:14.00_-31:47:36.00
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1150234552 -p 00:34:08.8703_-07:21:53.409 --pulsar J0034-0721
@@ -1142,15 +1144,21 @@ Does a blind search for a pulsar in MWA data using the galaxy supercomputer.
 """)
 parser.add_argument('-o','--observation',type=str,help='The observation ID of the fits file to be searched')
 parser.add_argument('-p','--pointing',type=str,help='The pointing of the fits file to be searched')
-parser.add_argument('-m','--mode',type=str,help='There are three modes or steps to complete the pipeline. The first mode is to prepdata "p" which dedisperses the the fits files into .dat files. The second mode sort and search "s" which sorts the files it folders and performs a fft. The third mode is accel search "a" runs an accel search on them. The final mode is fold "f" which folds all possible candidates so they can be visaully inspected.')
+parser.add_argument('-m','--mode',type=str,help='There are three modes or steps to complete the pipeline. ["b","p","s","a","f"]. The inital mode is to beamform "b" everything using process_vcs.py. The first mode is to prepdata "p" which dedisperses the the fits files into .dat files. The second mode sort and search "s" which sorts the files it folders and performs a fft. The third mode is accel search "a" runs an accel search on them. The final mode is fold "f" which folds all possible candidates so they can be visaully inspected.')
 parser.add_argument('-w','--work_dir',type=str,help='Work directory. Default: /group/mwaops/nswainston/blindsearch/')
 parser.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
 parser.add_argument('-r','--row_num',type=int,help='Database row reference number for keeping track of the scripts.')
 parser.add_argument('-d','--dm_file_int',type=int,help='Used by the program to keep track DM file being used to stagger the jobs and not send off over 9000 jobs.')
 parser.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
 parser.add_argument('--pbs',action="store_true",help="PBS queue mode.")
+group_beamform = parser.add_argument_group('group_beamform','Beamforming Options')
+group_beamform.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
+group_beamform.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
+group_beamform.add_argument("--pulsar_file", default=None, help="Location of a file containting the pointings to be processed. Made using grid.py.")
+group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
+group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
+group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
 args=parser.parse_args()
-
 
 if args.work_dir:
     w_d = args.work_dir
@@ -1164,6 +1172,83 @@ obs = args.observation
 point = args.pointing
 #19:45:14.00_-31:47:36.00
 s_d = args.sub_dir
+
+#work out start and stop times for beamforming
+if args.mode == "b":
+    if args.all and (args.begin or args.end):
+        print "Please specify EITHER (-b,-e) OR -a"
+        quit()
+    elif args.all:
+        args.begin, args.end = meta.obs_max_min(args.observation)
+    
+    #Loop through pointings and check if any are done
+    with open(args.pulsar_file) as lines:
+        for i, line in enumerate(lines):
+            ra, dec = line.split(" ")
+            pointing_dir = "/group/mwaops/vcs/"+obs+"/pointings/"+ra+"_"+dec[:-1]
+            if os.path.exists(pointing_dir):
+                #first check is there's already spliced files
+                expected_file_num = int( (args.end-args.begin)/200 )
+                if not (args.end-args.begin)%200 == 0:
+                    expected_file_num += 1
+                
+                missing_file_check = False
+                for n in range(1,expected_file_num):
+                    if not glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
+                        missing_file_check = True
+                if missing_file_check:
+                    #check if we have any unspliced files
+                    if glob.glob(pointing_dir+"/*_"+obs+"_*.fits"):
+                        #there are some so going to resubmit jobs
+                        beam_meta_data = getmeta(service='obs', params={'obs_id':obs})
+                        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+                        
+                        job_id_list =[]
+                        for ch in channels:
+                            channel_check = False
+                            for n in range(1,expected_file_num):
+                                if not glob.glob(pointing_dir+"/*_"+obs+"_ch*"+str(ch)+"_00*"+\
+                                        str(n)+".fits"):
+                                    channel_check = True
+                            #missing some files for that channel so resumbit script
+                            if os.path.exists("/group/mwaops/vcs/"+obs+"/batch/mb_"+ra+"_"+dec[:-1]+\
+                                    "_ch"+str(ch)+".batch"):
+                                submit_line = "sbatch /group/mwaops/vcs/"+obs+"/batch/mb_"+ra+\
+                                              "_"+dec[:-1]+"_ch"+str(ch)+".batch"
+                                submit_cmd = subprocess.Popen(submit_line,shell=True,\
+                                                                stdout=subprocess.PIPE)
+                                for line in submit_cmd.stdout:
+                                print line,
+                                if "Submitted" in line:
+                                    (word1,word2,word3,jobid) = line.split()
+                                    job_id_list.append(jobid)
+
+                            else:
+                                print "ERROR no batch file found"
+
+                        #splice wraps them when they're done
+                        sleep(1)
+                        job_id_str = ""
+                        for j in job_id_list:
+                            job_id_str += ":" + str(j)
+                        submit_line = 'sbatch -t 60 --depend=afterany'+job_id_str+\
+                                       ' split_wrapper.py -o '+obs
+                        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+
+                    else:
+                        #TODO no files gotta beamform
+                        print "No files in "+ra+"_"+dec[:-1]+" starting beamforming"
+
+                    #If only unspliced files then splice
+                    os.chdir("/group/mwaops/vcs/"+obs+"/pointings/"+ra+"_"+dec[:-1])
+                    submit_line = 'sbatch -t 60 split_wrapper.py -o '+obs
+                    #submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+               
+
+            else:
+                # do beamforming
+                print "No pointing directory for "+ra+"_"+dec[:-1]+" starting beamforming"
+
 
 if args.mode == "r" or args.mode == None:
     print "check"
