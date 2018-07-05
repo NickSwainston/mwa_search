@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from scipy.interpolate import griddata
+import matplotlib
 import matplotlib.pyplot as plt
 import sys
 import subprocess
@@ -417,7 +418,7 @@ if args.mode == 'c' or args.deg_fwhm:
 
     time = Time(float(args.obsid),format='gps')
     ra_decs = []      
-    
+    ras = []; decs = []; theta = []; phi = []; rads = []; decds = []
     
     print "Converting to ra dec"                
     for l in range(len(pointing_list)):
@@ -450,47 +451,54 @@ if args.mode == 'c' or args.deg_fwhm:
                     az,za,azd,zad = getTargetAZZA(rag,decg,time)
                 else:
                     az,za,azd,zad = [0,0,0,0]
-
-                ra_decs.append([rag,decg,az,za,rad,decd])
+                
+                ras.append(rag)
+                decs.append(decg)
+                theta.append(az)
+                phi.append(za)
+                rads.append(rad)
+                decds.append(decd)
+                #ra_decs.append([rag,decg,az,za,rad,decd])
     print "Recording the poisitons in grid_positions.txt"            
     with open('grid_positions.txt','w') as out_file:
         if args.verbose_file:
             out_line = "#ra   dec    az     za\n" 
             out_file.write(out_line)
-        for i in range(len(ra_decs)):
+        for i in range(len(rads)):
             if args.verbose_file:
-                out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+" "+str(ra_decs[i][2])+" "\
-                            +str(ra_decs[i][3])+" "+str(ra_decs[i][4])+" "\
-                            +str(ra_decs[i][5])+"\n" 
+                out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
+                            +str(phi[i])+" "+str(rads[i])+" "\
+                            +str(decds[i])+"\n" 
             else:
-                out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+"\n" 
+                out_line = str(ras[i])+" "+str(decs[i])+"\n" 
 
             out_file.write(out_line) 
-            
+           
+    #some ra and dec string for radec limited degreees
+    radls = []
+    decdls = []
     print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
     with open('grid_positions_ra_dec_limited.txt','w') as out_file:
-        out_line = "#ra   dec    az     za\n" 
-        out_file.write(out_line)
-        for i in range(len(ra_decs)):
-            if  (args.dec_range[0] < float(ra_decs[i][5]) < args.dec_range[1] ) and \
-                (args.ra_range[0]  < float(ra_decs[i][4]) < args.ra_range[1]):
+        if args.verbose_file:
+            out_line = "#ra   dec    az     za\n" 
+            out_file.write(out_line)
+        for i in range(len(rads)):
+            if  (args.dec_range[0] < float(decds[i]) < args.dec_range[1] ) and \
+                (args.ra_range[0]  < float(rads[i]) < args.ra_range[1]):
                     if args.verbose_file:
-                        out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+" "+str(ra_decs[i][2])+" "\
-                                +str(ra_decs[i][3])+" "+str(ra_decs[i][4])+" "\
-                                +str(ra_decs[i][5])+"\n" 
+                        out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
+                                    +str(phi[i])+" "+str(rads[i])+" "\
+                                    +str(decds[i])+"\n" 
                     else:
-                         out_line = str(ra_decs[i][0])+" "+str(ra_decs[i][1])+"\n"
+                        out_line = str(ras[i])+" "+str(decs[i])+"\n" 
+                    radls.append(rads[i])
+                    decdls.append(decds[i])
                     out_file.write(out_line)
             
     #ras, decs, theta, phi, rads, decds
-    #TODO change back
     #ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_position.txt',unpack=True)    
-    if args.verbose_file:
-        ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
-    else:
-        ras, decs = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
+    #ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
 
-    import matplotlib
     matplotlib.use('Agg')
     
     fig = plt.figure(figsize=(7, 7))
@@ -498,7 +506,7 @@ if args.mode == 'c' or args.deg_fwhm:
     plt.xlabel("ra (degrees)")
     plt.ylabel("dec (degrees)")
     ax = plt.gca()
-    for i in range(len(rads)):
+    for i in range(len(ras)):
         if  -0.00001 < sin(np.radians(decds[i]))**2 < 0.00001:
             fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (0.00001+sin(np.radians(decds[i]))**2 ) ) /2.
         else:
@@ -510,8 +518,8 @@ if args.mode == 'c' or args.deg_fwhm:
     plt.plot(rads,decds,'ko',ms=1)
     #plt.plot([114.25,97.5,115.5],[-30.65,-28.56,-28.36],'go',ms=5)
     #plt.plot([114.25,115.5],[-30.65,-28.36],'go',ms=5)
-    plt.axis([113.0, 116.7, -31.5, -27.5])
-    plt.savefig('grid_positions_2pulsars_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
+    #plt.axis([113.0, 116.7, -31.5, -27.5])
+    plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
     
     """
     fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
@@ -533,8 +541,12 @@ if args.mode == 'c' or args.deg_fwhm:
     #ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/pabeam/output/grid_positions_dec_limited.txt',unpack=True) 
     """
     
-    ras, decs, theta, phi, rads, decds = np.genfromtxt('./grid_positions_ra_dec_limited.txt',unpack=True) 
+    #ras, decs, theta, phi, rads, decds = np.genfromtxt('./grid_positions_ra_dec_limited.txt',unpack=True) 
+    rads = radls
+    decds = decdls
+
     #dec limited plot
+    fig = plt.figure(figsize=(7, 7))
     plt.xlabel("ra (degrees)")
     plt.ylabel("dec (degrees)")
     ax = plt.gca()
@@ -548,7 +560,7 @@ if args.mode == 'c' or args.deg_fwhm:
     #plt.plot([114.25,97.5,115.5],[-30.65,-28.56,-28.36],'go',ms=1)
     #plt.plot([114.25,115.5],[-30.65,-28.36],'go',ms=2)
     
-    plt.savefig('grid_positions_run3_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
+    plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
     
     
     
