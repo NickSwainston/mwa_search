@@ -1181,99 +1181,105 @@ if args.mode == "b":
     elif args.all:
         args.begin, args.end = meta.obs_max_min(args.observation)
     
+    if args.pulsar_file:
+        with open(args.pulsar_file) as f:
+            lines = f.readlines()
+    elif args.pointing:
+        lines = [args.pointing.replace("_"," ")]
     #Loop through pointings and check if any are done
-    with open(args.pulsar_file) as lines:
-        for i, line in enumerate(lines):
-            if line.startswith("#"):
-                continue
-            ra, dec = line.split(" ")
-            pointing_dir = "/group/mwaops/vcs/"+obs+"/pointings/"+ra+"_"+dec[:-1]
-            if os.path.exists(pointing_dir):
-                #first check is there's already spliced files
-                expected_file_num = int( (args.end-args.begin)/200 )
-                if not (args.end-args.begin)%200 == 0:
-                    expected_file_num += 1
-                
-                missing_file_check = False
-                for n in range(1,expected_file_num):
-                    if not glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
-                        missing_file_check = True
-                if missing_file_check:
-                    #check if we have any unspliced files
-                    print pointing_dir+"/*_"+obs+"_*.fits"
-                    if glob.glob(pointing_dir+"/*_"+obs+"_*.fits"):
-                        #there are some so going to resubmit jobs
-                        beam_meta_data = getmeta(service='obs', params={'obs_id':obs})
-                        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
-                        
-                        job_id_list =[]
-                        unspliced_check = False
-                        for ch in channels:
-                            channel_check = False
-                            for n in range(1,expected_file_num):
-                                if not glob.glob(pointing_dir+"/*_"+obs+"_ch*"+str(ch)+"_00*"+\
-                                        str(n)+".fits"):
-                                    channel_check = True
-                                    unspliced_check = True
-                            if channel_check:
-                                #missing some files for that channel so resumbit script
-                                if os.path.exists("/group/mwaops/vcs/"+obs+"/batch/mb_"+ra+"_"+\
-                                        dec[:-1]+"_ch"+str(ch)+".batch"):
-                                    #delete files of that channel
-                                    files_list = os.listdir(pointing_dir)
-                                    for f in files_list:
-                                        if ("ch0"+str(ch) in f) or ("ch"+str(ch) in f):
-                                            os.remove(pointing_dir +"/" + f)
-                                    submit_line = "sbatch /group/mwaops/vcs/"+obs+"/batch/mb_"+ra+\
-                                                  "_"+dec[:-1]+"_ch"+str(ch)+".batch"
-                                    submit_cmd = subprocess.Popen(submit_line,shell=True,\
-                                                                    stdout=subprocess.PIPE)
-                                    print submit_line
-                                    for line in submit_cmd.stdout:
-                                        print line,
-                                        if "Submitted" in line:
-                                            temp = line.split()
-                                            job_id_list.append(temp[3])
+    for line in lines:
+        if line.startswith("#"):
+            continue
+        ra, dec = line.split(" ")
+        if dec.endswith("\n"):
+            dec = dec[:-1]
+        pointing_dir = "/group/mwaops/vcs/"+obs+"/pointings/"+ra+"_"+dec
+        if os.path.exists(pointing_dir):
+            #first check is there's already spliced files
+            expected_file_num = int( (args.end-args.begin)/200 )
+            if not (args.end-args.begin)%200 == 0:
+                expected_file_num += 1
+            
+            missing_file_check = False
+            for n in range(1,expected_file_num):
+                if not glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
+                    missing_file_check = True
+            if missing_file_check:
+                #check if we have any unspliced files
+                print pointing_dir+"/*_"+obs+"_*.fits"
+                if glob.glob(pointing_dir+"/*_"+obs+"_*.fits"):
+                    #there are some so going to resubmit jobs
+                    beam_meta_data = getmeta(service='obs', params={'obs_id':obs})
+                    channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+                    
+                    job_id_list =[]
+                    unspliced_check = False
+                    for ch in channels:
+                        channel_check = False
+                        for n in range(1,expected_file_num):
+                            if not glob.glob(pointing_dir+"/*_"+obs+"_ch*"+str(ch)+"_00*"+\
+                                    str(n)+".fits"):
+                                channel_check = True
+                                unspliced_check = True
+                        if channel_check:
+                            #missing some files for that channel so resumbit script
+                            if os.path.exists("/group/mwaops/vcs/"+obs+"/batch/mb_"+ra+"_"+\
+                                    dec+"_ch"+str(ch)+".batch"):
+                                #delete files of that channel
+                                files_list = os.listdir(pointing_dir)
+                                for f in files_list:
+                                    if ("ch0"+str(ch) in f) or ("ch"+str(ch) in f):
+                                        os.remove(pointing_dir +"/" + f)
+                                submit_line = "sbatch /group/mwaops/vcs/"+obs+"/batch/mb_"+ra+\
+                                              "_"+dec+"_ch"+str(ch)+".batch"
+                                submit_cmd = subprocess.Popen(submit_line,shell=True,\
+                                                                stdout=subprocess.PIPE)
+                                print submit_line
+                                for line in submit_cmd.stdout:
+                                    print line,
+                                    if "Submitted" in line:
+                                        temp = line.split()
+                                        job_id_list.append(temp[3])
 
-                                else:
-                                    print "ERROR no batch file found"
+                            else:
+                                print "ERROR no batch file found"
 
-                        if unspliced_check:
-                            #splice wraps them when they're done
-                            sleep(1)
-                            job_id_str = ""
-                            for j in job_id_list:
-                                job_id_str += ":" + str(j)
-                            os.chdir(pointing_dir)
-                            submit_line = 'sbatch -t 60 --depend=afterany'+job_id_str+\
-                                           ' split_wrapper.py -o '+obs
-                            submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-                        else:
-                            #If only unspliced files then splice
-                            os.chdir(pointing_dir)
-                            submit_line = 'sbatch -t 60 split_wrapper.py -o '+obs
-                            submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-
-                    else:
-                        #TODO no files gotta beamform
-                        print "No files in "+ra+"_"+dec[:-1]+" starting beamforming"
-                        submit_line = "process_vcs.py -m beamform -a -o "+str(obs)+" -O "+\
-                                      str(args.cal_obs)+" --DI_dir="+args.DI_dir+" -p "+ra+" "+dec[:-1]
-                        print submit_line
+                    if unspliced_check:
+                        #splice wraps them when they're done
+                        sleep(1)
+                        job_id_str = ""
+                        for j in job_id_list:
+                            job_id_str += ":" + str(j)
+                        os.chdir(pointing_dir)
+                        submit_line = 'sbatch -t 60 --depend=afterany'+job_id_str+\
+                                       ' split_wrapper.py -o '+obs
                         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-                        for line in submit_cmd.stdout:
-                            print line,
-                                  
+                    else:
+                        #If only unspliced files then splice
+                        os.chdir(pointing_dir)
+                        submit_line = 'sbatch -t 60 split_wrapper.py -o '+obs
+                        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
 
-            else:
-                # do beamforming
-                print "No pointing directory for "+ra+"_"+dec[:-1]+" starting beamforming"
-                submit_line = "process_vcs.py -m beamform -a -o "+str(obs)+" -O "+\
-                              str(args.cal_obs)+" --DI_dir="+args.DI_dir+" -p "+ra+" "+dec[:-1]
-                print submit_line
-                submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-                for line in submit_cmd.stdout:
-                    print line,
+                else:
+                    #TODO no files gotta beamform
+                    print "No files in "+ra+"_"+dec+" starting beamforming"
+                    submit_line = "process_vcs.py -m beamform -a -o "+str(obs)+" -O "+\
+                                  str(args.cal_obs)+" --DI_dir="+args.DI_dir+" -p "+ra+" "+dec
+                    print submit_line
+                    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+                    for line in submit_cmd.stdout:
+                        print line,
+                              
+
+        else:
+            # do beamforming
+            print "No pointing directory for "+ra+"_"+dec+" starting beamforming"
+            submit_line = "process_vcs.py -m beamform -a -o "+str(obs)+" -O "+\
+                          str(args.cal_obs)+" --DI_dir="+args.DI_dir+" -p "+ra+" "+dec
+            print submit_line
+            submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+            for line in submit_cmd.stdout:
+                print line,
  
 
 if args.mode == "r" or args.mode == None:
