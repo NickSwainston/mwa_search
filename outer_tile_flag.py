@@ -52,6 +52,7 @@ if __name__ == '__main__':
             """)
     parser.add_argument('-o','--obsid',type=str,help='The observation ID of the fits file to be searched')
     parser.add_argument("--out_dir",type=str,action='store',help="Location (full path) to write the output data files",default=".")
+    parser.add_argument("--flag_file",type=str,action='store',help="Location of a flagged_tiles.txt file to alter to include outer tiles.")
     parser.add_argument("--flagged_tiles",type=str,nargs='+',action='store',metavar="tile",\
                             help="The tiles flagged as in when running the RTS. Must be a list of space separated tile numbers, e.g. 0 1 2 5",default=None)
     parser.add_argument("-n","--numflag",type=int,help="Number of tiles to flag",default=10)
@@ -82,7 +83,10 @@ if __name__ == '__main__':
     tile_n = [x for _,x in sorted(zip(dis,tile_n))]
     dis = sorted(dis)
     #print dis
-
+    print "Tiles from furtherst to closest: ",
+    for i in reversed(tile_n):
+        print i,
+    print "\n",
     #get freq from metadata
     beam_meta_data = meta.getmeta(service='obs', params={'obs_id':args.obsid})
     channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
@@ -93,9 +97,6 @@ if __name__ == '__main__':
 
     #simulate change in FWHM
     FWHMs = []
-    print range(1,len(tile_n))
-    print range(len(xpos)-1)
-    print range(1,len(ypos)-1)
     #for fn in range(1,len(tile_n)-1):
     for fn in range(1,60):
         temp_xpos = xpos[:-fn]
@@ -123,13 +124,20 @@ if __name__ == '__main__':
     flagged_ypos = ypos[-(args.numflag):]
     flagged_tiles = tile_n[-(args.numflag):]
     print "Tiles to flag: ",flagged_tiles
+    
+    if args.flag_file:
+        with open(args.flag_file, 'a+') as f:
+            lines = f.readlines()
+            for ft in flagged_tiles:
+                if not (str(ft)+"\n") in lines:
+                    f.write(str(ft)+"\n")
 
     xpos = xpos[:-(args.numflag)]
     ypos = ypos[:-(args.numflag)]
     dis = dis[:-(args.numflag)]
 
-    plt.scatter(xpos,ypos, s=0.2)
-    plt.scatter(flagged_xpos,flagged_ypos, s=0.2)
+    plt.scatter(xpos,ypos, s=0.4)
+    plt.scatter(flagged_xpos,flagged_ypos, s=0.4)
     plt.show()
 
     #calculate relative signal to noise
