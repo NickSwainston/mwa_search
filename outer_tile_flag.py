@@ -56,6 +56,7 @@ if __name__ == '__main__':
     parser.add_argument("--flagged_tiles",type=str,nargs='+',action='store',metavar="tile",\
                             help="The tiles flagged as in when running the RTS. Must be a list of space separated tile numbers, e.g. 0 1 2 5",default=None)
     parser.add_argument("-n","--numflag",type=int,help="Number of tiles to flag",default=10)
+    parser.add_argument("-p","--plot",action='store_true',help="Creates several plots")
     args=parser.parse_args()
 
     if args.flagged_tiles is None:
@@ -93,6 +94,7 @@ if __name__ == '__main__':
     minfreq = float(min(channels))
     maxfreq = float(max(channels))
     centrefreq = 1.28 * 10**6 * (minfreq + (maxfreq-minfreq)/2) #in Hz
+    print centrefreq
     wavelength = 2.997*10**8 / centrefreq
 
     #simulate change in FWHM
@@ -112,14 +114,10 @@ if __name__ == '__main__':
                 baselines.append(temp_base)
         #print baselines
         FWHMs.append(wavelength/max(baselines)/3.14*180)
+    print FWHMs[0]
+    print FWHMs[15]
     
-    plt.clf()
-    plt.plot(FWHMs)
-    plt.xlabel("number of tiles flagged (furthest first)")
-    plt.ylabel("FHWM in deg")
-    plt.show()
-
-    #remove N furthes tiles
+       #remove N furthes tiles
     flagged_xpos = xpos[-(args.numflag):]
     flagged_ypos = ypos[-(args.numflag):]
     flagged_tiles = tile_n[-(args.numflag):]
@@ -136,20 +134,101 @@ if __name__ == '__main__':
     ypos = ypos[:-(args.numflag)]
     dis = dis[:-(args.numflag)]
 
-    plt.scatter(xpos,ypos, s=0.4)
-    plt.scatter(flagged_xpos,flagged_ypos, s=0.4)
-    plt.show()
+    if args.plot:
+        from mpl_toolkits.axes_grid1 import host_subplot
+        import mpl_toolkits.axisartist as AA
+        import matplotlib.pyplot as plt
+        
+       
+        #calculate relative signal to noise
+        tile_n_range = range(1,orig_tn)
+        sn_range = []
+        for t in tile_n_range:
+            sn_range.append(1.-np.sqrt(t*(t-1))/orig_tn)
+                
+        """
+        host = host_subplot(111, axes_class=AA.Axes)
+        plt.subplots_adjust(right=0.75)
 
-    #calculate relative signal to noise
-    tile_n_range = range(1,orig_tn)
-    sn_range = []
-    for t in tile_n_range:
-        sn_range.append(np.sqrt(t*(t-1))/orig_tn)
+        par1 = host.twinx()
 
-    plt.clf()
-    plt.plot(tile_n_range, sn_range)
-    plt.show()
+        offset = 60
 
-    print "Will have a reltaive sensitivity of "+str(sn_range[-(args.numflag)])
+
+        host.set_xlim(0, 2)
+        host.set_ylim(0, 2)
+
+        host.set_xlabel("Distance")
+        host.set_ylabel("Density")
+        par1.set_ylabel("Temperature")
+
+        p1, = host.plot([0, 1, 2], [0, 1, 2], label="Density")
+        p2, = par1.plot([0, 1, 2], [0, 3, 2], label="Temperature")
+
+        par1.set_ylim(0, 4)
+
+        host.legend()
+
+        host.axis["left"].label.set_color(p1.get_color())
+        par1.axis["right"].label.set_color(p2.get_color())
+
+        plt.draw()
+        plt.show()
+        
+        """
+        plt.clf()
+        host = host_subplot(111, axes_class=AA.Axes)
+        par1 = host.twinx()
+
+        offset = 0
+        new_fixed_axis = par1.get_grid_helper().new_fixed_axis
+        par1.axis["right"] = new_fixed_axis(loc="right",
+                                            axes=par1,
+                                            offset=(offset, 0))
+
+        par1.axis["right"].toggle(all=True)
+
+        
+        host.set_ylim(min(FWHMs), max(FWHMs))
+        par1.set_ylim(min(sn_range[:len(FWHMs)]), max(sn_range[:len(FWHMs)]))
+        
+        if int(args.obsid) == 1117643248 and centrefreq == 118400000.0:
+            #use some simulated values from pabeam.py
+            
+            host.set_ylim(0.014667480523, max(FWHMs))
+            p3, = host.plot([0,1,3,5,9,12,16],[0.014667480523,0.0151320483657,0.0157325732253,\
+                            0.0162094738779,0.01782310605,0.0194199249546,0.0198223907006],\
+                            label="Simulated FWHM")
+
+
+        #plt.plot(FWHMs)
+        host.set_xlabel("Number of tiles flagged (furthest first)")
+        host.set_ylabel("FHWM in deg")
+        par1.set_ylabel("Relative signal to noise")
+        
+        print len(tile_n_range),len(FWHMs), len(sn_range)
+        p1, = host.plot(tile_n_range[:len(FWHMs)], FWHMs, label="Calculated FWHM")
+        p2, = par1.plot(tile_n_range[:len(FWHMs)], sn_range[:len(FWHMs)], label="Relative S/N")
+        
+
+        host.legend()
+
+        host.axis["left"].label.set_color(p1.get_color())
+        par1.axis["right"].label.set_color(p2.get_color())
+        
+        plt.draw()
+        plt.savefig("outer_tiles_flagged_plot.png")
+        plt.show()
+        
+
+        #plot tile positions
+        dot_size = 1
+        plt.scatter(xpos,ypos, s=dot_size)
+        plt.scatter(flagged_xpos,flagged_ypos, color='r',s=dot_size)
+        #plt.show()
+ 
+
+
+    print "Will have a reltaive sensitivity of "+str(sn_range[args.numflag])
 
    
