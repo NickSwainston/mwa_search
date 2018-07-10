@@ -6,49 +6,42 @@ import argparse
 import urllib
 import urllib2
 import json
+import glob
 from time import sleep
+
+#vcstools imports
 import blindsearch_database
 import mwa_metadb_utils as meta
-import glob
+import process_vcs as pvcs
+
 
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1133329792 -p 19:45:14.00_-31:47:36.00
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1150234552 -p 00:34:08.8703_-07:21:53.409 --pulsar J0034-0721
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1099414416 -p 05:34:32_+22:00:53 --pulsar J0534+2200
 
 #1163853320 47 tuck data
-
-
-def getmeta(service='obs', params=None):
+def your_slurm_queue_check(max_queue = 100, pbs = False):
     """
-    Given a JSON web service ('obs', find, or 'con') and a set of parameters as
-    a Python dictionary, return the RA and Dec in degrees from the Python dictionary.
-    
-    getmeta(service='obs', params=None)
+    Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
-    BASEURL = 'http://mwa-metadata01.pawsey.org.au/metadata/'
-    if params:
-        data = urllib.urlencode(params)  # Turn the dictionary into a string with encoded 'name=value' pairs
+    if pbs:
+        submit_line = 'qstat -u $USER | wc -l'
     else:
-        data = ''
-    #Validate the service name
-    if service.strip().lower() in ['obs', 'find', 'con']:
-        service = service.strip().lower()
-    else:
-        print "invalid service name: %s" % service
-        return
-    #Get the data
-    try:
-        result = json.load(urllib2.urlopen(BASEURL + service + '?' + data))
-    except urllib2.HTTPError as error:
-        print "HTTP error from server: code=%d, response:\n %s" % (error.code, error.read())
-        return
-    except urllib2.URLError as error:
-        print "URL or network error: %s" % error.reason
-        return
-    #Return the result dictionary
-    return result
-    
-    
+        submit_line = 'squeue -u $USER | wc -l'
+    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+    q_num = ""
+    for line in submit_cmd.stdout:
+            q_num += line
+    print "q: " + str(int(q_num))
+    while (int(q_num) > 100 ):
+        print "waiting 100 s for queue to clear"
+        sleep(100)
+        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+        q_num = ""
+        for line in submit_cmd.stdout:
+                q_num += line
+    return
+
 def add_database_function(pbs):
     if pbs:
         batch_line ='#PBS -q gstar\n'+\
@@ -234,7 +227,35 @@ def dm_i_to_file(dm_i):
     else:
         print dm_i
     return dm_file
+
+def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir):
+    """
+    Does some basic checks and formating before using beamforming from process_vcs.py
+    """
+    #check queue
+    your_slurm_queue_check()
+
+    #set up and launch beamfroming
+    data_dir = '/astro/mwaops/vcs/{0}'.format(obs)
+    product_dir = '/group/mwaops/vcs/{0}'.format(obs)
+    job_id_list = pvcs.coherent_beam(obs, begin, end, data_dir, product_dir,
+                  "{0}/batch".format(product_dir), 
+                  "{0}/{1}_metafits_ppds.fits".format(data_dir, obs), 128, pointing, args,
+                  bf_formats=" -p", DI_dir=DI_dir, calibration_type="rts")
     
+    #get a job dependancy string
+    job_id_str = ""
+    for i in job_id_list:
+        job_id_str += ":" + str(i)
+    
+    #create a split wrapper dependancy
+    os.chdir(pointing_dir)
+    submit_line = 'sbatch -t 60 --dependency=afterok'+job_id_str+' split_wrapper.py -o '+obs
+    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+ 
+    return
+
+
 #-------------------------------------------------------------------------------------------------------------
 def rfifind(obsid, pointing, work_dir, sub_dir,pbs,pulsar=None):
     code_comment = raw_input("Please right a comment describing the purpose of this blindsearch. eg testing: ")
@@ -333,7 +354,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs,pulsar=None):
     
     #Get the centre freq channel and then run DDplan.py to work out the most effective DMs
     print "Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(obsid)
-    beam_meta_data = getmeta(service='obs', params={'obs_id':obsid})
+    beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
     channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
     minfreq = float(min(channels))
     maxfreq = float(max(channels))
@@ -1159,7 +1180,6 @@ group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to p
 group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
 group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
 args=parser.parse_args()
-
 if args.work_dir:
     w_d = args.work_dir
 elif args.pbs:
@@ -1209,7 +1229,7 @@ if args.mode == "b":
                 print pointing_dir+"/*_"+obs+"_*.fits"
                 if glob.glob(pointing_dir+"/*_"+obs+"_*.fits"):
                     #there are some so going to resubmit jobs
-                    beam_meta_data = getmeta(service='obs', params={'obs_id':obs})
+                    beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obs})
                     channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
                     
                     job_id_list =[]
@@ -1263,27 +1283,18 @@ if args.mode == "b":
                 else:
                     #TODO no files gotta beamform
                     print "No files in "+ra+"_"+dec+" starting beamforming"
-                    submit_line = "process_vcs.py -m beamform -a -o "+str(obs)+" -O "+\
-                                  str(args.cal_obs)+" --DI_dir="+args.DI_dir+" -p "+ra+" "+dec
-                    print submit_line
-                    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-                    for line in submit_cmd.stdout:
-                        print line,
+                    process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args,\
+                                        args.DI_dir,pointing_dir)
                               
 
         else:
             # do beamforming
             print "No pointing directory for "+ra+"_"+dec+" starting beamforming"
-            submit_line = "process_vcs.py -m beamform -a -o "+str(obs)+" -O "+\
-                          str(args.cal_obs)+" --DI_dir="+args.DI_dir+" -p "+ra+" "+dec
-            print submit_line
-            submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-            for line in submit_cmd.stdout:
-                print line,
+            
+            process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,pointing_dir)
  
 
 if args.mode == "r" or args.mode == None:
-    print "check"
     rfifind(obs, point, w_d, s_d,args.pbs,args.pulsar)
 if args.mode == "p":
     prepdata(obs, point, w_d, s_d,args.row_num,args.pbs,args.pulsar)
