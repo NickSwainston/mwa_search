@@ -113,7 +113,7 @@ if __name__ == '__main__':
                 #print temp_base
                 baselines.append(temp_base)
         #print baselines
-        FWHMs.append(wavelength/max(baselines)/3.14*180)
+        FWHMs.append(np.degrees(1.22*wavelength/max(baselines))*60.)
     print FWHMs[0]
     print FWHMs[15]
     
@@ -196,14 +196,14 @@ if __name__ == '__main__':
             #use some simulated values from pabeam.py
             
             host.set_ylim(0.014667480523, max(FWHMs))
-            p3, = host.plot([0,1,3,5,9,12,16],[0.014667480523,0.0151320483657,0.0157325732253,\
-                            0.0162094738779,0.01782310605,0.0194199249546,0.0198223907006],\
+            p3, = host.plot([0,1,3,5,9,12,16],np.array([0.014667480523,0.0151320483657,0.0157325732253,\
+                            0.0162094738779,0.01782310605,0.0194199249546,0.0198223907006])*60.,\
                             label="Simulated FWHM")
 
 
         #plt.plot(FWHMs)
         host.set_xlabel("Number of tiles flagged (furthest first)")
-        host.set_ylabel("FHWM in deg")
+        host.set_ylabel("FHWM in arcmin")
         par1.set_ylabel("Relative signal to noise")
         
         print len(tile_n_range),len(FWHMs), len(sn_range)
@@ -222,10 +222,10 @@ if __name__ == '__main__':
         
 
         #plot tile positions
-        dot_size = 1
+        dot_size = 4
         plt.scatter(xpos,ypos, s=dot_size)
         plt.scatter(flagged_xpos,flagged_ypos, color='r',s=dot_size)
-        #plt.show()
+        plt.show()
  
 
 

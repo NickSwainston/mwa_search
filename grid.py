@@ -460,7 +460,7 @@ if args.mode == 'c' or args.deg_fwhm:
                 decds.append(decd)
                 #ra_decs.append([rag,decg,az,za,rad,decd])
     print "Recording the poisitons in grid_positions.txt"            
-    with open('grid_positions.txt','w') as out_file:
+    with open('grid_positions_f'+str(args.fraction)+'_l'+str(args.loop)+'.txt','w') as out_file:
         if args.verbose_file:
             out_line = "#ra   dec    az     za\n" 
             out_file.write(out_line)
@@ -478,7 +478,8 @@ if args.mode == 'c' or args.deg_fwhm:
     radls = []
     decdls = []
     print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
-    with open('grid_positions_ra_dec_limited.txt','w') as out_file:
+    with open('grid_positions_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+\
+              '.txt','w') as out_file:
         if args.verbose_file:
             out_line = "#ra   dec    az     za\n" 
             out_file.write(out_line)
@@ -545,25 +546,36 @@ if args.mode == 'c' or args.deg_fwhm:
     rads = radls
     decds = decdls
 
-    #dec limited plot
-    fig = plt.figure(figsize=(7, 7))
-    plt.xlabel("ra (degrees)")
-    plt.ylabel("dec (degrees)")
-    ax = plt.gca()
+    rads = [x for _,x in sorted(zip(decds,rads))]
+    decds = sorted(decds)
+
     for i in range(len(rads)):
+        #dec limited plot
+        if i%100==0:
+            fig = plt.figure(figsize=(7, 7))
+            plt.xlabel("ra (degrees)")
+            plt.ylabel("dec (degrees)")
+            ax = plt.gca()
+            plt.axes().set_aspect('equal')
         fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
         #fwhm_circle = acos( cos(np.radians(decds[i]))**2 + sin(np.radians(decds[i]))**2 *cos(centre_fwhm) ) /2.
         circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
         ax.add_artist(circle)
-    plt.axes().set_aspect('equal')
+        if i%100==99:
+            plt.plot(rads,decds,'ko',ms=1)
+            #plt.plot([114.25,97.5,115.5],[-30.65,-28.56,-28.36],'go',ms=1)
+            #plt.plot([114.25,115.5],[-30.65,-28.36],'go',ms=2)
+            
+            plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+'_'+str(i/100)+'.png',bbox_inches='tight', dpi =1000)
     plt.plot(rads,decds,'ko',ms=1)
     #plt.plot([114.25,97.5,115.5],[-30.65,-28.56,-28.36],'go',ms=1)
     #plt.plot([114.25,115.5],[-30.65,-28.36],'go',ms=2)
     
-    plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
-    
-    
-    
+    plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+'_'+str(i/100)+'.png',bbox_inches='tight', dpi =1000)
+        
+
+        
+        
     
     print "Number of pointings: " + str(len(theta))
     

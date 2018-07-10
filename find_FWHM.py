@@ -85,7 +85,8 @@ args=parser.parse_args()
 temp = args.file_loc.split("/")
 obsid, time, freq, ra, dec = temp[-1].split("_")
 freq = float(freq[:-3])
-dec,x = dec.split(".")
+#dec,x = dec.split(".")
+dec = dec[:-4]
 if "." in time:
    time, x = time.split(".")
 time = Time(int(time), format="gps")
@@ -100,9 +101,9 @@ metadata = get_obs_metadata(int(obsid))
 print "Loading file"
 theta, phi, amp = np.genfromtxt(args.file_loc, usecols=(0,1,8), skip_header=14, unpack=True)
 
-print "Sorting"
-az, za = np.meshgrid(np.radians(sorted(set(phi))), np.radians(sorted(set(theta))))
-delays = [metadata['xdelays'], metadata['ydelays']]
+#print "Sorting"
+#az, za = np.meshgrid(np.radians(sorted(set(phi))), np.radians(sorted(set(theta))))
+#delays = [metadata['xdelays'], metadata['ydelays']]
 """
 print "Beam sim"
 gx, gy = pb.MWA_Tile_full_EE(za, az, freq=freq*1e6, delays=delays, power=True, zenithnorm=True)
@@ -130,14 +131,16 @@ for i in range(len(amp)):
         beam_line.append(amp[i])
         beam_za.append(theta[i])
 #print "Beam line to be plotted: " + str(beam_line)
-
-print "Plot beam"
-import matplotlib.pyplot as pl
-pl.plot(beam_za, beam_line)
-pl.savefig("zenith_line_plot_"+ra+"_"+dec+".png")
-pl.show()
-
 spline = UnivariateSpline(beam_za, beam_line-np.max(beam_line)/2., s=0)
 print spline.roots()
 r1, r2 = spline.roots()
-print ra,dec,str(r1-r2)
+FWHM = abs(r1-r2)
+print ra,dec,FWHM
+print "Plot beam"
+
+import matplotlib.pyplot as pl
+pl.plot(beam_za, beam_line)
+pl.savefig("zenith_line_plot_"+ra+"_"+dec+"_fwhm_"+str(FWHM)+".png")
+pl.show()
+
+
