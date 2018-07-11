@@ -228,7 +228,7 @@ def dm_i_to_file(dm_i):
         print dm_i
     return dm_file
 
-def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir, check):
+def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir, check, search):
     """
     Does some basic checks and formating before using beamforming from process_vcs.py
     """
@@ -249,10 +249,15 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir, ch
         job_id_str += ":" + str(i)
     
     #create a split wrapper dependancy
-    splice_wrapper_batch = 'splice_wrapper.py_{0}_{1}'.format(obs, pointing)
+    splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, pointing)
     commands = []
     commands.append('splice_wrapper.py -o {0} -d {1}'.format(obs, pointing_dir))
-    commands.append('blindsearch_pipeline -o {0} -b {1} -e {2} -p {3} -m b --DI_dir={4}'.format(obs, begin, end, pointing, DI_dir))
+    if args.search:
+        commands.append('blindsearch_pipeline -o {0} -b {1} -e {2} -p {3} -m b --DI_dir={4} --search'.\
+                        format(obs, begin, end, pointing, DI_dir))
+    else:
+        commands.append('blindsearch_pipeline -o {0} -b {1} -e {2} -p {3} -m b --DI_dir={4}'.\
+                        format(obs, begin, end, pointing, DI_dir))
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
                  slurm_kwargs={"time": 3600, "partition": "workq"},
@@ -296,55 +301,35 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs,pulsar=None):
             
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
-            
-    #send off rfi job
-    with open('batch/rfifind.batch','w') as batch_file:
-        if pbs:
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#PBS -N rfifind\n" +\
-                         "#PBS -o out/rfifind.out\n" +\
-                         "#PBS -e out/rfifind.error\n" +\
-                         "#PBS -l walltime=3:50:00\n" +\
-                         "cd " + work_dir + sub_dir + "\n"
-        else:
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#SBATCH --partition=workq\n" +\
-                         "#SBATCH --job-name=rfifind\n" +\
-                         "#SBATCH --output=out/rfifind.out\n" +\
-                         "#SBATCH --time=3:50:00\n" +\
-                         "ncpus=20\n" +\
-                         "export OMP_NUM_THREADS=$ncpus\n"
-        batch_file.write(batch_line)
-        batch_file.write(add_database_function(pbs))
-        batch_line = 'run "rfifind" "' + ncpuscom + '-noclip -time 12.0 '+\
-                        '-o ' + str(obsid) + ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir + str(obsid) + \
-                        '/pointings/' + str(pointing) + '/' + str(obsid) + '*.fits" '+str(bs_id)+"\n"+\
-                        'blindsearch_database.py -c rfifind -m p -b ' +str(bs_id) + '\n'+\
-                        "blindsearch_pipeline.py -o "\
-                          + str(obsid) + " -p " + str(pointing) + " -m p -w " + work_dir +\
-                          " -s " +str(sub_dir)+ " -r " +str(bs_id)
-        batch_file.write(batch_line)
-        if not pulsar == None:
-            batch_line = " --pulsar " + str(pulsar)
-            batch_file.write(batch_line)
-        if pbs:
-            batch_file.write(" --pbs ")
-        batch_file.write("\n")
-        if pbs:
-            batch_line ="prepdata " + ncpuscom + " -dm 0 " +\
-                        "-numout " + str(numout) + " -o " + str(obsid) + \
-                        "_DM0.00 " + fits_dir + str(obsid) + \
-                        "/pointings/" + str(pointing) + "/" + str(obsid) + "*.fits"
-        else:
-            batch_line ="$aprun prepdata " + ncpuscom + " -dm 0 " +\
-                        "-numout " + str(numout) + " -o " + str(obsid) + \
-                        "_DM0.00 " + fits_dir + str(obsid) + \
-                        "/pointings/" + str(pointing) + "/" + str(obsid) + "*.fits"
-        batch_file.write(batch_line)
-    submit_line = qsub + 'batch/rfifind.batch'
-    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-    for line in submit_cmd.stdout:
-        print line,
+    
+    
+    rfi_batch = 'rfi_{0}'.format(obs)
+    commands = []
+    commands.append(add_database_function(pbs))
+    commands.append('run "rfifind" "' + ncpuscom + '-noclip -time 12.0 ' + '-o ' + str(obsid) +\
+                    ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
+                    str(obsid) + '/pointings/' + str(pointing) + '/' + str(obsid) + '*.fits" '+\
+                    str(bs_id))
+    commands.append('blindsearch_database.py -c rfifind -m p -b ' +str(bs_id))
+    
+    # work out the args needed for the next pipeline step
+    next_pipe_str = "blindsearch_pipeline.py -o " + str(obsid) + " -p " + str(pointing) +\
+                    " -m p -w " + work_dir + " -s " +str(sub_dir)+ " -r " +str(bs_id)
+    if not pulsar == None:
+        next_pipe_str += " --pulsar " + str(pulsar)
+    if pbs:
+        next_pipe_str += " --pbs "
+    commands.append(next_pipe_str)                    
+    
+    commands.append("prepdata " + ncpuscom + " -dm 0 " "-numout " + str(numout) + " -o " +\
+                    str(obsid) + "_DM0.00 " + fits_dir + str(obsid) + \
+                    "/pointings/" + str(pointing) + "/" + str(obsid) + "*.fits")
+    
+    submit_slurm(rfi_batch, commands,
+                 batch_dir="{0}/{1}/batch".format(work_dir,obsid),
+                 slurm_kwargs={"time": 14400, "partition": "workq"},#4 hours
+                 submit=True)
+ 
     return
 
 
@@ -1185,6 +1170,7 @@ group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to p
 group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
 group_beamform.add_argument("-c", "--check", type=int, help="Number of times the beamformer has attempted to redo the pointings. Stops when it gets to 5. Default 0.", default=0)
 group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
+group_beamform.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
 args=parser.parse_args()
 if args.work_dir:
     w_d = args.work_dir
@@ -1276,29 +1262,30 @@ if args.mode == "b":
                         job_id_str = ""
                         for j in job_id_list:
                             job_id_str += ":" + str(j)
-                        os.chdir(pointing_dir)
                         submit_line = 'sbatch -t 60 --depend=afterany'+job_id_str+\
-                                       ' split_wrapper.py -o '+obs
+                                       ' splice_wrapper.py -o '+obs + ' -d '+pointing_dir
                         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
                     else:
                         #If only unspliced files then splice
-                        os.chdir(pointing_dir)
-                        submit_line = 'sbatch -t 60 split_wrapper.py -o '+obs
+                        submit_line = 'sbatch -t 60 splice_wrapper.py -o '+obs + ' -d '+pointing_dir
                         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
 
                 else:
                     #TODO no files gotta beamform
                     print "No files in "+ra+"_"+dec+" starting beamforming"
                     process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args,\
-                                        args.DI_dir,pointing_dir, args.check)
+                                        args.DI_dir,pointing_dir, args.check,args.search)
                               
-
+            else:
+                #All files there so the check has succeded and going to start the pipeline
+                if args.search:
+                    rfifind(obs, point, w_d, s_d,args.pbs,args.pulsar)
         else:
             # do beamforming
             print "No pointing directory for "+ra+"_"+dec+" starting beamforming"
             
             process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,\
-                                pointing_dir, args.check)
+                                pointing_dir, args.check, args.search)
  
 
 if args.mode == "r" or args.mode == None:
