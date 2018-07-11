@@ -420,7 +420,7 @@ if args.mode == 'c' or args.deg_fwhm:
     ra_decs = []      
     ras = []; decs = []; theta = []; phi = []; rads = []; decds = []
     
-    print "Converting to ra dec"                
+    print "Converting ra dec to degrees"                
     for l in range(len(pointing_list)):
         if l%50 == 0:
             print "Calculating loop number: " +str(l)
@@ -432,35 +432,49 @@ if args.mode == 'c' or args.deg_fwhm:
                 
                 if decd > 90.:
                     decd = decd - 180.
-                coord = SkyCoord(rad,decd,unit=(u.deg,u.deg))
-                rag = coord.ra.to_string(unit=u.hour, sep=':')
-                decg = coord.dec.to_string(unit=u.degree, sep=':')
-                #format the ra dec strings 
-                if len(rag) > 11:
-                    rag = rag[:11]
-                if len(decg) > 12:
-                    decg = decg[:12]
-                    
-                if len(rag) == 8:
-                    rag = rag + '.00'
-                if len(decg) == 9:
-                    decg = decg + '.00'
-
-
-                if args.verbose_file:
-                    az,za,azd,zad = getTargetAZZA(rag,decg,time)
-                else:
-                    az,za,azd,zad = [0,0,0,0]
-                
-                ras.append(rag)
-                decs.append(decg)
-                theta.append(az)
-                phi.append(za)
                 rads.append(rad)
                 decds.append(decd)
                 #ra_decs.append([rag,decg,az,za,rad,decd])
+    
+    print "Using skycord to convert ra dec"
+    #Use skycoord to get asci
+    coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
+    #unformated
+    rags_uf = coord.ra.to_string(unit=u.hour, sep=':')
+    decgs_uf = coord.dec.to_string(unit=u.degree, sep=':')
+    
+    print "Formating the outputs"
+    #format the ra dec strings 
+    for i in range(len(rags_uf)):
+        
+        
+        rag = rags_uf[i] 
+        decg = decgs_uf[i]
+        if len(rag) > 11:
+            rag = rag[:11]
+        if len(decg) > 12:
+            decg = decg[:12]
+            
+        if len(rag) == 8:
+            rag = rag + '.00'
+        if len(decg) == 9:
+            decg = decg + '.00'
+
+
+        if args.verbose_file:
+            az,za,azd,zad = getTargetAZZA(rag,decg,time)
+        else:
+            az,za,azd,zad = [0,0,0,0]
+        
+        ras.append(rag)
+        decs.append(decg)
+        theta.append(az)
+        phi.append(za)
+ 
+
     print "Recording the poisitons in grid_positions.txt"            
-    with open('grid_positions_f'+str(args.fraction)+'_l'+str(args.loop)+'.txt','w') as out_file:
+    with open('grid_positions_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
+              '_l'+str(args.loop)+'.txt','w') as out_file:
         if args.verbose_file:
             out_line = "#ra   dec    az     za\n" 
             out_file.write(out_line)
@@ -478,8 +492,8 @@ if args.mode == 'c' or args.deg_fwhm:
     radls = []
     decdls = []
     print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
-    with open('grid_positions_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+\
-              '.txt','w') as out_file:
+    with open('grid_positions_ra_dec_limited_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
+              '_l'+str(args.loop) +'.txt','w') as out_file:
         if args.verbose_file:
             out_line = "#ra   dec    az     za\n" 
             out_file.write(out_line)
@@ -496,32 +510,27 @@ if args.mode == 'c' or args.deg_fwhm:
                     decdls.append(decds[i])
                     out_file.write(out_line)
             
-    #ras, decs, theta, phi, rads, decds
-    #ras, decs, theta, phi, rads, decds = np.genfromtxt('/home/nswainst/blindsearch_scripts/output/grid_position.txt',unpack=True)    
     #ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
 
-    matplotlib.use('Agg')
+    #matplotlib.use('Agg')
     
-    fig = plt.figure(figsize=(7, 7))
-    
-    plt.xlabel("ra (degrees)")
-    plt.ylabel("dec (degrees)")
-    ax = plt.gca()
-    for i in range(len(ras)):
-        if  -0.00001 < sin(np.radians(decds[i]))**2 < 0.00001:
-            fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (0.00001+sin(np.radians(decds[i]))**2 ) ) /2.
-        else:
-            fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
-        #fwhm_circle = acos( cos(np.radians(decds[i]))**2 + sin(np.radians(decds[i]))**2 *cos(centre_fwhm) ) /2.
-        circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
-        ax.add_artist(circle)
-    plt.axes().set_aspect('equal')
-    plt.plot(rads,decds,'ko',ms=1)
-    #plt.plot([114.25,97.5,115.5],[-30.65,-28.56,-28.36],'go',ms=5)
-    #plt.plot([114.25,115.5],[-30.65,-28.36],'go',ms=5)
-    #plt.axis([113.0, 116.7, -31.5, -27.5])
-    plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
-    
+    if not (args.dec_range or args.ra_range):
+        fig = plt.figure(figsize=(7, 7))
+        
+        plt.xlabel("ra (degrees)")
+        plt.ylabel("dec (degrees)")
+        ax = plt.gca()
+        for i in range(len(ras)):
+            if  -0.00001 < sin(np.radians(decds[i]))**2 < 0.00001:
+                fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (0.00001+sin(np.radians(decds[i]))**2 ) ) /2.
+            else:
+                fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
+            circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
+            ax.add_artist(circle)
+        plt.axes().set_aspect('equal')
+        plt.plot(rads,decds,'ko',ms=1)
+        plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
+        
     """
     fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
     plt.clf()
@@ -541,37 +550,44 @@ if args.mode == 'c' or args.deg_fwhm:
     
     #ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/pabeam/output/grid_positions_dec_limited.txt',unpack=True) 
     """
-    
-    #ras, decs, theta, phi, rads, decds = np.genfromtxt('./grid_positions_ra_dec_limited.txt',unpack=True) 
-    rads = radls
-    decds = decdls
+    if (args.dec_range or args.ra_range):
+        #ras, decs, theta, phi, rads, decds = np.genfromtxt('./grid_positions_ra_dec_limited.txt',unpack=True) 
+        rads = radls
+        decds = decdls
 
-    rads = [x for _,x in sorted(zip(decds,rads))]
-    decds = sorted(decds)
-
-    for i in range(len(rads)):
-        #dec limited plot
-        if i%100==0:
-            fig = plt.figure(figsize=(7, 7))
-            plt.xlabel("ra (degrees)")
-            plt.ylabel("dec (degrees)")
-            ax = plt.gca()
-            plt.axes().set_aspect('equal')
-        fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
-        #fwhm_circle = acos( cos(np.radians(decds[i]))**2 + sin(np.radians(decds[i]))**2 *cos(centre_fwhm) ) /2.
-        circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
-        ax.add_artist(circle)
-        if i%100==99:
-            plt.plot(rads,decds,'ko',ms=1)
-            #plt.plot([114.25,97.5,115.5],[-30.65,-28.56,-28.36],'go',ms=1)
-            #plt.plot([114.25,115.5],[-30.65,-28.36],'go',ms=2)
-            
-            plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+'_'+str(i/100)+'.png',bbox_inches='tight', dpi =1000)
-    plt.plot(rads,decds,'ko',ms=1)
-    #plt.plot([114.25,97.5,115.5],[-30.65,-28.56,-28.36],'go',ms=1)
-    #plt.plot([114.25,115.5],[-30.65,-28.36],'go',ms=2)
-    
-    plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+'_l'+str(args.loop)+'_'+str(i/100)+'.png',bbox_inches='tight', dpi =1000)
+        rads = [x for _,x in sorted(zip(decds,rads))]
+        decds = sorted(decds)
+        
+        #pointings per plot
+        ppp = 150
+        for i in range(len(rads)):
+            #dec limited plot
+            if i%ppp==0:
+                fig = plt.figure(figsize=(7, 7))
+                plt.xlabel("ra (degrees)")
+                plt.ylabel("dec (degrees)")
+                ax = plt.gca()
+                plt.axes().set_aspect('equal')
+            fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / \
+                                (sin(np.radians(decds[i]))**2 ) ) /2.
+            circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
+            ax.add_artist(circle)
+            if i%ppp==(ppp-1):
+                print "plot if"
+                plot_n = i/ppp
+                plt.plot(rads[plot_n*ppp:(plot_n+1)*ppp-1],decds[plot_n*ppp:(plot_n+1)*ppp-1],\
+                        'ko',ms=1)
+                plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+\
+                            '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'_'+str(plot_n)+'.png',\
+                            bbox_inches='tight', dpi =1000)
+                plt.clf()
+        print "plot",len(rads)
+        plot_n = i/ppp
+        plt.plot(rads[plot_n*ppp:],decds[plot_n*ppp:],'ko',ms=1)
+        plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+\
+                    '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'_'+str(len(rads)/100)+'.png',\
+                    bbox_inches='tight', dpi =1000)
+        plt.clf()
         
 
         
