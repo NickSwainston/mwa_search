@@ -22,40 +22,11 @@ import argparse
 from mwapy import ephem_utils,metadata
 from mwapy.pb import primary_beam as pb
 from mwapy.pb.mwa_tile import h2e
-import urllib
-import urllib2
-import json
+#import urllib
+#import urllib2
+#import json
 
-
-def getmeta(service='obs', params=None):
-    """
-    Given a JSON web service ('obs', find, or 'con') and a set of parameters as
-    a Python dictionary, return the RA and Dec in degrees from the Python dictionary.
-    
-    getmeta(service='obs', params=None)
-    """
-    BASEURL = 'http://mwa-metadata01.pawsey.org.au/metadata/'
-    if params:
-        data = urllib.urlencode(params)  # Turn the dictionary into a string with encoded 'name=value' pairs
-    else:
-        data = ''
-    #Validate the service name
-    if service.strip().lower() in ['obs', 'find', 'con']:
-        service = service.strip().lower()
-    else:
-        print "invalid service name: %s" % service
-        return
-    #Get the data
-    try:
-        result = json.load(urllib2.urlopen(BASEURL + service + '?' + data))
-    except urllib2.HTTPError as error:
-        print "HTTP error from server: code=%d, response:\n %s" % (error.code, error.read())
-        return
-    except urllib2.URLError as error:
-        print "URL or network error: %s" % error.reason
-        return
-    #Return the result dictionary
-    return result
+import mwa_metadb_utils as meta
 
 
 def get_obstime_duration(obsid,fdir="."):
@@ -165,7 +136,7 @@ def getTargetradec(az,za,time,lst,lat=-26.7033,lon=116.671,height=377.827):
     
 def get_freqs(obsid):
     print "Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(args.obsid)
-    beam_meta_data = getmeta(service='obs', params={'obs_id':obsid})
+    beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
     channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
     minfreq = float(min(channels))
     maxfreq = float(max(channels))
@@ -183,38 +154,52 @@ def two_floats(value):
 #gird movements all in rad
 def left(ra_in, dec_in, fwhm):
     dec_out = dec_in 
-    ra_out = ra_in - acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    #ra_out = ra_in - acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    ra_out = ra_in - fwhm/cos(dec_in)
     return [ra_out,dec_out]
     
 def right(ra_in, dec_in, fwhm):
     dec_out = dec_in 
-    ra_out = ra_in + acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    #ra_out = ra_in + acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    ra_out = ra_in + fwhm/cos(dec_in)
     return [ra_out,dec_out]
     
     
 def up_left(ra_in, dec_in, fwhm):
     #fwhm will be slighty off due to it being measured from the starting point
-    half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
-    dec_out = dec_in + acos( cos(half_fwhm_approx)/cos(fwhm/2.) )
-    ra_out = ra_in - acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    #half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    half_fwhm_approx = fwhm/2./cos(dec_in)
+    dec_out = dec_in + sin(np.radians(60))*sin(half_fwhm_approx) / sin(np.radians(30))
+    #dec_out = dec_in + acos( cos(half_fwhm_approx)/cos(fwhm/2.) )
+    #ra_out = ra_in - acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    ra_out = ra_in - fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
     
 def up_right(ra_in, dec_in, fwhm):
-    half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
-    dec_out = dec_in + acos( cos(half_fwhm_approx)/cos(fwhm/2.) ) 
-    ra_out = ra_in + acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    #half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    #dec_out = dec_in + acos( cos(half_fwhm_approx)/cos(fwhm/2.) )
+    half_fwhm_approx = fwhm/2./cos(dec_in)
+    dec_out = dec_in + sin(np.radians(60))*sin(half_fwhm_approx) / sin(np.radians(30)) 
+    #ra_out = ra_in + acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    ra_out = ra_in + fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
     
 def down_left(ra_in, dec_in, fwhm):
-    half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
-    dec_out = dec_in - acos( cos(half_fwhm_approx)/cos(fwhm/2.) )
-    ra_out = ra_in - acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    #half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    #dec_out = dec_in - acos( cos(half_fwhm_approx)/cos(fwhm/2.) )
+    half_fwhm_approx = fwhm/2./cos(dec_in)
+    dec_out = dec_in - sin(np.radians(60))*sin(half_fwhm_approx) / sin(np.radians(30))
+    #ra_out = ra_in - acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    ra_out = ra_in - fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
     
 def down_right(ra_in, dec_in, fwhm):
-    half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
-    dec_out = dec_in - acos( cos(half_fwhm_approx)/cos(fwhm/2.) )  
-    ra_out = ra_in + acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    #half_fwhm_approx = acos( (cos(fwhm) - cos(dec_in)**2) / (sin(dec_in)**2 ) )
+    #dec_out = dec_in - acos( cos(half_fwhm_approx)/cos(fwhm/2.) )  
+    half_fwhm_approx = fwhm/2./cos(dec_in)
+    dec_out = dec_in - sin(np.radians(60))*sin(half_fwhm_approx) / sin(np.radians(30))
+    #ra_out = ra_in + acos( (cos(fwhm/2.) - cos(dec_out)**2) / (sin(dec_out)**2 ) )
+    ra_out = ra_in + fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
     
     
@@ -275,8 +260,6 @@ def hex_grid(ra0,dec0,centre_fwhm, dec_lim_arg):
     for l in range(1,args.loop+1):
         #different step for each corner
         loop_temp = []
-        if l%50 == 0:
-            print "Calculating loop number: " +str(l)
         for c in range(6):
             corner_temp = []
             if l == 1:
@@ -422,8 +405,6 @@ if args.mode == 'c' or args.deg_fwhm:
     
     print "Converting ra dec to degrees"                
     for l in range(len(pointing_list)):
-        if l%50 == 0:
-            print "Calculating loop number: " +str(l)
         for c in range(len(pointing_list[l])):
             for n in range(len(pointing_list[l][c])):
                 #format grid pointings
@@ -435,6 +416,18 @@ if args.mode == 'c' or args.deg_fwhm:
                 rads.append(rad)
                 decds.append(decd)
                 #ra_decs.append([rag,decg,az,za,rad,decd])
+    
+    if (args.dec_range or args.ra_range):
+        print "Removing pointings outside of ra dec ranges"
+        radls = []
+        decdls = []
+        for i in range(len(rads)):
+            if  (args.dec_range[0] < float(decds[i]) < args.dec_range[1] ) and \
+                (args.ra_range[0]  < float(rads[i]) < args.ra_range[1]):
+                    radls.append(rads[i])
+                    decdls.append(decds[i])
+        rads = radls
+        decds = decdls
     
     print "Using skycord to convert ra dec"
     #Use skycoord to get asci
@@ -471,55 +464,52 @@ if args.mode == 'c' or args.deg_fwhm:
         theta.append(az)
         phi.append(za)
  
-
-    print "Recording the poisitons in grid_positions.txt"            
-    with open('grid_positions_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
-              '_l'+str(args.loop)+'.txt','w') as out_file:
-        if args.verbose_file:
-            out_line = "#ra   dec    az     za\n" 
-            out_file.write(out_line)
-        for i in range(len(rads)):
+    if (args.dec_range or args.ra_range):
+        #some ra and dec string for radec limited degreees
+        print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
+        with open('grid_positions_ra_dec_limited_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
+                  '_l'+str(args.loop) +'.txt','w') as out_file:
             if args.verbose_file:
-                out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
-                            +str(phi[i])+" "+str(rads[i])+" "\
-                            +str(decds[i])+"\n" 
-            else:
-                out_line = str(ras[i])+" "+str(decs[i])+"\n" 
+                out_line = "#ra   dec    az     za\n" 
+                out_file.write(out_line)
+            for i in range(len(rads)):
+                if args.verbose_file:
+                    out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
+                                +str(phi[i])+" "+str(rads[i])+" "\
+                                +str(decds[i])+"\n" 
+                else:
+                    out_line = str(ras[i])+" "+str(decs[i])+"\n" 
+                out_file.write(out_line)
+          
+    else:    
+        print "Recording the poisitons in grid_positions.txt"            
+        with open('grid_positions_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
+                  '_l'+str(args.loop)+'.txt','w') as out_file:
+            if args.verbose_file:
+                out_line = "#ra   dec    az     za\n" 
+                out_file.write(out_line)
+            for i in range(len(rads)):
+                if args.verbose_file:
+                    out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
+                                +str(phi[i])+" "+str(rads[i])+" "\
+                                +str(decds[i])+"\n" 
+                else:
+                    out_line = str(ras[i])+" "+str(decs[i])+"\n" 
 
-            out_file.write(out_line) 
+                out_file.write(out_line) 
+               
            
-    #some ra and dec string for radec limited degreees
-    radls = []
-    decdls = []
-    print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
-    with open('grid_positions_ra_dec_limited_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
-              '_l'+str(args.loop) +'.txt','w') as out_file:
-        if args.verbose_file:
-            out_line = "#ra   dec    az     za\n" 
-            out_file.write(out_line)
-        for i in range(len(rads)):
-            if  (args.dec_range[0] < float(decds[i]) < args.dec_range[1] ) and \
-                (args.ra_range[0]  < float(rads[i]) < args.ra_range[1]):
-                    if args.verbose_file:
-                        out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
-                                    +str(phi[i])+" "+str(rads[i])+" "\
-                                    +str(decds[i])+"\n" 
-                    else:
-                        out_line = str(ras[i])+" "+str(decs[i])+"\n" 
-                    radls.append(rads[i])
-                    decdls.append(decds[i])
-                    out_file.write(out_line)
-            
     #ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/code/blindsearch_scripts/grid_positions.txt',unpack=True)
 
     #matplotlib.use('Agg')
-    
+    print "Plotting"
     if not (args.dec_range or args.ra_range):
         fig = plt.figure(figsize=(7, 7))
         
         plt.xlabel("ra (degrees)")
         plt.ylabel("dec (degrees)")
         ax = plt.gca()
+        plt.axes().set_aspect('equal')
         for i in range(len(ras)):
             if  -0.00001 < sin(np.radians(decds[i]))**2 < 0.00001:
                 fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (0.00001+sin(np.radians(decds[i]))**2 ) ) /2.
@@ -527,53 +517,34 @@ if args.mode == 'c' or args.deg_fwhm:
                 fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
             circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
             ax.add_artist(circle)
-        plt.axes().set_aspect('equal')
         plt.plot(rads,decds,'ko',ms=1)
         plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
         
-    """
-    fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
-    plt.clf()
-    
-    plt.ylabel("phi (radians)")
-    plt.xlabel("theta (radians)")
-    ax = plt.gca(projection='polar')
-    for i in range(len(theta)):
-        circle = plt.Circle((theta[i],phi[i]),fwhm_circle, transform=ax.transData._b,color='r',alpha=0.4)#fill=False)
-        ax.add_artist(circle)
-    if args.loop < 6:
-        plt.plot(theta,phi,'ko')
-    else:
-        plt.plot()
-    plt.savefig('grid_positions_'+str(args.obsid)+'_alt_az_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight')
-    
-    
-    #ras, decs, theta, phi, rads, decds = np.genfromtxt('/group/mwaops/nswainston/pabeam/output/grid_positions_dec_limited.txt',unpack=True) 
-    """
     if (args.dec_range or args.ra_range):
         #ras, decs, theta, phi, rads, decds = np.genfromtxt('./grid_positions_ra_dec_limited.txt',unpack=True) 
-        rads = radls
-        decds = decdls
-
-        rads = [x for _,x in sorted(zip(decds,rads))]
-        decds = sorted(decds)
+        rads = [x for _,x in sorted(zip(decds,rads), reverse=True)]
+        decds = sorted(decds,reverse=True)
         
         #pointings per plot
-        ppp = 150
+        ppp = 100
+        #if i%ppp==0:
+        fig = plt.figure(figsize=(7, 7))
+        plt.xlabel("ra (degrees)")
+        plt.ylabel("dec (degrees)")
+        ax = plt.gca()
+            
+ 
         for i in range(len(rads)):
-            #dec limited plot
             if i%ppp==0:
-                fig = plt.figure(figsize=(7, 7))
-                plt.xlabel("ra (degrees)")
-                plt.ylabel("dec (degrees)")
                 ax = plt.gca()
                 plt.axes().set_aspect('equal')
-            fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / \
-                                (sin(np.radians(decds[i]))**2 ) ) /2.
+            #dec limited plot
+            #fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / \
+            #                    (sin(np.radians(decds[i]))**2 ) ) /2.
+            fwhm_circle = centre_fwhm/cos(np.radians(decds[i])) / 2.
             circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
             ax.add_artist(circle)
             if i%ppp==(ppp-1):
-                print "plot if"
                 plot_n = i/ppp
                 plt.plot(rads[plot_n*ppp:(plot_n+1)*ppp-1],decds[plot_n*ppp:(plot_n+1)*ppp-1],\
                         'ko',ms=1)
@@ -581,11 +552,10 @@ if args.mode == 'c' or args.deg_fwhm:
                             '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'_'+str(plot_n)+'.png',\
                             bbox_inches='tight', dpi =1000)
                 plt.clf()
-        print "plot",len(rads)
         plot_n = i/ppp
         plt.plot(rads[plot_n*ppp:],decds[plot_n*ppp:],'ko',ms=1)
         plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_limited_f'+str(args.fraction)+\
-                    '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'_'+str(len(rads)/100)+'.png',\
+                    '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'_'+str(len(rads)/ppp)+'.png',\
                     bbox_inches='tight', dpi =1000)
         plt.clf()
         
@@ -593,8 +563,9 @@ if args.mode == 'c' or args.deg_fwhm:
         
         
     
-    print "Number of pointings: " + str(len(theta))
-    
+    print "Number of pointings: " + str(len(rads))
+    #times out and segfaults after this so I'm going to exit here
+    exit()
    
     
     
