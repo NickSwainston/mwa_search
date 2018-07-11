@@ -43,114 +43,52 @@ def your_slurm_queue_check(max_queue = 100, pbs = False):
     return
 
 def add_database_function(pbs):
-    if pbs:
-        batch_line ='#PBS -q gstar\n'+\
-                    '#PBS -l nodes=1:ppn=6:gpus=1\n' +\
-                    '#PBS -A p125_astro\n' +\
-                    'function run\n' +\
-                    '{\n' +\
-                    '    # run command and add relevant data to the job database\n' +\
-                    '    # 1st parameter is command to be run (e.g. wsclean)\n' +\
-                    '    # 2nd parameter is parameters to that command (e.g. "-j $ncpus")\n' +\
-                    '    # 3rd parameter is bs_id\n' +\
-                    '    # 4th parameter is DM file int [optional]\n' +\
-                    '    if [ -z "$4" ]; then\n' +\
-                    '        rownum=`blindsearch_database.py -m s -c $1 -a "$2" -b $3 -n 1` \n' +\
-                    '    else\n' +\
-                    '        rownum=`blindsearch_database.py -m s -c $1 -a "$2" -b $3 -n 1 -d $4`\n' +\
-                    '    fi\n' +\
-                    '    $1 $2\n' +\
-                    '    echo $1 $2\n' +\
-                    '    errcode=$?\n' +\
-                    '    blindsearch_database.py -m e -c $1 -r $rownum --errorcode $errcode\n' +\
-                    '    echo "blindsearch_database.py -m e -c $1 -r $rownum --errorcode $errcode"\n' +\
-                    '    if [ "$errcode" != "0" ]; then\n' +\
-                    '        exit $errcode\n' +\
-                    '    fi\n' +\
-                    '}\n'
-    else:
-        batch_line ="#SBATCH --export=NONE\n" +\
-                    "#SBATCH --gid=mwaops\n" +\
-                    "#SBATCH --account=mwaops\n" +\
-                    "#SBATCH --nodes=1\n" +\
-                    'aprun="aprun -b -n 1 -d $ncpus -q "\n' +\
-                    'function run\n' +\
-                    '{\n' +\
-                    '    # run command and add relevant data to the job database\n' +\
-                    '    # 1st parameter is command to be run (e.g. wsclean)\n' +\
-                    '    # 2nd parameter is parameters to that command (e.g. "-j $ncpus")\n' +\
-                    '    # 3rd parameter is bs_id\n' +\
-                    '    # 4th parameter is DM file int [optional]\n' +\
-                    '    if [ -z "$4" ]; then\n' +\
-                    '        rownum=`blindsearch_database.py -m s -c $1 -a "$2" -b $3 -n $ncpus` \n' +\
-                    '    else\n' +\
-                    '        rownum=`blindsearch_database.py -m s -c $1 -a "$2" -b $3 -n $ncpus -d $4`\n' +\
-                    '    fi\n' +\
-                    '    $aprun $1 $2\n' +\
-                    '    echo $aprun $1 $2\n' +\
-                    '    errcode=$?\n' +\
-                    '    blindsearch_database.py -m e -c $1 -r $rownum --errorcode $errcode\n' +\
-                    '    echo "blindsearch_database.py -m e -c $1 -r $rownum --errorcode $errcode"\n' +\
-                    '    if [ "$errcode" != "0" ]; then\n' +\
-                    '        exit $errcode\n' +\
-                    '    fi\n' +\
-                    '}\n'
+    batch_line ='function run\n' +\
+                '{\n' +\
+                '    # run command and add relevant data to the job database\n' +\
+                '    # 1st parameter is command to be run (e.g. wsclean)\n' +\
+                '    # 2nd parameter is parameters to that command (e.g. "-j $ncpus")\n' +\
+                '    # 3rd parameter is bs_id\n' +\
+                '    # 4th parameter is DM file int [optional]\n' +\
+                '    if [ -z "$4" ]; then\n' +\
+                '        rownum=`blindsearch_database.py -m s -c $1 -a "$2" -b $3 -n 1` \n' +\
+                '    else\n' +\
+                '        rownum=`blindsearch_database.py -m s -c $1 -a "$2" -b $3 -n 1 -d $4`\n' +\
+                '    fi\n' +\
+                '    $1 $2\n' +\
+                '    echo $1 $2\n' +\
+                '    errcode=$?\n' +\
+                '    blindsearch_database.py -m e -c $1 -r $rownum --errorcode $errcode\n' +\
+                '    echo "blindsearch_database.py -m e -c $1 -r $rownum --errorcode $errcode"\n' +\
+                '    if [ "$errcode" != "0" ]; then\n' +\
+                '        exit $errcode\n' +\
+                '    fi\n' +\
+                '}\n'
     return batch_line
-    
-    
+
+
 def add_temp_database_function(pbs):
-    if pbs:
-        batch_line ='#PBS -q gstar\n'+\
-                    '#PBS -l nodes=1:ppn=6:gpus=1\n' +\
-                    '#PBS -A p125_astro\n' +\
-                    'function run\n' +\
-                    '{\n' +\
-                    '    # run command and add relevant data to the job database\n' +\
-                    '    # 1st parameter is command to be run (e.g. wsclean)\n' +\
-                    '    # 2nd parameter is parameters to that command (e.g. "-j $ncpus")\n' +\
-                    '    # 3rd parameter is bs_id\n' +\
-                    '    # 4th parameter is DM file int [optional]\n' +\
-                    '    if [ -z "$4" ]; then\n' +\
-                    '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1" >> ${1}_temp_database_file.csv\n' +\
-                    '    else\n' +\
-                    '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1,$4" >> ${1}_temp_database_file.csv\n' +\
-                    '    fi\n' +\
-                    '    $1 $2\n' +\
-                    '    echo $1 $2\n' +\
-                    '    errcode=$?\n' +\
-                    '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file.csv\n' +\
-                    '    if [ "$errcode" != "0" ]; then\n' +\
-                    '        exit $errcode\n' +\
-                    '    fi\n' +\
-                    '}\n'
-    else:
-        batch_line ="#SBATCH --export=NONE\n" +\
-                    "#SBATCH --gid=mwaops\n" +\
-                    "#SBATCH --account=mwaops\n" +\
-                    "#SBATCH --nodes=1\n" +\
-                    'aprun="aprun -b -n 1 -d $ncpus -q "\n' +\
-                    'function run\n' +\
-                    '{\n' +\
-                    '    # run command and add relevant data to the job database\n' +\
-                    '    # 1st parameter is command to be run (e.g. wsclean)\n' +\
-                    '    # 2nd parameter is parameters to that command (e.g. "-j $ncpus")\n' +\
-                    '    # 3rd parameter is bs_id\n' +\
-                    '    # 4th parameter is DM file int [optional]\n' +\
-                    '    if [ -z "$4" ]; then\n' +\
-                    '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,$ncpus" >> ${1}_temp_database_file.csv\n' +\
-                    '    else\n' +\
-                    '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,$ncpus,$4" >> ${1}_temp_database_file.csv\n' +\
-                    '    fi\n' +\
-                    '    $aprun $1 $2\n' +\
-                    '    echo $aprun $1 $2\n' +\
-                    '    errcode=$?\n' +\
-                    '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file.csv\n' +\
-                    '    if [ "$errcode" != "0" ]; then\n' +\
-                    '        exit $errcode\n' +\
-                    '    fi\n' +\
-                    '}\n'
+    batch_line ='function run\n' +\
+                '{\n' +\
+                '    # run command and add relevant data to the job database\n' +\
+                '    # 1st parameter is command to be run (e.g. wsclean)\n' +\
+                '    # 2nd parameter is parameters to that command (e.g. "-j $ncpus")\n' +\
+                '    # 3rd parameter is bs_id\n' +\
+                '    # 4th parameter is DM file int [optional]\n' +\
+                '    if [ -z "$4" ]; then\n' +\
+                '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1" >> ${1}_temp_database_file.csv\n' +\
+                '    else\n' +\
+                '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1,$4" >> ${1}_temp_database_file.csv\n' +\
+                '    fi\n' +\
+                '    $1 $2\n' +\
+                '    echo $1 $2\n' +\
+                '    errcode=$?\n' +\
+                '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file.csv\n' +\
+                '    if [ "$errcode" != "0" ]; then\n' +\
+                '        exit $errcode\n' +\
+                '    fi\n' +\
+                '}\n'
     return batch_line
-    #'echo "FFT,'+str(bs_id)+',realfft,' + str(f) + ',$ncpus,'+str(i)+',date +%Y-%m-%d" "%H:%M:%S" >> temp_database_file.csv\n' +\
     
     
 def numout_calc(DIR):
@@ -1199,9 +1137,10 @@ if args.mode == "b":
     elif args.pointing:
         lines = [args.pointing.replace("_"," ")]
     #Loop through pointings and check if any are done
-    for line in lines:
+    for n, line in enumerate(lines):
         if line.startswith("#"):
             continue
+        print "Checking pointing "+n+" out of " +str(len(lines)) 
         ra, dec = line.split(" ")
         if dec.endswith("\n"):
             dec = dec[:-1]
