@@ -13,7 +13,7 @@ from time import sleep
 import blindsearch_database
 import mwa_metadb_utils as meta
 import process_vcs as pvcs
-
+from job_submit import submit_slurm
 
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1133329792 -p 19:45:14.00_-31:47:36.00
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1150234552 -p 00:34:08.8703_-07:21:53.409 --pulsar J0034-0721
@@ -228,7 +228,7 @@ def dm_i_to_file(dm_i):
         print dm_i
     return dm_file
 
-def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir):
+def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir, check):
     """
     Does some basic checks and formating before using beamforming from process_vcs.py
     """
@@ -249,9 +249,14 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir):
         job_id_str += ":" + str(i)
     
     #create a split wrapper dependancy
-    os.chdir(pointing_dir)
-    submit_line = 'sbatch -t 60 --dependency=afterok'+job_id_str+' split_wrapper.py -o '+obs
-    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+    splice_wrapper_batch = 'splice_wrapper.py_{0}_{1}'.format(obs, pointing)
+    commands = []
+    commands.append('splice_wrapper.py -o {0} -d {1}'.format(obs, pointing_dir))
+    commands.append('blindsearch_pipeline -o {0} -b {1} -e {2} -p {3} -m b --DI_dir={4}'.format(obs, begin, end, pointing, DI_dir))
+    submit_slurm(splice_wrapper_batch, commands,
+                 batch_dir="{0}/batch".format(product_dir),
+                 slurm_kwargs={"time": 3600, "partition": "workq"},
+                 submit=True, depend=job_id_str[1:])
  
     return
 
@@ -1178,6 +1183,7 @@ group_beamform.add_argument('--cal_obs', '-O', type=int, help="Observation ID of
 group_beamform.add_argument("--pulsar_file", default=None, help="Location of a file containting the pointings to be processed. Made using grid.py.")
 group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
 group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
+group_beamform.add_argument("-c", "--check", type=int, help="Number of times the beamformer has attempted to redo the pointings. Stops when it gets to 5. Default 0.", default=0)
 group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
 args=parser.parse_args()
 if args.work_dir:
@@ -1284,14 +1290,15 @@ if args.mode == "b":
                     #TODO no files gotta beamform
                     print "No files in "+ra+"_"+dec+" starting beamforming"
                     process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args,\
-                                        args.DI_dir,pointing_dir)
+                                        args.DI_dir,pointing_dir, args.check)
                               
 
         else:
             # do beamforming
             print "No pointing directory for "+ra+"_"+dec+" starting beamforming"
             
-            process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,pointing_dir)
+            process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,\
+                                pointing_dir, args.check)
  
 
 if args.mode == "r" or args.mode == None:
