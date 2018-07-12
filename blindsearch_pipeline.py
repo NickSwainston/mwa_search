@@ -189,7 +189,7 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir, ch
     #create a split wrapper dependancy
     splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, pointing)
     commands = []
-    commands.append('splice_wrapper.py -o {0} -d {1}'.format(obs, pointing_dir))
+    commands.append('splice_wrapper.py -o {0} -w {1}'.format(obs, pointing_dir))
     if args.search:
         commands.append('blindsearch_pipeline -o {0} -b {1} -e {2} -p {3} -m b --DI_dir={4} --search'.\
                         format(obs, begin, end, pointing, DI_dir))
@@ -244,6 +244,7 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs,pulsar=None):
     rfi_batch = 'rfi_{0}'.format(obs)
     commands = []
     commands.append(add_database_function(pbs))
+    commands.append("source /group/mwaops/PULSAR/psrBash.profile")
     commands.append('run "rfifind" "' + ncpuscom + '-noclip -time 12.0 ' + '-o ' + str(obsid) +\
                     ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
                     str(obsid) + '/pointings/' + str(pointing) + '/' + str(obsid) + '*.fits" '+\
@@ -264,8 +265,8 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs,pulsar=None):
                     "/pointings/" + str(pointing) + "/" + str(obsid) + "*.fits")
     
     submit_slurm(rfi_batch, commands,
-                 batch_dir="{0}/{1}/batch".format(work_dir,obsid),
-                 slurm_kwargs={"time": 14400, "partition": "workq"},#4 hours
+                 batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                 slurm_kwargs={"time": "4:00:00", "partition": "workq"},#4 hours
                  submit=True)
  
     return
@@ -302,7 +303,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs,pulsar=None):
         columns = l.split()
         dm_list.append(columns)
     """
-    dm_list = [['1.000','100.000','0.20','1','245','1']]
+    dm_list = [['1.500','3.500','0.05','1','40','1']]
     if pbs:
         fits_dir = '/lustre/projects/p125_astro/DATA/'
         qsub = 'qsub '
@@ -310,7 +311,8 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs,pulsar=None):
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = '-ncpus $ncpus '
+        ncpuscom = ''
            
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
@@ -323,146 +325,73 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs,pulsar=None):
         dm_end = float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > 512. :
             #dedisperse for only 512 steps
-            with open('batch/DM_' + dm_start + '.batch','w') as batch_file:
-                if pbs:
-                    batch_line = "#!/bin/bash -l\n" +\
-                                 "#PBS -N prepsub_" + dm_start + "\n" +\
-                                 "#PBS -o out/DM_" + dm_start + ".out\n" +\
-                                 "#PBS -e out/DM_" + dm_start + ".error\n" +\
-                                 "#PBS -l walltime=3:50:00\n" +\
-                                 "cd " + work_dir + sub_dir + "\n"
-                    batch_file.write(batch_line)
-                else:
-                    batch_line = "#!/bin/bash -l\n" +\
-                                 "#SBATCH --partition=workq\n" +\
-                                 "#SBATCH --job-name=prepsub_" + dm_start + "\n" +\
-                                 "#SBATCH --output=out/DM_" + dm_start + ".out\n" +\
-                                 "#SBATCH --time=3:50:00\n"+\
-                                 "ncpus=20\n" +\
-                                 "export OMP_NUM_THREADS=$ncpus\n"
-                    batch_file.write(batch_line)
-                batch_file.write(add_database_function(pbs))
-                batch_line = 'run "prepsubband" "'+ncpuscom + '-lodm ' +\
-                                str(dm_start) + " -dmstep " + str(dm_line[2]) + " -numdms 512 -numout " +\
-                                str(numout) + " -o " + str(obsid) + " -mask " + str(obsid) +\
-                                "_rfifind.mask " + fits_dir + str(obsid) + \
-                                "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" '+str(bs_id)
-                batch_file.write(batch_line)
-            submit_line = qsub + 'batch/DM_' + dm_start + '.batch'
-            submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-            for line in submit_cmd.stdout:
-                print line,
-                print 'batch/DM_' + dm_start + '.batch'
-                if pbs:
-                    if '.pbs.hpc.swin.edu.au' in line:
-                        job_id_list.append(line[:7])
-                else:
-                    if "Submitted" in line:
-                        (word1,word2,word3,jobid) = line.split()
-                        job_id_list.append(jobid)
+            DM_batch = 'DM_' + dm_start + '.batch'
+            commands = []
+            commands.append(add_database_function(pbs))
+            commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+            commands.append('run "prepsubband" "'+ncpuscom + '-lodm ' + str(dm_start) +\
+                            " -dmstep " + str(dm_line[2]) + " -numdms 512 -numout " +\
+                            str(numout) + " -o " + str(obsid) + " -mask " + str(obsid) +\
+                            "_rfifind.mask " + fits_dir + str(obsid) + "/pointings/" +\
+                            str(pointing) + "/" + str(obsid) + '*.fits" '+str(bs_id))
             
+            job_id = submit_slurm(DM_batch, commands,
+                         batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                         slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
+                         submit=True)
+            job_id_list.append(job_id)
+           
             dm_start = str(float(dm_start) + (512. * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <512 steps
-        with open('batch/DM_' + dm_start + '.batch','w') as batch_file:
-            if pbs:
-                batch_line = "#!/bin/bash -l\n" +\
-                             "#PBS -N prepsub_" + dm_start + "\n" +\
-                             "#PBS -o out/DM_" + dm_start + ".out\n" +\
-                             "#PBS -e out/DM_" + dm_start + ".error\n" +\
-                             "#PBS -l walltime=3:50:00\n"+\
-                             "cd " + work_dir + sub_dir + "\n"
-                batch_file.write(batch_line)
-            else:
-                batch_line = "#!/bin/bash -l\n" +\
-                             "#SBATCH --partition=workq\n" +\
-                             "#SBATCH --job-name=prepsub_" + dm_start + "\n" +\
-                             "#SBATCH --output=out/DM_" + dm_start + ".out\n" +\
-                             "#SBATCH --time=3:50:00\n" +\
-                             "ncpus=20\n"+\
-                             "export OMP_NUM_THREADS=$ncpus\n"
-                batch_file.write(batch_line)
-            batch_file.write(add_database_function(pbs))
-            batch_line = 'run "prepsubband" "'+ncpuscom + '-lodm '+str(dm_start) +\
-                                " -dmstep " + str(dm_line[2]) + " -numdms " + str(steps) + " -numout " +\
-                                str(numout) + " -o " + str(obsid) + " " + fits_dir + str(obsid) + \
-                                "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" ' +str(bs_id)
-            """ with mask
-            batch_line = 'run "prepsubband" "'+ncpuscom + '-lodm '+str(dm_start) +\
-                                " -dmstep " + str(dm_line[2]) + " -numdms " + str(steps) + " -numout " +\
-                                str(numout) + " -o " + str(obsid) + " -mask " + str(obsid) +\
-                                "_rfifind.mask " + fits_dir + str(obsid) + \
-                                "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" ' +str(bs_id)
-            """
-            batch_file.write(batch_line)
-            
-        submit_line = qsub + 'batch/DM_' + dm_start + '.batch'
-        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-        for line in submit_cmd.stdout:
-            print line,
-            if pbs:
-                if '.pbs.hpc.swin.edu.au' in line:
-                    job_id_list.append(line[:7])
-            else:
-                if "Submitted" in line:
-                    (word1,word2,word3,jobid) = line.split()
-                    job_id_list.append(jobid)
-    
-    
+        DM_batch = 'DM_' + dm_start + '.batch'
+        commands = []
+        commands.append(add_database_function(pbs))
+        commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+        commands.append('run "prepsubband" "'+ncpuscom + '-lodm '+str(dm_start) +\
+                        " -dmstep " + str(dm_line[2]) + " -numdms " + str(steps) + " -numout " +\
+                        str(numout) + " -o " + str(obsid) + " " + fits_dir + str(obsid) + \
+                        "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" ' +str(bs_id))
+        """ with mask
+        batch_line = 'run "prepsubband" "'+ncpuscom + '-lodm '+str(dm_start) +\
+                            " -dmstep " + str(dm_line[2]) + " -numdms " + str(steps) + " -numout " +\
+                            str(numout) + " -o " + str(obsid) + " -mask " + str(obsid) +\
+                            "_rfifind.mask " + fits_dir + str(obsid) + \
+                            "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" ' +str(bs_id)
+        """
+        job_id = submit_slurm(DM_batch, commands,
+                         batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                         slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
+                         submit=True)
+        job_id_list.append(job_id)    
+           
     #make a job that simply restarts this program when all prepsubband jobs are complete
     print "Waiting 5 sec to make sure to the dependancy script works"
     sleep(5)
     job_id_str = ""
     for i in job_id_list:
         job_id_str += ":" + str(i)
-    with open('batch/dependancy_prepsubbands.batch','w') as batch_file:
-        if pbs:#TODO fix
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#PBS -N dependancy\n" +\
-                         "#PBS -o out/dependancy_prepsubbands.out\n" +\
-                         "#PBS -e out/dependancy_prepsubbands.error\n" +\
-                         "#PBS -l walltime=3:50:00\n"+\
-                         '#PBS -q gstar\n'+\
-                         '#PBS -l nodes=1:ppn=6:gpus=1\n'+\
-                         '#PBS -A p125_astro\n' +\
-                         "#PBS -W depend=afterany" + job_id_str + "\n" +\
-                         "cd " + work_dir + sub_dir + "\n"+\
-                         'realfft ' + str(obsid) + '_DM0.00.dat\n'+\
-                         "accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft\n"+\
-                         'blindsearch_database.py -c prepsubband -m p -b ' +str(bs_id) + '\n'+\
-                         "blindsearch_pipeline.py -o "\
-                              + str(obsid) + " -p " + str(pointing) + " -m s -w " + work_dir +\
-                              " -s " +str(sub_dir) + " -r " + str(bs_id)
-            batch_file.write(batch_line)
-        else:
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#SBATCH --job-name=dependancy\n" +\
-                         "#SBATCH --output=out/dependancy_prepsubbands.out\n" +\
-                         "#SBATCH --export=NONE\n" +\
-                         "#SBATCH --partition=workq\n" +\
-                         "#SBATCH --time=0:05:00\n" +\
-                         "#SBATCH --gid=mwaops\n" +\
-                         "#SBATCH --account=mwaops\n" +\
-                         "#SBATCH --nodes=1\n" +\
-                         "#SBATCH --dependency=afterany" + job_id_str + "\n" +\
-                         "export OMP_NUM_THREADS=8\n"+\
-                         'aprun -b -n 1 -d 8 -q realfft ' + str(obsid) + '_DM0.00.dat\n'+\
-                         "accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft\n"+\
-                         'blindsearch_database.py -c prepsubband -m p -b ' +str(bs_id) + '\n'+\
-                         "blindsearch_pipeline.py -o "\
-                              + str(obsid) + " -p " + str(pointing) + " -m s -w " + work_dir +\
-                              " -s " +str(sub_dir) + " -r " + str(bs_id)
-            batch_file.write(batch_line)
-        if not pulsar == None:
-            batch_line = " --pulsar " + pulsar
-            batch_file.write(batch_line)
-        
-            
-    submit_line = qsub + 'batch/dependancy_prepsubbands.batch'
-    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-    for line in submit_cmd.stdout:
-            print line,
-    print "Sent off prepsubband jobs"
+    
+    DM_depend_batch = 'dependancy_prepsubbands'
+    commands = []
+    commands.append(add_database_function(pbs))
+    commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("cd " + work_dir + sub_dir)
+    commands.append('realfft ' + str(obsid) + '_DM0.00.dat')
+    commands.append("accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft")
+    commands.append('blindsearch_database.py -c prepsubband -m p -b ' +str(bs_id) )
+    if pulsar == None:
+        commands.append("blindsearch_pipeline.py -o " + str(obsid) + " -p " + str(pointing) +\
+                        " -m s -w " + work_dir + " -s " +str(sub_dir) + " -r " + str(bs_id))
+    else:
+        commands.append("blindsearch_pipeline.py -o " + str(obsid) + " -p " + str(pointing) +\
+                        " -m s -w " + work_dir + " -s " +str(sub_dir) + " -r " + str(bs_id) +\
+                        " --pulsar " + pulsar)
+    
+    submit_slurm(DM_depend_batch, commands,
+                 batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                 slurm_kwargs={"time": "5:00", "partition": "workq"},#4 hours
+                 submit=True, depend=job_id_str[1:])
     return
                 
 #-------------------------------------------------------------------------------------------------------------
@@ -501,7 +430,8 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, pulsar=None):
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = '-ncpus $ncpus '
+        ncpuscom = ''
         
     
     DIR=work_dir + sub_dir
@@ -554,101 +484,56 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, pulsar=None):
             dir_files = os.listdir(work_dir + sub_dir + "/" + d + "/")
         else:
             dir_files = os.listdir(work_dir + sub_dir + "/")
-        with open('batch/fft' + d + '.batch','w') as batch_file:
-            if pbs:
-                batch_line = "#!/bin/bash -l\n" +\
-                             "#PBS -N fft_" + d + "\n" +\
-                             "#PBS -o " + work_dir + sub_dir +\
-                                      "/" + d + "/out/fft_" + d + ".out\n" +\
-                             "#PBS -e " + work_dir + sub_dir +\
-                                      "/" + d + "/out/fft_" + d + ".error\n" +\
-                             "#PBS -l walltime=4:50:00\n"+\
-                             "cd " + work_dir + sub_dir + "/" + d + "\n"
-                batch_file.write(batch_line)
-            else:
-                batch_line = "#!/bin/bash -l\n" +\
-                             "#SBATCH --partition=gpuq\n" +\
-                             "#SBATCH --job-name=fft_" + d + "\n" +\
-                             "#SBATCH --output=" + work_dir + sub_dir +\
-                                               "/" + d + "/out/fft_" + d + ".out\n" +\
-                             "#SBATCH --time=4:50:00\n" +\
-                             "ncpus=8\n" +\
-                             "export OMP_NUM_THREADS=$ncpus\n"
-                batch_file.write(batch_line)   
-            batch_file.write(add_temp_database_function(pbs))         
-            for f in dir_files:
-                if f.endswith(".dat"):     
-                    batch_line = 'run "realfft" "' + str(f) + '" "'+str(bs_id)+'" "'+str(i)+'"\n'
-                    #batch_line = 'run realfft "' + str(f) + '" ' + work_dir + ' blindsearch ' + obsid +'\n'
-                    batch_file.write(batch_line)
-            
-            batch_line = 'blindsearch_database.py -c realfft -m m -b ' +str(bs_id) + '\n'
-            batch_file.write(batch_line)
-        submit_line = qsub + 'batch/fft' + d + '.batch'
-        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-        for line in submit_cmd.stdout:
-                print line,
-                if pbs:
-                    if '.pbs.hpc.swin.edu.au' in line:
-                        job_id_list.append(line[:7])
-                else:
-                    if "Submitted" in line:
-                        (word1,word2,word3,jobid) = line.split()
-                        job_id_list.append(jobid)
-                #print submit_cmd.communicate()[0]
-    
+        
+        fft_batch = "fft_" + d
+        commands = []
+        commands.append(add_temp_database_function(pbs))
+        commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+        commands.append("cd " + work_dir + sub_dir + "/" + d)
+        for f in dir_files:
+            if f.endswith(".dat"):     
+                commands.append('run "realfft" "' + str(f) + '" "'+str(bs_id)+'" "'+str(i)+'"')
+        
+        job_id = submit_slurm(fft_batch, commands,
+                         batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                         slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
+                         submit=True)
+        job_id_list.append(job_id)
+
     os.chdir(work_dir + "/" + sub_dir)
     
     sleep(1)
     job_id_str = ""
     for i in job_id_list:
         job_id_str += ":" + str(i)
-    with open('batch/dependancy_fft' + d + '.batch','w') as batch_file:
-        if pbs:#TODO fix
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#PBS -N dependancy_fft\n" +\
-                         "#PBS -o out/dependancy_fft.out\n" +\
-                         "#PBS -e out/dependancy_fft.error\n" +\
-                         "#PBS -l walltime=0:05:00\n"+\
-                         '#PBS -q gstar\n'+\
-                         '#PBS -l nodes=1:ppn=6:gpus=1\n'+\
-                         '#PBS -A p125_astro\n' +\
-                         "#PBS -W depend=afterany" + job_id_str + "\n" +\
-                         "cd " + work_dir + sub_dir + "\n"
-        else:
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#SBATCH --job-name=dependancy_fft\n" +\
-                         "#SBATCH --output=out/dependancy_fft.out\n" +\
-                         "#SBATCH --export=NONE\n" +\
-                         "#SBATCH --partition=workq\n" +\
-                         "#SBATCH --time=0:05:00\n" +\
-                         "#SBATCH --gid=mwaops\n" +\
-                         "#SBATCH --account=mwaops\n" +\
-                         "#SBATCH --nodes=1\n" +\
-                         "#SBATCH --dependency=afterany" + job_id_str + "\n" 
-        batch_file.write(batch_line)
-        batch_line = 'blindsearch_database.py -c realfft -m p -b ' +str(bs_id) + '\n'+\
-                     "blindsearch_pipeline.py -o " +\
-                                 str(obsid) + " -p " + str(pointing) + " -m a -w " + work_dir +\
-                                 " -s " + str(sub_dir) + ' -r ' + str(bs_id)
-        batch_file.write(batch_line) 
-        if not pulsar == None:
-            batch_line = " --pulsar " + pulsar
-            batch_file.write(batch_line)
-        else:
-            batch_line = " -d 0"
-            batch_file.write(batch_line)
-        if pbs:
-            batch_file.write(" --pbs ")
-    submit_line = qsub + 'batch/dependancy_fft' + d + '.batch'
-    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-    #print submit_cmd.stdout
+    
+    fft_dep_batch = "dependancy_fft"
+    commands = []
+    commands.append(add_database_function(pbs))
+    commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("cd " + work_dir + sub_dir)
+    commands.append('blindsearch_database.py -c realfft -m p -b ' +str(bs_id))
+    
+    blind_pipe_str = "blindsearch_pipeline.py -o " + str(obsid) + " -p " + str(pointing) +\
+                     " -m a -w " + work_dir + " -s " + str(sub_dir) + ' -r ' + str(bs_id)
+    if not pulsar == None:
+        blind_pipe_str += " --pulsar " + pulsar
+    else:
+        blind_pipe_str += " -d 0"
+    if pbs:
+        blind_pipe_str += " --pbs "
+    commands.append(blind_pipe_str)
+    submit_slurm(fft_dep_batch, commands,
+                 batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                 slurm_kwargs={"time": "5:00", "partition": "workq"},#4 hours
+                 submit=True, depend=job_id_str[1:])
+
     print "Sent off fft jobs"
     return
                 
                 
 #-------------------------------------------------------------------------------------------------------------
-def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar=None):
+def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, pulsar=None):
     #blindsearch_pipeline.py -o 1133329792 -p 19:45:14.00_-31:47:36.00 -m a -w /scratch2/mwaops/nswainston/tara_candidates//19:45:14.00_-31:47:36.00/1133329792/DM_058-060
     # sends off the accel search jobs
     #sub_dir = pointing + "/" + obsid + "/"
@@ -660,7 +545,8 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar=None):
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = '-ncpus $ncpus '
+        ncpuscom = ''
     
     print dm_i
     dm_file = dm_i_to_file(dm_i)
@@ -674,104 +560,52 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar=None):
     dir_files = os.listdir(DIR)
     #dir_files = ['1150234552_DM10.92.fft']
     job_id_list =[]
-    with open('batch/accel_' + dm_file + '.batch','w') as batch_file:
-        if pbs:
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#PBS -N accel_" + dm_file + "\n" +\
-                         "#PBS -o " + DIR + "/out/accel_" + dm_file + ".out\n" +\
-                         "#PBS -e " + DIR + "/out/accel_" + dm_file + ".error\n" +\
-                         "#PBS -l walltime=2:50:00\n"+\
-                         "cd " + DIR + "\n"
-            batch_file.write(batch_line)
-        else:
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#SBATCH --partition=workq\n" +\
-                         "#SBATCH --job-name=accel_" + dm_file + "\n" +\
-                         "#SBATCH --output=" + DIR + "/out/accel_" + dm_file + ".out\n" +\
-                         "#SBATCH --time=1:00:00\n" +\
-                         "ncpus=20\n"+\
-                         "export OMP_NUM_THREADS=$ncpus\n"
-            batch_file.write(batch_line)
-        batch_file.write(add_temp_database_function(pbs))
-        
-        for f in dir_files:
+    
+
+    accel_batch = "accel_" + dm_file
+    commands = []
+    commands.append(add_temp_database_function(pbs))
+    commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("cd " + DIR )
+    for f in dir_files:
             if f.endswith(".fft"):
-                #if pulsar == None:
-                batch_line = 'run "accelsearch" "'  + ncpuscom + ' -flo 1 -fhi 500 '+\
-                                '-numharm 8 -zmax 0 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"\n'
-                                # + ' ' + DIR[:len(work_dir)] + ' ' + DIR[len(work_dir):] + ' ' + obsid 
-                batch_file.write(batch_line)
-                """
-                else:
-                
-                batch_line = 'run "accelsearch" "-ncpus $ncpus -flo ' +\
-                                     str(1./(float(p)*1.15)) + ' -fhi ' +\
-                                     str(1./(float(p)*0.85)) + ' -numharm 8 -zmax 0 ' + f +\
-                                     '" "' +str(bs_id) + '" "'+str(dm_i)+'"\n'
-                                     #+ '" ' +\
-                                     #DIR[:len(work_dir)] + ' ' + DIR[len(work_dir):] + ' ' + obsid 
-                batch_file.write(batch_line)
-                """
-            
-    submit_line = qsub + 'batch/accel_' + dm_file + '.batch'
-    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-    for line in submit_cmd.stdout:
-        print line,
-        if pbs:
-            if '.pbs.hpc.swin.edu.au' in line:
-                job_id_list.append(line[:7])
-        else:
-            if "Submitted" in line:
-                (word1,word2,word3,jobid) = line.split()
-                job_id_list.append(jobid)
-                #print submit_cmd.communicate()[0]
+                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 1 -fhi 500 '+\
+                                '-numharm 8 -zmax 0 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
+
+    job_id = submit_slurm(accel_batch, commands,
+                         batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                         slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
+                         submit=True)
+    job_id_list.append(job_id)
+    
     sleep(1)
     print "Dependancy job below"
     job_id_str = ""
     for i in job_id_list:
         job_id_str += ":" + str(i)
-    with open('batch/dependancy_accel.batch','w') as batch_file:
-        if pbs:#TODO fix
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#PBS -N dependancy_accel\n" +\
-                         "#PBS -o out/dependancy_accel.out\n" +\
-                         "#PBS -e out/dependancy_accel.error\n" +\
-                         "#PBS -l walltime=0:05:00\n"+\
-                         '#PBS -q gstar\n'+\
-                         '#PBS -l nodes=1:ppn=6:gpus=1\n'+\
-                         '#PBS -A p125_astro\n' +\
-                         "#PBS -W depend=afterany" + job_id_str + "\n" +\
-                         "cd " + DIR + "\n"
-        else:                 
-            batch_line = "#!/bin/bash -l\n" +\
-                         "#SBATCH --job-name=dependancy_accel\n" +\
-                         "#SBATCH --output=out/dependancy_accel.out\n" +\
-                         "#SBATCH --export=NONE\n" +\
-                         "#SBATCH --partition=workq\n" +\
-                         "#SBATCH --time=0:05:00\n" +\
-                         "#SBATCH --gid=mwaops\n" +\
-                         "#SBATCH --account=mwaops\n" +\
-                         "#SBATCH --nodes=1\n" +\
-                         "#SBATCH --dependency=afterany" + job_id_str + "\n" 
-        batch_file.write(batch_line) 
-        batch_line = 'blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id) + '\n' +\
-                     'blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i)+'\n'+\
-                     "blindsearch_pipeline.py -o " + str(obsid) +\
-                             " -p " + str(pointing) + " -m f -w " + work_dir + " -s " + str(sub_dir) +\
-                             " -r " + str(bs_id)
-        batch_file.write(batch_line)  
-        if pulsar == None:
-             batch_line = " -d " + str(dm_i)
-             batch_file.write(batch_line)
-        else:
-            batch_line = " --pulsar " + str(pulsar)
-            batch_file.write(batch_line)
-        if pbs:
-            batch_file.write(" --pbs ")
-    submit_line = qsub + 'batch/dependancy_accel.batch'
-    submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-    for line in submit_cmd.stdout:
-                print line,
+    
+    accel_dep_batch = "dependancy_accel"
+    commands = []
+    commands.append(add_temp_database_function(pbs))
+    commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("cd " + DIR )
+    commands.append('blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id))
+    commands.append('blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i))
+    blind_pipe_str = "blindsearch_pipeline.py -o " + str(obsid) + " -p " + str(pointing) +\
+                     " -m f -w " + work_dir + " -s " + str(sub_dir) + " -r " + str(bs_id)
+    if pulsar == None:
+         blind_pipe_str +=" -d " + str(dm_i)
+    else:
+        blind_pipe_str += " --pulsar " + str(pulsar)
+    if pbs:
+        blind_pipe_str += " --pbs "
+    commands.append(blind_pipe_str)
+
+    submit_slurm(accel_dep_batch, commands,
+                 batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                 slurm_kwargs={"time": "15:00", "partition": "workq"},#4 hours
+                 submit=True, depend=job_id_str[1:])
+    
     print "Sent off accel jobs"
     return
        
@@ -794,10 +628,9 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar = None):
     else:
         if pbs:
             submit_line = 'python ~/My-Scripts/ACCEL_sift.py .'
-            file_loc = 'ACCEL_sift_cands.txt'
         else:
             submit_line = 'python /group/mwaops/nswainston/bin/ACCEL_sift.py .'
-            file_loc = 'ACCEL_sift_cands.txt'
+        file_loc = 'ACCEL_sift_cands.txt'
             
     if pbs:
         fits_dir = '/lustre/projects/p125_astro/DATA/'
@@ -806,7 +639,8 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar = None):
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = '-ncpus $ncpus '
+        ncpuscom = ''
         
     #calcs sn_min for candidates
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
@@ -840,7 +674,8 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar = None):
                     if l.startswith(obsid):
                         cand_line = l.split()
                         if float(cand_line[2]) > sn_min:
-                            cand_list.append([cand_line[0].split(':')[0],cand_line[0].split(':')[1],cand_line[2],cand_line[1],cand_line[7]])
+                            cand_list.append([cand_line[0].split(':')[0],cand_line[0].split(':')[1],\
+                                              cand_line[2],cand_line[1],cand_line[7]])
                         #print cand_line[2]
         #print len(cand_list)
     
@@ -902,97 +737,39 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar = None):
                     SUBDIR = work_dir + str(sub_dir) + dm_file
                 else:
                     SUBDIR = work_dir + str(sub_dir)[:-1]
-                batch_file = open('batch/fold_' + dm_file_orig + '_' + str(fold_num) + '.batch','w')
-                #TODO add a check that you're not folding the same thing again
-                if pbs:
-                    batch_line = "#!/bin/bash -l\n" +\
-                                 "#PBS -N fold_" + dm_file_orig + '_' + str(fold_num) + "\n" +\
-                                 "#PBS -o " + DIR + "/out/fold_" + dm_file_orig + '_' +\
-                                                             str(fold_num) +".out\n" +\
-                                 "#PBS -e " + DIR + "/out/fold_" + dm_file_orig + '_' +\
-                                                             str(fold_num) +".error\n" +\
-                                 "#PBS -l walltime=1:50:00\n"+\
-                                 "cd " + SUBDIR + "\n"+\
-                                 "module unload pgplot\n"+\
-                                 "module load pgplot/x86_64/gnu/5.2-gcc-4.7.1\n"
-                    batch_file.write(batch_line)
-                else:
-                    batch_line = "#!/bin/bash -l\n" +\
-                                 "#SBATCH --partition=gpuq\n" +\
-                                 "#SBATCH --job-name=fold_" + dm_file_orig + '_' + str(fold_num) + "\n" +\
-                                 "#SBATCH --output=" + DIR + "/out/fold_" + dm_file_orig + '_' +\
-                                                             str(fold_num) +".out\n" +\
-                                 "#SBATCH --time=2:00:00\n" +\
-                                 "ncpus=8\n"+\
-                                 "export OMP_NUM_THREADS=$ncpus\n" +\
-                                 "cd " + SUBDIR + "\n"
-                    batch_file.write(batch_line)
-                batch_file.write(add_database_function(pbs))
-                #fits
-                """
-                batch_line = "time aprun -b -n 1 -d $ncpus -q prepfold -ncpus $ncpus -n 128 -nsub 128 "+\
-                               "-noclip -mask " + str(obsid) + "_rfifind.mask -o " + c[0] + '_' + c[1] +\
-                               " -p " + c[3] + " -dm " + c[2] + " -nosearch" +\
-                               " /group/mwaops/vcs/" + str(obsid) + "/pointings/" + str(pointing) +\
-                               "/" + str(obsid) + "*.fits\n" 
-                """
-                #batch
-                batch_line = 'run "prepfold" "' + ncpuscom + ' -n 128 -nsub 128 '+\
+                
+                fold_batch = "fold_" + dm_file_orig + '_' + str(fold_num)
+                commands = []
+                commands.append(add_database_function(pbs))
+                commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+                commands.append("cd " + SUBDIR )
+                commands.append('run "prepfold" "' + ncpuscom + ' -n 128 -nsub 128 '+\
                                "-accelcand "+c[1]+" -accelfile "+c[0]+".cand  -o " +\
-                               c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bs_id)+'" "'+str(dm_i)+'"\n'
-                batch_file.write(batch_line)
-                batch_file.close()
+                               c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bs_id)+'" "'+str(dm_i)+'"')
+                
             else:
-                batch_file = open('batch/fold_' + dm_file_orig + '_' + str(fold_num) + '.batch','a')
                 #moves to other directory once it moves past DM%2
                 if not dm_file == last_dm_file and pulsar == None:
-                    batch_line = "cd " + SUBDIRorig + "\n"
-                    batch_file.write(batch_line)
-                #fits
-                """
-                batch_line = "time aprun -b -n 1 -d $ncpus -q prepfold -ncpus $ncpus -n 128 -nsub 128 "+\
-                               "-noclip -mask " + str(obsid) + "_rfifind.mask -o " + c[0] + '_' + c[1] +\
-                               " -p " + c[3] + " -dm " + c[2] + " -nosearch" +\
-                               " /group/mwaops/vcs/" + str(obsid) + "/pointings/" + str(pointing) +\
-                               "/" + str(obsid) + "*.fits\n" 
-                """
-                #batch
-                batch_line = 'run "prepfold" "' + ncpuscom + ' -n 128 -nsub 128 '+\
-                               "-accelcand "+c[1]+" -accelfile "+c[0]+".cand  -o " +\
-                               c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bs_id)+'" "'+str(dm_i)+'"\n'
-                batch_file.write(batch_line)
-                batch_file.close()
+                    commands.append("cd " + SUBDIRorig )
+                commands.append('run "prepfold" "' + ncpuscom + ' -n 128 -nsub 128 '+\
+                                "-accelcand "+c[1]+" -accelfile "+c[0]+".cand  -o " +\
+                                c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bs_id)+'" "'+str(dm_i)+'"')
             if ((i+1) % cands_per_batch) == 0:
-                 
-                submit_line = qsub + 'batch/fold_' + dm_file_orig + '_' + str(fold_num) + '.batch'
-                submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-                for line in submit_cmd.stdout:
-                    print line,
-                    if pbs:
-                        if '.pbs.hpc.swin.edu.au' in line:
-                            job_id_list.append(line[:7])
-                    else:
-                        if "Submitted" in line:
-                            (word1,word2,word3,jobid) = line.split()
-                            job_id_list.append(jobid)
+                job_id = submit_slurm(fold_batch, commands,
+                             batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                             slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
+                             submit=True)
+                job_id_list.append(job_id)     
                 fold_num += 1
                 
             last_dm_file = dm_file
         if not ((len(cand_list)+1) % cands_per_batch) == 0: 
-            submit_line = qsub + 'batch/fold_' + dm_file_orig + '_' + str(fold_num) + '.batch'
-            submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-            for line in submit_cmd.stdout:
-                    print line,
-                    if pbs:
-                        if '.pbs.hpc.swin.edu.au' in line:
-                            job_id_list.append(line[:7])
-                    else:
-                        if "Submitted" in line:
-                            (word1,word2,word3,jobid) = line.split()
-                            job_id_list.append(jobid)
+            job_id = submit_slurm(fold_batch, commands,
+                             batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                             slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
+                             submit=True)
+            job_id_list.append(job_id)
         
-        
-
         sleep(1)
         job_id_str = ""
         for i in job_id_list:
@@ -1001,55 +778,19 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar = None):
         if pulsar != None:
             SUBDIRorig = SUBDIR
     
-        #TODO check this fires off in the right file
-        with open('batch/dependancy_fold_' + dm_file_orig + '.batch','w') as batch_file:
-            if pbs:#TODO fix
-                batch_line = "#!/bin/bash -l\n" +\
-                             "#PBS -N dependancy_fold\n" +\
-                             "#PBS -o out/dependancy_fold_" + dm_file_orig + ".out\n" +\
-                             "#PBS -e out/dependancy_fold_" + dm_file_orig + ".error\n" +\
-                             "#PBS -l walltime=2:05:00\n"+\
-                             '#PBS -q gstar\n'+\
-                             '#PBS -l nodes=1:ppn=6:gpus=1\n'+\
-                             '#PBS -A p125_astro\n' +\
-                             "#PBS -W depend=afterany" + job_id_str + "\n" +\
-                             "cd " + SUBDIR + "\n"
-            else:
-                batch_line = "#!/bin/bash -l\n" +\
-                             "#SBATCH --job-name=dependancy_fold\n" +\
-                             "#SBATCH --output=out/dependancy_fold_" + dm_file_orig + ".out\n" +\
-                             "#SBATCH --export=NONE\n" +\
-                             "#SBATCH --partition=workq\n" +\
-                             "#SBATCH --time=2:05:00\n" +\
-                             "#SBATCH --gid=mwaops\n" +\
-                             "#SBATCH --account=mwaops\n" +\
-                             "#SBATCH --nodes=1\n" +\
-                             "#SBATCH --dependency=afterany" + job_id_str + "\n" +\
-                             'echo "Searching for a profile with a sigma greater than 3"\n'
-            batch_file.write(batch_line)
-            if pulsar == None and dm_i > 0:
-                i = dm_i * 2 - 1
-                batch_line = 'cd '+ SUBDIRpast + '\n' +\
-                             'count=0\n' +\
-                             'total=`ls *DM'+str(i)+'.9*.ps | wc -l`\n' +\
-                             'for i in $(ls *DM'+str(i)+'.9*.ps); do\n' +\
-                             'if (( $count % 100 == 0 )); then\n' +\
-                             'echo "$count / $total searched"\n' +\
-                             'fi\n' +\
-                             'chi=`sed "13q;d" ${i%.ps}.bestprof`\n' +\
-                             "if [ ${chi:20:3} -ge 3 ]; then\n" +\
-                             'ps_to_png.sh ${i}\n' +\
-                             'mv "${i%.ps}".png ../over_3_png/"${i%.ps}".png\n' +\
-                             'echo "${i%.ps}.png is over 3"\n' +\
-                             "fi\n" +\
-                             "count=$(($count+1))\n" +\
-                             "done\n"
-                batch_file.write(batch_line)
-            
-            batch_line = 'cd '+ SUBDIRorig + '\n' +\
+        
+        fold_dep_batch = "dependancy_fold" + dm_file_orig 
+        commands = []
+        commands.append(add_database_function(pbs))
+        commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+        commands.append("cd " + SUBDIR )
+        commands.append('echo "Searching for a profile with a sigma greater than 3"')
+        if pulsar == None and dm_i > 0:
+            i = dm_i * 2 - 1
+            commands.append('cd '+ SUBDIRpast + '\n' +\
                          'count=0\n' +\
-                         'total=`ls *.ps | wc -l`\n' +\
-                         'for i in $(ls *.ps); do\n' +\
+                         'total=`ls *DM'+str(i)+'.9*.ps | wc -l`\n' +\
+                         'for i in $(ls *DM'+str(i)+'.9*.ps); do\n' +\
                          'if (( $count % 100 == 0 )); then\n' +\
                          'echo "$count / $total searched"\n' +\
                          'fi\n' +\
@@ -1060,28 +801,43 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar = None):
                          'echo "${i%.ps}.png is over 3"\n' +\
                          "fi\n" +\
                          "count=$(($count+1))\n" +\
-                         "done\n" +\
-                         'blindsearch_database.py -c prepfold -m p -b ' +str(bs_id) + ' -d '+str(dm_i)+'\n'+\
-                         "blindsearch_pipeline.py -o " +\
-                                     str(obsid) + " -p " + str(pointing) + " -m a -w " + work_dir +\
-                                     " -s " + str(sub_dir) + " -r " + str(bs_id)
-            batch_file.write(batch_line) 
-            if pulsar == None:  
-                batch_line = " -d " + str(dm_i + 1) 
-                batch_file.write(batch_line)  
-            if pbs:
-                batch_file.write(" --pbs ")
-        submit_line = qsub + 'batch/dependancy_fold_' + dm_file_orig + '.batch'
-        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-        print submit_cmd.communicate()[0],
+                         "done")
+        
+        commands.append('cd '+ SUBDIRorig + '\n' +\
+                     'count=0\n' +\
+                     'total=`ls *.ps | wc -l`\n' +\
+                     'for i in $(ls *.ps); do\n' +\
+                     'if (( $count % 100 == 0 )); then\n' +\
+                     'echo "$count / $total searched"\n' +\
+                     'fi\n' +\
+                     'chi=`sed "13q;d" ${i%.ps}.bestprof`\n' +\
+                     "if [ ${chi:20:3} -ge 3 ]; then\n" +\
+                     'ps_to_png.sh ${i}\n' +\
+                     'mv "${i%.ps}".png ../over_3_png/"${i%.ps}".png\n' +\
+                     'echo "${i%.ps}.png is over 3"\n' +\
+                     "fi\n" +\
+                     "count=$(($count+1))\n" +\
+                     "done")
+        commands.append('blindsearch_database.py -c prepfold -m p -b ' +str(bs_id) +' -d '+str(dm_i))
+        blind_pipe_str = "blindsearch_pipeline.py -o " + str(obsid) + " -p " + str(pointing) +\
+                         " -m a -w " + work_dir + " -s " + str(sub_dir) + " -r " + str(bs_id)
+        if pulsar == None:  
+            blind_pipe_str += " -d " + str(dm_i + 1) 
+        if pbs:
+            blind_pipe_str += " --pbs "
+        
+        submit_slurm(fold_dep_batch, commands,
+                         batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                         slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
+                         submit=True, depend=job_id_str[1:])
     else:
         #if there is no cand file assumed there are no cands
-        submit_line = "blindsearch_pipeline.py -o " +\
-                                     str(obsid) + " -p " + str(pointing) + " -m a -w " + work_dir +\
-                                     " -s " + str(sub_dir) + " -d "+str(dm_i + 1)
+        submit_line = "blindsearch_pipeline.py -o " + str(obsid) + " -p " + str(pointing) +\
+                       " -m a -w " + work_dir + " -s " + str(sub_dir) + " -d "+str(dm_i + 1) +\
+                       " -r " + str(bs_id)
         
         if pbs:
-            submit_line = submit_line + " --pbs "
+            submit_line += " --pbs "
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
         print submit_cmd.communicate()[0], 
     
@@ -1140,7 +896,7 @@ if args.mode == "b":
     for n, line in enumerate(lines):
         if line.startswith("#"):
             continue
-        print "Checking pointing "+n+" out of " +str(len(lines)) 
+        print "Checking pointing {0} out of {1}".format(n, len(lines))
         ra, dec = line.split(" ")
         if dec.endswith("\n"):
             dec = dec[:-1]
@@ -1202,11 +958,12 @@ if args.mode == "b":
                         for j in job_id_list:
                             job_id_str += ":" + str(j)
                         submit_line = 'sbatch -t 60 --depend=afterany'+job_id_str+\
-                                       ' splice_wrapper.py -o '+obs + ' -d '+pointing_dir
+                                       ' splice_wrapper.py -o '+obs + ' -w '+pointing_dir
                         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
                     else:
                         #If only unspliced files then splice
-                        submit_line = 'sbatch -t 60 splice_wrapper.py -o '+obs + ' -d '+pointing_dir
+                        submit_line = 'sbatch -t 60 splice_wrapper.py -o '+obs + ' -w '+pointing_dir
+                        print submit_line
                         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
 
                 else:
