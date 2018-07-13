@@ -167,7 +167,7 @@ def dm_i_to_file(dm_i):
     return dm_file
 
 def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
-                        check, search, relaunch_script):
+                        check, search, bs_id, relaunch_script):
     """
     Does some basic checks and formating before using beamforming from process_vcs.py
     """
@@ -191,8 +191,11 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
     #create a split wrapper dependancy
     splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, pointing)
     commands = []
+    for f in glob.glob("{0}/batch/mb_{1}*.batch".format(product_dir,pointing)):
+        commands.append('blindsearch_database.py -m b -b ' +str(bs_id) + " -f " + str(f)[:-6])
+    commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bs_id))
     commands.append('splice_wrapper.py -o {0} -w {1}'.format(obs, pointing_dir))
-    commands.append('{0} -m b'.format(relaunch_script))
+    commands.append('{0} -m b -r {1}'.format(relaunch_script, bs_id))
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
                  slurm_kwargs={"time": "1:00:00", "partition": "workq"},
@@ -202,9 +205,7 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
 
 
 #-------------------------------------------------------------------------------------------------------------
-def rfifind(obsid, pointing, work_dir, sub_dir,pbs,pulsar=None, relaunch_script):
-    code_comment = raw_input("Please right a comment describing the purpose of this blindsearch. eg testing: ")
-    bs_id = blindsearch_database.database_blindsearch_start(obsid, pointing, code_comment)
+def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsar=None):
     
     #Set up some directories and move to it
     if not os.path.exists(work_dir + pointing):
@@ -262,7 +263,7 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs,pulsar=None, relaunch_script)
 
 
 #-------------------------------------------------------------------------------------------------------------
-def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs,pulsar=None, relaunch_script):
+def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pulsar=None):
     if not pulsar == None:
         os.chdir(work_dir + pointing + "/" + obsid + "/" + pulsar)
         sub_dir = pointing + "/" + obsid + "/" + pulsar + "/"
@@ -378,7 +379,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs,pulsar=None, relaunch
     return
                 
 #-------------------------------------------------------------------------------------------------------------
-def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, pulsar=None, relaunch_script):
+def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pulsar=None):
     #Makes 90 files to make this all a bit more managable and sorts the files.
     os.chdir(work_dir + "/" + sub_dir)
     if not os.path.exists("over_3_png"):
@@ -508,7 +509,7 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, pulsar=None, relaunc
                 
                 
 #-------------------------------------------------------------------------------------------------------------
-def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, pulsar=None, relaunch_script):
+def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script, pulsar=None):
     #blindsearch_pipeline.py -o 1133329792 -p 19:45:14.00_-31:47:36.00 -m a -w /scratch2/mwaops/nswainston/tara_candidates//19:45:14.00_-31:47:36.00/1133329792/DM_058-060
     # sends off the accel search jobs
     #sub_dir = pointing + "/" + obsid + "/"
@@ -579,7 +580,7 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, pulsar=None, rel
     return
        
 #-------------------------------------------------------------------------------------------------------------
-def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, pulsar = None, relaunch_script):
+def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, pulsar=None):
     from math import floor
     dm_file_orig = dm_i_to_file(dm_i)
     
@@ -848,7 +849,8 @@ obs = args.observation
 #obsid =  1133329792
 point = args.pointing
 #19:45:14.00_-31:47:36.00
-s_d = args.sub_dir
+if args.sub_dir:
+    s_d = args.sub_dir
 
 #check begining end times
 if args.all and (args.begin or args.end):
@@ -859,8 +861,12 @@ elif args.all:
     
 
 #Base launch of this code (everything except mode and dmfile int)
-relaunch_script = "blindsearch_pipeline.py -o " + str(obs) + "-w " + w_d + "-s " +\
-                  str(s_d) 
+relaunch_script = "blindsearch_pipeline.py -o " + str(obs) + " -w " + w_d 
+
+if args.DI_dir:
+    relaunch_script += " --DI_dir="+args.DI_dir
+if args.sub_dir:
+    relaunch_script += " -s " + str(s_d) 
 if args.row_num:
     relaunch_script += " -r " + str(args.row_num)
 if not args.pulsar == None:
@@ -876,11 +882,19 @@ if args.search and args.mode == 'b':
 
 #work out start and stop times for beamforming
 if args.mode == "b":
-        if args.pulsar_file:
+    if args.pulsar_file:
         with open(args.pulsar_file) as f:
             lines = f.readlines()
     elif args.pointing:
         lines = [args.pointing.replace("_"," ")]
+    #If in search mode start up the database entry
+    if args.search and not args.row_num:
+        code_comment = raw_input("Please write a comment describing the purpose of this blindsearch. eg testing: ")
+        if args.pulsar_file:
+            code_comment += " (using {0})".format(args.pulsar_file)
+        bs_id = blindsearch_database.database_blindsearch_start(obs, point, code_comment)
+    elif args.row_num:
+        bs_id = args.row_num
     #Loop through pointings and check if any are done
     for n, line in enumerate(lines):
         if line.startswith("#"):
@@ -958,31 +972,36 @@ if args.mode == "b":
                 else:
                     #TODO no files gotta beamform
                     print "No files in "+ra+"_"+dec+" starting beamforming"
+                    if args.search:
+                        row_num = blindsearch_database.database_blindsearch_start(obs,
+                                                    point, "{0} {1}".format(code_comment,n))
                     process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,\
-                                        pointing_dir, args.check,args.search, relaunch_script)
+                                     pointing_dir, args.check,args.search, row_num, relaunch_script)
                               
             else:
                 #All files there so the check has succeded and going to start the pipeline
                 if args.search:
-                    rfifind(obs, point, w_d, s_d,args.pbs,args.pulsar)
+                    rfifind(obs, point, w_d, s_d,args.pbs, args.row_num, relaunch_script, args.pulsar)
         else:
             # do beamforming
             print "No pointing directory for "+ra+"_"+dec+" starting beamforming"
-            
+            if args.search:
+                row_num = blindsearch_database.database_blindsearch_start(obs,
+                                               point, "{0} {1}".format(code_comment,n))
             process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,\
-                                pointing_dir, args.check, args.search, relaunch_script)
+                                pointing_dir, args.check, args.search, row_num, relaunch_script)
  
 
 if args.mode == "r" or args.mode == None:
-    rfifind(obs, point, w_d, s_d,args.pbs,args.pulsar,relaunch_script)
+    rfifind(obs, point, w_d, s_d,args.pbs, args.row_num, relaunch_script, args.pulsar)
 if args.mode == "p":
-    prepdata(obs, point, w_d, s_d,args.row_num,args.pbs,args.pulsar, relaunch_script)
+    prepdata(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar)
 elif args.mode == "s":
-    sort_fft(obs, point, w_d, s_d,args.row_num,args.pbs,args.pulsar, relaunch_script)
+    sort_fft(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar)
 elif args.mode == "a":
-    accel(obs, point, w_d, s_d,args.dm_file_int,args.row_num,args.pbs,args.pulsar, relaunch_script)
+    accel(obs, point, w_d, s_d,args.dm_file_int,args.row_num,args.pbs, relaunch_script,args.pulsar)
 elif args.mode == "f":
-    fold(obs, point, w_d, s_d,args.dm_file_int,args.row_num,args.pbs,args.pulsar, relaunch_script)
+    fold(obs, point, w_d, s_d,args.dm_file_int,args.row_num,args.pbs, relaunch_script,args.pulsar)
     
         
     

@@ -16,7 +16,7 @@ with con:
     #CandOverNoise: total cands over noise (normaly 3 sigma but I may change it)
     #CandDect: cands that were confirmed as pulsars (known or hopefully new)
     cur = con.cursor()
-    cur.execute("CREATE TABLE Blindsearch(Rownum integer primary key autoincrement, Started date, Ended date, Obsid INT, Pointing TEXT, Comment TEXT, TotalProc FLOAT, TotalErrors INT, BeamformProc FLOAT, BeamfromErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT, CandTotal INT, CandOverNoise INT, CandDect INT)")
+    cur.execute("CREATE TABLE Blindsearch(Rownum integer primary key autoincrement, Started date, Ended date, Obsid INT, Pointing TEXT, Comment TEXT, TotalProc FLOAT, TotalErrors INT, BeamformProc FLOAT, BeamformErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT, CandTotal INT, CandOverNoise INT, CandDect INT)")
     
     #A table for each job type
     

@@ -18,7 +18,7 @@ def database_blindsearch_start(obsid, pointing, comment):
         with con:
                 cur = con.cursor()
                 
-                cur.execute("INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, TotalProc, TotalErrors, RFIProc, RFIErrors, PrepdataProc, PrepdataErrors, FFTProc, FFTErrors, AccelProc, AccelErrors, FoldProc, FoldErrors, CandTotal, CandOverNoise, CandDect) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (datetime.datetime.now(), obsid, pointing, comment, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+                cur.execute("INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, TotalProc, TotalErrors,BeamformProc, BeamformErrors, RFIProc, RFIErrors, PrepdataProc, PrepdataErrors, FFTProc, FFTErrors, AccelProc, AccelErrors, FoldProc, FoldErrors, CandTotal, CandOverNoise, CandDect) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (datetime.datetime.now(), obsid, pointing, comment, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
                 vcs_command_id = cur.lastrowid
         return vcs_command_id
     
@@ -62,6 +62,36 @@ def database_mass_update(table,file_location):
                 database_script_stop(table, row_num, l[1], end_time=l[0])
     return
 
+def database_beamform_find(table,file_location, bs_id):
+    time_now = datetime.datetime.now()
+    #go through the batch file for info
+    with open("{0}.batch".format(file_location),'r') as batch:
+        lines = batch.readlines()
+        for l in lines:
+            if l.startswith("export OMP_NUM_THREADS"):
+                nodes = l.split("=")[1]
+            if l.startswith("srun"):
+                command = "make_beam" #I don't think these needs to be more robust
+                arguments = l.split(command)[1]
+    with open("{0}.out".format(file_location),'r') as output:
+        lines = output.readlines()
+        find_check = False
+        for l in lines:
+            if "**FINISHED BEAMFORMING**" in l:
+                find_check = True
+                time_seconds = float(l[1:10])
+                #So this may be inaccurate because now isn't when the job 
+                #finished but should get the right delta
+                time_then = datetime.datetime.now() - datetime.timedelta(seconds=time_seconds)
+                row_num = database_script_start(table, bs_id, command, arguments, nodes, None,\
+                                                time_then)
+                database_script_stop(table, row_num, 0, end_time=time_now)
+        if not find_check:
+            #no finshed string so likely it failed:
+            #TODO make this more robust to work out how long it ran before it died
+            row_num = database_script_start(table, bs_id, command, arguments, nodes, None, time_now)
+            database_script_stop(table, row_num, 1, end_time=time_now)
+ 
 
 def date_to_sec(string):
     #just an approximation (doesn't even use year and month
@@ -85,7 +115,7 @@ if __name__ == '__main__':
     blindsearch_database.py -m vs -c <presto command>
     
     """)
-    parser.add_option("-m", "--mode", dest="mode", metavar="mode", default='v', type=str, help='This script has three modes: "vc" used to view the database commands, "vs" used to view the database scripts,, "s" used to start a record of a script on the database and "e" used to record the end time and error code of a script on the database. Default mode is v')
+    parser.add_option("-m", "--mode", dest="mode", metavar="mode", default='v', type=str, help='This script has three modes: "vc" used to view the database commands, "vs" used to view the database scripts, "vp" view processing and error statistics, "s" used to start a record of a script on the database, "e" used to record the end time and error code of a script on the database, "p" counts errors and processing time for one id and "b" is a special mode for receiving the total time of beamforming jobs. Default mode is v')
     parser.add_option("-f", "--file_location", dest="file_location", metavar="file_location", type=str, help='mass update csv file location.')
     
     view_options = OptionGroup(parser, 'View Options')
@@ -124,6 +154,8 @@ if __name__ == '__main__':
         table = 'Fold'
     elif opts.mode == 'vc' or opts.mode == 'vp':
         table = 'Blindsearch'
+    elif opts.mode == 'b' or opts.command == 'make_beam':
+        table = 'Beamform'
         
     
     if opts.mode == "s":
@@ -137,6 +169,8 @@ if __name__ == '__main__':
         else:
             file_loc = opts.command + '_temp_database_file.csv'
         database_mass_update(table,file_loc)
+    elif opts.mode == 'b':
+        database_beamform_find(table,opts.file_location, opts.bs_id)
     elif opts.mode.startswith("v"):
         con = lite.connect(DB_FILE)
         con.row_factory = dict_factory
@@ -193,7 +227,7 @@ if __name__ == '__main__':
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
                 print '%-5s' % (str(row['Rownum']).rjust(4)),
                 print '%-5s' % (row['BSID']),
-                if not (table =='RFI' or table == 'Prepdata'):
+                if not (table =='RFI' or table == 'Prepdata' or table == 'Beamform'):
                     if str(row['DMFileInt']).endswith('\n'):
                         print '%-5s' % str((row['DMFileInt']))[:-1],
                     else:
@@ -212,13 +246,15 @@ if __name__ == '__main__':
                 print "\n"
                 
         if opts.mode == "vp":
-            print 'Row# ', 'Total proc error# ', 'RFI proc   error# ','Prep proc  error# ','FFT proc   error# ','Accel proc error# ','Fold proc  error#'
+            print 'Row# ', 'Total proc error# ', 'Beamform proc error# ', 'RFI proc   error# ','Prep proc  error# ','FFT proc   error# ','Accel proc error# ','Fold proc  error#'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
                 print '%-5s' % (str(row['Rownum']).rjust(4)),
                 print '%-10s' % (row['TotalProc']),
                 print '%-7s' % (row['TotalErrors']),
+                print '%-10s' % (row['BeamformProc']),
+                print '%-7s' % (row['BeamformErrors']),
                 print '%-10s' % (row['RFIProc']),
                 print '%-7s' % (row['RFIErrors']),
                 print '%-10s' % (row['PrepdataProc']),
@@ -232,6 +268,7 @@ if __name__ == '__main__':
                 print "\n"
                 
     elif opts.mode == 'p':
+        #goes through jobs of that id and command type and counts errors and processing time
         query = "SELECT * FROM " + table + " WHERE BSID=" + str(opts.bs_id)
         if opts.dm_file_int:
             query += " AND DMFileInt=" + str(opts.dm_file_int)
