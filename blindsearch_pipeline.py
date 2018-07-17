@@ -80,7 +80,7 @@ def add_temp_database_function(pbs):
                 '    else\n' +\
                 '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1,$4" >> ${1}_temp_database_file.csv\n' +\
                 '    fi\n' +\
-                '    $1 $2\n' +\
+                '    srun -n 1 -c $ncpus $1 $2\n' +\
                 '    echo $1 $2\n' +\
                 '    errcode=$?\n' +\
                 '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file.csv\n' +\
@@ -169,7 +169,9 @@ def dm_i_to_file(dm_i):
 def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
                         check, search, bs_id, relaunch_script):
     """
-    Does some basic checks and formating before using beamforming from process_vcs.py
+    Does some basic checks and formating before 
+    if args.pulsar_file:
+        code_comment += using beamforming from process_vcs.py
     """
     #check queue
     your_slurm_queue_check()
@@ -194,7 +196,7 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
     for f in glob.glob("{0}/batch/mb_{1}*.batch".format(product_dir,pointing)):
         commands.append('blindsearch_database.py -m b -b ' +str(bs_id) + " -f " + str(f)[:-6])
     commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bs_id))
-    commands.append('splice_wrapper.py -o {0} -w {1}'.format(obs, pointing_dir))
+    commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
     commands.append('{0} -m b -r {1}'.format(relaunch_script, bs_id))
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
@@ -210,6 +212,8 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
     #Set up some directories and move to it
     if not os.path.exists(work_dir + pointing):
             os.mkdir(work_dir + pointing)
+    if not os.path.exists(work_dir + "/rfi_masks"):
+            os.mkdir(work_dir + "/rfi_masks")
     if not os.path.exists(work_dir + pointing + "/" + obsid): 
             os.mkdir(work_dir + pointing + "/" + obsid)
     if not pulsar == None:
@@ -232,6 +236,7 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
         ncpuscom = '-ncpus $ncpus '
+        n_omp_threads = 20
             
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
@@ -241,19 +246,24 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
     commands = []
     commands.append(add_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
-    commands.append('run "rfifind" "' + ncpuscom + '-noclip -time 12.0 ' + '-o ' + str(obsid) +\
-                    ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
-                    str(obsid) + '/pointings/' + str(pointing) + '/' + str(obsid) + '*.fits" '+\
-                    str(bs_id))
-    commands.append('blindsearch_database.py -c rfifind -m p -b ' +str(bs_id))
-    
-    # work out the args needed for the next pipeline step
+    commands.append("ncpus={0}".format(n_omp_threads))
+    commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
+    if not os.path.exists("{0}/rfi_masks/{1}_rfifind.mask".format(work_dir, obsid)):
+        #if there is not already a rfi mask make one
+        commands.append('run "rfifind" "' + ncpuscom + '-noclip -time 12.0 ' + '-o ' + str(obsid) +\
+                        ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
+                        str(obsid) + '/pointings/' + str(pointing) + '/' + str(obsid) + '*.fits" '+\
+                        str(bs_id))
+        commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
+        commands.append('blindsearch_database.py -c rfifind -m p -b ' +str(bs_id))
+        commands.append("prepdata " + ncpuscom + " -dm 0 " "-numout " + str(numout) + " -o " +\
+                        str(obsid) + "_DM0.00 " + fits_dir + str(obsid) + \
+                        "/pointings/" + str(pointing) + "/" + str(obsid) + "*.fits")
+        commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
+        commands.append('mv {0}_DM0.00.dat {1}/rfi_masks/'.format(obsid,work_dir))
+        commands.append('mv {0}_DM0.00.inf {1}/rfi_masks/'.format(obsid,work_dir))
     commands.append("{0} -m p -r {1}".format(relaunch_script, bs_id))
-    
-    commands.append("prepdata " + ncpuscom + " -dm 0 " "-numout " + str(numout) + " -o " +\
-                    str(obsid) + "_DM0.00 " + fits_dir + str(obsid) + \
-                    "/pointings/" + str(pointing) + "/" + str(obsid) + "*.fits")
-    
+
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "2:00:00", "partition": "workq"},#4 hours
@@ -301,8 +311,9 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        #ncpuscom = '-ncpus $ncpus '
-        ncpuscom = ''
+        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = ''
+        n_omp_threads = 20
            
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
@@ -319,6 +330,8 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
             commands = []
             commands.append(add_database_function(pbs))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+            commands.append("ncpus={0}".format(n_omp_threads))
+            commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
             commands.append('run "prepsubband" "'+ncpuscom + '-lodm ' + str(dm_start) +\
                             " -dmstep " + str(dm_line[2]) + " -numdms 512 -numout " +\
                             str(numout) + " -o " + str(obsid) + " -mask " + str(obsid) +\
@@ -338,6 +351,8 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
         commands = []
         commands.append(add_database_function(pbs))
         commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+        commands.append("ncpus={0}".format(n_omp_threads))
+        commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
         commands.append('run "prepsubband" "'+ncpuscom + '-lodm '+str(dm_start) +\
                         " -dmstep " + str(dm_line[2]) + " -numdms " + str(steps) + " -numout " +\
                         str(numout) + " -o " + str(obsid) + " " + fits_dir + str(obsid) + \
@@ -366,6 +381,8 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
     commands = []
     commands.append(add_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("ncpus={0}".format(n_omp_threads))
+    commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     commands.append("cd " + work_dir + sub_dir)
     commands.append('realfft ' + str(obsid) + '_DM0.00.dat')
     commands.append("accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft")
@@ -416,8 +433,9 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        #ncpuscom = '-ncpus $ncpus '
-        ncpuscom = ''
+        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = ''
+        n_omp_threads = 20
         
     
     DIR=work_dir + sub_dir
@@ -471,6 +489,8 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
             commands = []
             commands.append(add_temp_database_function(pbs))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+            commands.append("ncpus={0}".format(n_omp_threads))
+            commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
             commands.append("cd " + work_dir + sub_dir + "/" + d)
             for f in dir_files:
                 if f.endswith(".dat"):     
@@ -493,6 +513,8 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
     commands = []
     commands.append(add_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("ncpus={0}".format(n_omp_threads))
+    commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     commands.append("cd " + work_dir + sub_dir)
     commands.append('blindsearch_database.py -c realfft -m p -b ' +str(bs_id))
     
@@ -521,8 +543,9 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        #ncpuscom = '-ncpus $ncpus '
-        ncpuscom = ''
+        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = ''
+        n_omp_threads = 20
     
     print dm_i
     dm_file = dm_i_to_file(dm_i)
@@ -542,11 +565,13 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     commands = []
     commands.append(add_temp_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("ncpus={0}".format(n_omp_threads))
+    commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     commands.append("cd " + DIR )
     for f in dir_files:
             if f.endswith(".fft"):
-                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 1 -fhi 500 '+\
-                                '-numharm 8 -zmax 0 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
+                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.5 fhi 500 '+\
+                                '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
 
     job_id = submit_slurm(accel_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
@@ -564,6 +589,8 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     commands = []
     commands.append(add_temp_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+    commands.append("ncpus={0}".format(n_omp_threads))
+    commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     commands.append("cd " + DIR )
     commands.append('blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id))
     commands.append('blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i))
@@ -609,8 +636,9 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
     else:
         fits_dir = '/group/mwaops/vcs/'
         qsub = 'sbatch '
-        #ncpuscom = '-ncpus $ncpus '
-        ncpuscom = ''
+        ncpuscom = '-ncpus $ncpus '
+        #ncpuscom = ''
+        n_omp_threads = 20
         
     #calcs sn_min for candidates
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
@@ -725,6 +753,8 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
                 commands = []
                 commands.append(add_database_function(pbs))
                 commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+                commands.append("ncpus={0}".format(n_omp_threads))
+                commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
                 commands.append("cd " + SUBDIR )
                 commands.append(fold_command)
                 
@@ -762,6 +792,8 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
         commands = []
         commands.append(add_database_function(pbs))
         commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+        commands.append("ncpus={0}".format(n_omp_threads))
+        commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
         commands.append("cd " + SUBDIR )
         commands.append('echo "Searching for a profile with a sigma greater than 3"')
         if pulsar == None and dm_i > 0:
@@ -851,6 +883,8 @@ point = args.pointing
 #19:45:14.00_-31:47:36.00
 if args.sub_dir:
     s_d = args.sub_dir
+elif not args.mode == 'b':
+    s_d = point + "/" + obs + "/"
 
 #check begining end times
 if args.all and (args.begin or args.end):
@@ -863,10 +897,10 @@ elif args.all:
 #Base launch of this code (everything except mode and dmfile int)
 relaunch_script = "blindsearch_pipeline.py -o " + str(obs) + " -w " + w_d 
 
+if not args.mode =='b':
+    relaunch_script +=  " -s " + str(s_d)
 if args.DI_dir:
     relaunch_script += " --DI_dir="+args.DI_dir
-if args.sub_dir:
-    relaunch_script += " -s " + str(s_d) 
 if args.row_num:
     relaunch_script += " -r " + str(args.row_num)
 if not args.pulsar == None:
@@ -891,10 +925,7 @@ if args.mode == "b":
     if args.search and not args.row_num:
         code_comment = raw_input("Please write a comment describing the purpose of this blindsearch. eg testing: ")
         if args.pulsar_file:
-            code_comment += " (using {0})".format(args.pulsar_file)
-        bs_id = blindsearch_database.database_blindsearch_start(obs, point, code_comment)
-    elif args.row_num:
-        bs_id = args.row_num
+            code_comment += " (using: {0}) ".format(args.pulsar_file)
     #Loop through pointings and check if any are done
     for n, line in enumerate(lines):
         if line.startswith("#"):
@@ -904,6 +935,7 @@ if args.mode == "b":
         if dec.endswith("\n"):
             dec = dec[:-1]
         pointing_dir = "/group/mwaops/vcs/"+obs+"/pointings/"+ra+"_"+dec
+        point = ra + "_" + dec
         if os.path.exists(pointing_dir):
             #first check is there's already spliced files
             expected_file_num = int( (args.end-args.begin)/200 )
@@ -961,11 +993,11 @@ if args.mode == "b":
                         for j in job_id_list:
                             job_id_str += ":" + str(j)
                         submit_line = 'sbatch -t 60 --depend=afterany'+job_id_str+\
-                                       ' splice_wrapper.py -o '+obs + ' -w '+pointing_dir
+                                       ' splice_wrapper.py -d -o '+obs + ' -w '+pointing_dir
                         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
                     else:
                         #If only unspliced files then splice
-                        submit_line = 'sbatch -t 60 splice_wrapper.py -o '+obs + ' -w '+pointing_dir
+                        submit_line = 'sbatch -t 60 splice_wrapper.py -d -o '+obs + ' -w '+pointing_dir
                         print submit_line
                         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
 
@@ -981,7 +1013,13 @@ if args.mode == "b":
             else:
                 #All files there so the check has succeded and going to start the pipeline
                 if args.search:
-                    rfifind(obs, point, w_d, s_d,args.pbs, args.row_num, relaunch_script, args.pulsar)
+                    s_d = point + "/" + obs + "/"
+                    row_num = blindsearch_database.database_blindsearch_start(obs,
+                                            point, "{0} {1}".format(code_comment,n))
+                    rfifind(obs, point, w_d, s_d, args.pbs, row_num, relaunch_script, args.pulsar)
+                #remove any extra unspliced files
+                for fr in glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
+                    os.remove(fr)
         else:
             # do beamforming
             print "No pointing directory for "+ra+"_"+dec+" starting beamforming"
