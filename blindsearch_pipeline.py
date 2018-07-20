@@ -55,7 +55,7 @@ def add_database_function(pbs):
                 '    else\n' +\
                 '        rownum=`blindsearch_database.py -m s -c $1 -a "$2" -b $3 -n 1 -d $4`\n' +\
                 '    fi\n' +\
-                '    $1 $2\n' +\
+                '    srun -n 1 -c $ncpus $1 $2\n' +\
                 '    echo $1 $2\n' +\
                 '    errcode=$?\n' +\
                 '    blindsearch_database.py -m e -c $1 -r $rownum --errorcode $errcode\n' +\
@@ -197,7 +197,7 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
         commands.append('blindsearch_database.py -m b -b ' +str(bs_id) + " -f " + str(f)[:-6])
     commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bs_id))
     commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
-    commands.append('{0} -m b -r {1}'.format(relaunch_script, bs_id))
+    commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bs_id, pointing))
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
                  slurm_kwargs={"time": "1:00:00", "partition": "workq"},
@@ -262,7 +262,7 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('mv {0}_DM0.00.dat {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('mv {0}_DM0.00.inf {1}/rfi_masks/'.format(obsid,work_dir))
-    commands.append("{0} -m p -r {1}".format(relaunch_script, bs_id))
+    commands.append("{0} -m p -r {1} -s {2}/{3}".format(relaunch_script, bs_id, pointing, obs))
 
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
@@ -551,7 +551,7 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     dm_file = dm_i_to_file(dm_i)
     
     if pulsar == None:
-        DIR = work_dir + str(sub_dir) + dm_file
+        DIR = work_dir + str(sub_dir) +"/"+ dm_file
     else:
         DIR = work_dir + str(sub_dir)
         dm, p = get_pulsar_dm_p(pulsar)
@@ -570,7 +570,7 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     commands.append("cd " + DIR )
     for f in dir_files:
             if f.endswith(".fft"):
-                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.5 fhi 500 '+\
+                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.5 -fhi 500 '+\
                                 '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
 
     job_id = submit_slurm(accel_batch, commands,
@@ -691,8 +691,8 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
         if pulsar == None:
             dm_i_temp = floor( floor(float(cand_list[0][3]))/2 )
             dm_file = dm_i_to_file(dm_i_temp)    
-            SUBDIRpast = work_dir + str(sub_dir) + dm_file
-            SUBDIRorig = work_dir + str(sub_dir) + dm_file_orig #current
+            SUBDIRpast = work_dir + str(sub_dir) +"/"+ dm_file
+            SUBDIRorig = work_dir + str(sub_dir) +"/"+ dm_file_orig #current
             #if DM_000-002 current = past
         else:
             SUBDIR = work_dir + str(sub_dir)[:-1]
@@ -735,9 +735,9 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
            
             #the fold options that uses .fits files which is slower but more accurate
             fold_command = 'run "prepfold" "-n 128 -nsub 128 -noclip -o ' + c[0] + '' + c[1] +\
-                       ' -p ' + c[3] + " -dm " + c[2] + " -nosearch" + " /group/mwaops/vcs/" +\
-                       str(obsid) + "/pointings/" + str(pointing) + "/" + str(obsid) +\
-                       '*.fits" "'+str(bs_id)+'" "'+str(dm_i)+'"'
+                           "_"+pointing+ ' -p ' + c[3] + " -dm " + c[2] + " -nosearch" +\
+                           " /group/mwaops/vcs/" + str(obsid) + "/pointings/" + str(pointing) +\
+                           "/" + str(obsid) + '*.fits" "'+str(bs_id)+'" "'+str(dm_i)+'"'
           
 
             if (i == 0) or ((i % cands_per_batch) == 0):
@@ -745,7 +745,7 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
                 if pulsar == None:
                     dm_i_temp = int(floor( floor(float(c[3]))/2 ))
                     dm_file = dm_i_to_file(dm_i_temp)
-                    SUBDIR = work_dir + str(sub_dir) + dm_file
+                    SUBDIR = work_dir + str(sub_dir) +"/"+ dm_file
                 else:
                     SUBDIR = work_dir + str(sub_dir)[:-1]
                 
@@ -885,6 +885,8 @@ if args.sub_dir:
     s_d = args.sub_dir
 elif not args.mode == 'b':
     s_d = point + "/" + obs + "/"
+if args.row_num:
+    row_num = args.row_num
 
 #check begining end times
 if args.all and (args.begin or args.end):
@@ -907,7 +909,7 @@ if not args.pulsar == None:
     relaunch_script += " --pulsar " + pulsar
 if args.pbs:
     relaunch_script += " --pbs "
-if point:
+if args.pointing:
     relaunch_script += " -p " + str(point)
 if args.begin and args.end:
     relaunch_script += " -b " + str(args.begin) + " -e " + str(args.end)
@@ -992,15 +994,37 @@ if args.mode == "b":
                         job_id_str = ""
                         for j in job_id_list:
                             job_id_str += ":" + str(j)
-                        submit_line = 'sbatch -t 60 --depend=afterany'+job_id_str+\
-                                       ' splice_wrapper.py -d -o '+obs + ' -w '+pointing_dir
-                        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+                        splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, point)
+                        commands = []
+                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
+                        if args.search:
+                            if args.row_num:
+                                row_num = blindsearch_database.database_blindsearch_start(obs,
+                                                 point, "{0} {1}".format(code_comment,n))
+                            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script,\
+                                                              row_num, point))
+                        submit_slurm(splice_wrapper_batch, commands,
+                                     batch_dir='/group/mwaops/vcs/{0}/batch'.format(obs),
+                                     slurm_kwargs={"time": "1:00:00", "partition": "workq"},
+                                     submit=True, depend=job_id_str[1:])
+ 
                     else:
                         #If only unspliced files then splice
-                        submit_line = 'sbatch -t 60 splice_wrapper.py -d -o '+obs + ' -w '+pointing_dir
-                        print submit_line
-                        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-
+                        splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, point)
+                        commands = []
+                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
+                        if args.search:
+                            if not args.row_num:
+                                row_num = blindsearch_database.database_blindsearch_start(obs,
+                                                  point, "{0} {1}".format(code_comment,n))
+                            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script,\
+                                                            row_num, point))
+                        submit_slurm(splice_wrapper_batch, commands,
+                                     batch_dir='/group/mwaops/vcs/{0}/batch'.format(obs),
+                                     slurm_kwargs={"time": "1:00:00", "partition": "workq"},
+                                     submit=True)
+ 
+ 
                 else:
                     #TODO no files gotta beamform
                     print "No files in "+ra+"_"+dec+" starting beamforming"
