@@ -516,6 +516,7 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
     commands.append("ncpus={0}".format(n_omp_threads))
     commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     commands.append("cd " + work_dir + sub_dir)
+    commands.append('blindsearch_database.py -c realfft -m m -b ' +str(bs_id))
     commands.append('blindsearch_database.py -c realfft -m p -b ' +str(bs_id))
     
     if pulsar == None:
@@ -570,7 +571,7 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     commands.append("cd " + DIR )
     for f in dir_files:
             if f.endswith(".fft"):
-                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.5 -fhi 500 '+\
+                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.75 -fhi 500 '+\
                                 '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
 
     job_id = submit_slurm(accel_batch, commands,
@@ -922,6 +923,7 @@ if args.mode == "b":
         with open(args.pulsar_file) as f:
             lines = f.readlines()
     elif args.pointing:
+        print "check"
         lines = [args.pointing.replace("_"," ")]
     #If in search mode start up the database entry
     if args.search and not args.row_num:
@@ -941,13 +943,15 @@ if args.mode == "b":
         if os.path.exists(pointing_dir):
             #first check is there's already spliced files
             expected_file_num = int( (args.end-args.begin)/200 )
-            if not (args.end-args.begin)%200 == 0:
-                expected_file_num += 1
+            expected_file_num += 1
             
             missing_file_check = False
             for n in range(1,expected_file_num):
+                print pointing_dir+"/"+obs+"_*"+str(n)+".fits"
                 if not glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
                     missing_file_check = True
+            
+            
             if missing_file_check:
                 #check if we have any unspliced files
                 print pointing_dir+"/*_"+obs+"_*.fits"
@@ -1029,7 +1033,8 @@ if args.mode == "b":
                     #TODO no files gotta beamform
                     print "No files in "+ra+"_"+dec+" starting beamforming"
                     if args.search:
-                        row_num = blindsearch_database.database_blindsearch_start(obs,
+                        if not args.row_num:
+                            row_num = blindsearch_database.database_blindsearch_start(obs,
                                                     point, "{0} {1}".format(code_comment,n))
                     process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,\
                                      pointing_dir, args.check,args.search, row_num, relaunch_script)
@@ -1038,7 +1043,8 @@ if args.mode == "b":
                 #All files there so the check has succeded and going to start the pipeline
                 if args.search:
                     s_d = point + "/" + obs + "/"
-                    row_num = blindsearch_database.database_blindsearch_start(obs,
+                    if not args.row_num:
+                        row_num = blindsearch_database.database_blindsearch_start(obs,
                                             point, "{0} {1}".format(code_comment,n))
                     rfifind(obs, point, w_d, s_d, args.pbs, row_num, relaunch_script, args.pulsar)
                 #remove any extra unspliced files
