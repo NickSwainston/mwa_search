@@ -196,7 +196,7 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
     for f in glob.glob("{0}/batch/mb_{1}*.batch".format(product_dir,pointing)):
         commands.append('blindsearch_database.py -m b -b ' +str(bs_id) + " -f " + str(f)[:-6])
     commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bs_id))
-    commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
+    commands.append('splice_wrapper.py -o {0} -w {1} '.format(obs, pointing_dir))
     commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bs_id, pointing))
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
@@ -214,19 +214,19 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
             os.mkdir(work_dir + pointing)
     if not os.path.exists(work_dir + "/rfi_masks"):
             os.mkdir(work_dir + "/rfi_masks")
-    if not os.path.exists(work_dir + pointing + "/" + obsid): 
-            os.mkdir(work_dir + pointing + "/" + obsid)
+    if not os.path.exists("{0}{1}/{2}".format(work_dir, pointing, obsid)): 
+            os.mkdir("{0}{1}/{2}".format(work_dir, pointing, obsid))
     if not pulsar == None:
-        if not os.path.exists(work_dir + pointing + "/" + obsid + "/" + pulsar): 
-            os.mkdir(work_dir + pointing + "/" + obsid + "/" + pulsar)
-        os.chdir(work_dir + pointing + "/" + obsid + "/" + pulsar)
-        sub_dir = pointing + "/" + obsid + "/" + pulsar + "/"
+        if not os.path.exists("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar)): 
+            os.mkdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
+        os.chdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
+        sub_dir = "{0}/{1}/{2}/".format(pointing, obsid, pulsar)
     else:
         os.chdir(work_dir + pointing + "/" + obsid)
-        sub_dir = pointing + "/" + obsid + "/"
+        sub_dir = "{0}/{1}/".format(pointing, obsid)
     
-    if not os.path.exists(work_dir + sub_dir + "/batch"): 
-            os.mkdir(work_dir + sub_dir+ "/batch")
+    if not os.path.exists("{0}{1}/batch".format(work_dir, sub_dir)): 
+            os.mkdir("{0}{1}/batch".format(work_dir, sub_dir))
     
     if pbs:
         fits_dir = '/lustre/projects/p125_astro/DATA/'
@@ -275,11 +275,11 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
 #-------------------------------------------------------------------------------------------------------------
 def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pulsar=None):
     if not pulsar == None:
-        os.chdir(work_dir + pointing + "/" + obsid + "/" + pulsar)
-        sub_dir = pointing + "/" + obsid + "/" + pulsar + "/"
+        os.chdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
+        sub_dir = "{0}/{1}/{2}/".format(pointing, obsid, pulsar)
     else:
-        os.chdir(work_dir + pointing + "/" + obsid)
-        sub_dir = pointing + "/" + obsid + "/"
+        os.chdir("{0}{1}/{2}".format(work_dir, pointing, obsid))
+        sub_dir = "{0}/{1}/".format(pointing, obsid)
     
     #Get the centre freq channel and then run DDplan.py to work out the most effective DMs
     print "Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(obsid)
@@ -942,13 +942,11 @@ if args.mode == "b":
         point = ra + "_" + dec
         if os.path.exists(pointing_dir):
             #first check is there's already spliced files
-            expected_file_num = int( (args.end-args.begin)/200 )
-            expected_file_num += 1
+            expected_file_num = int( (args.end-args.begin)/200 ) + 2
             
             missing_file_check = False
-            for n in range(1,expected_file_num):
-                print pointing_dir+"/"+obs+"_*"+str(n)+".fits"
-                if not glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
+            for fnc in range(1,expected_file_num):
+                if not glob.glob(pointing_dir+"/"+obs+"_*"+str(fnc)+".fits"):
                     missing_file_check = True
             
             
@@ -1000,7 +998,7 @@ if args.mode == "b":
                             job_id_str += ":" + str(j)
                         splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, point)
                         commands = []
-                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
+                        commands.append('splice_wrapper.py -o {0} -w {1} '.format(obs, pointing_dir))
                         if args.search:
                             if args.row_num:
                                 row_num = blindsearch_database.database_blindsearch_start(obs,
@@ -1016,7 +1014,7 @@ if args.mode == "b":
                         #If only unspliced files then splice
                         splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, point)
                         commands = []
-                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
+                        commands.append('splice_wrapper.py -o {0} -w {1} '.format(obs, pointing_dir))
                         if args.search:
                             if not args.row_num:
                                 row_num = blindsearch_database.database_blindsearch_start(obs,
@@ -1030,7 +1028,6 @@ if args.mode == "b":
  
  
                 else:
-                    #TODO no files gotta beamform
                     print "No files in "+ra+"_"+dec+" starting beamforming"
                     if args.search:
                         if not args.row_num:
@@ -1046,7 +1043,8 @@ if args.mode == "b":
                     if not args.row_num:
                         row_num = blindsearch_database.database_blindsearch_start(obs,
                                             point, "{0} {1}".format(code_comment,n))
-                    rfifind(obs, point, w_d, s_d, args.pbs, row_num, relaunch_script, args.pulsar)
+                    rfifind(obs, point, w_d, s_d, args.pbs, row_num, 
+                            "{0} -p {1}".format(relaunch_script, point), args.pulsar)
                 #remove any extra unspliced files
                 for fr in glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
                     os.remove(fr)
