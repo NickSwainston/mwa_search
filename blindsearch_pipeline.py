@@ -1046,7 +1046,7 @@ if args.mode == "b":
                     rfifind(obs, point, w_d, s_d, args.pbs, row_num, 
                             "{0} -p {1}".format(relaunch_script, point), args.pulsar)
                 #remove any extra unspliced files
-                for fr in glob.glob(pointing_dir+"/"+obs+"_*"+str(n)+".fits"):
+                for fr in glob.glob(pointing_dir+"/*_"+obs+"_*.fits"):
                     os.remove(fr)
         else:
             # do beamforming
