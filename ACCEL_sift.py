@@ -26,6 +26,7 @@ args=parser.parse_args()
 #        the following variables for your particular search
  
 d=args.dir
+print d
 if d.endswith("/"):
     d = d[:-1]
 if d[-10:-7] == "DM_":
@@ -54,10 +55,10 @@ if d[-10:-7] == "DM_":
             candfiles.append(i)
 else:
     # glob for ACCEL files
-    globaccel = d+"/*ACCEL_*0"
+    globaccel = d+"*ACCEL_*0"
     # glob for .inf files
     #globinf = "../*/*DM*.inf"
-    globinf = d+"/*DM*.inf"
+    globinf = d+"*DM*.inf"
     inffiles = glob.glob(globinf)
     candfiles = glob.glob(globaccel)
 #print candfiles
@@ -68,7 +69,7 @@ min_num_DMs = 2
 # Lowest DM to consider as a "real" pulsar
 low_DM_cutoff = 2.0
 # Ignore candidates with a sigma (from incoherent power summation) less than this
-sifting.sigma_threshold = 2.0
+sifting.sigma_threshold = 4.0
 # Ignore candidates with a coherent power less than this
 sifting.c_pow_threshold = 100.0
 
@@ -99,11 +100,11 @@ sifting.harm_pow_cutoff = 8.0
 # Try to read the .inf files first, as _if_ they are present, all of
 # them should be there.  (if no candidates are found by accelsearch
 # we get no ACCEL files...
-#print "infiles"
-#print inffiles
+
 # Check to see if this is from a short search
+print inffiles
 if len(re.findall("_[0-9][0-9][0-9]M_" , inffiles[0])):
-    dmstrs = [x.split("DM")[-1].split("_")[0] for x in qcandfiles]
+    dmstrs = [x.split("DM")[-1].split("_")[0] for x in candfiles]
 else:
     dmstrs = [x.split("DM")[-1].split(".inf")[0] for x in inffiles]
 dms = map(float, dmstrs)
@@ -132,8 +133,8 @@ if len(cands):
     if d[-10:-7] == "DM_":
         dm_file = dm_i_to_file(int(d[-7:-4])/2)
         print "Finished for foulder: " + dm_file
-        sifting.write_candlist(cands,'cand_files/cands_'+dm_file+'.txt')
-        print 'cand_files/cands_'+dm_file+'.txt'
+        sifting.write_candlist(cands,'cand_files/cands_'+ d.split("/")[0]+"_"+dm_file+'.txt')
+        print 'cand_files/cands_'+ d.split("/")[0]+"_"+dm_file+'.txt'
     else:
         sifting.write_candlist(cands,'ACCEL_sift_cands.txt')
 
