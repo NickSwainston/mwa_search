@@ -20,22 +20,22 @@ from job_submit import submit_slurm
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1099414416 -p 05:34:32_+22:00:53 --pulsar J0534+2200
 
 #1163853320 47 tuck data
-def your_slurm_queue_check(max_queue = 100, pbs = False):
+def your_slurm_queue_check(max_queue = 50, pbs = False, queue = 'workq'):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
     if pbs:
         submit_line = 'qstat -u $USER | wc -l'
     else:
-        submit_line = 'squeue -u $USER | wc -l'
+        submit_line = 'squeue -u $USER --partition={0}| wc -l'.format(queue)
     submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
     q_num = ""
     for line in submit_cmd.stdout:
             q_num += line
     print "q: " + str(int(q_num))
-    while (int(q_num) > 100 ):
-        print "waiting 100 s for queue to clear"
-        sleep(100)
+    while (int(q_num) > max_queue ):
+        print "waiting 5 mins for queue to clear"
+        sleep(300)
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
         q_num = ""
         for line in submit_cmd.stdout:
@@ -174,7 +174,7 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
         code_comment += using beamforming from process_vcs.py
     """
     #check queue
-    your_slurm_queue_check()
+    your_slurm_queue_check(queue = 'gpuq')
 
     #set up and launch beamfroming
     data_dir = '/astro/mwaops/vcs/{0}'.format(obs)
@@ -1001,8 +1001,8 @@ if args.mode == "b":
                         commands = []
                         commands.append('splice_wrapper.py -o {0} -w {1} '.format(obs, pointing_dir))
                         if args.search:
-                            if args.row_num:
-                                row_num = blindsearch_database.database_blindsearch_start(obs,
+                            #if args.row_num:
+                            row_num = blindsearch_database.database_blindsearch_start(obs,
                                                  point, "{0} {1}".format(code_comment,n))
                             commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script,\
                                                               row_num, point))
