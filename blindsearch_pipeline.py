@@ -586,7 +586,7 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     for i in job_id_list:
         job_id_str += ":" + str(i)
     
-    accel_dep_batch = "dependancy_accel"
+    accel_dep_batch = "dependancy_accel_" +dm_file
     commands = []
     commands.append(add_temp_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -621,8 +621,8 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
             submit_line = 'python ~/My-Scripts/ACCEL_sift.py ' + dm_file_orig
             file_loc = 'cand_files/cands_'+dm_file_orig+'.txt'
         else:
-            submit_line = 'python /group/mwaops/nswainston/bin/ACCEL_sift.py ' + dm_file_orig
-            file_loc = 'cand_files/cands_'+dm_file_orig+'.txt'
+            submit_line = 'ACCEL_sift.py {0}/{1}'.format(sub_dir,dm_file_orig)
+            file_loc = '{0}cand_files/cands_{1}_{2}.txt'.format(work_dir, pointing, dm_file_orig)
     else:
         if pbs:
             submit_line = 'python ~/My-Scripts/ACCEL_sift.py .'
@@ -652,7 +652,7 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
         #don't do accelsift
         all_files = os.listdir(DIR+ "/" + dm_file_orig + "/")
         for f in all_files:
-            if f.endswith("ACCEL_0"):
+            if f.endswith("ACCEL_200") or f.endswith("ACCEL_0"):
                 with open(DIR+ "/" + dm_file_orig + "/" +f,'rb') as accel_cand_file:
                     lines = accel_cand_file.readlines()
                     for l in lines[3:]:
@@ -662,6 +662,7 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
                         if float(l[1]) > sn_min:
                             cand_list.append([f,l[0],l[1],f[13:-8],l[5]])
     else:
+        os.chdir(work_dir)
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
         print submit_cmd.communicate()[0],
         if os.path.exists(file_loc):
@@ -677,7 +678,7 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
                                               cand_line[2],cand_line[1],cand_line[7]])
                         #print cand_line[2]
         #print len(cand_list)
-    
+        os.chdir(DIR)
     
     
     
@@ -934,7 +935,7 @@ if args.mode == "b":
     for n, line in enumerate(lines):
         if line.startswith("#"):
             continue
-        print "Checking pointing {0} out of {1}".format(n, len(lines))
+        print "Checking pointing {0} out of {1}".format(n+1, len(lines))
         ra, dec = line.split(" ")
         if dec.endswith("\n"):
             dec = dec[:-1]
