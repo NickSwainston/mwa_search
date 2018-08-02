@@ -264,8 +264,8 @@ if __name__ == '__main__':
                 print '%-10s' % (row['AccelProc']),
                 print '%-7s' % (row['AccelErrors']),
                 print '%-10s' % (row['FoldProc']),
-                print '%-7s' % (row['FoldErrors']),
-                print "\n"
+                print '%-7s' % (row['FoldErrors'])
+                #print "\n",
                 
     elif opts.mode == 'p':
         #goes through jobs of that id and command type and counts errors and processing time

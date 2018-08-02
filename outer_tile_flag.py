@@ -146,36 +146,6 @@ if __name__ == '__main__':
         for t in tile_n_range:
             sn_range.append(1.-np.sqrt(t*(t-1))/orig_tn)
                 
-        """
-        host = host_subplot(111, axes_class=AA.Axes)
-        plt.subplots_adjust(right=0.75)
-
-        par1 = host.twinx()
-
-        offset = 60
-
-
-        host.set_xlim(0, 2)
-        host.set_ylim(0, 2)
-
-        host.set_xlabel("Distance")
-        host.set_ylabel("Density")
-        par1.set_ylabel("Temperature")
-
-        p1, = host.plot([0, 1, 2], [0, 1, 2], label="Density")
-        p2, = par1.plot([0, 1, 2], [0, 3, 2], label="Temperature")
-
-        par1.set_ylim(0, 4)
-
-        host.legend()
-
-        host.axis["left"].label.set_color(p1.get_color())
-        par1.axis["right"].label.set_color(p2.get_color())
-
-        plt.draw()
-        plt.show()
-        
-        """
         plt.clf()
         host = host_subplot(111, axes_class=AA.Axes)
         par1 = host.twinx()
@@ -189,9 +159,16 @@ if __name__ == '__main__':
         par1.axis["right"].toggle(all=True)
 
         
-        host.set_ylim(min(FWHMs), max(FWHMs))
-        par1.set_ylim(min(sn_range[:len(FWHMs)]), max(sn_range[:len(FWHMs)]))
+        #host.set_ylim(min(FWHMs), max(FWHMs))
+        #par1.set_ylim(min(sn_range[:len(FWHMs)]), max(sn_range[:len(FWHMs)]))
+        n_tiles = [4, 8, 16, 32, 65, 94, 124]
+        coh_sn = [19.9, 46.4, 92.9, 171.2, 380.6, 517.3, 635.5] 
+        incoh_sn = [10.6, 15.5, 21.8, 27.5, 44.4, 52.1, 58.2]
+
+        host.set_ylim(min(incoh_sn), max(incoh_sn))
+        #p3, = host.plot(n_tiles,coh_sn,label = "Incoherent S/N")
         
+        """
         if int(args.obsid) == 1117643248 and centrefreq == 118400000.0:
             #use some simulated values from pabeam.py
             
@@ -199,17 +176,21 @@ if __name__ == '__main__':
             p3, = host.plot([0,1,3,5,9,12,16],np.array([0.014667480523,0.0151320483657,0.0157325732253,\
                             0.0162094738779,0.01782310605,0.0194199249546,0.0198223907006])*60.,\
                             label="Simulated FWHM")
-
+        """
 
         #plt.plot(FWHMs)
-        host.set_xlabel("Number of tiles flagged (furthest first)")
-        host.set_ylabel("FHWM in arcmin")
-        par1.set_ylabel("Relative signal to noise")
+        #host.set_xlabel("Number of tiles flagged (furthest first)")
+        host.set_xlabel("Number of tiles")
+        host.set_ylabel("Incoherent Presto S/N")
+        par1.set_ylabel("Coherent Presto S/N")
+        #host.set_ylabel("FHWM in arcmin")
+        #par1.set_ylabel("Relative signal to noise")
         
-        print len(tile_n_range),len(FWHMs), len(sn_range)
-        p1, = host.plot(tile_n_range[:len(FWHMs)], FWHMs, label="Calculated FWHM")
-        p2, = par1.plot(tile_n_range[:len(FWHMs)], sn_range[:len(FWHMs)], label="Relative S/N")
-        
+        #print len(tile_n_range),len(FWHMs), len(sn_range)
+        #p1, = host.plot(tile_n_range[:len(FWHMs)], FWHMs, label="Calculated FWHM")
+        #p2, = par1.plot(tile_n_range[:len(FWHMs)], sn_range[:len(FWHMs)], label="Relative S/N")
+        p1, = host.plot(n_tiles,incoh_sn,label = "Incoherent S/N")
+        p2, = par1.plot(n_tiles,coh_sn,label = "Coherent S/N")
 
         host.legend()
 
@@ -217,7 +198,8 @@ if __name__ == '__main__':
         par1.axis["right"].label.set_color(p2.get_color())
         
         plt.draw()
-        plt.savefig("outer_tiles_flagged_plot.png")
+        #plt.savefig("outer_tiles_flagged_plot.png")
+        plt.savefig("MWA_tile_n_comparison.png")
         plt.show()
         
 

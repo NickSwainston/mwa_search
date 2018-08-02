@@ -503,7 +503,7 @@ if args.mode == 'c' or args.deg_fwhm:
 
     #matplotlib.use('Agg')
     print "Plotting"
-    if not (args.dec_range or args.ra_range):
+    if args.dec_range == [-90,90] and args.ra_range == [0,360]:
         fig = plt.figure(figsize=(7, 7))
         
         plt.xlabel("ra (degrees)")
@@ -511,16 +511,15 @@ if args.mode == 'c' or args.deg_fwhm:
         ax = plt.gca()
         plt.axes().set_aspect('equal')
         for i in range(len(ras)):
-            if  -0.00001 < sin(np.radians(decds[i]))**2 < 0.00001:
-                fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (0.00001+sin(np.radians(decds[i]))**2 ) ) /2.
-            else:
-                fwhm_circle = acos( (cos(centre_fwhm) - cos(np.radians(decds[i]))**2) / (sin(np.radians(decds[i]))**2 ) ) /2.
+            fwhm_circle = centre_fwhm/cos(np.radians(decds[i])) / 2.
             circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),color='r',fill=False)
             ax.add_artist(circle)
         plt.plot(rads,decds,'ko',ms=1)
-        plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+'_l'+str(args.loop)+'.png',bbox_inches='tight', dpi =1000)
+        plt.savefig('grid_positions_'+str(args.obsid)+'_ra_dec_f'+str(args.fraction)+\
+                    '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'.png',bbox_inches='tight',\
+                    dpi =1000)
         
-    if (args.dec_range or args.ra_range):
+    if not (args.dec_range == [-90,90] or args.ra_range == [0,360]):
         #ras, decs, theta, phi, rads, decds = np.genfromtxt('./grid_positions_ra_dec_limited.txt',unpack=True) 
         rads = [x for _,x in sorted(zip(decds,rads), reverse=True)]
         decds = sorted(decds,reverse=True)
