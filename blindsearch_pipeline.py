@@ -20,7 +20,7 @@ from job_submit import submit_slurm
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1099414416 -p 05:34:32_+22:00:53 --pulsar J0534+2200
 
 #1163853320 47 tuck data
-def your_slurm_queue_check(max_queue = 50, pbs = False, queue = 'workq'):
+def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'workq'):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
@@ -167,7 +167,7 @@ def dm_i_to_file(dm_i):
     return dm_file
 
 def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
-                        check, search, bs_id, relaunch_script):
+                        check, search, bs_id, relaunch_script, nice = 100):
     """
     Does some basic checks and formating before 
     if args.pulsar_file:
@@ -182,7 +182,7 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
     job_id_list = pvcs.coherent_beam(obs, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
                   "{0}/{1}_metafits_ppds.fits".format(data_dir, obs), 128, pointing, args,
-                  bf_formats=" -p", DI_dir=DI_dir, calibration_type="rts")
+                  bf_formats=" -p", DI_dir=DI_dir, calibration_type="rts", nice = nice)
     
     #get a job dependancy string
     job_id_str = ""
@@ -273,7 +273,8 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
 
 
 #-------------------------------------------------------------------------------------------------------------
-def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pulsar=None):
+def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pulsar=None,
+             dm_max = 4):
     if not pulsar == None:
         os.chdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
         sub_dir = "{0}/{1}/{2}/".format(pointing, obsid, pulsar)
@@ -289,21 +290,22 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
     maxfreq = float(max(channels))
     centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2) #in MHz
     
-    """
+    
     if not pulsar == None:
         dm, p = get_pulsar_dm_p(pulsar)
-        output = subprocess.Popen(['DDplan.py','-l',str(float(dm) - 1.),'-d',str(float(dm) + 1.),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072'],stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(['DDplan.py','-l',str(float(dm) - 1.),'-d',str(float(dm) + 1.),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072','-o','dm_temp'],stdout=subprocess.PIPE).communicate()
     else:
-        output = subprocess.Popen(['DDplan.py','-l','0','-d','300','-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072'],stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(['DDplan.py','-l','0','-d',str(dm_max),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072','-o','dm_temp'],stdout=subprocess.PIPE).communicate()
     subprocess.check_call("\n", shell=True)
+    os.remove('dm_temp.eps')
     dm_list = []
     print output[0]
     lines = output[0].split('\n')
     for l in lines[13:-4]: 
         columns = l.split()
         dm_list.append(columns)
-    """
-    dm_list = [['1.500','3.500','0.01','4','200','1']]
+    
+    #dm_list = [['1.500','3.500','0.01','4','200','1']]
     if pbs:
         fits_dir = '/lustre/projects/p125_astro/DATA/'
         qsub = 'qsub '
@@ -318,7 +320,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
     
-    
+    print dm_list    
     #Submit a bunch some prepsubbands to create our .dat files
     job_id_list = []
     for dm_line in dm_list:
@@ -396,7 +398,8 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
     return
                 
 #-------------------------------------------------------------------------------------------------------------
-def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pulsar=None):
+def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pulsar=None,
+             DM_max = 4):
     #Makes 90 files to make this all a bit more managable and sorts the files.
     os.chdir(work_dir + "/" + sub_dir)
     if not os.path.exists("over_3_png"):
@@ -408,7 +411,6 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
         
     os.chdir(work_dir + "/" + sub_dir)
     if pulsar==None:
-        DM_max = 4
         for i in range(DM_max/2):
             if i < 4:
                 if not os.path.exists("DM_00" + str(i*2) + "-00" + str((i+1)*2)):
@@ -860,6 +862,7 @@ parser.add_argument('-w','--work_dir',type=str,help='Work directory. Default: /g
 parser.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
 parser.add_argument('-r','--row_num',type=int,help='Database row reference number for keeping track of the scripts.')
 parser.add_argument('-d','--dm_file_int',type=int,help='Used by the program to keep track DM file being used to stagger the jobs and not send off over 9000 jobs.')
+parser.add_argument('--dm_max',type=int, default = 4,help='DM max searched. Default 4')
 parser.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
 parser.add_argument('--pbs',action="store_true",help="PBS queue mode.")
 group_beamform = parser.add_argument_group('group_beamform','Beamforming Options')
@@ -871,6 +874,8 @@ group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to proc
 group_beamform.add_argument("-c", "--check", type=int, help="Number of times the beamformer has attempted to redo the pointings. Stops when it gets to 5. Default 0.", default=0)
 group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
 group_beamform.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
+group_beamform.add_argument("--relaunch", action="store_true",  help="Relaunch check that doesn't send off pipeline again.")
+
 args=parser.parse_args()
 if args.work_dir:
     w_d = args.work_dir
@@ -917,6 +922,8 @@ if args.begin and args.end:
     relaunch_script += " -b " + str(args.begin) + " -e " + str(args.end)
 if args.search and args.mode == 'b':
     relaunch_script += " --search"
+if args.dm_max:
+    relaunch_script += " --dm_max " + str(args.dm_max)
 
 #work out start and stop times for beamforming
 if args.mode == "b":
@@ -1039,7 +1046,7 @@ if args.mode == "b":
                               
             else:
                 #All files there so the check has succeded and going to start the pipeline
-                if args.search:
+                if args.search and not args.relaunch:
                     s_d = point + "/" + obs + "/"
                     if not args.row_num:
                         row_num = blindsearch_database.database_blindsearch_start(obs,
@@ -1062,9 +1069,11 @@ if args.mode == "b":
 if args.mode == "r" or args.mode == None:
     rfifind(obs, point, w_d, s_d,args.pbs, args.row_num, relaunch_script, args.pulsar)
 if args.mode == "p":
-    prepdata(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar)
+    prepdata(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar,
+             dm_max = args.dm_max)
 elif args.mode == "s":
-    sort_fft(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar)
+    sort_fft(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar,
+             dm_max = args.dm_max)
 elif args.mode == "a":
     accel(obs, point, w_d, s_d,args.dm_file_int,args.row_num,args.pbs, relaunch_script,args.pulsar)
 elif args.mode == "f":
