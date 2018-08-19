@@ -14,7 +14,7 @@ def dict_factory(cursor, row):
 def database_blindsearch_start(obsid, pointing, comment):
         DB_FILE = os.environ['CMD_BS_DB_FILE']
                         
-        con = lite.connect(DB_FILE)
+        con = lite.connect(DB_FILE, timeout = 20)
         with con:
                 cur = con.cursor()
                 
@@ -25,7 +25,7 @@ def database_blindsearch_start(obsid, pointing, comment):
     
 def database_script_start(table, bs_id, command, arguments,nodes,dm_file_int,time=datetime.datetime.now()):
     
-    con = lite.connect(DB_FILE)
+    con = lite.connect(DB_FILE, timeout = 20)
     with con:
         cur = con.cursor()
         if dm_file_int == None:
@@ -37,7 +37,7 @@ def database_script_start(table, bs_id, command, arguments,nodes,dm_file_int,tim
 
 def database_script_stop(table, rownum, errorcode,end_time=datetime.datetime.now()):
 
-    con = lite.connect(DB_FILE)
+    con = lite.connect(DB_FILE, timeout = 20)
     with con:
         cur = con.cursor()
         cur.execute("SELECT Ended FROM "+table+" WHERE Rownum=?", (rownum,))
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     elif opts.mode == 'b':
         database_beamform_find(table,opts.file_location, opts.bs_id)
     elif opts.mode.startswith("v"):
-        con = lite.connect(DB_FILE)
+        con = lite.connect(DB_FILE, timeout = 20)
         con.row_factory = dict_factory
     
         query = "SELECT * FROM " + table
@@ -197,10 +197,10 @@ if __name__ == '__main__':
             cur.execute(query)
             rows = cur.fetchall()
 
-        if opts.startrow or opts.endrow:
+        if opts.startrow and opts.endrow is None:
             rows = rows[opts.startrow:]
-            if opts.endrow is not None:
-                rows = rows[:opts.endrow+1]
+        elif opts.endrow is not None:
+            rows = rows[opts.startrow:opts.endrow+1]
         elif not (opts.all or opts.recent):
             rows = rows[-opts.n:]
         
@@ -213,8 +213,8 @@ if __name__ == '__main__':
                 print '%-12s' % (row['Obsid']),
                 print '%-30s' % (row['Pointing']),
                 print '%-22s' % (row['Started'][:19]),
-                print row['Comment'],
-                print "\n"
+                print row['Comment']
+                #print "\n"
                 
                 
         if opts.mode == "vs":
@@ -246,26 +246,13 @@ if __name__ == '__main__':
                 print "\n"
                 
         if opts.mode == "vp":
-            print 'Row# ', 'Total proc error# ', 'Beamform proc error# ', 'RFI proc   error# ','Prep proc  error# ','FFT proc   error# ','Accel proc error# ','Fold proc  error#'
-            print '--------------------------------------------------------------------------------------------------'
-            for row in rows:
+            for ri, row in enumerate(rows):
+                if ri%20 == 0:
+                    print 'Row# | Total proc | err# | Beamform proc | err# | RFI proc | err# | Prep proc | err# | FFT proc | err# | Accel proc | err# | Fold proc | err# |'
+                    print '-----|------------|------|---------------|------|----------|------|-----------|------|----------|------|------------|------|-----------|------|'
+
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
-                print '%-5s' % (str(row['Rownum']).rjust(4)),
-                print '%-10s' % (row['TotalProc']),
-                print '%-7s' % (row['TotalErrors']),
-                print '%-10s' % (row['BeamformProc']),
-                print '%-7s' % (row['BeamformErrors']),
-                print '%-10s' % (row['RFIProc']),
-                print '%-7s' % (row['RFIErrors']),
-                print '%-10s' % (row['PrepdataProc']),
-                print '%-7s' % (row['PrepdataErrors']),
-                print '%-10s' % (row['FFTProc']),
-                print '%-7s' % (row['FFTErrors']),
-                print '%-10s' % (row['AccelProc']),
-                print '%-7s' % (row['AccelErrors']),
-                print '%-10s' % (row['FoldProc']),
-                print '%-7s' % (row['FoldErrors'])
-                #print "\n",
+                print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:8.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc'],row['TotalErrors'],row['BeamformProc'],row['BeamformErrors'],row['RFIProc'],row['RFIErrors'],row['PrepdataProc'],row['PrepdataErrors'],row['FFTProc'],row['FFTErrors'],row['AccelProc'],row['AccelErrors'],row['FoldProc'],row['FoldErrors'])
                 
     elif opts.mode == 'p':
         #goes through jobs of that id and command type and counts errors and processing time
@@ -273,7 +260,7 @@ if __name__ == '__main__':
         if opts.dm_file_int:
             query += " AND DMFileInt=" + str(opts.dm_file_int)
         print query
-        con = lite.connect(DB_FILE)
+        con = lite.connect(DB_FILE, timeout = 20)
         con.row_factory = dict_factory
         cur = con.cursor()
         cur.execute(query)
@@ -345,7 +332,7 @@ if __name__ == '__main__':
         print new_total_proc, new_total_er, new_job_proc, new_job_er
         
         
-        con = lite.connect(DB_FILE)
+        con = lite.connect(DB_FILE, timeout = 20)
         with con:
             cur = con.cursor()
             cur.execute("UPDATE Blindsearch SET TotalProc=?, TotalErrors=?, "+table+"Proc=?, "+table+"Errors=? WHERE Rownum=?", (str(new_total_proc)[:9], new_total_er, str(new_job_proc)[:9], new_job_er, opts.bs_id))
