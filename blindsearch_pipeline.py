@@ -67,7 +67,7 @@ def add_database_function(pbs):
     return batch_line
 
 
-def add_temp_database_function(pbs):
+def add_temp_database_function(pbs, threads=True):
     batch_line ='function run\n' +\
                 '{\n' +\
                 '    # run command and add relevant data to the job database\n' +\
@@ -79,9 +79,12 @@ def add_temp_database_function(pbs):
                 '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1" >> ${1}_temp_database_file.csv\n' +\
                 '    else\n' +\
                 '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1,$4" >> ${1}_temp_database_file.csv\n' +\
-                '    fi\n' +\
-                '    srun -n 1 -c $ncpus $1 $2\n' +\
-                '    echo $1 $2\n' +\
+                '    fi\n'
+    if threads:
+        batch_line+='    srun -n 1 -c $ncpus $1 $2\n'
+    else:
+        batch_line+='    srun -n 1 $1 $2\n'
+    batch_line+='    echo $1 $2\n' +\
                 '    errcode=$?\n' +\
                 '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file.csv\n' +\
                 '    if [ "$errcode" != "0" ]; then\n' +\
@@ -176,13 +179,20 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
     #check queue
     your_slurm_queue_check(queue = 'gpuq')
 
+    #check for incoh file which is used to predict if you have used rfifind
+    if not os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obs)):
+        bf_formats = " -p -i"
+    else:
+        bf_formats = " -p"
+
+
     #set up and launch beamfroming
     data_dir = '/astro/mwaops/vcs/{0}'.format(obs)
     product_dir = '/group/mwaops/vcs/{0}'.format(obs)
     job_id_list = pvcs.coherent_beam(obs, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
                   "{0}/{1}_metafits_ppds.fits".format(data_dir, obs), 128, pointing, args,
-                  bf_formats=" -p", DI_dir=DI_dir, calibration_type="rts", nice = nice)
+                  bf_formats=bf_formats, DI_dir=DI_dir, calibration_type="rts", nice=nice)
     
     #get a job dependancy string
     job_id_str = ""
@@ -196,8 +206,16 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
     for f in glob.glob("{0}/batch/mb_{1}*.batch".format(product_dir,pointing)):
         commands.append('blindsearch_database.py -m b -b ' +str(bs_id) + " -f " + str(f)[:-6])
     commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bs_id))
-    commands.append('splice_wrapper.py -o {0} -w {1} '.format(obs, pointing_dir))
-    commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bs_id, pointing))
+    if os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obs)):
+        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
+        commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bs_id, pointing))
+    else:
+        commands.append('mkdir /group/mwaops/vcs/{0}/incoh'.format(obs))
+        commands.append('splice_wrapper.py -o {0} -w {1} -i -d'.format(obs, pointing_dir))
+        commands.append('mv /group/mwaops/vcs/{0}/pointings/{1}/*incoh* /group/mwaops/vcs/{0}/incoh/'.
+                            format(obs, pointing))
+        commands.append('{0} -m r -r {1} -p {2}'.format(relaunch_script, bs_id, pointing))
+        commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bs_id, pointing))
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
                  slurm_kwargs={"time": "1:00:00", "partition": "workq"},
@@ -208,25 +226,6 @@ def process_vcs_wrapper(obs, begin, end, pointing, args, DI_dir,pointing_dir,\
 
 #-------------------------------------------------------------------------------------------------------------
 def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsar=None):
-    
-    #Set up some directories and move to it
-    if not os.path.exists(work_dir + pointing):
-            os.mkdir(work_dir + pointing)
-    if not os.path.exists(work_dir + "/rfi_masks"):
-            os.mkdir(work_dir + "/rfi_masks")
-    if not os.path.exists("{0}{1}/{2}".format(work_dir, pointing, obsid)): 
-            os.mkdir("{0}{1}/{2}".format(work_dir, pointing, obsid))
-    if not pulsar == None:
-        if not os.path.exists("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar)): 
-            os.mkdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
-        os.chdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
-        sub_dir = "{0}/{1}/{2}/".format(pointing, obsid, pulsar)
-    else:
-        os.chdir(work_dir + pointing + "/" + obsid)
-        sub_dir = "{0}/{1}/".format(pointing, obsid)
-    
-    if not os.path.exists("{0}{1}/batch".format(work_dir, sub_dir)): 
-            os.mkdir("{0}{1}/batch".format(work_dir, sub_dir))
     
     if pbs:
         fits_dir = '/lustre/projects/p125_astro/DATA/'
@@ -252,8 +251,7 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
         #if there is not already a rfi mask make one
         commands.append('run "rfifind" "' + ncpuscom + '-noclip -time 12.0 ' + '-o ' + str(obsid) +\
                         ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
-                        str(obsid) + '/pointings/' + str(pointing) + '/' + str(obsid) + '*.fits" '+\
-                        str(bs_id))
+                        str(obsid) + '/incoh/*incoh*.fits" '+ str(bs_id))
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('blindsearch_database.py -c rfifind -m p -b ' +str(bs_id))
         commands.append("prepdata " + ncpuscom + " -dm 0 " "-numout " + str(numout) + " -o " +\
@@ -262,7 +260,7 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('mv {0}_DM0.00.dat {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('mv {0}_DM0.00.inf {1}/rfi_masks/'.format(obsid,work_dir))
-    commands.append("{0} -m p -r {1} -s {2}/{3}".format(relaunch_script, bs_id, pointing, obs))
+    #commands.append("{0} -m p -r {1} -s {2}/{3}".format(relaunch_script, bs_id, pointing, obs))
 
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
@@ -273,8 +271,30 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
 
 
 #-------------------------------------------------------------------------------------------------------------
-def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pulsar=None,
-             dm_max = 4):
+def prepdata(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
+             pbs=False, pulsar=None, dm_max=4):
+    
+    #Set up some directories and move to it
+    if not os.path.exists(work_dir + pointing):
+            os.mkdir(work_dir + pointing)
+    if not os.path.exists(work_dir + "/rfi_masks"):
+            os.mkdir(work_dir + "/rfi_masks")
+    if not os.path.exists("{0}{1}/{2}".format(work_dir, pointing, obsid)): 
+            os.mkdir("{0}{1}/{2}".format(work_dir, pointing, obsid))
+    if not pulsar == None:
+        if not os.path.exists("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar)): 
+            os.mkdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
+        os.chdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
+        sub_dir = "{0}/{1}/{2}/".format(pointing, obsid, pulsar)
+    else:
+        os.chdir(work_dir + pointing + "/" + obsid)
+        sub_dir = "{0}/{1}/".format(pointing, obsid)
+    
+    if not os.path.exists("{0}{1}/batch".format(work_dir, sub_dir)): 
+            os.mkdir("{0}{1}/batch".format(work_dir, sub_dir))
+    
+
+    
     if not pulsar == None:
         os.chdir("{0}{1}/{2}/{3}".format(work_dir, pointing, obsid, pulsar))
         sub_dir = "{0}/{1}/{2}/".format(pointing, obsid, pulsar)
@@ -295,7 +315,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
         dm, p = get_pulsar_dm_p(pulsar)
         output = subprocess.Popen(['DDplan.py','-l',str(float(dm) - 1.),'-d',str(float(dm) + 1.),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072','-o','dm_temp'],stdout=subprocess.PIPE).communicate()
     else:
-        output = subprocess.Popen(['DDplan.py','-l','0','-d',str(dm_max),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072','-o','dm_temp'],stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(['DDplan.py','-l','1','-d',str(dm_max),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072','-o','dm_temp'],stdout=subprocess.PIPE).communicate()
     subprocess.check_call("\n", shell=True)
     os.remove('dm_temp.eps')
     dm_list = []
@@ -323,10 +343,23 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
     print dm_list    
     #Submit a bunch some prepsubbands to create our .dat files
     job_id_list = []
+    dms_per_job = 1024
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
-        while ( (dm_end - float(dm_start)) / float(dm_line[2])) > 512. :
+        #DM_batch = 'DM_' + dm_start + '.batch'
+        #commands = []
+        #commands.append(add_database_function(pbs))
+        #commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+        #commands.append("ncpus={0}".format(n_omp_threads))
+        #commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
+        #commands.append('run "prepsubband" "'+ncpuscom + '-lodm '+str(dm_start) +\
+        #                " -dmstep " + str(dm_line[2]) + " -numdms " + str(dm_line[4])+ " -numout " +\
+        #                str(numout) + " -o " + str(obsid) + " " + fits_dir + str(obsid) + \
+        #                "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" ' +str(bs_id))
+        
+        
+        while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 512 steps
             DM_batch = 'DM_' + dm_start + '.batch'
             commands = []
@@ -335,9 +368,9 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
             commands.append("ncpus={0}".format(n_omp_threads))
             commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
             commands.append('run "prepsubband" "'+ncpuscom + '-lodm ' + str(dm_start) +\
-                            " -dmstep " + str(dm_line[2]) + " -numdms 512 -numout " +\
-                            str(numout) + " -o " + str(obsid) + " -mask " + str(obsid) +\
-                            "_rfifind.mask " + fits_dir + str(obsid) + "/pointings/" +\
+                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+" -numout " +\
+                            str(numout) + " -o " + str(obsid) + " " + fits_dir + str(obsid) +\
+                            "/pointings/" +\
                             str(pointing) + "/" + str(obsid) + '*.fits" '+str(bs_id))
             
             job_id = submit_slurm(DM_batch, commands,
@@ -346,7 +379,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
                          submit=True)
             job_id_list.append(job_id)
            
-            dm_start = str(float(dm_start) + (512. * float(dm_line[2])))
+            dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <512 steps
         DM_batch = 'DM_' + dm_start + '.batch'
@@ -359,6 +392,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
                         " -dmstep " + str(dm_line[2]) + " -numdms " + str(steps) + " -numout " +\
                         str(numout) + " -o " + str(obsid) + " " + fits_dir + str(obsid) + \
                         "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" ' +str(bs_id))
+        
         """ with mask
         batch_line = 'run "prepsubband" "'+ncpuscom + '-lodm '+str(dm_start) +\
                             " -dmstep " + str(dm_line[2]) + " -numdms " + str(steps) + " -numout " +\
@@ -389,17 +423,17 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script, pul
     commands.append('realfft ' + str(obsid) + '_DM0.00.dat')
     commands.append("accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft")
     commands.append('blindsearch_database.py -c prepsubband -m p -b ' +str(bs_id) )
-    commands.append("{0} -m s".format(relaunch_script))
+    commands.append("{0} -m s -r {1}".format(relaunch_script, bs_id))
     
     submit_slurm(DM_depend_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "5:00", "partition": "workq"},#4 hours
+                 slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
                  submit=True, depend=job_id_str[1:])
     return
                 
 #-------------------------------------------------------------------------------------------------------------
-def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pulsar=None,
-             DM_max = 4):
+def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script, 
+             pulsar=None, DM_max=4, pbs=False):
     #Makes 90 files to make this all a bit more managable and sorts the files.
     os.chdir(work_dir + "/" + sub_dir)
     if not os.path.exists("over_3_png"):
@@ -483,20 +517,33 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
             print d
             if pulsar == None:
                 os.chdir(work_dir + sub_dir + "/" + d)
-                dir_files = os.listdir(work_dir + sub_dir + "/" + d + "/")
+                #dir_files = os.listdir(work_dir + sub_dir + "/" + d + "/")
+                dir_files = glob.glob(work_dir + sub_dir + "/" + d + "/*dat")
             else:
-                dir_files = os.listdir(work_dir + sub_dir + "/")
-            
+                #dir_files = os.listdir(work_dir + sub_dir + "/")
+                dir_files = glob.glob(work_dir + sub_dir + "/*dat")
+
             fft_batch = "fft_" + d
             commands = []
-            commands.append(add_temp_database_function(pbs))
+            commands.append(add_temp_database_function(pbs, threads=False))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
             commands.append("ncpus={0}".format(n_omp_threads))
             commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
             commands.append("cd " + work_dir + sub_dir + "/" + d)
-            for f in dir_files:
+            fft_command = 'run "realfft" "'
+            for fi, f in enumerate(dir_files):
                 if f.endswith(".dat"):     
-                    commands.append('run "realfft" "' + str(f) + '" "'+str(bs_id)+'" "'+str(i)+'"')
+                    #commands.append('run "realfft" "' + str(f) + '" "'+str(bs_id)+'" "'+str(i)+'"')
+                    fft_command += ' ' + str(f).split("/")[-1]
+                if fi%16 == 15:
+                    #only 16 ffts can be done at once
+                    fft_command += '" "'+str(bs_id)+'" "'+str(i)+'"'
+                    commands.append(fft_command)
+                    fft_command = 'run "realfft" "'
+            fft_command += '" "'+str(bs_id)+'" "'+str(i)+'"'
+            commands.append(fft_command)
+            commands.append('blindsearch_database.py -c realfft -m m -b ' +str(bs_id))
+            commands.append('blindsearch_database.py -c realfft -m p -b ' +str(bs_id))
             
             job_id = submit_slurm(fft_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
@@ -517,16 +564,13 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
     commands.append("ncpus={0}".format(n_omp_threads))
     commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
-    commands.append("cd " + work_dir + sub_dir)
-    commands.append('blindsearch_database.py -c realfft -m m -b ' +str(bs_id))
-    commands.append('blindsearch_database.py -c realfft -m p -b ' +str(bs_id))
     
     if pulsar == None:
         relaunch_script += " -d 0"
     commands.append("{0} -m a".format(relaunch_script))
     submit_slurm(fft_dep_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "5:00", "partition": "workq"},#4 hours
+                 slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
                  submit=True, depend=job_id_str[1:])
 
     print "Sent off fft jobs"
@@ -534,7 +578,7 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id,pbs, relaunch_script ,pul
                 
                 
 #-------------------------------------------------------------------------------------------------------------
-def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script, pulsar=None):
+def accel(obsid, pointing, work_dir, sub_dir, bs_id, pbs, relaunch_script, pulsar=None):
     #blindsearch_pipeline.py -o 1133329792 -p 19:45:14.00_-31:47:36.00 -m a -w /scratch2/mwaops/nswainston/tara_candidates//19:45:14.00_-31:47:36.00/1133329792/DM_058-060
     # sends off the accel search jobs
     #sub_dir = pointing + "/" + obsid + "/"
@@ -550,37 +594,39 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
         #ncpuscom = ''
         n_omp_threads = 20
     
-    print dm_i
-    dm_file = dm_i_to_file(dm_i)
     
     if pulsar == None:
-        DIR = work_dir + str(sub_dir) +"/"+ dm_file
+        DM_file_list = glob.glob(work_dir + str(sub_dir) +"/DM*/")
     else:
-        DIR = work_dir + str(sub_dir)
+        DM_file_list = [work_dir + str(sub_dir)]
         dm, p = get_pulsar_dm_p(pulsar)
-    os.chdir(DIR)
-    dir_files = os.listdir(DIR)
-    #dir_files = ['1150234552_DM10.92.fft']
-    job_id_list =[]
-    
+    for dm_i, DIR in enumerate(DM_file_list):
+        os.chdir(DIR)
+        dm_file = DIR[:-1].split("/")[-1]
+        dir_files = os.listdir(DIR)
+        #dir_files = ['1150234552_DM10.92.fft']
+        job_id_list =[]
+        
 
-    accel_batch = "accel_" + dm_file
-    commands = []
-    commands.append(add_temp_database_function(pbs))
-    commands.append("source /group/mwaops/PULSAR/psrBash.profile")
-    commands.append("ncpus={0}".format(n_omp_threads))
-    commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
-    commands.append("cd " + DIR )
-    for f in dir_files:
-            if f.endswith(".fft"):
-                commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.75 -fhi 500 '+\
-                                '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
-
-    job_id = submit_slurm(accel_batch, commands,
-                         batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                         slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
-                         submit=True)
-    job_id_list.append(job_id)
+        accel_batch = "accel_" + dm_file
+        commands = []
+        commands.append(add_temp_database_function(pbs))
+        commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+        commands.append("ncpus={0}".format(n_omp_threads))
+        commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
+        commands.append("cd " + DIR )
+        for f in dir_files:
+                if f.endswith(".fft"):
+                    commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.75 -fhi 500 '+\
+                                    '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
+        commands.append('blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id))
+        commands.append('blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i))
+        
+        job_id = submit_slurm(accel_batch, commands,
+                             batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                             slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
+                             submit=True)
+        job_id_list.append(job_id)
     
     sleep(1)
     print "Dependancy job below"
@@ -588,34 +634,30 @@ def accel(obsid, pointing, work_dir, sub_dir, dm_i, bs_id, pbs, relaunch_script,
     for i in job_id_list:
         job_id_str += ":" + str(i)
     
-    accel_dep_batch = "dependancy_accel_" +dm_file
+    accel_dep_batch = "dependancy_accel"
     commands = []
     commands.append(add_temp_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
     commands.append("ncpus={0}".format(n_omp_threads))
     commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
-    commands.append("cd " + DIR )
-    commands.append('blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id))
-    commands.append('blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i))
-    if pulsar == None:
-         relaunch_script +=" -d " + str(dm_i)
     commands.append("{0} -m f".format(relaunch_script))
 
     submit_slurm(accel_dep_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "15:00", "partition": "workq"},#4 hours
+                 slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
                  submit=True, depend=job_id_str[1:])
     
     print "Sent off accel jobs"
     return
        
 #-------------------------------------------------------------------------------------------------------------
-def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, pulsar=None):
+def fold(obsid, pointing, work_dir, sub_dir,  bs_id,pbs, relaunch_script, pulsar=None):
     from math import floor
-    dm_file_orig = dm_i_to_file(dm_i)
     
     DIR=work_dir + str(sub_dir)
     os.chdir(DIR)
+    if not os.path.exists("presto_profiles"):
+        os.mkdir("presto_profiles")
     
     #run accel_sift.py to find candidates with DM structure
     if pulsar == None: 
@@ -623,8 +665,8 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
             submit_line = 'python ~/My-Scripts/ACCEL_sift.py ' + dm_file_orig
             file_loc = 'cand_files/cands_'+dm_file_orig+'.txt'
         else:
-            submit_line = 'ACCEL_sift.py {0}/{1}'.format(sub_dir,dm_file_orig)
-            file_loc = '{0}cand_files/cands_{1}_{2}.txt'.format(work_dir, pointing, dm_file_orig)
+            submit_line = 'ACCEL_sift.py {0}/'.format(sub_dir)
+            file_loc = '{0}cand_files/cands_{1}.txt'.format(work_dir, sub_dir.replace("/","_"))
     else:
         if pbs:
             submit_line = 'python ~/My-Scripts/ACCEL_sift.py .'
@@ -652,10 +694,10 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
     #TODO temporary fix because ACCEL_Sift doesn't work on gstar    
     if pbs:
         #don't do accelsift
-        all_files = os.listdir(DIR+ "/" + dm_file_orig + "/")
+        all_files = os.listdir(DIR+ "/*/")#I may of broke it
         for f in all_files:
             if f.endswith("ACCEL_200") or f.endswith("ACCEL_0"):
-                with open(DIR+ "/" + dm_file_orig + "/" +f,'rb') as accel_cand_file:
+                with open(DIR+ "/*/" +f,'rb') as accel_cand_file:
                     lines = accel_cand_file.readlines()
                     for l in lines[3:]:
                         l = l.split()
@@ -680,10 +722,9 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
                                               cand_line[2],cand_line[1],cand_line[7]])
                         #print cand_line[2]
         #print len(cand_list)
-        os.chdir(DIR)
+        os.chdir(DIR + "presto_profiles")
     
-    
-    
+    #cand_list = [accel_file_name, cand_num, SN, DM, period(ms)]
     
     if len(cand_list) > 0:
         #sort by DM
@@ -691,81 +732,41 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
         cand_list.sort(key=itemgetter(3))
         #print cand_list
         
-        #checks you're in the right file (Will change to SUBDIR in the batch file only)
-        if pulsar == None:
-            dm_i_temp = floor( floor(float(cand_list[0][3]))/2 )
-            dm_file = dm_i_to_file(dm_i_temp)    
-            SUBDIRpast = work_dir + str(sub_dir) +"/"+ dm_file
-            SUBDIRorig = work_dir + str(sub_dir) +"/"+ dm_file_orig #current
-            #if DM_000-002 current = past
-        else:
-            SUBDIR = work_dir + str(sub_dir)[:-1]
-        
-        
-        """ #simple case if you want to send off one fold a job  
-        for c in cand_list:
-            #TODO add a check that you're not folding the same thing again
-            with open('batch/fold_' + dm_file_orig + '_' + str(fold_num) + '.batch','w') as batch_file:
-                batch_line = "#!/bin/bash -l\n" +\
-                             "#SBATCH --partition=gpuq\n" +\
-                             "#SBATCH --job-name=fold_" + c[0] + '_' + c[2] + "\n" +\
-                             "#SBATCH --output=" + DIR + "/out/fold_" + c[0] + '_' + c[2] +".out\n" +\
-                             "#SBATCH --time=12:00:00\n" +\
-                             "ncpus=8\n"+\
-                             "export OMP_NUM_THREADS=$ncpus\n" +\
-                             "time aprun -b -n 1 -d $ncpus -q prepfold -ncpus $ncpus -n 128 -nsub 128 "+\
-                               "-accelcand "+c[1]+" -accelfile "+c[0]+".cand  -o " +\
-                               c[0][:-8] + "  " + c[0][:-8] + ".dat\n"
-                batch_file.write(batch_line)
-            submit_line = 'sbatch batch/fold_' + c[0] + '_' + c[1] +  '.batch'
-            submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-        """
-                
+               
         print "Number of cands in this file: " + str(len(cand_list))
-        fold_num = 1
         job_id_list =[]
         
-        last_dm_file = dm_file
-
         
         #number of folds to do per sbatch job (decrease is using .fits files)        
-        cands_per_batch = 100      
-        #through some stuffing around sort the fold into 100 folds per job
+        cands_per_batch = 30 
+         
+
         for i,c in enumerate(cand_list):
+            accel_file_name, cand_num, SN, cand_DM, period = c
+            #through some stuffing around sort the fold into 100 folds per job
             #the fold option using .dat files which is quicker but inaccurate
             #fold_command = 'run "prepfold" "' + ncpuscom + ' -n 128 -nsub 128 '+\
             #           "-accelcand "+c[1]+" -accelfile "+c[0]+".cand  -o " +\
             #           c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bs_id)+'" "'+str(dm_i)+'"' 
            
             #the fold options that uses .fits files which is slower but more accurate
-            fold_command = 'run "prepfold" "-n 128 -nsub 128 -noclip -o ' + c[0] + '' + c[1] +\
-                           "_"+pointing+ ' -p ' + c[3] + " -dm " + c[2] + " -nosearch" +\
-                           " /group/mwaops/vcs/" + str(obsid) + "/pointings/" + str(pointing) +\
-                           "/" + str(obsid) + '*.fits" "'+str(bs_id)+'" "'+str(dm_i)+'"'
-          
-
+            fold_command = 'run "prepfold" "-n 128 -nsub 128 -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch /group/mwaops/vcs/{5}/pointings/{2}/{5}*.fits" "{6}" "0"'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, obsid, bs_id)
+            #TODO remove this for db
+              
             if (i == 0) or ((i % cands_per_batch) == 0):
                 #move to correct file in batch file
-                if pulsar == None:
-                    dm_i_temp = int(floor( floor(float(c[3]))/2 ))
-                    dm_file = dm_i_to_file(dm_i_temp)
-                    SUBDIR = work_dir + str(sub_dir) +"/"+ dm_file
-                else:
-                    SUBDIR = work_dir + str(sub_dir)[:-1]
+                SUBDIR = work_dir + str(sub_dir)[:-1] + "/presto_profiles"
                 
-                fold_batch = "fold_" + dm_file_orig + '_' + str(fold_num)
+                fold_batch = "fold_c_{0}_{1}_{2}".format(i,i+cands_per_batch,pointing)
                 commands = []
                 commands.append(add_database_function(pbs))
                 commands.append("source /group/mwaops/PULSAR/psrBash.profile")
                 commands.append("ncpus={0}".format(n_omp_threads))
                 commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
-                commands.append("cd " + SUBDIR )
+                commands.append("cd " + SUBDIR)
                 commands.append(fold_command)
                 
             else:
-                #moves to other directory once it moves past DM%2
-                if not dm_file == last_dm_file and pulsar == None:
-                    commands.append("cd " + SUBDIRorig )
                 commands.append(fold_command)
             if ((i+1) % cands_per_batch) == 0:
                 job_id = submit_slurm(fold_batch, commands,
@@ -773,9 +774,7 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
                              slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
                              submit=True)
                 job_id_list.append(job_id)     
-                fold_num += 1
                 
-            last_dm_file = dm_file
         if not ((len(cand_list)+1) % cands_per_batch) == 0: 
             job_id = submit_slurm(fold_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
@@ -788,11 +787,9 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
         for i in job_id_list:
             job_id_str += ":" + str(i)
         
-        if pulsar != None:
-            SUBDIRorig = SUBDIR
     
         
-        fold_dep_batch = "dependancy_fold" + dm_file_orig 
+        fold_dep_batch = "dependancy_fold" 
         commands = []
         commands.append(add_database_function(pbs))
         commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -800,6 +797,7 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
         commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
         commands.append("cd " + SUBDIR )
         commands.append('echo "Searching for a profile with a sigma greater than 3"')
+        """
         if pulsar == None and dm_i > 0:
             i = dm_i * 2 - 1
             commands.append('cd '+ SUBDIRpast + '\n' +\
@@ -817,38 +815,26 @@ def fold(obsid, pointing, work_dir, sub_dir, dm_i, bs_id,pbs, relaunch_script, p
                          "fi\n" +\
                          "count=$(($count+1))\n" +\
                          "done")
-        
-        commands.append('cd '+ SUBDIRorig + '\n' +\
-                     'count=0\n' +\
+        """
+        commands.append('count=0\n' +\
                      'total=`ls *.ps | wc -l`\n' +\
                      'for i in $(ls *.ps); do\n' +\
                      'if (( $count % 100 == 0 )); then\n' +\
                      'echo "$count / $total searched"\n' +\
                      'fi\n' +\
                      'chi=`sed "13q;d" ${i%.ps}.bestprof`\n' +\
-                     "if [ ${chi:20:3} -ge 3 ]; then\n" +\
-                     'ps_to_png.sh ${i}\n' +\
+                     'chi=${chi#*=}\n'+\
+                     'if [ ${chi%.*} -ge 2 ]; then\n' +\
                      'mv "${i%.ps}".png ../over_3_png/"${i%.ps}".png\n' +\
                      'echo "${i%.ps}.png is over 3"\n' +\
                      "fi\n" +\
                      "count=$(($count+1))\n" +\
                      "done")
-        commands.append('blindsearch_database.py -c prepfold -m p -b ' +str(bs_id) +' -d '+str(dm_i))
-        if pulsar == None:  
-           relaunch_script += " -d " + str(dm_i + 1) 
-        commands.append("{0} -m a".format(relaunch_script))
+        commands.append('blindsearch_database.py -c prepfold -m p -b ' +str(bs_id) +' -d 0')
         submit_slurm(fold_dep_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                          slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
                          submit=True, depend=job_id_str[1:])
-    else:
-        #if there is no cand file assumed there are no cands
-        if pulsar == None:
-            relaunch_script += " -d " + str(dm_i + 1)
-        submit_cmd = subprocess.Popen("{0} -m a".format(relaunch_script),shell=True,\
-                                      stdout=subprocess.PIPE)
-        print submit_cmd.communicate()[0], 
-    
     return
 
 
@@ -1006,7 +992,7 @@ if args.mode == "b":
                             job_id_str += ":" + str(j)
                         splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, point)
                         commands = []
-                        commands.append('splice_wrapper.py -o {0} -w {1} '.format(obs, pointing_dir))
+                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
                         if args.search:
                             #if args.row_num:
                             row_num = blindsearch_database.database_blindsearch_start(obs,
@@ -1022,7 +1008,7 @@ if args.mode == "b":
                         #If only unspliced files then splice
                         splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obs, point)
                         commands = []
-                        commands.append('splice_wrapper.py -o {0} -w {1} '.format(obs, pointing_dir))
+                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obs, pointing_dir))
                         if args.search:
                             if not args.row_num:
                                 row_num = blindsearch_database.database_blindsearch_start(obs,
@@ -1051,8 +1037,11 @@ if args.mode == "b":
                     if not args.row_num:
                         row_num = blindsearch_database.database_blindsearch_start(obs,
                                             point, "{0} {1}".format(code_comment,n))
-                    rfifind(obs, point, w_d, s_d, args.pbs, row_num, 
-                            "{0} -p {1}".format(relaunch_script, point), args.pulsar)
+                    if args.pulsar_file:
+                        your_slurm_queue_check(max_queue = 300)
+                    prepdata(obs, point, w_d, s_d, row_num, 
+                            "{0} -p {1}".format(relaunch_script, point),
+                            dm_max = args.dm_max, pbs=args.pbs, pulsar = args.pulsar)
                 #remove any extra unspliced files
                 for fr in glob.glob(pointing_dir+"/*_"+obs+"_*.fits"):
                     os.remove(fr)
@@ -1062,6 +1051,8 @@ if args.mode == "b":
             if args.search:
                 row_num = blindsearch_database.database_blindsearch_start(obs,
                                                point, "{0} {1}".format(code_comment,n))
+            else:
+                row_num = None
             process_vcs_wrapper(obs, args.begin, args.end, [ra,dec], args, args.DI_dir,\
                                 pointing_dir, args.check, args.search, row_num, relaunch_script)
  
@@ -1069,15 +1060,15 @@ if args.mode == "b":
 if args.mode == "r" or args.mode == None:
     rfifind(obs, point, w_d, s_d,args.pbs, args.row_num, relaunch_script, args.pulsar)
 if args.mode == "p":
-    prepdata(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar,
-             dm_max = args.dm_max)
+    prepdata(obs, point, w_d, s_d,args.row_num, relaunch_script,
+             dm_max = args.dm_max, pbs = args.pbs, pulsar = args.pulsar)
 elif args.mode == "s":
-    sort_fft(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar,
-             dm_max = args.dm_max)
+    sort_fft(obs, point, w_d, s_d,args.row_num, relaunch_script,
+             DM_max=args.dm_max, pulsar=args.pulsar, pbs=args.pbs)
 elif args.mode == "a":
-    accel(obs, point, w_d, s_d,args.dm_file_int,args.row_num,args.pbs, relaunch_script,args.pulsar)
+    accel(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar)
 elif args.mode == "f":
-    fold(obs, point, w_d, s_d,args.dm_file_int,args.row_num,args.pbs, relaunch_script,args.pulsar)
+    fold(obs, point, w_d, s_d,args.row_num,args.pbs, relaunch_script,args.pulsar)
     
         
     

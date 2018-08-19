@@ -29,6 +29,7 @@ d=args.dir
 print d
 if d.endswith("/"):
     d = d[:-1]
+"""
 if d[-10:-7] == "DM_":
     i = int(d[-7:-4])
     j = int(d[-3:])
@@ -61,13 +62,24 @@ else:
     globinf = d+"*DM*.inf"
     inffiles = glob.glob(globinf)
     candfiles = glob.glob(globaccel)
+"""
+# glob for ACCEL files
+globaccel = "{0}/*/*ACCEL_*0".format(d)
+# glob for .inf files
+#globinf = "../*/*DM*.inf"
+globinf = "{0}/*/*DM*.inf".format(d)
+inffiles = glob.glob(globinf)
+candfiles = glob.glob(globaccel)
+
+
+
 #print candfiles
 #print inffiles
 
 # In how many DMs must a candidate be detected to be considered "good"
-min_num_DMs = 2
+min_num_DMs = 3
 # Lowest DM to consider as a "real" pulsar
-low_DM_cutoff = 2.0
+low_DM_cutoff = 1.0
 # Ignore candidates with a sigma (from incoherent power summation) less than this
 sifting.sigma_threshold = 4.0
 # Ignore candidates with a coherent power less than this
@@ -102,7 +114,6 @@ sifting.harm_pow_cutoff = 8.0
 # we get no ACCEL files...
 
 # Check to see if this is from a short search
-print inffiles
 if len(re.findall("_[0-9][0-9][0-9]M_" , inffiles[0])):
     dmstrs = [x.split("DM")[-1].split("_")[0] for x in candfiles]
 else:
@@ -126,15 +137,11 @@ if len(cands):
 # Note:  this includes only a small set of harmonics
 if len(cands):
     cands = sifting.remove_harmonics(cands)
-
+print cands
 # Write candidates to STDOUT
 if len(cands):
     cands.sort(sifting.cmp_sigma)
-    if d[-10:-7] == "DM_":
-        dm_file = dm_i_to_file(int(d[-7:-4])/2)
-        print "Finished for foulder: " + dm_file
-        sifting.write_candlist(cands,'cand_files/cands_'+ d.split("/")[0]+"_"+dm_file+'.txt')
-        print 'cand_files/cands_'+ d.split("/")[0]+"_"+dm_file+'.txt'
-    else:
-        sifting.write_candlist(cands,'ACCEL_sift_cands.txt')
+    cands_file_name = 'cand_files/cands_'+ d.replace("/","_") +'.txt'
+    sifting.write_candlist(cands,cands_file_name)
+    print cands_file_name
 

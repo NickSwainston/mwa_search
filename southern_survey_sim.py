@@ -25,6 +25,9 @@ import matplotlib.tri as tri
 import matplotlib.cm as cm
 #from mpl_toolkits.basemap import Basemap
 
+import find_pulsar_in_obs
+import mwa_metadb_utils as meta
+
 def get_beam_power(obsid_data,
                    sources,
                    dt=296,
@@ -107,36 +110,6 @@ def get_beam_power(obsid_data,
                  
     return Powers
 
-# Append the service name to this base URL, eg 'con', 'obs', etc.
-BASEURL = 'http://mwa-metadata01.pawsey.org.au/metadata/'
-
-def getmeta(service='obs', params=None):
-  """Given a JSON web service ('obs', find, or 'con') and a set of parameters as
-     a Python dictionary, return a Python dictionary containing the result.
-  """
-  if params:
-    data = urllib.urlencode(params)  # Turn the dictionary into a string with encoded 'name=value' pairs
-  else:
-    data = ''
-  print data
-  #             Validate the service name
-  if service.strip().lower() in ['obs', 'find', 'con']:
-    service = service.strip().lower()
-  else:
-    print "invalid service name: %s" % service
-    return
-  #             Get the data
-  try:
-    result = json.load(urllib2.urlopen(BASEURL + service + '?' + data))
-  except urllib2.HTTPError as error:
-    print "HTTP error from server: code=%d, response:\n %s" % (error.code, error.read())
-    return
-  except urllib2.URLError as error:
-    print "URL or network error: %s" % error.reason
-    return
-  #            Return the result dictionary
-  return result
-
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="""
@@ -158,6 +131,7 @@ if __name__ == "__main__":
   parser.add_argument('--semester_ra', action='store_true', help='Similar to semester but uses a RA cut off (changes number per group)')
   parser.add_argument('-p','--plot_type',type=str,help='Determines the output plot type, Default="png".',default='png')
   parser.add_argument('--obsid_list',type=str,nargs='+',help='Instead of calculating which positions to use the script will use the input obsids. eg: "1088850560 1090249472"')
+  parser.add_argument('--all_obsids',action='store_true', help='Uses all VCS obsids on the MWA metadatabase.')
   args=parser.parse_args()
 
   #Setting up some of the plots
@@ -226,7 +200,14 @@ if __name__ == "__main__":
           RA.append(j)
 
   
-  if not args.obsid_list:
+  if args.all_obsids:
+      observations = find_pulsar_in_obs.find_obsids_meta_pages()
+      pointing_count = len(observations)
+      print observations
+  elif args.obsid_list:
+      observations = args.obsid_list
+      pointing_count = len(observations)
+  else:
       #setting up some metadata requirements
       time = 4800 #one hour 
       channels = range(107,131)
@@ -326,9 +307,6 @@ if __name__ == "__main__":
       dec_list = [x for _,x in sorted(zip(ra_list,dec_list))]
       observations = [x for _,x in sorted(zip(ra_list,observations))]
       ra_list = sorted(ra_list)
-  else:
-      observations = args.obsid_list
-      pointing_count = len(observations)
       
   s_overlap_z = np.zeros(len(RA))
   s_overlap_x =[]
@@ -337,25 +315,16 @@ if __name__ == "__main__":
   RA_FWHM_atdec =[]
   for i in range(len(observations)):
       ob = observations[i]
-      if args.obsid_list:
-        print "Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: "
-        beam_meta_data = getmeta(service='obs', params={'obs_id':ob})
-        ra = beam_meta_data[u'metadata'][u'ra_pointing']
-        dec = beam_meta_data[u'metadata'][u'dec_pointing']
-        time = beam_meta_data[u'stoptime'] - beam_meta_data[u'starttime'] #gps time
-        delays = beam_meta_data[u'rfstreams'][u'0'][u'xdelays']
-             
-        minfreq = float(min(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
-        maxfreq = float(max(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
-        centrefreq = 1.28e6 * (minfreq + (maxfreq-minfreq)/2) #in MHz
-        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+      if args.obsid_list or args.all_obsids:
+        ob, ra, dec, time, delays,centrefreq, channels = meta.get_common_obs_metadata(ob)  
+        cord = [ob, ra, dec, time, delays,centrefreq, channels]
       else:
         ra = ra_list[i]
         dec = dec_list[i]
         temp_dec_index = dec_range.index(dec)
         delays = delays_range[dec_range.index(dec)]
       
-      cord = [ob, ra, dec, time, delays,centrefreq, channels]
+        cord = [ob, ra, dec, time, delays,centrefreq, channels]
   
       z=[] ; z_sens =[] ; x=[] ; y=[]
       
