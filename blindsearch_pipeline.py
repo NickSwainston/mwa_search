@@ -8,6 +8,8 @@ import urllib2
 import json
 import glob
 from time import sleep
+import datetime
+import numpy as np
 
 #vcstools imports
 import blindsearch_database
@@ -20,6 +22,14 @@ from job_submit import submit_slurm
 #python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1099414416 -p 05:34:32_+22:00:53 --pulsar J0534+2200
 
 #1163853320 47 tuck data
+
+def chunks(l, n):
+    # For item i in a range that is a length of l,
+    for i in range(0, len(l), n):
+        # Create an index range for l of n items:
+        yield l[i:i+n]
+
+
 def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'workq'):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
@@ -241,7 +251,7 @@ def rfifind(obsid, pointing, work_dir, sub_dir,pbs, bs_id, relaunch_script,pulsa
     numout = numout_calc(fits_dir + str(obsid) + "/pointings/" + str(pointing) + "/")
     
     
-    rfi_batch = 'rfi_{0}'.format(obs)
+    rfi_batch = str(bs_id) + '_rfi_{0}'.format(obs)
     commands = []
     commands.append(add_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -361,7 +371,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
         
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 512 steps
-            DM_batch = 'DM_' + dm_start + '.batch'
+            DM_batch = str(bs_id) + '_DM_' + dm_start + '.batch'
             commands = []
             commands.append(add_database_function(pbs))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -382,7 +392,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <512 steps
-        DM_batch = 'DM_' + dm_start + '.batch'
+        DM_batch = str(bs_id) + '_DM_' + dm_start + '.batch'
         commands = []
         commands.append(add_database_function(pbs))
         commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -413,7 +423,7 @@ def prepdata(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
     for i in job_id_list:
         job_id_str += ":" + str(i)
     
-    DM_depend_batch = 'dependancy_prepsubbands'
+    DM_depend_batch = str(bs_id) + '_dep_prepsubbands'
     commands = []
     commands.append(add_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -558,7 +568,7 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
     for i in job_id_list:
         job_id_str += ":" + str(i)
     
-    fft_dep_batch = "dependancy_fft"
+    fft_dep_batch = str(bs_id) + "_dep_fft"
     commands = []
     commands.append(add_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -603,30 +613,42 @@ def accel(obsid, pointing, work_dir, sub_dir, bs_id, pbs, relaunch_script, pulsa
     for dm_i, DIR in enumerate(DM_file_list):
         os.chdir(DIR)
         dm_file = DIR[:-1].split("/")[-1]
-        dir_files = os.listdir(DIR)
-        #dir_files = ['1150234552_DM10.92.fft']
-        job_id_list =[]
-        
+        dir_files = glob.glob("*fft")
 
-        accel_batch = "accel_" + dm_file
-        commands = []
-        commands.append(add_temp_database_function(pbs))
-        commands.append("source /group/mwaops/PULSAR/psrBash.profile")
-        commands.append("ncpus={0}".format(n_omp_threads))
-        commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
-        commands.append("cd " + DIR )
-        for f in dir_files:
-                if f.endswith(".fft"):
+
+
+        #split ffts into 140 job chunks
+        n = 140
+        dir_files = list(chunks(dir_files,n))
+        
+        for dfi, dir_file in enumerate(dir_files):
+            #calc processing time
+            run_time = len(dir_file)*300
+            run_time =  datetime.timedelta(seconds=run_time)
+            print  run_time
+            print dir_file
+            #dir_files = ['1150234552_DM10.92.fft']
+            job_id_list =[]
+            
+
+            accel_batch = str(bs_id) + "_acl_" + dm_file+ "_"+str(dfi)
+            commands = []
+            commands.append(add_temp_database_function(pbs))
+            commands.append("source /group/mwaops/PULSAR/psrBash.profile")
+            commands.append("ncpus={0}".format(n_omp_threads))
+            commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
+            commands.append("cd " + DIR )
+            for f in dir_file:
                     commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.75 -fhi 500 '+\
                                     '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
-        commands.append('blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id))
-        commands.append('blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i))
-        
-        job_id = submit_slurm(accel_batch, commands,
-                             batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                             slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
-                             submit=True)
-        job_id_list.append(job_id)
+            commands.append('blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id))
+            commands.append('blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i))
+            
+            job_id = submit_slurm(accel_batch, commands,
+                                 batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                                 slurm_kwargs={"time": run_time, "partition": "workq"},#4 hours
+                                 submit=True)
+            job_id_list.append(job_id)
     
     sleep(1)
     print "Dependancy job below"
@@ -634,7 +656,7 @@ def accel(obsid, pointing, work_dir, sub_dir, bs_id, pbs, relaunch_script, pulsa
     for i in job_id_list:
         job_id_str += ":" + str(i)
     
-    accel_dep_batch = "dependancy_accel"
+    accel_dep_batch = str(bs_id) + "_dep_accel"
     commands = []
     commands.append(add_temp_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -757,7 +779,7 @@ def fold(obsid, pointing, work_dir, sub_dir,  bs_id,pbs, relaunch_script, pulsar
                 #move to correct file in batch file
                 SUBDIR = work_dir + str(sub_dir)[:-1] + "/presto_profiles"
                 
-                fold_batch = "fold_c_{0}_{1}_{2}".format(i,i+cands_per_batch,pointing)
+                fold_batch = str(bs_id) + "_fold_c_{0}_{1}_{2}".format(i,i+cands_per_batch,pointing)
                 commands = []
                 commands.append(add_database_function(pbs))
                 commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -789,7 +811,7 @@ def fold(obsid, pointing, work_dir, sub_dir,  bs_id,pbs, relaunch_script, pulsar
         
     
         
-        fold_dep_batch = "dependancy_fold" 
+        fold_dep_batch = str(bs_id) + "_dep_fold" 
         commands = []
         commands.append(add_database_function(pbs))
         commands.append("source /group/mwaops/PULSAR/psrBash.profile")
