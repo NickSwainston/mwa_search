@@ -90,11 +90,12 @@ def add_temp_database_function(pbs, threads=True):
                 '    else\n' +\
                 '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1,$4" >> ${1}_temp_database_file.csv\n' +\
                 '    fi\n'
-    if threads:
-        batch_line+='    srun -n 1 -c $ncpus $1 $2\n'
-    else:
-        batch_line+='    srun -n 1 $1 $2\n'
-    batch_line+='    echo $1 $2\n' +\
+    #if threads:
+    #    batch_line+='    srun -n 1 -c $ncpus $1 $2\n'
+    #else:
+    #    batch_line+='    srun -n 1 $1 $2\n'
+    batch_line+='    $1 $2\n' +\
+                '    echo $1 $2\n' +\
                 '    errcode=$?\n' +\
                 '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file.csv\n' +\
                 '    if [ "$errcode" != "0" ]; then\n' +\
@@ -522,6 +523,7 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
     #Send off jobs
     
     job_id_list =[]
+    srun_commands = []
     for i, d in enumerate(dirlist):
         if d.startswith("DM_"):
             print d
@@ -533,9 +535,8 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
                 #dir_files = os.listdir(work_dir + sub_dir + "/")
                 dir_files = glob.glob(work_dir + sub_dir + "/*dat")
 
-            fft_batch = "fft_" + d
+            fft_batch = str(bs_id) + "_fft_" + d
             commands = []
-            commands.append(add_temp_database_function(pbs, threads=False))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
             commands.append("ncpus={0}".format(n_omp_threads))
             commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
@@ -548,10 +549,17 @@ def sort_fft(obsid, pointing, work_dir, sub_dir, bs_id, relaunch_script,
                 if fi%16 == 15:
                     #only 16 ffts can be done at once
                     fft_command += '" "'+str(bs_id)+'" "'+str(i)+'"'
-                    commands.append(fft_command)
+                    srun_commands.append(fft_command)
                     fft_command = 'run "realfft" "'
             fft_command += '" "'+str(bs_id)+'" "'+str(i)+'"'
-            commands.append(fft_command)
+            srun_commands.append(fft_command)
+            
+            with open(fft_batch+".bash", "w") as srun_bash:
+                srun_bash.write(add_temp_database_function(pbs, threads=False))
+                for sc in srun_commands:
+                    srun_bash.write("{}\n".format(sc))
+            
+            commands.append("srun -n 1 bash {}.bash".format(fft_batch))
             commands.append('blindsearch_database.py -c realfft -m m -b ' +str(bs_id))
             commands.append('blindsearch_database.py -c realfft -m p -b ' +str(bs_id))
             
@@ -633,14 +641,20 @@ def accel(obsid, pointing, work_dir, sub_dir, bs_id, pbs, relaunch_script, pulsa
 
             accel_batch = str(bs_id) + "_acl_" + dm_file+ "_"+str(dfi)
             commands = []
-            commands.append(add_temp_database_function(pbs))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
             commands.append("ncpus={0}".format(n_omp_threads))
             commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
             commands.append("cd " + DIR )
-            for f in dir_file:
-                    commands.append('run "accelsearch" "'  + ncpuscom + ' -flo 0.75 -fhi 500 '+\
-                                    '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"')
+            
+            with open(accel_batch+".bash", "w") as srun_bash:
+                srun_bash.write(add_temp_database_function(pbs))
+                srun_bash.write("ncpus={0}\n".format(n_omp_threads))
+                for f in dir_file:
+                    srun_bash.write('run "accelsearch" "'  + ncpuscom + ' -flo 0.75 -fhi 500 '+\
+                                    '-numharm 8 ' + f + '" "' +str(bs_id) + '" "'+str(dm_i)+'"\n')
+
+            
+            commands.append("srun -n 1 -c $ncpus bash {}.bash".format(accel_batch))
             commands.append('blindsearch_database.py -c accelsearch -m m -b ' +str(bs_id))
             commands.append('blindsearch_database.py -c accelsearch -m p -b ' +str(bs_id) +' -d '+str(dm_i))
             
@@ -658,7 +672,6 @@ def accel(obsid, pointing, work_dir, sub_dir, bs_id, pbs, relaunch_script, pulsa
     
     accel_dep_batch = str(bs_id) + "_dep_accel"
     commands = []
-    commands.append(add_temp_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
     commands.append("ncpus={0}".format(n_omp_threads))
     commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
