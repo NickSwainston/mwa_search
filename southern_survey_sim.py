@@ -9,22 +9,28 @@ import urllib2
 import json
 import subprocess
 import numpy as np
+import csv
 from scipy.interpolate import UnivariateSpline
+import ephem
+
+#astropy
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.table import Table
 from astropy.time import Time
-from mwapy.pb import primary_beam
-import ephem
-from mwapy import ephem_utils,metadata
+
+#matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.path as Path
 import matplotlib.patches as patches
 import matplotlib.tri as tri
 import matplotlib.cm as cm
-#from mpl_toolkits.basemap import Basemap
+#plt.rc("text",usetex=True)
 
+#vcstools/mwapy
+from mwapy.pb import primary_beam
+from mwapy import ephem_utils,metadata
 import find_pulsar_in_obs
 import mwa_metadb_utils as meta
 
@@ -75,7 +81,7 @@ def get_beam_power(obsid_data,
                              Ntimes,1))
         PowersY=np.zeros((len(sources),
                              Ntimes,1))
-        frequencies=[centrefreq]
+        frequencies=np.array([centrefreq])*1.0e6 
 
     RAs=np.array([x[0] for x in sources])
     Decs=np.array([x[1] for x in sources])
@@ -126,6 +132,7 @@ if __name__ == "__main__":
   parser.add_argument('-o','--sens_overlap',action='store_true',help='Plots sensitivity that overlaps between observations.')
   parser.add_argument('-c','--colour',action='store_true',help='Plots sensitivity plots in colour instead of contour')
   parser.add_argument('-l','--lines',action='store_true',help='Includes the min decs of other telescopes in plots')
+  parser.add_argument('--fill',action='store_true',help='Shades and area') 
   parser.add_argument('-m','--manual', nargs='+', type=int, help='Makes the pointing numbers manual, input them as 1 2 3 4 5 6 7')
   parser.add_argument('--semester', action='store_true', help='Changed the colours of the FWHM for each semester')
   parser.add_argument('--semester_ra', action='store_true', help='Similar to semester but uses a RA cut off (changes number per group)')
@@ -139,10 +146,12 @@ if __name__ == "__main__":
   plt.rc("font", size=8)
   if args.aitoff:
     fig.add_subplot(111)
+    print "changing axis"
     ax = plt.axes(projection='mollweide')
   else:
     fig.add_subplot(111)
     ax = plt.axes()
+
 
 
   #levels = np.arange(0.25, 1., 0.05)
@@ -192,7 +201,6 @@ if __name__ == "__main__":
   res = args.resolution
   map_dec_range = range(-90,91,res)
   map_ra_range = range(0,361,res)
-  print len(map_dec_range),len(map_ra_range)
   RA=[] ; Dec=[]
   for i in map_dec_range:
       for j in map_ra_range:
@@ -201,7 +209,8 @@ if __name__ == "__main__":
 
   
   if args.all_obsids:
-      observations = find_pulsar_in_obs.find_obsids_meta_pages()
+      #observations= find_pulsar_in_obs.find_obsids_meta_pages()
+      observations = find_pulsar_in_obs.find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
       pointing_count = len(observations)
       print observations
   elif args.obsid_list:
@@ -309,15 +318,37 @@ if __name__ == "__main__":
       ra_list = sorted(ra_list)
       
   s_overlap_z = np.zeros(len(RA))
-  s_overlap_x =[]
-  s_overlap_y =[]
+  sens_colour_z =[]
   max_ra_list = []
   RA_FWHM_atdec =[]
-  for i in range(len(observations)):
-      ob = observations[i]
+  with open('obs_meta.csv', 'rb') as csvfile: 
+      spamreader = csv.reader(csvfile)
+      next(spamreader, None)
+      obsid_meta_file = []
+      for row in spamreader:
+          obsid_meta_file.append(row)
+  for i, ob in enumerate(observations):
       if args.obsid_list or args.all_obsids:
-        ob, ra, dec, time, delays,centrefreq, channels = meta.get_common_obs_metadata(ob)  
-        cord = [ob, ra, dec, time, delays,centrefreq, channels]
+          obs_foun_check = False
+          for omi in range(len(obsid_meta_file)):
+              if int(ob) == int(obsid_meta_file[omi][0]):
+                  print "getting obs metadata from obs_meta.csv"
+                  ob, ra, dec, time, delays,centrefreq, channels =\
+                              obsid_meta_file[omi]
+                  ob = int(ob)
+                  time = int(time)
+                  delays = map(int,delays[1:-1].split(","))
+                  centrefreq = float(centrefreq)
+                  channels = map(int,channels[1:-1].split(","))
+                  obs_foun_check = True
+          if not obs_foun_check:
+              ob, ra, dec, time, delays,centrefreq, channels =\
+                  meta.get_common_obs_metadata(ob)  
+              
+              with open('obs_meta.csv', 'a') as csvfile:
+                  spamwriter = csv.writer(csvfile)
+                  spamwriter.writerow([ob, ra, dec, time, delays,centrefreq, channels])
+          cord = [ob, ra, dec, time, delays,centrefreq, channels]
       else:
         ra = ra_list[i]
         dec = dec_list[i]
@@ -334,15 +365,10 @@ if __name__ == "__main__":
       #print max(Dec), min(RA), Dec.dtype
       time_intervals = 600 # seconds
       powout=get_beam_power(cord, zip(RA,Dec), dt=time_intervals)
-      
       #grab a line of beam power for the pointing declination
       if i == 0:
           print "len powers list: " + str(powout.shape)
       for c in range(len(RA)):
-          if i == 0:
-              s_overlap_x.append(-RA[c]/180.*np.pi+np.pi)
-              s_overlap_y.append(Dec[c]/180.*np.pi)
-          
           s_overlap_z[c] += powout[c,0,0]*math.cos(Dec[c]/180.*np.pi)
 
           temppower=powout[c,0,0]
@@ -381,7 +407,13 @@ if __name__ == "__main__":
           #y.append(Dec[i])
       nx=np.array(x) ; ny=np.array(y); nz=np.array(z)
       if args.sens:
-          nz_sense = np.sqrt(np.array(z_sens))
+          nz_sense = []
+          for zsi in range(len(z_sens)):
+              if nz[zsi] < 0.01:
+                  nz_sense.append(np.nan)
+              else:
+                  nz_sense.append(4.96/np.sqrt(z_sens[zsi]))
+          nz_sense = np.array(nz_sense)
           sens_min = None
       if args.fwhm:
           if args.sens:
@@ -418,36 +450,39 @@ if __name__ == "__main__":
               f.write('RA\tDec\n')
               f.close()
       
-      #find middle ra for each pointing
-      powout_RA_line = []
-      RA_line = []
-      for p in range(len(nz)):
-        #print int(y[i]/np.pi*180.), int(dec) 
-        
-        if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
-          powout_RA_line.append(float(nz[p]))
-          RA_line.append(180. - float(nx[p])*180/np.pi)
+      if args.semester or args.semester_ra:
+          #find middle ra for each pointing
+          powout_RA_line = []
+          RA_line = []
+          for p in range(len(nz)):
+            #print int(y[i]/np.pi*180.), int(dec) 
+            
+            if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
+              powout_RA_line.append(float(nz[p]))
+              RA_line.append(180. - float(nx[p])*180/np.pi)
+          
+          #print RA_line
+          spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
+          r1, r2 = spline.roots()
       
-      #print RA_line
-      spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
-      r1, r2 = spline.roots()
+          diff = r2 - r1
+          if diff > 180.:
+              diff = r1 - (r2 -360)
+              #print r1,r2
+              #print diff
+              max_ra = r1 - (diff)/2.
+          else:
+              max_ra = r1 + (diff)/2.
+          #max_ra = 180.-max_ra*180/np.pi 
+          if max_ra < 0.:
+              max_ra += 360.
+          if max_ra > 360.:
+              max_ra -= 360.
+          #max_ra = max_ra*180/np.pi
+          #print max_ra 
+          #print str(ra)
       
-      diff = r2 - r1
-      if diff > 180.:
-          diff = r1 - (r2 -360)
-          #print r1,r2
-          #print diff
-          max_ra = r1 - (diff)/2.
-      else:
-          max_ra = r1 + (diff)/2.
-      #max_ra = 180.-max_ra*180/np.pi 
-      if max_ra < 0.:
-          max_ra += 360.
-      if max_ra > 360.:
-          max_ra -= 360.
-      #max_ra = max_ra*180/np.pi
-      #print max_ra 
-      #print str(ra)
+      
       if args.semester:
           for c in range(len(colour_groups)):
               if 14*c <= i and i < 14*(c+1):
@@ -456,7 +491,7 @@ if __name__ == "__main__":
                   f = open(str(colour_groups[c]) + '_group_file.txt','a+')
                   f.write(str(max_ra) + '\t' + str(dec) + '\n')
                   f.close()
-                  
+                      
           alpha = 0.6
       elif args.semester_ra:
           for c in range(len(colour_groups)):
@@ -499,34 +534,63 @@ if __name__ == "__main__":
           alpha = 0.3
       
       if not args.sens_overlap:
-        plt.tricontour(nx, ny, nz, levels=levels, alpha = alpha, 
+          if args.colour:
+              if i == 0:
+                  sens_colour_z = nz_sense
+              else:
+                  for zi, zs in enumerate(nz_sense):
+                      if math.isnan(sens_colour_z[zi]):
+                          sens_colour_z[zi] = zs
+                      elif sens_colour_z[zi] > zs: #TODO change back after sensitivity plot over
+                          #append if larger
+                          sens_colour_z[zi] = zs
+            
+          else:
+            plt.tricontour(nx, ny, nz, levels=levels, alpha = alpha, 
                      colors=colors,
                      linewidths=linewidths)
+          
+            
       """ 
       cs = plt.tricontour(nx, ny, nz, levels=levels[0],alpha=0)
       cs0 = cs.collections[0]
       cspaths = cs0.get_paths()
       spch_0 = patches.PathPatch(cspaths[0], facecolor='k', edgecolor='gray',lw=0.5, alpha=0.1)
-      ax.add_patch(spch_0)
-      """
-  
+          ax.add_patch(spch_0)
+          """
+      
   if args.sens_overlap:
-      nx=np.array(s_overlap_x) ; ny=np.array(s_overlap_y)
+      print "making np arrays"
       nz=np.sqrt(np.array(s_overlap_z))
-      nz = nz/max(nz)
+      #nz = nz/max(nz)
       if args.colour:
-        colour_map = 'plasma'
+        colour_map = 'plasma_r'
         nx.shape = (len(map_dec_range),len(map_ra_range))
         ny.shape = (len(map_dec_range),len(map_ra_range))
         nz.shape = (len(map_dec_range),len(map_ra_range))
+        print "colour plotting"
         plt.pcolor(nx, ny, nz, cmap=colour_map)
         plt.colorbar(spacing='uniform', shrink = 0.65)
       else:
         levels = np.arange(0.5*max(nz), max(nz), max(nz)/20.)
+        print "plotting"
         plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.3,
                                    colors=colors,
                                    linewidths=linewidths)
    
+  if args.sens and args.colour:
+      nz=sens_colour_z
+      colour_map = 'plasma_r'
+      nx.shape = (len(map_dec_range),len(map_ra_range))
+      ny.shape = (len(map_dec_range),len(map_ra_range))
+      nz.shape = (len(map_dec_range),len(map_ra_range))
+      dec_limit_mask = ny > np.radians(30)
+      nz[dec_limit_mask] = np.nan
+      plt.pcolor(nx, ny, nz, cmap=colour_map)
+      plt.xlabel("Right Ascension")
+      plt.ylabel("Declination")
+      plt.colorbar(spacing='uniform', shrink = 0.65, label="Minimum detectable flux density (mJy)")
+        
   if args.semester or args.semester_ra:
       #sort the output into the right order
       import glob
@@ -544,10 +608,10 @@ if __name__ == "__main__":
              for l in lines:
                  spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])
 
-
   #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
   xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
   ax.set_xticklabels(xtick_labels) 
+  print "plotting grid"
   plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
   
   #p1=ax.scatter(ra_PCAT_N, dec_PCAT_N, 1.5, lw=0, marker='o', color ='gray', label="Known pulsars beyond MWA Dec limitation")
@@ -556,12 +620,30 @@ if __name__ == "__main__":
 
   #add lines of other surveys
   if args.lines:
+    """
     plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi, np.full(len(map_ra_range),0./180.*np.pi),\
           'r',label='LOFAR limit')
     plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi, np.full(len(map_ra_range),-40./180.*np.pi),\
           '--g',label='GBT limit')
     plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi, np.full(len(map_ra_range),-55./180.*np.pi),\
           '--b',label='GMRT limit')
+    """
+    plt.plot(np.radians(np.array(map_ra_range)) - np.pi, 
+             np.full(len(map_ra_range),np.radians(-15.)),
+             '--b',label=r'FAST $\delta_{min}$')
+    plt.plot(np.radians(np.array(map_ra_range)) - np.pi, 
+             np.full(len(map_ra_range),np.radians(30.)),
+             '--r',label=r'MWA $\delta_{max}$')
+  if args.fill:
+      import matplotlib.transforms as mtransforms
+      trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
+      map_ra_range = range(-20,381,res)
+      ff = 30.
+      ffa = 28.5
+      ax.fill_between(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                      np.full(len(map_ra_range),np.radians((-16.5)/90.*ff+ffa)),
+                      np.full(len(map_ra_range),np.radians((34.5)/90.*ff+ffa)),
+                      facecolor='0.5', alpha=0.5, transform=trans)
 
   handles, labels = ax.get_legend_handles_labels()
   plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
@@ -599,9 +681,11 @@ if __name__ == "__main__":
     plot_name += '_ownFWHM'
   else:
     plot_name +='_zenithFWHM'
-
+  
   plot_type = args.plot_type
   #plt.title(plot_name)
-  plt.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000)
-  plt.show()
+  print "saving {}.{}".format(plot_name, plot_type)
+  fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000)
+  #plt.show()
+  plt.close
 
