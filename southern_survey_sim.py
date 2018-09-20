@@ -589,7 +589,7 @@ if __name__ == "__main__":
       plt.pcolor(nx, ny, nz, cmap=colour_map)
       plt.xlabel("Right Ascension")
       plt.ylabel("Declination")
-      plt.colorbar(spacing='uniform', shrink = 0.65, label="Minimum detectable flux density (mJy)")
+      plt.colorbar(spacing='uniform', shrink = 0.65, label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
         
   if args.semester or args.semester_ra:
       #sort the output into the right order
