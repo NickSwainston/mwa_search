@@ -4,6 +4,8 @@ import sqlite3 as lite
 from optparse import OptionParser #NB zeus does not have argparse!
 
 DB_FILE = os.environ['CMD_BS_DB_FILE']
+#how many seconds the sqlite database conection takes until it times out
+TIMEOUT=60
 
 def dict_factory(cursor, row):
     d = {}
@@ -14,7 +16,7 @@ def dict_factory(cursor, row):
 def database_blindsearch_start(obsid, pointing, comment):
         DB_FILE = os.environ['CMD_BS_DB_FILE']
                         
-        con = lite.connect(DB_FILE, timeout = 20)
+        con = lite.connect(DB_FILE, timeout = TIMEOUT)
         with con:
                 cur = con.cursor()
                 
@@ -25,7 +27,7 @@ def database_blindsearch_start(obsid, pointing, comment):
     
 def database_script_start(table, bs_id, command, arguments,nodes,dm_file_int,time=datetime.datetime.now()):
     
-    con = lite.connect(DB_FILE, timeout = 20)
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
         if dm_file_int == None:
@@ -37,7 +39,7 @@ def database_script_start(table, bs_id, command, arguments,nodes,dm_file_int,tim
 
 def database_script_stop(table, rownum, errorcode,end_time=datetime.datetime.now()):
 
-    con = lite.connect(DB_FILE, timeout = 20)
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
         cur.execute("SELECT Ended FROM "+table+" WHERE Rownum=?", (rownum,))
@@ -172,7 +174,7 @@ if __name__ == '__main__':
     elif opts.mode == 'b':
         database_beamform_find(table,opts.file_location, opts.bs_id)
     elif opts.mode.startswith("v"):
-        con = lite.connect(DB_FILE, timeout = 20)
+        con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory
     
         query = "SELECT * FROM " + table
@@ -260,7 +262,7 @@ if __name__ == '__main__':
         if opts.dm_file_int:
             query += " AND DMFileInt=" + str(opts.dm_file_int)
         print query
-        con = lite.connect(DB_FILE, timeout = 20)
+        con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory
         cur = con.cursor()
         cur.execute(query)
@@ -332,7 +334,7 @@ if __name__ == '__main__':
         print new_total_proc, new_total_er, new_job_proc, new_job_er
         
         
-        con = lite.connect(DB_FILE, timeout = 20)
+        con = lite.connect(DB_FILE, timeout = TIMEOUT)
         with con:
             cur = con.cursor()
             cur.execute("UPDATE Blindsearch SET TotalProc=?, TotalErrors=?, "+table+"Proc=?, "+table+"Errors=? WHERE Rownum=?", (str(new_total_proc)[:9], new_total_er, str(new_job_proc)[:9], new_job_er, opts.bs_id))
