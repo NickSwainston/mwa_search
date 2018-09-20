@@ -260,7 +260,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             if incoh:
                 fits_dir='/group/mwaops/vcs/{0}/incoh/'.format(obsid)
             else:
-                fits_dir='/group/mwaops/vcs/{0}/pointing/{1}/'.format(obsid,pointing)
+                fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
 
 
         
@@ -397,7 +397,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
             fits_dir=None):
 
     if fits_dir == None:
-        fits_dir='/group/mwaops/vcs/{0}/pointing/{1}/'.format(obsid,pointing)
+        fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
            
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir)
@@ -426,7 +426,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "2:00:00", "partition": "workq"},#4 hours
-                 submit=True)
+                 submit=True, module_list=["presto/master"])
  
     return
 
@@ -439,7 +439,7 @@ def prepdata(obsid, pointing, relaunch_script,
              fits_dir=None, dm_max=4):
    
     if fits_dir == None:
-        fits_dir='/group/mwaops/vcs/{0}/pointing/{1}/'.format(obsid,pointing)
+        fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
 
     #Set up some directories and move to it
     if not os.path.exists(work_dir + pointing):
@@ -504,10 +504,6 @@ def prepdata(obsid, pointing, relaunch_script,
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
-        prepdata_command = 'run "prepsubband" "-ncpus $ncpus -lodm ' + str(dm_start) +\
-                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
-                            " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            '1*.fits" '+str(bsd_row_num)
         #DM_batch = 'DM_' + dm_start + '.batch'
         #commands = []
         #commands.append(add_database_function(pbs))
@@ -521,8 +517,12 @@ def prepdata(obsid, pointing, relaunch_script,
         
         
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
-            #dedisperse for only 512 steps
-            DM_batch = str(bsd_row_num) + '_DM_' + dm_start + '.batch'
+            #dedisperse for only 1024 steps
+            DM_batch = str(bsd_row_num) + '_DM_' + dm_start 
+            prepdata_command = 'run "prepsubband" "-ncpus $ncpus -lodm ' + str(dm_start) +\
+                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
+                            " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
+                            '1*.fits" '+str(bsd_row_num)
             commands = []
             commands.append(add_database_function(pbs))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -533,13 +533,17 @@ def prepdata(obsid, pointing, relaunch_script,
             job_id = submit_slurm(DM_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                          slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
-                         submit=True)
+                         submit=True, module_list=["presto/master"])
             job_id_list.append(job_id)
            
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <512 steps
         DM_batch = str(bsd_row_num) + '_DM_' + dm_start 
+        prepdata_command = 'run "prepsubband" "-ncpus $ncpus -lodm ' + str(dm_start) +\
+                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
+                            " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
+                            '1*.fits" '+str(bsd_row_num)
         commands = []
         commands.append(add_database_function(pbs))
         commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -557,7 +561,7 @@ def prepdata(obsid, pointing, relaunch_script,
         job_id = submit_slurm(DM_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                          slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
-                         submit=True)
+                         submit=True, module_list=["presto/master"])
         job_id_list.append(job_id)    
            
     #make a job that simply restarts this program when all prepsubband jobs are complete
@@ -574,8 +578,8 @@ def prepdata(obsid, pointing, relaunch_script,
     commands.append("ncpus={0}".format(n_omp_threads))
     commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     commands.append("cd " + work_dir + sub_dir)
-    commands.append('realfft ' + str(obsid) + '_DM0.00.dat')
-    commands.append("accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft")
+    #commands.append('realfft ' + str(obsid) + '_DM0.00.dat')
+    #commands.append("accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft")
     commands.append('blindsearch_database.py -c prepsubband -m p -b ' +str(bsd_row_num) )
     commands.append("{0} -m s -r {1}".format(relaunch_script, bsd_row_num))
     
@@ -592,7 +596,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
              fits_dir=None, dm_max=4, n_omp_threads = 20):
 
     if fits_dir == None:
-        fits_dir='/group/mwaops/vcs/{0}/pointing/{1}/'.format(obsid,pointing)
+        fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
 
     #Makes 90 files to make this all a bit more managable and sorts the files.
     os.chdir(work_dir + "/" + sub_dir)
@@ -705,7 +709,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
             job_id = submit_slurm(fft_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                              slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
-                             submit=True)
+                             submit=True, module_list=["presto/master"])
             job_id_list.append(job_id)
 
     os.chdir(work_dir + "/" + sub_dir)
@@ -780,7 +784,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
                 srun_bash.write(add_temp_database_function(pbs))
                 srun_bash.write("ncpus={0}\n".format(n_omp_threads))
                 for f in dir_file:
-                    srun_bash.write('run "accelsearch" "-ncpus $ncpus -flo 0.75 -fhi 500 '+\
+                    srun_bash.write('run "accelsearch" "-ncpus $ncpus -zmax 0 -flo 0.75 -fhi 500 '+\
                                     '-numharm 8 ' + f + '" "' +str(bsd_row_num) + '" "'+str(dm_i)+'"\n')
 
             
@@ -791,7 +795,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
             job_id = submit_slurm(accel_batch, commands,
                                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                                  slurm_kwargs={"time": run_time, "partition": "workq"},#4 hours
-                                 submit=True)
+                                 submit=True, module_list=["presto/master"])
             job_id_list.append(job_id)
     
     sleep(1)
@@ -822,7 +826,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
     from math import floor
     
     if fits_dir == None:
-        fits_dir='/group/mwaops/vcs/{0}/pointing/{1}/'.format(obsid,pointing)
+        fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
     
     DIR=work_dir + str(sub_dir)
     os.chdir(DIR)
@@ -931,14 +935,14 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
                 job_id = submit_slurm(fold_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                              slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
-                             submit=True)
+                             submit=True, module_list=["presto/master"])
                 job_id_list.append(job_id)     
                 
         if not ((len(cand_list)+1) % cands_per_batch) == 0: 
             job_id = submit_slurm(fold_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                              slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
-                             submit=True)
+                             submit=True, module_list=["presto/master"])
             job_id_list.append(job_id)
         
         sleep(1)
@@ -1053,7 +1057,7 @@ if args.pointing:
         if args.incoh:
             fits_dir='/group/mwaops/vcs/{0}/incoh/'.format(obsid)
         else:
-            fits_dir='/group/mwaops/vcs/{0}/pointing/{1}/'.format(obsid,args.pointing)
+            fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,args.pointing)
 
 if args.pbs:
     n_omp_threads = 8
@@ -1126,7 +1130,7 @@ elif args.mode == "p":
 elif args.mode == "s":
     sort_fft(obsid, pointing, sub_dir, relaunch_script,
              work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
-             n_omp_threads=n_omp_threads, dm_max=arg.dm_max)
+             n_omp_threads=n_omp_threads, dm_max=args.dm_max)
 elif args.mode == "a":
     accel(obsid, pointing, sub_dir, relaunch_script,
           work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
