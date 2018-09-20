@@ -6,6 +6,7 @@ import argparse
 import urllib
 import urllib2
 import json
+import pipes
 import glob
 from time import sleep
 import datetime
@@ -28,6 +29,16 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         # Create an index range for l of n items:
         yield l[i:i+n]
+
+def exists_remote(host, path):
+    """Test if a file exists at path on a host accessible with SSH."""
+    status = subprocess.call(
+        ['ssh', host, 'test -f {}'.format(pipes.quote(path))])
+    if status == 0:
+        return True
+    if status == 1:
+        return False
+    raise Exception('SSH failed')
 
 
 def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'workq'):
@@ -262,7 +273,16 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             else:
                 fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
 
-
+        #Check if pointing in cold storage
+        try :
+            exists_remote_check = exists_remote("hsm",
+                    "/project/mwaops/nswainston/yogesh_low_DM_candiate/{0}_pointing.tar.gz".\
+                    format(pointing))
+            if exists_remote_check:
+                print "The pointing is in cold storage so assumed it is analysised so not reprocessing"
+                continue
+        except:
+            print "Connection to cold storage failed. Will only check for local files"
         
         if os.path.exists(fits_dir):
             #first check is there's already spliced files
@@ -426,7 +446,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "2:00:00", "partition": "workq"},#4 hours
-                 submit=True, module_list=["presto/master"])
+                 submit=True, module_list=["presto/master"], export="ALL")
  
     return
 
@@ -533,7 +553,7 @@ def prepdata(obsid, pointing, relaunch_script,
             job_id = submit_slurm(DM_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                          slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
-                         submit=True, module_list=["presto/master"])
+                         submit=True, module_list=["presto/master"], export="ALL")
             job_id_list.append(job_id)
            
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
@@ -561,7 +581,7 @@ def prepdata(obsid, pointing, relaunch_script,
         job_id = submit_slurm(DM_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                          slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
-                         submit=True, module_list=["presto/master"])
+                         submit=True, module_list=["presto/master"], export="ALL")
         job_id_list.append(job_id)    
            
     #make a job that simply restarts this program when all prepsubband jobs are complete
@@ -709,7 +729,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
             job_id = submit_slurm(fft_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                              slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
-                             submit=True, module_list=["presto/master"])
+                             submit=True, module_list=["presto/master"], export="ALL")
             job_id_list.append(job_id)
 
     os.chdir(work_dir + "/" + sub_dir)
@@ -795,7 +815,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
             job_id = submit_slurm(accel_batch, commands,
                                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                                  slurm_kwargs={"time": run_time, "partition": "workq"},#4 hours
-                                 submit=True, module_list=["presto/master"])
+                                 submit=True, module_list=["presto/master"], export="ALL")
             job_id_list.append(job_id)
     
     sleep(1)
@@ -935,14 +955,14 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
                 job_id = submit_slurm(fold_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                              slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
-                             submit=True, module_list=["presto/master"])
+                             submit=True, module_list=["presto/master"], export="ALL")
                 job_id_list.append(job_id)     
                 
         if not ((len(cand_list)+1) % cands_per_batch) == 0: 
             job_id = submit_slurm(fold_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                              slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
-                             submit=True, module_list=["presto/master"])
+                             submit=True, module_list=["presto/master"], export="ALL")
             job_id_list.append(job_id)
         
         sleep(1)
@@ -1006,7 +1026,7 @@ Does a blind search for a pulsar in MWA data using the galaxy supercomputer.
 """)
 parser.add_argument('-o','--observation',type=str,help='The observation ID of the fits file to be searched')
 parser.add_argument('-p','--pointing',type=str,help='The pointing of the fits file to be searched')
-parser.add_argument('-m','--mode',type=str,help='There are three modes or steps to complete the pipeline. ["b","p","s","a","f"]. The inital mode is to beamform "b" everything using process_vcs.py. The first mode is to prepdata "p" which dedisperses the the fits files into .dat files. The second mode sort and search "s" which sorts the files it folders and performs a fft. The third mode is accel search "a" runs an accel search on them. The final mode is fold "f" which folds all possible candidates so they can be visaully inspected.')
+parser.add_argument('-m','--mode',type=str,help='There are three modes or steps to complete the pipeline. ["b","p","s","a","f"]. The inital mode is to beamform "b" everything using process_vcs.py. The first mode is to prepdata "p" which dedisperses the the fits files into .dat files. The second mode sort and search "s" which sorts the files it folders and performs a fft. The third mode is accel search "a" runs an accel search on them. The final mode is fold "f" which folds all possible candidates so they can be visaully inspected.', default="b")
 parser.add_argument('-i','--incoh', action="store_true", help='Uses the incoh fits file location')
 parser.add_argument('-w','--work_dir',type=str,help='Work directory. Default: /group/mwaops/nswainston/blindsearch/')
 parser.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
@@ -1109,7 +1129,7 @@ if args.mode == "b" or args.mode == None:
     if args.search and not args.bsd_row_num:
         code_comment = raw_input("Please write a comment describing the purpose of this blindsearch. eg testing: ")
         if args.pulsar_file:
-            code_comment += " (using: {0}) ".format(iargs.pulsar_file)
+            code_comment += " (using: {0}) ".format(args.pulsar_file)
     else:
         code_comment = None
     beamform(pointing_list, obsid, args.begin, args.end, args.DI_dir,
