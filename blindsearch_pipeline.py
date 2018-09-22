@@ -241,7 +241,7 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
                  slurm_kwargs={"time": "1:00:00", "partition": "workq"},
-                 submit=True, depend=job_id_str[1:])
+                 submit=True, depend=job_id_str[1:], export="ALL")
  
     return
 
@@ -352,7 +352,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                         submit_slurm(splice_wrapper_batch, commands,
                                      batch_dir='/group/mwaops/vcs/{0}/batch'.format(obsid),
                                      slurm_kwargs={"time": "1:00:00", "partition": "workq"},
-                                     submit=True, depend=job_id_str[1:])
+                                     submit=True, depend=job_id_str[1:], export="ALL")
  
                     else:
                         #If only unspliced files then splice
@@ -368,7 +368,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                         submit_slurm(splice_wrapper_batch, commands,
                                      batch_dir='/group/mwaops/vcs/{0}/batch'.format(obsid),
                                      slurm_kwargs={"time": "1:00:00", "partition": "workq"},
-                                     submit=True)
+                                     submit=True, export="ALL")
  
  
                 else:
@@ -561,7 +561,7 @@ def prepdata(obsid, pointing, relaunch_script,
         #last loop to get the <512 steps
         DM_batch = str(bsd_row_num) + '_DM_' + dm_start 
         prepdata_command = 'run "prepsubband" "-ncpus $ncpus -lodm ' + str(dm_start) +\
-                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
+                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(steps)+\
                             " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
                             '1*.fits" '+str(bsd_row_num)
         commands = []
@@ -606,7 +606,7 @@ def prepdata(obsid, pointing, relaunch_script,
     submit_slurm(DM_depend_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
-                 submit=True, depend=job_id_str[1:])
+                 submit=True, depend=job_id_str[1:], export="ALL")
     return
                 
 #-------------------------------------------------------------------------------------------------------------
@@ -752,7 +752,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
     submit_slurm(fft_dep_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
-                 submit=True, depend=job_id_str[1:])
+                 submit=True, depend=job_id_str[1:], export="ALL")
 
     print "Sent off fft jobs"
     return
@@ -834,7 +834,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
     submit_slurm(accel_dep_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
-                 submit=True, depend=job_id_str[1:])
+                 submit=True, depend=job_id_str[1:], export="ALL")
     
     print "Sent off accel jobs"
     return
@@ -1017,7 +1017,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
         submit_slurm(fold_dep_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                          slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
-                         submit=True, depend=job_id_str[1:])
+                         submit=True, depend=job_id_str[1:], export="ALL")
     return
 
 
