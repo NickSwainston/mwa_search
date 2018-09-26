@@ -240,7 +240,7 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
         commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir="{0}/batch".format(product_dir),
-                 slurm_kwargs={"time": "1:00:00", "partition": "workq"},
+                 slurm_kwargs={"time": "5:00:00", "partition": "workq"},
                  submit=True, depend=job_id_str[1:], export="ALL")
  
     return
@@ -249,7 +249,7 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
 def beamform(pointing_list, obsid, begin, end, DI_dir, 
              work_dir='/group/nswainston/blindsearch/', relaunch=False,             
              relaunch_script=None, code_comment=None, dm_max=4,
-             search=False, bsd_row_num=None, incoh=False, 
+             search=False, bsd_row_num_input=None, incoh=False, 
              pbs=False, pulsar=None, check=0, args=None):
     
     for n, line in enumerate(pointing_list):
@@ -306,9 +306,9 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                     unspliced_check = False
                     for ch in channels:
                         channel_check = False
-                        for n in range(1,expected_file_num):
+                        for ne in range(1,expected_file_num):
                             if not glob.glob(fits_dir+"*_"+obsid+"_ch*"+str(ch)+"_00*"+\
-                                    str(n)+".fits"):
+                                    str(ne)+".fits"):
                                 channel_check = True
                                 unspliced_check = True
                         if channel_check:
@@ -344,9 +344,11 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                         commands = []
                         commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, fits_dir))
                         if search:
-                            #if args.bsd_row_num:
-                            bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
+                            if not bsd_row_num_input:
+                                bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                                  pointing, "{0} {1}".format(code_comment,n))
+                            else:
+                                bsd_row_num = bsd_row_num_input
                             commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script,\
                                                               bsd_row_num, pointing))
                         submit_slurm(splice_wrapper_batch, commands,
@@ -360,9 +362,11 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                         commands = []
                         commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, fits_dir))
                         if search:
-                            if not bsd_row_num:
+                            if not bsd_row_num_input:
                                 bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                                   pointing, "{0} {1}".format(code_comment,n))
+                            else:
+                                bsd_row_num = bsd_row_num_input
                             commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script,\
                                                             bsd_row_num, pointing))
                         submit_slurm(splice_wrapper_batch, commands,
@@ -374,9 +378,11 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 else:
                     print "No files in "+ra+"_"+dec+" starting beamforming"
                     if search:
-                        if not bsd_row_num:
+                        if not bsd_row_num_input:
                             bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                                     pointing, "{0} {1}".format(code_comment,n))
+                        else:
+                            bsd_row_num = bsd_row_num_input
                     process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,\
                                      fits_dir, check, search, bsd_row_num, relaunch_script)
                               
@@ -384,11 +390,13 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 #All files there so the check has succeded and going to start the pipeline
                 if search and not relaunch:
                     sub_dir = pointing + "/" + obsid + "/"
-                    if not bsd_row_num:
+                    if not bsd_row_num_input:
                         bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                             pointing, "{0} {1}".format(code_comment,n))
+                    else:
+                        bsd_row_num = bsd_row_num_input
                     if len(pointing_list) > 1:
-                        your_slurm_queue_check(max_queue = 300)
+                        your_slurm_queue_check(max_queue = 50)
                     prepdata(obsid, pointing, "{0} -p {1}".format(relaunch_script, pointing),
                              work_dir=work_dir, pbs=pbs,
                              bsd_row_num=bsd_row_num, pulsar=pulsar,
@@ -921,7 +929,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
         
         
         #number of folds to do per sbatch job (decrease is using .fits files)        
-        cands_per_batch = 30 
+        cands_per_batch = 12 
          
 
         for i,c in enumerate(cand_list):
@@ -933,7 +941,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
             #           c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bsd_row_num)+'" "'+str(dm_i)+'"' 
            
             #the fold options that uses .fits files which is slower but more accurate
-            fold_command = 'run "prepfold" "-n 128 -nsub 128 -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5}*.fits" "{6}" "0"'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, fits_dir, bsd_row_num)
+            fold_command = 'run "prepfold" "-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5}*.fits" "{6}" "0"'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, fits_dir, bsd_row_num)
             #TODO remove this for db
               
             if (i == 0) or ((i % cands_per_batch) == 0):
@@ -954,14 +962,14 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
             if ((i+1) % cands_per_batch) == 0:
                 job_id = submit_slurm(fold_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                             slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
+                             slurm_kwargs={"time": "12:00:00", "partition": "workq"},#4 hours
                              submit=True, module_list=["presto/master"], export="ALL")
                 job_id_list.append(job_id)     
                 
         if not ((len(cand_list)+1) % cands_per_batch) == 0: 
             job_id = submit_slurm(fold_batch, commands,
                              batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                             slurm_kwargs={"time": "4:50:00", "partition": "workq"},#4 hours
+                             slurm_kwargs={"time": "12:00:00", "partition": "workq"},#4 hours
                              submit=True, module_list=["presto/master"], export="ALL")
             job_id_list.append(job_id)
         
@@ -1135,7 +1143,7 @@ if args.mode == "b" or args.mode == None:
     beamform(pointing_list, obsid, args.begin, args.end, args.DI_dir,
              work_dir=work_dir, relaunch=args.relaunch, dm_max=args.dm_max,
              relaunch_script=relaunch_script, code_comment=code_comment,
-             search=args.search, bsd_row_num=args.bsd_row_num, incoh=args.incoh,
+             search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
              pbs=args.pbs, pulsar=args.pulsar, check=args.check, args=args)
 
     
