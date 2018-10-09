@@ -192,7 +192,8 @@ def dm_i_to_file(dm_i):
     return dm_file
 
 def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
-                        check, search, bsd_row_num, relaunch_script, nice = 100):
+                        check, search, bsd_row_num, relaunch_script, nice = 100,
+                        pulsar_check=None, cal_id=None):
     """
     Does some basic checks and formating before 
     if args.pulsar_file:
@@ -228,7 +229,20 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
     for f in glob.glob("{0}/batch/mb_{1}*.batch".format(product_dir,pointing)):
         commands.append('blindsearch_database.py -m b -b ' +str(bsd_row_num) + " -f " + str(f)[:-6])
     commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bsd_row_num))
-    if os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obsid)):
+    
+    if pulsar_check is not None:
+        #check_known_pulsars.py uses this to check if it was detected and if so upload it
+        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
+        commands.append('cd {0}'.format(pointing_dir))
+        commands.append("prepfold -o {0} -runavg -noclip -psr {1} -nsub 256 {2}".\
+                        format(obsid, pulsar_check, pointing_dir))
+        commands.append('chi=`sed "13q;d" {0}_PSR_{1}.pfd.bestprof`'.format(obsid,pulsar_check))
+        commands.append('chi=${chi#*=}')
+        commands.append('if [ ${chi%.*} -ge 2 ]; then')
+        commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{2}.pfd.bestprof --ppps {0}_PSR_{2}.pfd.ps'.format(obsid, cal_id, pulsar_check))
+        commands.append('echo "${i%.ps}.png is over 3"')
+        commands.append("fi")
+    elif os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obsid)):
         commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
         commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
     else:
@@ -1028,147 +1042,147 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
                          submit=True, depend=job_id_str[1:], export="ALL")
     return
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="""
+    Does a blind search for a pulsar in MWA data using the galaxy supercomputer.
+    """)
+    parser.add_argument('-o','--observation',type=str,help='The observation ID of the fits file to be searched')
+    parser.add_argument('-p','--pointing',type=str,help='The pointing of the fits file to be searched')
+    parser.add_argument('-m','--mode',type=str,help='There are three modes or steps to complete the pipeline. ["b","p","s","a","f"]. The inital mode is to beamform "b" everything using process_vcs.py. The first mode is to prepdata "p" which dedisperses the the fits files into .dat files. The second mode sort and search "s" which sorts the files it folders and performs a fft. The third mode is accel search "a" runs an accel search on them. The final mode is fold "f" which folds all possible candidates so they can be visaully inspected.', default="b")
+    parser.add_argument('-i','--incoh', action="store_true", help='Uses the incoh fits file location')
+    parser.add_argument('-w','--work_dir',type=str,help='Work directory. Default: /group/mwaops/nswainston/blindsearch/')
+    parser.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
+    parser.add_argument('-r','--bsd_row_num',type=int,help='Database row reference number for keeping track of the scripts.')
+    parser.add_argument('-d','--dm_file_int',type=int,help='Used by the program to keep track DM file being used to stagger the jobs and not send off over 9000 jobs.')
+    parser.add_argument('--dm_max',type=int, default = 4,help='DM max searched. Default 4')
+    parser.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
+    parser.add_argument('--pbs',action="store_true",help="PBS queue mode.")
+    group_beamform = parser.add_argument_group('group_beamform','Beamforming Options')
+    group_beamform.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
+    group_beamform.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
+    group_beamform.add_argument("--pulsar_file", default=None, help="Location of a file containting the pointings to be processed. Made using grid.py.")
+    group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
+    group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
+    group_beamform.add_argument("-c", "--check", type=int, help="Number of times the beamformer has attempted to redo the pointings. Stops when it gets to 5. Default 0.", default=0)
+    group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
+    group_beamform.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
+    group_beamform.add_argument("--relaunch", action="store_true",  help="Relaunch check that doesn't send off pipeline again.")
 
-parser = argparse.ArgumentParser(description="""
-Does a blind search for a pulsar in MWA data using the galaxy supercomputer.
-""")
-parser.add_argument('-o','--observation',type=str,help='The observation ID of the fits file to be searched')
-parser.add_argument('-p','--pointing',type=str,help='The pointing of the fits file to be searched')
-parser.add_argument('-m','--mode',type=str,help='There are three modes or steps to complete the pipeline. ["b","p","s","a","f"]. The inital mode is to beamform "b" everything using process_vcs.py. The first mode is to prepdata "p" which dedisperses the the fits files into .dat files. The second mode sort and search "s" which sorts the files it folders and performs a fft. The third mode is accel search "a" runs an accel search on them. The final mode is fold "f" which folds all possible candidates so they can be visaully inspected.', default="b")
-parser.add_argument('-i','--incoh', action="store_true", help='Uses the incoh fits file location')
-parser.add_argument('-w','--work_dir',type=str,help='Work directory. Default: /group/mwaops/nswainston/blindsearch/')
-parser.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
-parser.add_argument('-r','--bsd_row_num',type=int,help='Database row reference number for keeping track of the scripts.')
-parser.add_argument('-d','--dm_file_int',type=int,help='Used by the program to keep track DM file being used to stagger the jobs and not send off over 9000 jobs.')
-parser.add_argument('--dm_max',type=int, default = 4,help='DM max searched. Default 4')
-parser.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
-parser.add_argument('--pbs',action="store_true",help="PBS queue mode.")
-group_beamform = parser.add_argument_group('group_beamform','Beamforming Options')
-group_beamform.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
-group_beamform.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
-group_beamform.add_argument("--pulsar_file", default=None, help="Location of a file containting the pointings to be processed. Made using grid.py.")
-group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
-group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
-group_beamform.add_argument("-c", "--check", type=int, help="Number of times the beamformer has attempted to redo the pointings. Stops when it gets to 5. Default 0.", default=0)
-group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
-group_beamform.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
-group_beamform.add_argument("--relaunch", action="store_true",  help="Relaunch check that doesn't send off pipeline again.")
+    args=parser.parse_args()
 
-args=parser.parse_args()
-
-obsid = args.observation
-if args.incoh:
-    pointing = 'incoh'
-    pointing_list = ['incoh']
-else:
-    pointing = args.pointing
-
-#Default parsing
-if args.work_dir:
-    work_dir = args.work_dir
-elif args.pbs:
-    work_dir = '/home/nswainst/blindsearch/'
-else:
-    work_dir = '/group/mwaops/nswainston/blindsearch/'
-
-if args.sub_dir:
-    sub_dir = args.sub_dir
-elif not args.mode == 'b':
-    sub_dir = pointing + "/" + obsid + "/"
-if args.bsd_row_num:
-    bsd_row_num = args.bsd_row_num
-
-if args.pointing:
-    if args.pbs:
-        fits_dir = '/lustre/projects/p125_astro/DATA/'
+    obsid = args.observation
+    if args.incoh:
+        pointing = 'incoh'
+        pointing_list = ['incoh']
     else:
-        if args.incoh:
-            fits_dir='/group/mwaops/vcs/{0}/incoh/'.format(obsid)
+        pointing = args.pointing
+
+    #Default parsing
+    if args.work_dir:
+        work_dir = args.work_dir
+    elif args.pbs:
+        work_dir = '/home/nswainst/blindsearch/'
+    else:
+        work_dir = '/group/mwaops/nswainston/blindsearch/'
+
+    if args.sub_dir:
+        sub_dir = args.sub_dir
+    elif not args.mode == 'b':
+        sub_dir = pointing + "/" + obsid + "/"
+    if args.bsd_row_num:
+        bsd_row_num = args.bsd_row_num
+
+    if args.pointing:
+        if args.pbs:
+            fits_dir = '/lustre/projects/p125_astro/DATA/'
         else:
-            fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,args.pointing)
+            if args.incoh:
+                fits_dir='/group/mwaops/vcs/{0}/incoh/'.format(obsid)
+            else:
+                fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,args.pointing)
 
-if args.pbs:
-    n_omp_threads = 8
-else:
-    n_omp_threads = 20
-
-#check begining end times
-if args.all and (args.begin or args.end):
-    print "Please specify EITHER (-b,-e) OR -a"
-    quit()
-elif args.all:
-    args.begin, args.end = meta.obs_max_min(args.observation)
-    
-
-#Base launch of this code (everything except mode and dmfile int)
-relaunch_script = "blindsearch_pipeline.py -o " + str(obsid) + " -w " + work_dir 
-
-if not args.mode =='b':
-    relaunch_script +=  " -s " + str(sub_dir)
-if args.DI_dir:
-    relaunch_script += " --DI_dir="+args.DI_dir
-if args.bsd_row_num:
-    relaunch_script += " -r " + str(args.bsd_row_num)
-if not args.pulsar == None:
-    relaunch_script += " --pulsar " + pulsar
-if args.pbs:
-    relaunch_script += " --pbs "
-if args.pointing:
-    relaunch_script += " -p " + str(pointing)
-if args.begin and args.end:
-    relaunch_script += " -b " + str(args.begin) + " -e " + str(args.end)
-if args.search and args.mode == 'b':
-    relaunch_script += " --search"
-if args.dm_max:
-    relaunch_script += " --dm_max " + str(args.dm_max)
-if args.incoh:
-    relaunch_script +=  " --incoh "
-
-
-#work out start and stop times for beamforming
-if args.mode == "b" or args.mode == None:
-    if args.pulsar_file:
-        with open(args.pulsar_file) as f:
-            pointing_list = f.readlines()
-    elif args.pointing:
-        pointing_list = [args.pointing.replace("_"," ")]
-    
-    #If in search mode start up the database entry
-    if args.search and not args.bsd_row_num:
-        code_comment = raw_input("Please write a comment describing the purpose of this blindsearch. eg testing: ")
-        if args.pulsar_file:
-            code_comment += " (using: {0}) ".format(args.pulsar_file)
+    if args.pbs:
+        n_omp_threads = 8
     else:
-        code_comment = None
-    beamform(pointing_list, obsid, args.begin, args.end, args.DI_dir,
-             work_dir=work_dir, relaunch=args.relaunch, dm_max=args.dm_max,
-             relaunch_script=relaunch_script, code_comment=code_comment,
-             search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
-             pbs=args.pbs, pulsar=args.pulsar, check=args.check, args=args)
+        n_omp_threads = 20
 
-    
-elif args.mode == "r":
-    rfifind(obsid, pointing, sub_dir, relaunch_script,
-            work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
-            n_omp_threads=n_omp_threads)
-elif args.mode == "p":
-    prepdata(obsid, pointing, relaunch_script,
-             work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
-             n_omp_threads=n_omp_threads, fits_dir=fits_dir, dm_max=args.dm_max)
-elif args.mode == "s":
-    sort_fft(obsid, pointing, sub_dir, relaunch_script,
-             work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
-             n_omp_threads=n_omp_threads, dm_max=args.dm_max)
-elif args.mode == "a":
-    accel(obsid, pointing, sub_dir, relaunch_script,
-          work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
-          n_omp_threads=n_omp_threads)
-elif args.mode == "f":
-    fold(obsid, pointing, sub_dir, relaunch_script,
-         work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
-         n_omp_threads=n_omp_threads, fits_dir=fits_dir)
-
-    
+    #check begining end times
+    if args.all and (args.begin or args.end):
+        print "Please specify EITHER (-b,-e) OR -a"
+        quit()
+    elif args.all:
+        args.begin, args.end = meta.obs_max_min(args.observation)
         
-    
-#blindsearch_pipeline.py -o 1166459712 -p 06:30:00.0_-28:34:00.0
+
+    #Base launch of this code (everything except mode and dmfile int)
+    relaunch_script = "blindsearch_pipeline.py -o " + str(obsid) + " -w " + work_dir 
+
+    if not args.mode =='b':
+        relaunch_script +=  " -s " + str(sub_dir)
+    if args.DI_dir:
+        relaunch_script += " --DI_dir="+args.DI_dir
+    if args.bsd_row_num:
+        relaunch_script += " -r " + str(args.bsd_row_num)
+    if not args.pulsar == None:
+        relaunch_script += " --pulsar " + pulsar
+    if args.pbs:
+        relaunch_script += " --pbs "
+    if args.pointing:
+        relaunch_script += " -p " + str(pointing)
+    if args.begin and args.end:
+        relaunch_script += " -b " + str(args.begin) + " -e " + str(args.end)
+    if args.search and args.mode == 'b':
+        relaunch_script += " --search"
+    if args.dm_max:
+        relaunch_script += " --dm_max " + str(args.dm_max)
+    if args.incoh:
+        relaunch_script +=  " --incoh "
+
+
+    #work out start and stop times for beamforming
+    if args.mode == "b" or args.mode == None:
+        if args.pulsar_file:
+            with open(args.pulsar_file) as f:
+                pointing_list = f.readlines()
+        elif args.pointing:
+            pointing_list = [args.pointing.replace("_"," ")]
+        
+        #If in search mode start up the database entry
+        if args.search and not args.bsd_row_num:
+            code_comment = raw_input("Please write a comment describing the purpose of this blindsearch. eg testing: ")
+            if args.pulsar_file:
+                code_comment += " (using: {0}) ".format(args.pulsar_file)
+        else:
+            code_comment = None
+        beamform(pointing_list, obsid, args.begin, args.end, args.DI_dir,
+                 work_dir=work_dir, relaunch=args.relaunch, dm_max=args.dm_max,
+                 relaunch_script=relaunch_script, code_comment=code_comment,
+                 search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
+                 pbs=args.pbs, pulsar=args.pulsar, check=args.check, args=args)
+
+        
+    elif args.mode == "r":
+        rfifind(obsid, pointing, sub_dir, relaunch_script,
+                work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
+                n_omp_threads=n_omp_threads)
+    elif args.mode == "p":
+        prepdata(obsid, pointing, relaunch_script,
+                 work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
+                 n_omp_threads=n_omp_threads, fits_dir=fits_dir, dm_max=args.dm_max)
+    elif args.mode == "s":
+        sort_fft(obsid, pointing, sub_dir, relaunch_script,
+                 work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
+                 n_omp_threads=n_omp_threads, dm_max=args.dm_max)
+    elif args.mode == "a":
+        accel(obsid, pointing, sub_dir, relaunch_script,
+              work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
+              n_omp_threads=n_omp_threads)
+    elif args.mode == "f":
+        fold(obsid, pointing, sub_dir, relaunch_script,
+             work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
+             n_omp_threads=n_omp_threads, fits_dir=fits_dir)
+
+        
+            
+        
+    #blindsearch_pipeline.py -o 1166459712 -p 06:30:00.0_-28:34:00.0
