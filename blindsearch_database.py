@@ -3,7 +3,7 @@ import os, datetime, logging
 import sqlite3 as lite
 from optparse import OptionParser #NB zeus does not have argparse!
 
-DB_FILE = os.environ['CMD_BS_DB_FILE']
+DB_FILE = os.environ['CMD_BS_DB_DEF_FILE']
 #how many seconds the sqlite database conection takes until it times out
 TIMEOUT=60
 
@@ -24,7 +24,35 @@ def database_blindsearch_start(obsid, pointing, comment):
                 vcs_command_id = cur.lastrowid
         return vcs_command_id
     
+
+def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time,
+                         dm_file_int=None):
+    """
+    Will create all the rows in the database for each job
+    """
+    #works out the table from the command
+    if command == 'prepsubband':
+        table = 'Prepdata'
+    elif command == 'realfft':
+        table = 'FFT'
+    elif command == 'accelsearch':
+        table = 'Accel'
+    elif command == 'prepfold':
+        table = 'Fold'
     
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    with con:
+        cur = con.cursor()
+        row_id_list = []
+        for ai, arguments in enumerate(arguments_list):
+            if dm_file_int == None:
+                cur.execute("INSERT INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, 1, ?, ?, ?, ?, ?)", (ai, bs_id, command, arguments, threads, expe_proc_time))
+            else:
+                cur.execute("INSERT INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc, DMFileInt) VALUES(?, 1, ?, ?, ?, ?, ?, ?)", (ai, bs_id, command, arguments, threads, expe_proc_time, dm_file_int))
+            row_id_list.append(cur.lastrowid)
+    return row_id_list
+
+
 def database_script_start(table, bs_id, command, arguments,nodes,dm_file_int,time=datetime.datetime.now()):
     
     con = lite.connect(DB_FILE, timeout = TIMEOUT)

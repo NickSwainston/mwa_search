@@ -89,6 +89,7 @@ def add_database_function(pbs):
 
 
 def add_temp_database_function(pbs, threads=True):
+    #srun removed because all quick jobs are run with a single srun command within a bash script
     batch_line ='function run\n' +\
                 '{\n' +\
                 '    # run command and add relevant data to the job database\n' +\
@@ -100,12 +101,8 @@ def add_temp_database_function(pbs, threads=True):
                 '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1" >> ${1}_temp_database_file.csv\n' +\
                 '    else\n' +\
                 '        echo `date +%Y-%m-%d" "%H:%M:%S`",$1,$2,$3,1,$4" >> ${1}_temp_database_file.csv\n' +\
-                '    fi\n'
-    #if threads:
-    #    batch_line+='    srun -n 1 -c $ncpus $1 $2\n'
-    #else:
-    #    batch_line+='    srun -n 1 $1 $2\n'
-    batch_line+='    $1 $2\n' +\
+                '    fi\n' +\
+                '    $1 $2\n' +\
                 '    echo $1 $2\n' +\
                 '    errcode=$?\n' +\
                 '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file.csv\n' +\
@@ -211,9 +208,11 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
     #set up and launch beamfroming
     data_dir = '/astro/mwaops/vcs/{0}'.format(obsid)
     product_dir = '/group/mwaops/vcs/{0}'.format(obsid)
+    metafits_dir = "{0}/{1}_metafits_ppds.fits".format(data_dir, obsid)
+    pvcs.ensure_metafits(data_dir, obsid, metafits_dir)
     job_id_list = pvcs.coherent_beam(obsid, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
-                  "{0}/{1}_metafits_ppds.fits".format(data_dir, obsid), 128, pointing, args,
+                  metafits_dir, 128, pointing, args,
                   bf_formats=bf_formats, DI_dir=DI_dir, calibration_type="rts", nice=nice)
     
     #get a job dependancy string
@@ -383,6 +382,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                                                     pointing, "{0} {1}".format(code_comment,n))
                         else:
                             bsd_row_num = bsd_row_num_input
+                    else:
+                        bsd_row_num = None
                     process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,\
                                      fits_dir, check, search, bsd_row_num, relaunch_script)
                               
@@ -433,15 +434,14 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
     
     rfi_batch = str(bsd_row_num) + '_rfi_{0}'.format(obsid)
     commands = []
-    commands.append(add_database_function(pbs))
     commands.append("source /group/mwaops/PULSAR/psrBash.profile")
     commands.append("ncpus={0}".format(n_omp_threads))
     commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     if not os.path.exists("{0}/rfi_masks/{1}_rfifind.mask".format(work_dir, obsid)):
         #if there is not already a rfi mask make one
-        commands.append('run "rfifind" "-ncpus $ncpus -noclip -time 12.0 ' + '-o ' + str(obsid) +\
+        commands.append('rfifind -ncpus $ncpus -noclip -time 12.0 ' + '-o ' + str(obsid) +\
                         ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
-                        '*incoh*.fits" '+ str(bsd_row_num))
+                        '*incoh*.fits')
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('blindsearch_database.py -c rfifind -m p -b ' +str(bsd_row_num))
         commands.append("prepdata -ncpus $ncpus -dm 0 " "-numout " + str(numout) + " -o " +\
@@ -508,9 +508,21 @@ def prepdata(obsid, pointing, relaunch_script,
     
     if not pulsar == None:
         dm, p = get_pulsar_dm_p(pulsar)
-        output = subprocess.Popen(['DDplan.py','-l',str(float(dm) - 1.),'-d',str(float(dm) + 1.),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072','-o','dm_temp'],stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(['DDplan.py','-l',str(float(dm) - 1.),
+                                   '-d', str(float(dm) + 1.),
+                                   '-f',str(centrefreq),
+                                   '-b','30.7200067160534',
+                                   '-t','0.0001',
+                                   '-n','3072',
+                                   '-o','dm_temp'],stdout=subprocess.PIPE).communicate()
     else:
-        output = subprocess.Popen(['DDplan.py','-l','1','-d',str(dm_max),'-f',str(centrefreq),'-b','30.7200067160534','-t','0.0001','-n','3072','-o','dm_temp'],stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(['DDplan.py','-l','1',
+                                   '-d',str(dm_max),
+                                   '-f',str(centrefreq),
+                                   '-b','30.7200067160534',
+                                   '-t','0.0001',
+                                   '-n','3072',
+                                   '-o','dm_temp'],stdout=subprocess.PIPE).communicate()
     subprocess.check_call("\n", shell=True)
     os.remove('dm_temp.eps')
     dm_list = []
@@ -524,33 +536,43 @@ def prepdata(obsid, pointing, relaunch_script,
           
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir)
+
+    #Calculates the expected procesing time (conservative) in seconds
+    #the number of DMs doesn't appear to greatly affect the processing time so not included in the calculation
+    expe_proc_time = 1.7*10**11 / numout 
     
     print dm_list    
-    #Submit a bunch some prepsubbands to create our .dat files
-    job_id_list = []
+
+    #Create a list of all the commands needed
     dms_per_job = 1024
+    commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
-        #DM_batch = 'DM_' + dm_start + '.batch'
-        #commands = []
-        #commands.append(add_database_function(pbs))
-        #commands.append("source /group/mwaops/PULSAR/psrBash.profile")
-        #commands.append("ncpus={0}".format(n_omp_threads))
-        #commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
-        #commands.append('run "prepsubband" "-ncpus $ncpus -lodm '+str(dm_start) +\
-        #                " -dmstep " + str(dm_line[2]) + " -numdms " + str(dm_line[4])+ " -numout " +\
-        #                str(numout) + " -o " + str(obsid) + " " + fits_dir + str(obsid) + \
-        #                "/pointings/" + str(pointing) + "/" + str(obsid) + '*.fits" ' +str(bsd_row_num))
-        
-        
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
-            DM_batch = str(bsd_row_num) + '_DM_' + dm_start 
-            prepdata_command = 'run "prepsubband" "-ncpus $ncpus -lodm ' + str(dm_start) +\
+            commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) +\
                             " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
                             " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            '1*.fits" '+str(bsd_row_num)
+                            '1*.fits')
+            dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
+        steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
+        #last loop to get the <1024 steps
+        commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) +\
+                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(steps)+\
+                            " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
+                            '1*.fits')
+    print commands_list
+    #Puts all the expected jobs on the databse
+    blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
+                         n_omp_threads, expe_proc_time)
+    quit()
+        
+    #Submit a bunch some prepsubbands to create our .dat files
+    job_id_list = []
+    for prepdata_command in command_list:    
+        while total_proc < proc_per_job:
+            DM_batch = str(bsd_row_num) + '_DM_' + dm_start
             commands = []
             commands.append(add_database_function(pbs))
             commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -564,14 +586,7 @@ def prepdata(obsid, pointing, relaunch_script,
                          submit=True, module_list=["presto/master"], export="ALL")
             job_id_list.append(job_id)
            
-            dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
-        steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
-        #last loop to get the <512 steps
         DM_batch = str(bsd_row_num) + '_DM_' + dm_start 
-        prepdata_command = 'run "prepsubband" "-ncpus $ncpus -lodm ' + str(dm_start) +\
-                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(steps)+\
-                            " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            '1*.fits" '+str(bsd_row_num)
         commands = []
         commands.append(add_database_function(pbs))
         commands.append("source /group/mwaops/PULSAR/psrBash.profile")
@@ -591,7 +606,9 @@ def prepdata(obsid, pointing, relaunch_script,
                          slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
                          submit=True, module_list=["presto/master"], export="ALL")
         job_id_list.append(job_id)    
-           
+        
+
+
     #make a job that simply restarts this program when all prepsubband jobs are complete
     print "Waiting 5 sec to make sure to the dependancy script works"
     sleep(5)
