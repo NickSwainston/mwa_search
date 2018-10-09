@@ -160,44 +160,39 @@ def down_right(ra_in, dec_in, fwhm):
     return [ra_out,dec_out]
     
     
-def cross_grid(ra0,dec0,centre_fwhm, loop, dec_lim_arg):
+def cross_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    orig_centre_fwhm = centre_fwhm
     print "Calculating the tile positions"
     for l in range(loop):
         loop_temp = []
         for c in range(4):
+            if l == 0:
+                c = 0
+
             if c == 0:
-                ra,dec =left(pointing_list[l][0][0][0],
-                             pointing_list[l][0][0][1],centre_fwhm)
-            if c == 1:
-                ra,dec =up(pointing_list[l][0][0][0],
-                             pointing_list[l][0][0][1],centre_fwhm)
-            if c == 2:
-                ra,dec =right(pointing_list[l][0][0][0],
-                             pointing_list[l][0][0][1],centre_fwhm)
-            if c == 3:
-                ra,dec =down(pointing_list[l][0][0][0],
-                             pointing_list[l][0][0][1],centre_fwhm)
+                ra,dec =left(pointing_list[l][c][0][0],
+                             pointing_list[l][c][0][1],centre_fwhm)
+            elif c == 1:
+                ra,dec =up(pointing_list[l][c][0][0],
+                           pointing_list[l][c][0][1],centre_fwhm)
+            elif c == 2:
+                ra,dec =right(pointing_list[l][c][0][0],
+                              pointing_list[l][c][0][1],centre_fwhm)
+            elif c == 3:
+                ra,dec =down(pointing_list[l][c][0][0],
+                             pointing_list[l][c][0][1],centre_fwhm)
             loop_temp.append([[ra, dec]])
         pointing_list.append(loop_temp)
     return pointing_list
 
 
-def hex_grid(ra0,dec0,centre_fwhm, loop, dec_lim_arg):
+def hex_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    orig_centre_fwhm = centre_fwhm
     print "Calculating the tile positions"
-
-    if dec_lim_arg:
-        dec_lim_matrix = np.empty([len(del_lim_arg)/3,3])
-        for i in range(len(dec_lim_arg)):
-            dec_lim_matrix[i/3,i%3] = dec_lim_arg[i]
-
 
     for l in range(loop):
         #different step for each corner
@@ -205,76 +200,51 @@ def hex_grid(ra0,dec0,centre_fwhm, loop, dec_lim_arg):
         for c in range(6):
             corner_temp = []
             if l == 0:
-                if c == 0:
-                    ra,dec =left(ra0,dec0,centre_fwhm)
-                if c == 1:
-                    ra,dec =up_left(ra0,dec0,centre_fwhm)
-                if c == 2:
-                    ra,dec =up_right(ra0,dec0,centre_fwhm)
-                if c == 3:
-                    ra,dec =right(ra0,dec0,centre_fwhm)
-                if c == 4:
-                    ra,dec =down_right(ra0,dec0,centre_fwhm)
-                if c == 5:
-                    ra,dec =down_left(ra0,dec0,centre_fwhm)
-                corner_temp.append([ra,dec])
-            else:
-                for n in range(l + 1):
-                    if l == n:
-                        if dec_lim_arg:
-                            centre_fwhm = centre_fwhm_orig
-                            for d in dec_lim_matrix:
-                                if pointing_list[l][c+1][0][1] > dec_lim_matrix[d][1] and\
-                                        pointing_list[l][c+1][0][1] < dec_lim_matrix[d][2]:
-                                    centre_fwhm = dec_lim_matrix[d][0]
+                c = 0
+            for n in range(l + 1):
+                if l == n: 
+                    if l != 0:
                         #change the 2 for each loop
                         #uses next corner
                         if c == 0:
                             ra,dec =left(pointing_list[l][c+1][0][0],
                                          pointing_list[l][c+1][0][1],centre_fwhm)
-                        if c == 1:
+                        elif c == 1:
                             ra,dec =up_left(pointing_list[l][c+1][0][0],
                                          pointing_list[l][c+1][0][1],centre_fwhm)
-                        if c == 2:
+                        elif c == 2:
                             ra,dec =up_right(pointing_list[l][c+1][0][0],
                                          pointing_list[l][c+1][0][1],centre_fwhm)
-                        if c == 3:
+                        elif c == 3:
                             ra,dec =right(pointing_list[l][c+1][0][0],
                                          pointing_list[l][c+1][0][1],centre_fwhm)
-                        if c == 4:
+                        elif c == 4:
                             ra,dec =down_right(pointing_list[l][c+1][0][0],
                                          pointing_list[l][c+1][0][1],centre_fwhm)
-                        if c == 5:
+                        elif c == 5:
                             ra,dec =down_left(pointing_list[l][0][0][0],
-                                         pointing_list[l][0][0][1],centre_fwhm)
-                        
-                    else:
-                        if dec_lim_arg:
-                            centre_fwhm = centre_fwhm_orig
-                            for d in dec_lim_matrix:
-                                if pointing_list[l][c][n][1] > dec_lim_matrix[d][1] and\
-                                        pointing_list[l][c][n][1] < dec_lim_matrix[d][2]:
-                                    centre_fwhm = dec_lim_matrix[d][0]
-
-                        if c == 0:
-                            ra,dec =left(pointing_list[l][c][n][0],
+                                     pointing_list[l][0][0][1],centre_fwhm)
+                    
+                if l != n or l == 0:
+                    if c == 0:
+                        ra,dec =left(pointing_list[l][c][n][0],
+                                     pointing_list[l][c][n][1],centre_fwhm)
+                    elif c == 1:
+                        ra,dec =up_left(pointing_list[l][c][n][0],
+                                        pointing_list[l][c][n][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec =up_right(pointing_list[l][c][n][0],
                                          pointing_list[l][c][n][1],centre_fwhm)
-                        if c == 1:
-                            ra,dec =up_left(pointing_list[l][c][n][0],
-                                            pointing_list[l][c][n][1],centre_fwhm)
-                        if c == 2:
-                            ra,dec =up_right(pointing_list[l][c][n][0],
-                                             pointing_list[l][c][n][1],centre_fwhm)
-                        if c == 3:
-                            ra,dec =right(pointing_list[l][c][n][0],
+                    elif c == 3:
+                        ra,dec =right(pointing_list[l][c][n][0],
+                                      pointing_list[l][c][n][1],centre_fwhm)
+                    elif c == 4:
+                        ra,dec =down_right(pointing_list[l][c][n][0],
+                                           pointing_list[l][c][n][1],centre_fwhm)
+                    elif c == 5:  
+                        ra,dec =down_left(pointing_list[l][c][n][0],
                                           pointing_list[l][c][n][1],centre_fwhm)
-                        if c == 4:
-                            ra,dec =down_right(pointing_list[l][c][n][0],
-                                               pointing_list[l][c][n][1],centre_fwhm)
-                        if c == 5:  
-                            ra,dec =down_left(pointing_list[l][c][n][0],
-                                              pointing_list[l][c][n][1],centre_fwhm)
-                    corner_temp.append([ra,dec])
+                corner_temp.append([ra,dec])
             loop_temp.append(corner_temp)
         pointing_list.append(loop_temp)
     return pointing_list
@@ -340,10 +310,10 @@ if __name__ == "__main__":
     #calc grid positions
     if args.type == 'hex':
         pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction, 
-                                 args.loop, args.dec_range_fwhm)
+                                 args.loop)
     elif args.type == 'cross':
         pointing_list = cross_grid(ra, dec, centre_fwhm*args.fraction,
-                                   args.loop, args.dec_range_fwhm)
+                                   args.loop)
     else:
         print "Unrecognised grid type. Exiting."
         quit()
