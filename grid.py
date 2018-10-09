@@ -168,19 +168,22 @@ def cross_grid(ra0,dec0,centre_fwhm, loop):
     for l in range(loop):
         loop_temp = []
         for c in range(4):
-            if l == 0:
-                c = 0
-
             if c == 0:
                 ra,dec =left(pointing_list[l][c][0][0],
                              pointing_list[l][c][0][1],centre_fwhm)
             elif c == 1:
+                if l == 0:
+                    c = 0
                 ra,dec =up(pointing_list[l][c][0][0],
                            pointing_list[l][c][0][1],centre_fwhm)
             elif c == 2:
+                if l == 0:
+                    c = 0
                 ra,dec =right(pointing_list[l][c][0][0],
                               pointing_list[l][c][0][1],centre_fwhm)
             elif c == 3:
+                if l == 0:
+                    c = 0
                 ra,dec =down(pointing_list[l][c][0][0],
                              pointing_list[l][c][0][1],centre_fwhm)
             loop_temp.append([[ra, dec]])
@@ -230,6 +233,7 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
                         ra,dec =left(pointing_list[l][c][n][0],
                                      pointing_list[l][c][n][1],centre_fwhm)
                     elif c == 1:
+                        
                         ra,dec =up_left(pointing_list[l][c][n][0],
                                         pointing_list[l][c][n][1],centre_fwhm)
                     elif c == 2:
@@ -379,20 +383,14 @@ if __name__ == "__main__":
     print "Formating the outputs"
     #format the ra dec strings 
     for i in range(len(rags_uf)):
-        
-        
         rag = rags_uf[i] 
         decg = decgs_uf[i]
-        if len(rag) > 11:
-            rag = rag[:11]
-        if len(decg) > 12:
-            decg = decg[:12]
-            
-        if len(rag) == 8:
-            rag = rag + '.00'
-        if len(decg) == 9:
-            decg = decg + '.00'
+        print rag,decg
 
+        temp = fpio.format_ra_dec([[rag,decg]])
+        rag = temp[0][0]
+        decg = temp[0][1]
+        print rag,decg
 
         if args.verbose_file:
             az,za,azd,zad = getTargetAZZA(rag,decg,time)
