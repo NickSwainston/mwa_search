@@ -56,11 +56,11 @@ def find_fwhm_and_plot(obsid, pointing):
     #sort and calc FWHM
     ra_sn_line = [x for _,x in sorted(zip(ra_line,ra_sn_line))]
     ra_line = sorted(ra_line)
-    #print ra_sn_line,ra_line
+    print ra_sn_line,ra_line
 
     dec_sn_line = [x for _,x in sorted(zip(dec_line,dec_sn_line))]
     dec_line = sorted(dec_line)
-    #print dec_sn_line,dec_line 
+    print dec_sn_line,dec_line 
 
     ra_sn_line = np.array(ra_sn_line) ; dec_sn_line = np.array(dec_sn_line)
 
