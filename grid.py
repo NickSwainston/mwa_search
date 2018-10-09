@@ -121,7 +121,16 @@ def right(ra_in, dec_in, fwhm):
     ra_out = ra_in + fwhm/cos(dec_in)
     return [ra_out,dec_out]
     
-    
+def up(ra_in, dec_in, fwhm):
+    dec_out = dec_in + fwhm / cos(dec_in + np.radians(26.7))**2
+    ra_out = ra_in 
+    return [ra_out,dec_out]
+
+def down(ra_in, dec_in, fwhm):
+    dec_out = dec_in - fwhm / cos(dec_in + np.radians(26.7))**2
+    ra_out = ra_in 
+    return [ra_out,dec_out]
+  
 def up_left(ra_in, dec_in, fwhm):
     half_fwhm_approx = fwhm/2.#/cos(dec_in)
     dec_out = dec_in + sin(np.radians(60.))*sin(half_fwhm_approx) / sin(np.radians(30.)) \
@@ -151,8 +160,33 @@ def down_right(ra_in, dec_in, fwhm):
     return [ra_out,dec_out]
     
     
+def cross_grid(ra0,dec0,centre_fwhm, loop, dec_lim_arg):
+    #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
+    #each item has [ra,dec,fwhm] in radians
+    pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
+    orig_centre_fwhm = centre_fwhm
+    print "Calculating the tile positions"
+    for l in range(loop):
+        loop_temp = []
+        for c in range(4):
+            if c == 0:
+                ra,dec =left(pointing_list[l][0][0][0],
+                             pointing_list[l][0][0][1],centre_fwhm)
+            if c == 1:
+                ra,dec =up(pointing_list[l][0][0][0],
+                             pointing_list[l][0][0][1],centre_fwhm)
+            if c == 2:
+                ra,dec =right(pointing_list[l][0][0][0],
+                             pointing_list[l][0][0][1],centre_fwhm)
+            if c == 3:
+                ra,dec =down(pointing_list[l][0][0][0],
+                             pointing_list[l][0][0][1],centre_fwhm)
+            loop_temp.append([[ra, dec]])
+        pointing_list.append(loop_temp)
+    return pointing_list
 
-def hex_grid(ra0,dec0,centre_fwhm, dec_lim_arg):
+
+def hex_grid(ra0,dec0,centre_fwhm, loop, dec_lim_arg):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
@@ -165,7 +199,7 @@ def hex_grid(ra0,dec0,centre_fwhm, dec_lim_arg):
             dec_lim_matrix[i/3,i%3] = dec_lim_arg[i]
 
 
-    for l in range(args.loop):
+    for l in range(loop):
         #different step for each corner
         loop_temp = []
         for c in range(6):
@@ -305,7 +339,14 @@ if __name__ == "__main__":
     
     #calc grid positions
     if args.type == 'hex':
-        pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction, args.dec_range_fwhm)
+        pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction, 
+                                 args.loop, args.dec_range_fwhm)
+    elif args.type == 'cross':
+        pointing_list = cross_grid(ra, dec, centre_fwhm*args.fraction,
+                                   args.loop, args.dec_range_fwhm)
+    else:
+        print "Unrecognised grid type. Exiting."
+        quit()
     #TODO add square
 
     time = Time(float(args.obsid),format='gps')
