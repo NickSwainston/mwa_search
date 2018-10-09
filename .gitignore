@@ -1,2 +1,4 @@
 output/*
 blindsearch_database.pyc
+obs_meta.csv
+bin/*
