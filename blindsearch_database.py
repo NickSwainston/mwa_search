@@ -14,13 +14,32 @@ def dict_factory(cursor, row):
     return d
     
 def database_blindsearch_start(obsid, pointing, comment):
-        DB_FILE = os.environ['CMD_BS_DB_FILE']
-                        
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         with con:
                 cur = con.cursor()
-                
-                cur.execute("INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, TotalProc, TotalErrors,BeamformProc, BeamformErrors, RFIProc, RFIErrors, PrepdataProc, PrepdataErrors, FFTProc, FFTErrors, AccelProc, AccelErrors, FoldProc, FoldErrors, CandTotal, CandOverNoise, CandDect) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (datetime.datetime.now(), obsid, pointing, comment, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+                cur.execute("""INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, 
+                        TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
+                        BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
+                        PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
+                        FFTProc, FFTErrors, FFTDS, FFTDE, FFTJobComp,
+                        AccelProc, AccelErrors, AccelDS, AccelDE, AccelJobComp,
+                        FoldProc, FoldErrors, FoldDS, FoldDE, FoldJobComp,
+                        CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?)""",
+                          (datetime.datetime.now(), obsid, pointing, comment,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0, 0, 0))
                 vcs_command_id = cur.lastrowid
         return vcs_command_id
     
@@ -53,28 +72,28 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
     return row_id_list
 
 
-def database_script_start(table, bs_id, command, arguments,nodes,dm_file_int,time=datetime.datetime.now()):
+def database_script_start(table, bs_id, rownum, attempt_num, time=datetime.datetime.now()):
     
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
-        if dm_file_int == None:
-            cur.execute("INSERT INTO "+table+" (BSID, Command, Arguments, Started, CPUs) VALUES(?, ?, ?, ?, ?)", (bs_id, command, arguments, time, nodes))
-        else:
-            cur.execute("INSERT INTO "+table+" (BSID, Command, Arguments, Started, CPUs, DMFileInt) VALUES(?, ?, ?, ?, ?, ?)", (bs_id, command, arguments, time, nodes, dm_file_int))
+        cur.execute("UPDATE "+table+" SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                    (time, rownum, attempt_num, bs_id))
         row_id = cur.lastrowid
     return row_id
 
-def database_script_stop(table, rownum, errorcode,end_time=datetime.datetime.now()):
+def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,end_time=datetime.datetime.now()):
 
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
-        cur.execute("SELECT Ended FROM "+table+" WHERE Rownum=?", (rownum,))
+        cur.execute("SELECT Ended FROM "+table+" WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                    (rownum, attempt_num, bs_id))
         ended = cur.fetchone()[0]
         if ended is not None:
             logging.warn("Overwriting existing completion time: %s" % ended)
-        cur.execute("UPDATE "+table+" SET Ended=?, Exit=? WHERE Rownum=?", (end_time, errorcode, rownum))
+        cur.execute("UPDATE ? SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?", 
+                (table, end_time, errorcode, rownum, attempt_num, bs_id))
     return
 
 
@@ -120,7 +139,7 @@ def database_beamform_find(table,file_location, bs_id):
             #no finshed string so likely it failed:
             #TODO make this more robust to work out how long it ran before it died
             row_num = database_script_start(table, bs_id, command, arguments, nodes, None, time_now)
-            database_script_stop(table, row_num, 1, end_time=time_now)
+            database_script_stop(table, bs_id, rownum, attempt_num), end_time=time_now)
  
 
 def date_to_sec(string):
@@ -159,7 +178,7 @@ if __name__ == '__main__':
     start_options = OptionGroup(parser, 'Script Start Options')
     start_options.add_option("-b", "--bs_id", dest="bs_id", default=None, type=str, help="The row number of the blindsearch command of the databse")
     start_options.add_option("-c", "--command", dest="command", default=None, type=str, help="The script name being run. eg volt_download.py.")
-    start_options.add_option("-a", "--argument", dest="argument", default=None, type=str, help="The arguments that script used.")
+    start_options.add_option("-a", "--attempt_num", dest="attempt_num", default=None, type=str, help="The attempt number of a script.")
     start_options.add_option("-n", "--nodes", dest="nodes", default=None, type=int, help="The number of cpu nodes used.")
     start_options.add_option("-d", "--dm_file_int", dest="dm_file_int", default=None, type=int, help="The DM file reference eg 1 = DM_002_004.")
     
@@ -189,10 +208,10 @@ if __name__ == '__main__':
         
     
     if opts.mode == "s":
-        vcs_row = database_script_start(table,opts.bs_id, opts.command, opts.argument,opts.nodes,opts.dm_file_int)
+        vcs_row = database_script_start(table, opts.bs_id, opts.rownum, opts.attempt_num)
         print vcs_row
     elif opts.mode == "e":
-        database_script_stop(table,opts.rownum, opts.errorcode)
+        database_script_stop(table, opts.bs_id, opts.rownum, opts.attempt_num, opts.errorcode)
     elif opts.mode == 'm':
         if opts.file_location:
             file_loc = opts.file_location
@@ -206,7 +225,6 @@ if __name__ == '__main__':
         con.row_factory = dict_factory
     
         query = "SELECT * FROM " + table
-        
 
         if opts.obsid:
             query += " WHERE Arguments LIKE '%" + str(opts.obsid) + "%'"
@@ -249,20 +267,24 @@ if __name__ == '__main__':
                 
         if opts.mode == "vs":
             if (table =='RFI' or table == 'Prepdata'):
-                print 'Row# ','BDIS ','Started               ','Ended                 ','Exit_Code','Arguments'
+                print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','Arguments'
             else:
-                print 'Row# ','BDIS ','DM_i ','Started               ','Ended                 ','Err_Code','CPUs','Arguments'
+                print 'BDIS ','Row# ','DM_i ','Atm#','Started               ','Ended                 ','Err_Code','CPUs','Arguments'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
-                print '%-5s' % (str(row['Rownum']).rjust(4)),
                 print '%-5s' % (row['BSID']),
+                print '%-5s' % (str(row['Rownum']).rjust(4)),
                 if not (table =='RFI' or table == 'Prepdata' or table == 'Beamform'):
                     if str(row['DMFileInt']).endswith('\n'):
                         print '%-5s' % str((row['DMFileInt']))[:-1],
                     else:
                         print '%-5s' % (row['DMFileInt']),
-                print '%-22s' % (row['Started'][:19]),
+                print '%-5s' % (row['AttemptNum']),
+                if row['Started'] is None:
+                    print '%-22s' % (row['Started']),
+                else:
+                    print '%-22s' % (row['Started'][:19]),
                 if row['Ended'] is None:
                     print '%-22s' % (row['Ended']),
                 else:
