@@ -11,7 +11,7 @@ with con:
     #Rownum: ID to reference
     #Comment: What the pipeline's purpose (eg testing or main search centered at x y)
     #SampleNum: Number of time samples in fits files used
-    #*Proc: total crossing time in cpu hours
+    #*Proc: total prossing wall time in seconds
     #*Errors: total errors for each section
     #*DS: Number of jobs that didn't start
     #*DE: number of jobs that didn't end

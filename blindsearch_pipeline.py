@@ -620,12 +620,7 @@ def prepdata(obsid, pointing, relaunch_script,
     DM_depend_batch = str(bsd_row_num) + '_dep_prepsubbands'
     commands = []
     commands.append(add_database_function(pbs, script_test=script_test, n_omp_threads=n_omp_threads))
-    commands.append("source /group/mwaops/PULSAR/psrBash.profile")
-    commands.append("ncpus={0}".format(n_omp_threads))
-    commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     commands.append("cd " + work_dir + sub_dir)
-    #commands.append('realfft ' + str(obsid) + '_DM0.00.dat')
-    #commands.append("accelsearch -numharm 4 -zmax 0 " +str(obsid) + "_DM0.00.fft")
     commands.append('blindsearch_database.py -c prepsubband -m p -b ' +str(bsd_row_num) )
     commands.append("#{0} -m s -r {1}".format(relaunch_script, bsd_row_num))
     
@@ -1046,6 +1041,15 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
                          submit=True, depend=job_id_str[1:])
     return
 
+
+def error_check(table, attempt_num, bsd_row_num);
+    """
+    Checkes the database for any jobs that didn't complete (or didn't even start) and reruns any errors before continuing to the next step
+    """
+    error_data = blindsearch_database.database_script_check(table, bsd_row_num, attempt_num)
+    print error_data
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     Does a blind search for a pulsar in MWA data using the galaxy supercomputer.
@@ -1062,17 +1066,18 @@ if __name__ == "__main__":
     parser.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
     parser.add_argument('--pbs',action="store_true",help="PBS queue mode.")
     parser.add_argument('-t','--test',action="store_true",help="Uses the scripts that haven't been put in bin/ yet to test them before building.")
+    parser.add_argument("--attempt", type=int, help="The number of attempts that a script has mase. Default is 1.", default=1)
+    parser.add_argument("--table", type=str, help="The table name for the blindsearch database to check, similar to the commands used.")
+    parser.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
+    parser.add_argument("--relaunch", action="store_true",  help="Relaunch check that doesn't send off pipeline again.")
+
     group_beamform = parser.add_argument_group('group_beamform','Beamforming Options')
     group_beamform.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
     group_beamform.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
     group_beamform.add_argument("--pulsar_file", default=None, help="Location of a file containting the pointings to be processed. Made using grid.py.")
     group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
     group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
-    group_beamform.add_argument("-c", "--check", type=int, help="Number of times the beamformer has attempted to redo the pointings. Stops when it gets to 5. Default 0.", default=0)
     group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
-    group_beamform.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
-    group_beamform.add_argument("--relaunch", action="store_true",  help="Relaunch check that doesn't send off pipeline again.")
-
     args=parser.parse_args()
 
     obsid = args.observation
@@ -1164,7 +1169,8 @@ if __name__ == "__main__":
                  relaunch_script=relaunch_script, code_comment=code_comment,
                  search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
                  pbs=args.pbs, pulsar=args.pulsar, check=args.check, args=args, script_test=args.test)
-
+    elif args.mode == "c":
+        error_check(table, attempt_num, bsd_row_num)
         
     elif args.mode == "r":
         rfifind(obsid, pointing, sub_dir, relaunch_script,
