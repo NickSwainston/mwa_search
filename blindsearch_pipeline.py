@@ -238,9 +238,9 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
                         format(obsid, pulsar_check, pointing_dir))
         commands.append('chi=`sed "13q;d" {0}_PSR_{1}.pfd.bestprof`'.format(obsid,pulsar_check))
         commands.append('chi=${chi#*=}')
-        commands.append('if [ ${chi%.*} -ge 2 ]; then')
+        commands.append('if [ ${chi%.*} -ge 5 ]; then')
         commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{2}.pfd.bestprof --ppps {0}_PSR_{2}.pfd.ps'.format(obsid, cal_id, pulsar_check))
-        commands.append('echo "${i%.ps}.png is over 3"')
+        commands.append('echo "${i%.ps}.png is over 5"')
         commands.append("fi")
     elif os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obsid)):
         commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
