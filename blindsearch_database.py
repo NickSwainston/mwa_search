@@ -45,7 +45,7 @@ def database_blindsearch_start(obsid, pointing, comment):
     
 
 def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time,
-                         dm_file_int=None):
+                         attempt=1):
     """
     Will create all the rows in the database for each job
     """
@@ -58,16 +58,13 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
         table = 'Accel'
     elif command == 'prepfold':
         table = 'Fold'
-    
+    print "attempt: "+str(attempt)
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
         row_id_list = []
         for ai, arguments in enumerate(arguments_list):
-            if dm_file_int == None:
-                cur.execute("INSERT INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, 1, ?, ?, ?, ?, ?)", (ai, bs_id, command, arguments, threads, expe_proc_time))
-            else:
-                cur.execute("INSERT INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc, DMFileInt) VALUES(?, 1, ?, ?, ?, ?, ?, ?)", (ai, bs_id, command, arguments, threads, expe_proc_time, dm_file_int))
+            cur.execute("INSERT OR IGNORE INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)", (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
             row_id_list.append(cur.lastrowid)
     return row_id_list
 
@@ -241,17 +238,66 @@ def database_mass_process(table, bs_id, dm_file_int=None):
 
 
 def database_mass_update(table,file_location):
+    print table
     with open(file_location,'r') as csv:
-        lines = csv.readlines()
-        for i,l in enumerate(lines):
-            l = l.split(',')
-            if i % 2 == 0:
-                if len(l) == 6:
-                    row_num = database_script_start(table, l[3], l[1], l[2], l[4], l[5],time=l[0])
+        con = lite.connect(DB_FILE, timeout = TIMEOUT)
+        con.row_factory = lite.Row
+        with con:
+            cur = con.cursor()
+            lines = csv.readlines()
+            for i,l in enumerate(lines):
+                l = l.split(',')
+                if i % 2 == 0:
+                    rownum = l[2]
+                    attempt_num = l[3]
+                    bs_id = l[1]
+                
+                    cur.execute("UPDATE "+table+\
+                            " SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                            (l[0], rownum, attempt_num, bs_id))
                 else:
-                    row_num = database_script_start(table, l[3], l[1], l[2], l[4], None,time=l[0])
-            else:
-                database_script_stop(table, row_num, l[1], end_time=l[0])
+                    end_time = l[0]
+                    errorcode = l[1]
+
+                    cur.execute("SELECT * FROM "+table+" WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                                (rownum, attempt_num, bs_id))
+                    columns = cur.fetchone()
+                    #get blindsearch data
+                    cur.execute("SELECT * FROM Blindsearch WHERE Rownum="+str(bs_id))
+                    bs_columns = cur.fetchone()
+
+                    if int(errorcode) == 0:
+                        #add processing times and job completion count
+                        end_s = date_to_sec(str(end_time))
+                        start_s = date_to_sec(columns['Started'])
+                        processing = (end_s - start_s)
+
+                        cur.execute("UPDATE "+table+\
+                                    " SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                                            (processing, end_time, errorcode, rownum, attempt_num, bs_id))
+
+                        tot_proc = float(bs_columns['TotalProc']) + processing
+                        job_proc = float(bs_columns[table+'Proc']) + processing
+                        tot_jc = int(bs_columns['TotalJobComp']) + 1
+                        job_jc = int(bs_columns[table+'JobComp']) + 1
+
+                        cur.execute("UPDATE Blindsearch SET TotalProc=?, "+table+\
+                                    "Proc=?, TotalJobComp=?, "+table+\
+                                    "JobComp=? WHERE Rownum=?",
+                                    (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9],
+                                     str(job_jc)[:9], bs_id))
+                    else:    
+                        tot_er = int(bs_columns['TotalErrors']) + 1
+                        job_er = int(bs_columns[table+'Errors']) + 1
+
+                        cur.execute("UPDATE "+table+\
+                                    " SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                                          (end_time, errorcode, rownum, attempt_num, bs_id))
+                            
+                        cur.execute("UPDATE Blindsearch SET TotalErrors=?, "+table+\
+                                    "Errors=? WHERE Rownum=?",
+                                    (tot_er,job_er, bs_id))
+
     return
 
 def database_beamform_find(table,file_location, bs_id):
@@ -352,7 +398,6 @@ if __name__ == '__main__':
     
     if opts.mode == "s":
         vcs_row = database_script_start(table, opts.bs_id, opts.rownum, opts.attempt_num)
-        print vcs_row
     elif opts.mode == "e":
         database_script_stop(table, opts.bs_id, opts.rownum, opts.attempt_num, opts.errorcode)
     elif opts.mode == 'p':
@@ -385,6 +430,19 @@ if __name__ == '__main__':
         if opts.dm_file_int:
             query += " WHERE DMFileInt='" + str(opts.dm_file_int) + "'"
         
+        if opts.attempt_num:
+            if "WHERE" in query:
+                query += " AND AttemptNum='" + str(opts.attempt_num) + "'"
+            else:
+                query += " WHERE AttemptNum='" + str(opts.attempt_num) + "'"
+        
+        if opts.errorcode:
+            if "WHERE" in query:
+                query += " AND Exit='" + str(opts.errorcode) + "'"
+            else:
+                query += " WHERE Exit='" + str(opts.errorcode) + "'"
+
+
         with con:
             cur = con.cursor()
             cur.execute(query)
@@ -412,9 +470,9 @@ if __name__ == '__main__':
                 
         if opts.mode == "vs":
             if (table =='RFI' or table == 'Prepdata'):
-                print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','Arguments'
+                print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments'
             else:
-                print 'BDIS ','Row# ','DM_i ','Atm#','Started               ','Ended                 ','Err_Code','CPUs','Arguments'
+                print 'BDIS ','Row# ','DM_i ','Atm#','Started               ','Ended                 ','Err_Code','ProcTime ','ExpecTime ','CPUs','Arguments'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
@@ -434,6 +492,8 @@ if __name__ == '__main__':
                     print '%-22s' % (row['Ended']),
                 else:
                     print '%-22s' % (row['Ended'][:19]),
+                print '%-7s' % (row['Proc']),
+                print '%-7s' % (row['ExpProc']),
                 if str(row['Exit']).endswith('\n'):
                     print '%-5s' % str(row['Exit'])[:-1],
                 else:

@@ -64,10 +64,10 @@ else:
     candfiles = glob.glob(globaccel)
 """
 # glob for ACCEL files
-globaccel = "{0}/*/*ACCEL_*0".format(d)
+globaccel = "{0}/*ACCEL_*0".format(d)
 # glob for .inf files
 #globinf = "../*/*DM*.inf"
-globinf = "{0}/*/*DM*.inf".format(d)
+globinf = "{0}/*DM*.inf".format(d)
 inffiles = glob.glob(globinf)
 candfiles = glob.glob(globaccel)
 
@@ -77,7 +77,7 @@ candfiles = glob.glob(globaccel)
 #print inffiles
 
 # In how many DMs must a candidate be detected to be considered "good"
-min_num_DMs = 5
+min_num_DMs = 10
 # Lowest DM to consider as a "real" pulsar
 low_DM_cutoff = 1.0
 # Ignore candidates with a sigma (from incoherent power summation) less than this

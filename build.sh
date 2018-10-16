@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-cp *py bin/
+cp /group/mwaops/nswainston/code/blindsearch_scripts/*py /group/mwaops/nswainston/code/blindsearch_scripts/bin/
