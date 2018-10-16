@@ -3,9 +3,9 @@ import os, datetime, logging
 import sqlite3 as lite
 from optparse import OptionParser #NB zeus does not have argparse!
 
-DB_FILE = os.environ['CMD_BS_DB_FILE']
+DB_FILE = os.environ['CMD_BS_DB_DEF_FILE']
 #how many seconds the sqlite database conection takes until it times out
-TIMEOUT=60
+TIMEOUT=120
 
 def dict_factory(cursor, row):
     d = {}
@@ -14,54 +14,290 @@ def dict_factory(cursor, row):
     return d
     
 def database_blindsearch_start(obsid, pointing, comment):
-        DB_FILE = os.environ['CMD_BS_DB_FILE']
-                        
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         with con:
                 cur = con.cursor()
-                
-                cur.execute("INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, TotalProc, TotalErrors,BeamformProc, BeamformErrors, RFIProc, RFIErrors, PrepdataProc, PrepdataErrors, FFTProc, FFTErrors, AccelProc, AccelErrors, FoldProc, FoldErrors, CandTotal, CandOverNoise, CandDect) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (datetime.datetime.now(), obsid, pointing, comment, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+                cur.execute("""INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, 
+                        TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
+                        BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
+                        PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
+                        FFTProc, FFTErrors, FFTDS, FFTDE, FFTJobComp,
+                        AccelProc, AccelErrors, AccelDS, AccelDE, AccelJobComp,
+                        FoldProc, FoldErrors, FoldDS, FoldDE, FoldJobComp,
+                        CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?,?,?,
+                               ?,?,?)""",
+                          (datetime.datetime.now(), obsid, pointing, comment,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0.0, 0, 0, 0, 0,
+                          0, 0, 0))
                 vcs_command_id = cur.lastrowid
         return vcs_command_id
     
-    
-def database_script_start(table, bs_id, command, arguments,nodes,dm_file_int,time=datetime.datetime.now()):
+
+def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time,
+                         attempt=1):
+    """
+    Will create all the rows in the database for each job
+    """
+    #works out the table from the command
+    if command == 'prepsubband':
+        table = 'Prepdata'
+    elif command == 'realfft':
+        table = 'FFT'
+    elif command == 'accelsearch':
+        table = 'Accel'
+    elif command == 'prepfold':
+        table = 'Fold'
+    print "attempt: "+str(attempt)
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    with con:
+        cur = con.cursor()
+        row_id_list = []
+        for ai, arguments in enumerate(arguments_list):
+            cur.execute("INSERT OR IGNORE INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)", (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
+            row_id_list.append(cur.lastrowid)
+    return row_id_list
+
+
+def database_script_start(table, bs_id, rownum, attempt_num, time=datetime.datetime.now()):
     
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
-        if dm_file_int == None:
-            cur.execute("INSERT INTO "+table+" (BSID, Command, Arguments, Started, CPUs) VALUES(?, ?, ?, ?, ?)", (bs_id, command, arguments, time, nodes))
-        else:
-            cur.execute("INSERT INTO "+table+" (BSID, Command, Arguments, Started, CPUs, DMFileInt) VALUES(?, ?, ?, ?, ?, ?)", (bs_id, command, arguments, time, nodes, dm_file_int))
+        cur.execute("UPDATE "+table+" SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                    (time, rownum, attempt_num, bs_id))
         row_id = cur.lastrowid
     return row_id
 
-def database_script_stop(table, rownum, errorcode,end_time=datetime.datetime.now()):
+def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
+                         end_time=datetime.datetime.now()):
 
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    con.row_factory = lite.Row
     with con:
         cur = con.cursor()
-        cur.execute("SELECT Ended FROM "+table+" WHERE Rownum=?", (rownum,))
-        ended = cur.fetchone()[0]
-        if ended is not None:
-            logging.warn("Overwriting existing completion time: %s" % ended)
-        cur.execute("UPDATE "+table+" SET Ended=?, Exit=? WHERE Rownum=?", (end_time, errorcode, rownum))
+        #get script data
+        cur.execute("SELECT * FROM "+table+" WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                    (rownum, attempt_num, bs_id))
+        columns = cur.fetchone()
+        #get blindsearch data
+        cur.execute("SELECT * FROM Blindsearch WHERE Rownum="+str(bs_id))
+        bs_columns = cur.fetchone()
+
+        if int(errorcode) == 0:
+            #add processing times and job completion count
+            end_s = date_to_sec(str(end_time))
+            start_s = date_to_sec(columns['Started'])
+            processing = (end_s - start_s)
+
+            cur.execute("UPDATE "+table+\
+                        " SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                                (processing, end_time, errorcode, rownum, attempt_num, bs_id))
+
+            tot_proc = float(bs_columns['TotalProc']) + processing
+            job_proc = float(bs_columns[table+'Proc']) + processing
+            tot_jc = int(bs_columns['TotalJobComp']) + 1
+            job_jc = int(bs_columns[table+'JobComp']) + 1
+
+            cur.execute("UPDATE Blindsearch SET TotalProc=?, "+table+\
+                        "Proc=?, TotalJobComp=?, "+table+\
+                        "JobComp=? WHERE Rownum=?",
+                        (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9],
+                         str(job_jc)[:9], bs_id))
+        else:    
+            tot_er = int(bs_columns['TotalErrors']) + 1
+            job_er = int(bs_columns[table+'Errors']) + 1
+
+            cur.execute("UPDATE "+table+\
+                        " SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                              (end_time, errorcode, rownum, attempt_num, bs_id))
+                
+            cur.execute("UPDATE Blindsearch SET TotalErrors=?, "+table+\
+                        "Errors=? WHERE Rownum=?",
+                        (tot_er,job_er, bs_id))
     return
 
 
-def database_mass_update(table,file_location):
-    with open(file_location,'r') as csv:
-        lines = csv.readlines()
-        for i,l in enumerate(lines):
-            l = l.split(',')
-            if i % 2 == 0:
-                if len(l) == 6:
-                    row_num = database_script_start(table, l[3], l[1], l[2], l[4], l[5],time=l[0])
-                else:
-                    row_num = database_script_start(table, l[3], l[1], l[2], l[4], None,time=l[0])
+def database_script_check(table, bs_id, attempt_num):
+    """
+    Searches for any jobs that didn't work and return the data needed to send 
+    them off again
+    """
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    con.row_factory = lite.Row
+    with con:
+        cur = con.cursor()
+        #get script data
+        cur.execute("SELECT * FROM "+table+" WHERE AttemptNum=? AND BSID=?",
+                    (attempt_num, bs_id))
+        rows = cur.fetchall()
+        
+        error_data = []
+        for row in rows:
+            if row['Started'] == None or row['Ended'] == None or row['Exit'] != 0:
+                error_data.append([row['Command'], row['Arguments'], row['ExpProc']])
+    return error_data            
+
+
+def database_mass_process(table, bs_id, dm_file_int=None):
+    
+    
+    #goes through jobs of that id and command type and counts errors and processing time
+    query = "SELECT * FROM " + table + " WHERE BSID=" + str(bs_id)
+    if dm_file_int is not None:
+        query += " AND DMFileInt=" + str(dm_file_int)
+    print query
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    con.row_factory = dict_factory
+    cur = con.cursor()
+    cur.execute(query)
+    rows = cur.fetchall()
+    
+    processing = 0.
+    errors = 0
+    
+    for row in rows:
+        #print row['Ended'], row['Started']
+        #processsing += 
+        if not row['Ended'] == None and not row['Started'] == None:
+            end_s = date_to_sec(row['Ended'])
+            start_s = date_to_sec(row['Started'])
+            if (end_s - start_s) >= 0.:
+                processing += (end_s - start_s)
             else:
-                database_script_stop(table, row_num, l[1], end_time=l[0])
+                print "error in processing calc"
+                print "row num: " + str(row)
+                print "End secs: " + str(end_s)
+                print "Strat secs: " + str(start_s)
+                exit()
+                
+        if str(row['Exit']).endswith("\n"):
+            if not str(row['Exit'])[:-1] == "0":
+                    errors += 1
+        else:
+            if not row['Exit'] == 0:
+                    errors += 1
+    #TODO make a better fix
+    try:
+        nodes = float(rows[0]['CPUs'])
+    except:
+        nodes =1
+    print "Processing time (s): " + str(processing)
+    print "Errors number: " + str(errors)
+    print "Nodes: " + str(nodes)
+    print "Database Table name: " + str(table)
+    
+    query = "SELECT * FROM Blindsearch WHERE Rownum='" + str(bs_id) + "'"
+    cur.execute(query)
+    row = cur.fetchall()
+    
+    
+    tot_proc = row[0]['TotalProc']
+    if tot_proc:
+        new_total_proc = tot_proc + processing/3600.*nodes
+    else:
+        new_total_proc = 0. + processing/3600.*nodes
+        
+    tot_er = row[0]['TotalErrors']
+    if tot_er:
+        new_total_er = tot_er + errors
+    else:
+        new_total_er = 0 + errors
+        
+    job_proc = row[0][table+'Proc']
+    if job_proc:
+        new_job_proc = job_proc + processing/3600.*nodes
+    else:
+        new_job_proc = 0. + processing/3600.*nodes
+    
+    job_er = row[0][table+'Errors']
+    if job_er:
+        new_job_er = job_er + errors
+    else:
+        new_job_er = 0 + errors
+        
+    print new_total_proc, new_total_er, new_job_proc, new_job_er
+    
+    
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    with con:
+        cur = con.cursor()
+        cur.execute("UPDATE Blindsearch SET TotalProc=?, TotalErrors=?, "+table+"Proc=?, "+table+"Errors=? WHERE Rownum=?", (str(new_total_proc)[:9], new_total_er, str(new_job_proc)[:9], new_job_er, bs_id))
+ 
+
+
+
+def database_mass_update(table,file_location):
+    print table
+    with open(file_location,'r') as csv:
+        con = lite.connect(DB_FILE, timeout = TIMEOUT)
+        con.row_factory = lite.Row
+        with con:
+            cur = con.cursor()
+            lines = csv.readlines()
+            for i,l in enumerate(lines):
+                l = l.split(',')
+                if i % 2 == 0:
+                    rownum = l[2]
+                    attempt_num = l[3]
+                    bs_id = l[1]
+                
+                    cur.execute("UPDATE "+table+\
+                            " SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                            (l[0], rownum, attempt_num, bs_id))
+                else:
+                    end_time = l[0]
+                    errorcode = l[1]
+
+                    cur.execute("SELECT * FROM "+table+" WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                                (rownum, attempt_num, bs_id))
+                    columns = cur.fetchone()
+                    #get blindsearch data
+                    cur.execute("SELECT * FROM Blindsearch WHERE Rownum="+str(bs_id))
+                    bs_columns = cur.fetchone()
+
+                    if int(errorcode) == 0:
+                        #add processing times and job completion count
+                        end_s = date_to_sec(str(end_time))
+                        start_s = date_to_sec(columns['Started'])
+                        processing = (end_s - start_s)
+
+                        cur.execute("UPDATE "+table+\
+                                    " SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                                            (processing, end_time, errorcode, rownum, attempt_num, bs_id))
+
+                        tot_proc = float(bs_columns['TotalProc']) + processing
+                        job_proc = float(bs_columns[table+'Proc']) + processing
+                        tot_jc = int(bs_columns['TotalJobComp']) + 1
+                        job_jc = int(bs_columns[table+'JobComp']) + 1
+
+                        cur.execute("UPDATE Blindsearch SET TotalProc=?, "+table+\
+                                    "Proc=?, TotalJobComp=?, "+table+\
+                                    "JobComp=? WHERE Rownum=?",
+                                    (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9],
+                                     str(job_jc)[:9], bs_id))
+                    else:    
+                        tot_er = int(bs_columns['TotalErrors']) + 1
+                        job_er = int(bs_columns[table+'Errors']) + 1
+
+                        cur.execute("UPDATE "+table+\
+                                    " SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                                          (end_time, errorcode, rownum, attempt_num, bs_id))
+                            
+                        cur.execute("UPDATE Blindsearch SET TotalErrors=?, "+table+\
+                                    "Errors=? WHERE Rownum=?",
+                                    (tot_er,job_er, bs_id))
+
     return
 
 def database_beamform_find(table,file_location, bs_id):
@@ -92,7 +328,7 @@ def database_beamform_find(table,file_location, bs_id):
             #no finshed string so likely it failed:
             #TODO make this more robust to work out how long it ran before it died
             row_num = database_script_start(table, bs_id, command, arguments, nodes, None, time_now)
-            database_script_stop(table, row_num, 1, end_time=time_now)
+            database_script_stop(table, bs_id, rownum, attempt_num, end_time=time_now)
  
 
 def date_to_sec(string):
@@ -131,7 +367,7 @@ if __name__ == '__main__':
     start_options = OptionGroup(parser, 'Script Start Options')
     start_options.add_option("-b", "--bs_id", dest="bs_id", default=None, type=str, help="The row number of the blindsearch command of the databse")
     start_options.add_option("-c", "--command", dest="command", default=None, type=str, help="The script name being run. eg volt_download.py.")
-    start_options.add_option("-a", "--argument", dest="argument", default=None, type=str, help="The arguments that script used.")
+    start_options.add_option("-a", "--attempt_num", dest="attempt_num", default=None, type=str, help="The attempt number of a script.")
     start_options.add_option("-n", "--nodes", dest="nodes", default=None, type=int, help="The number of cpu nodes used.")
     start_options.add_option("-d", "--dm_file_int", dest="dm_file_int", default=None, type=int, help="The DM file reference eg 1 = DM_002_004.")
     
@@ -161,10 +397,11 @@ if __name__ == '__main__':
         
     
     if opts.mode == "s":
-        vcs_row = database_script_start(table,opts.bs_id, opts.command, opts.argument,opts.nodes,opts.dm_file_int)
-        print vcs_row
+        vcs_row = database_script_start(table, opts.bs_id, opts.rownum, opts.attempt_num)
     elif opts.mode == "e":
-        database_script_stop(table,opts.rownum, opts.errorcode)
+        database_script_stop(table, opts.bs_id, opts.rownum, opts.attempt_num, opts.errorcode)
+    elif opts.mode == 'p':
+        database_mass_process(table, opts.bs_id, dm_file_int=opts.dm_file_int)
     elif opts.mode == 'm':
         if opts.file_location:
             file_loc = opts.file_location
@@ -178,7 +415,6 @@ if __name__ == '__main__':
         con.row_factory = dict_factory
     
         query = "SELECT * FROM " + table
-        
 
         if opts.obsid:
             query += " WHERE Arguments LIKE '%" + str(opts.obsid) + "%'"
@@ -194,6 +430,19 @@ if __name__ == '__main__':
         if opts.dm_file_int:
             query += " WHERE DMFileInt='" + str(opts.dm_file_int) + "'"
         
+        if opts.attempt_num:
+            if "WHERE" in query:
+                query += " AND AttemptNum='" + str(opts.attempt_num) + "'"
+            else:
+                query += " WHERE AttemptNum='" + str(opts.attempt_num) + "'"
+        
+        if opts.errorcode:
+            if "WHERE" in query:
+                query += " AND Exit='" + str(opts.errorcode) + "'"
+            else:
+                query += " WHERE Exit='" + str(opts.errorcode) + "'"
+
+
         with con:
             cur = con.cursor()
             cur.execute(query)
@@ -221,24 +470,30 @@ if __name__ == '__main__':
                 
         if opts.mode == "vs":
             if (table =='RFI' or table == 'Prepdata'):
-                print 'Row# ','BDIS ','Started               ','Ended                 ','Exit_Code','Arguments'
+                print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments'
             else:
-                print 'Row# ','BDIS ','DM_i ','Started               ','Ended                 ','Err_Code','CPUs','Arguments'
+                print 'BDIS ','Row# ','DM_i ','Atm#','Started               ','Ended                 ','Err_Code','ProcTime ','ExpecTime ','CPUs','Arguments'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
-                print '%-5s' % (str(row['Rownum']).rjust(4)),
                 print '%-5s' % (row['BSID']),
+                print '%-5s' % (str(row['Rownum']).rjust(4)),
                 if not (table =='RFI' or table == 'Prepdata' or table == 'Beamform'):
                     if str(row['DMFileInt']).endswith('\n'):
                         print '%-5s' % str((row['DMFileInt']))[:-1],
                     else:
                         print '%-5s' % (row['DMFileInt']),
-                print '%-22s' % (row['Started'][:19]),
+                print '%-5s' % (row['AttemptNum']),
+                if row['Started'] is None:
+                    print '%-22s' % (row['Started']),
+                else:
+                    print '%-22s' % (row['Started'][:19]),
                 if row['Ended'] is None:
                     print '%-22s' % (row['Ended']),
                 else:
                     print '%-22s' % (row['Ended'][:19]),
+                print '%-7s' % (row['Proc']),
+                print '%-7s' % (row['ExpProc']),
                 if str(row['Exit']).endswith('\n'):
                     print '%-5s' % str(row['Exit'])[:-1],
                 else:
@@ -250,92 +505,10 @@ if __name__ == '__main__':
         if opts.mode == "vp":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
-                    print 'Row# | Total proc | err# | Beamform proc | err# | RFI proc | err# | Prep proc | err# | FFT proc | err# | Accel proc | err# | Fold proc | err# |'
-                    print '-----|------------|------|---------------|------|----------|------|-----------|------|----------|------|------------|------|-----------|------|'
+                    print 'Row# | Total proc | err# | Beamform proc | err# | Prep proc | err# | FFT proc | err# | Accel proc | err# | Fold proc | err# |'
+                    print '-----|------------|------|---------------|------|-----------|------|----------|------|------------|------|-----------|------|'
 
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
-                print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:8.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc'],row['TotalErrors'],row['BeamformProc'],row['BeamformErrors'],row['RFIProc'],row['RFIErrors'],row['PrepdataProc'],row['PrepdataErrors'],row['FFTProc'],row['FFTErrors'],row['AccelProc'],row['AccelErrors'],row['FoldProc'],row['FoldErrors'])
+                print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc'],row['TotalErrors'],row['BeamformProc'],row['BeamformErrors'],row['PrepdataProc'],row['PrepdataErrors'],row['FFTProc'],row['FFTErrors'],row['AccelProc'],row['AccelErrors'],row['FoldProc'],row['FoldErrors'])
                 
-    elif opts.mode == 'p':
-        #goes through jobs of that id and command type and counts errors and processing time
-        query = "SELECT * FROM " + table + " WHERE BSID=" + str(opts.bs_id)
-        if opts.dm_file_int:
-            query += " AND DMFileInt=" + str(opts.dm_file_int)
-        print query
-        con = lite.connect(DB_FILE, timeout = TIMEOUT)
-        con.row_factory = dict_factory
-        cur = con.cursor()
-        cur.execute(query)
-        rows = cur.fetchall()
-        
-        processing = 0.
-        errors = 0
-        
-        for row in rows:
-            #print row['Ended'], row['Started']
-            #processsing += 
-            if not row['Ended'] == None and not row['Started'] == None:
-                end_s = date_to_sec(row['Ended'])
-                start_s = date_to_sec(row['Started'])
-                if (end_s - start_s) >= 0.:
-                    processing += (end_s - start_s)
-                else:
-                    print "error in processing calc"
-                    print "row num: " + str(row)
-                    print "End secs: " + str(end_s)
-                    print "Strat secs: " + str(start_s)
-                    exit()
-                    
-            if str(row['Exit']).endswith("\n"):
-                if not str(row['Exit'])[:-1] == "0":
-                        errors += 1
-            else:
-                if not row['Exit'] == 0:
-                        errors += 1
-        #TODO make a better fix
-        try:
-            nodes = float(rows[0]['CPUs'])
-        except:
-            nodes =1
-        print "Processing time (s): " + str(processing)
-        print "Errors number: " + str(errors)
-        print "Nodes: " + str(nodes)
-        print "Database Table name: " + str(table)
-        
-        query = "SELECT * FROM Blindsearch WHERE Rownum='" + str(opts.bs_id) + "'"
-        cur.execute(query)
-        row = cur.fetchall()
-        
-        
-        tot_proc = row[0]['TotalProc']
-        if tot_proc:
-            new_total_proc = tot_proc + processing/3600.*nodes
-        else:
-            new_total_proc = 0. + processing/3600.*nodes
-            
-        tot_er = row[0]['TotalErrors']
-        if tot_er:
-            new_total_er = tot_er + errors
-        else:
-            new_total_er = 0 + errors
-            
-        job_proc = row[0][table+'Proc']
-        if job_proc:
-            new_job_proc = job_proc + processing/3600.*nodes
-        else:
-            new_job_proc = 0. + processing/3600.*nodes
-        
-        job_er = row[0][table+'Errors']
-        if job_er:
-            new_job_er = job_er + errors
-        else:
-            new_job_er = 0 + errors
-            
-        print new_total_proc, new_total_er, new_job_proc, new_job_er
-        
-        
-        con = lite.connect(DB_FILE, timeout = TIMEOUT)
-        with con:
-            cur = con.cursor()
-            cur.execute("UPDATE Blindsearch SET TotalProc=?, TotalErrors=?, "+table+"Proc=?, "+table+"Errors=? WHERE Rownum=?", (str(new_total_proc)[:9], new_total_er, str(new_job_proc)[:9], new_job_er, opts.bs_id))
-        
+       
