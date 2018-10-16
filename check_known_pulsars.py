@@ -8,7 +8,7 @@ import subprocess
 import numpy as np
 import blindsearch_pipeline as blind_pipe
 
-def beamform_and_fold(obsid, DI_dir, all_check, args):
+def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args):
     
     
     cmd_line='file_maxmin.py {0}'.format(obsid)
@@ -38,24 +38,36 @@ def beamform_and_fold(obsid, DI_dir, all_check, args):
     #looping through each puslar
     
     with open(known_pulsar_file) as kpf:
+        pulsar_lines = []
         for pulsar_line in kpf:
-            if pulsar_line.startswith("J"):
-                PSRJ = pulsar_line.split()[0]
-                if len(PSRJ) < 11 or PSRJ[-1] == 'A':
-                    inpc = float(pulsar_line.split()[1])
-                    otpc = float(pulsar_line.split()[2])
-                    if not all_check:
-                        psrbeg = int(obsbeg+obsdur*inpc)
-                        psrend = int(obsbeg+obsdur*otpc)
-                    temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
-                    temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
-                    jname, raj, decj = temp[0]
-                    print PSRJ, raj, decj
-
-                    fits_dir = '/group/mwaops/vcs/{0}/pointings/{1}_{2}/'.format(obsid, raj, decj)
-                    blind_pipe.process_vcs_wrapper(obsid, psrbeg, psrend, [raj,decj], args, DI_dir,\
-                                        fits_dir, 0, False, None, None, pulsar_check=jname)
-
+            pulsar_lines.append(pulsar_line)
+    
+    for pulsar_line in pulsar_lines:
+        if pulsar_line.startswith("J"):
+            print pulsar_line
+            PSRJ = pulsar_line.split()[0]
+            if len(PSRJ) < 11 or PSRJ[-1] == 'A':
+                inpc = float(pulsar_line.split()[1])
+                otpc = float(pulsar_line.split()[2])
+                if not all_check:
+                    psrbeg = int(obsbeg+obsdur*inpc)
+                    psrend = int(obsbeg+obsdur*otpc)
+                temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
+                temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
+                jname, raj, decj = temp[0]
+                print PSRJ, raj, decj
+                fits_dir = '/group/mwaops/vcs/{0}/pointings/{1}_{2}/'.format(obsid, raj, decj)
+                if PSRJ[-1] == 'A':
+                    #Got to find all the pulsar J names with other letters
+                    jname_list = []
+                    for pulsar_l in pulsar_lines:
+                        if pulsar_l.startswith(PSRJ[:-1]):
+                            jname_list.append(pulsar_l.split()[0])
+                else:
+                    jname_list = [jname]
+                blind_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
+                                    DI_dir, fits_dir_base=fits_dir,
+                                    args=args, pulsar_check=jname_list, cal_id=cal_obs)
     os.remove(known_pulsar_file)
     return
 
@@ -88,5 +100,5 @@ if __name__ == "__main__":
         args.DI_dir = "/group/mwaops/vcs/{0}/cal/{1}/rts/".format(args.obsid, args.cal_obs)
         print "No DI_dir given so assuming {0} is the directory".format(args.DI_dir)
     
-    beamform_and_fold(args.obsid, args.DI_dir, args.all, args)
+    beamform_and_fold(args.obsid, args.DI_dir, args.all, args.cal_obs, args)
 

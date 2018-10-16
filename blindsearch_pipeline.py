@@ -202,9 +202,10 @@ def dm_i_to_file(dm_i):
         print dm_i
     return dm_file
 
-def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
-                        search, bsd_row_num, relaunch_script, nice = 100,
-                        pulsar_check=None, cal_id=None):
+def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
+                        pointing_dir,relaunch_script,
+                        search=False, bsd_row_num=None, nice=100,
+                        pulsar_check=None, cal_id=None, vdif=False):
     """
     Does some basic checks and formating before 
     if args.pulsar_file:
@@ -219,6 +220,8 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
         bf_formats = " -p -i"
     else:
         bf_formats = " -p"
+    if vdif:
+        bf_formats += " -u"
 
 
     #set up and launch beamfroming
@@ -231,54 +234,69 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,pointing_dir,\
                   metafits_dir, 128, pointing, args,
                   bf_formats=bf_formats, DI_dir=DI_dir, calibration_type="rts", nice=nice)
     
-    #get a job dependancy string
-    job_id_str = ""
-    for i in job_id_list:
-        job_id_str += ":" + str(i)
-    
     pointing = "{0}_{1}".format(pointing[0],pointing[1])
+    dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
+                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
+                           relaunch_script=relaunch_script, cal_id=cal_id)
+    return
+
+
+def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
+                            bsd_row_num=None, pulsar_check=None, 
+                            relaunch_script="echo no relaunch", cal_id=None):
+    """
+    Launches a script that splices the beamformed files and, where approriate,
+    launches the blindsearch pipeline or folds on known pulsars.
+    """
     #create a split wrapper dependancy
     splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obsid, pointing)
     commands = []
-    if bsd_row_num is None:
+    if bsd_row_num is not None:
+        #record beamforming processing time
         for f in glob.glob("{0}/batch/mb_{1}*.batch".format(product_dir,pointing)):
             commands.append('blindsearch_database.py -m b -b ' +str(bsd_row_num) + " -f " + str(f)[:-6])
         commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bsd_row_num))
-    
     if pulsar_check is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
         commands.append('cd {0}'.format(pointing_dir))
-        commands.append("prepfold -o {0} -runavg -noclip -psr {1} -nsub 256 {2}/1*fits".\
-                        format(obsid, pulsar_check, pointing_dir))
-        commands.append('chi=`sed "13q;d" {0}_PSR_{1}.pfd.bestprof`'.format(obsid,pulsar_check))
-        commands.append('chi=${chi#*=}')
-        commands.append('if [ ${chi%.*} -ge 5 ]; then')
-        commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{2}.pfd.bestprof --ppps {0}_PSR_{2}.pfd.ps'.format(obsid, cal_id, pulsar_check))
-        commands.append('echo "${i%.ps}.png is over 5"')
+        for pulsar in pulsar_check:
+            commands.append("prepfold -o {0} -runavg -noclip -psr {1} -nsub 256 {2}/1*fits".\
+                            format(obsid, pulsar, pointing_dir))
+            commands.append('chi=`sed "13q;d" {0}_PSR_{1}.pfd.bestprof`'.format(obsid,pulsar))
+            commands.append('chi=${chi#*=}')
+            commands.append('if [ ${chi%.*} -ge 5 ]; then')
+            commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{2}.pfd.bestprof --ppps {0}_PSR_{2}.pfd.ps'.format(obsid, cal_id, pulsar))
+            commands.append('echo "{0}_PSR_{1}.pfd.png is over 5"'.format(obsid,pulsar))
         commands.append("fi")
     elif os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obsid)):
+        #run normally
         commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
-        if bsd_row_num is None:
-            commands.append('{0} -m b -p {2}'.format(relaunch_script, pointing))
-        else:
-            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
     else:
+        #make a incoh pointing
         commands.append('mkdir /group/mwaops/vcs/{0}/incoh'.format(obsid))
         commands.append('splice_wrapper.py -o {0} -w {1} -i -d'.format(obsid, pointing_dir))
         commands.append('mv /group/mwaops/vcs/{0}/pointings/{1}/*incoh* /group/mwaops/vcs/{0}/incoh/'.
                             format(obsid, pointing))
-        if  bsd_row_num is None:
-            commands.append('{0} -m r -p {2}'.format(relaunch_script, pointing))
-            commands.append('{0} -m b -p {2}'.format(relaunch_script, pointing))
+        #run rfi job
+        if bsd_row_num is None:
+            commands.append('{0} -m r -p {1}'.format(relaunch_script, pointing))
         else:
             commands.append('{0} -m r -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
-            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
+    #add relaunch script
+    if bsd_row_num is None:
+        commands.append('{0} -m b -p {1}'.format(relaunch_script, pointing))
+    else:
+        commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
+    
+    if os.path.exists("{0}/batch/".format(product_dir)):
+        batch_dir = "{0}/batch/".format(product_dir)
+    else:
+        batch_dir = product_dir
     submit_slurm(splice_wrapper_batch, commands,
-                 batch_dir="{0}/batch".format(product_dir),
+                 batch_dir=batch_dir,
                  slurm_kwargs={"time": "5:00:00", "partition": "workq"},
-                 submit=True, depend=job_id_str[1:])
- 
+                 submit=True, depend=job_id_list, depend_type='afterany')
     return
 
 
@@ -287,7 +305,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
              relaunch_script=None, code_comment=None, dm_max=4,
              search=False, bsd_row_num_input=None, incoh=False, 
              pbs=False, pulsar=None, args=None, script_test=False,
-             fits_dir_base=None):
+             fits_dir_base=None, pulsar_check=None, cal_id=None):
     
     for n, line in enumerate(pointing_list):
         if line.startswith("#"):
@@ -303,21 +321,32 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 dec = dec[:-1]
             pointing = ra + "_" + dec
         
+        if search:
+            #start the blind search database recording
+            bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
+                                      pointing, "{0} {1}".format(code_comment,n))
+        else:
+            bsd_row_num = None
+
+
         #fits dir parsing
         if fits_dir_base is None:
             if pbs:
                 fits_dir = '/lustre/projects/p125_astro/DATA/'
+                product_dir = fits_dir
             else:
                 if incoh:
                     fits_dir='/group/mwaops/vcs/{0}/incoh/'.format(obsid)
                 else:
                     fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
+                product_dir = '/group/mwaops/vcs/{0}'.format(obsid)
         else:
             #if pulsar is None:
             #    fits_dir = '{0}/{1}/'.format(fits_dir_base, pointing)
             #else:
             #    fits_dir = '{0}/{1}/'.format(fits_dir_base, pulsar)
             fits_dir = fits_dir_base + "/"
+            product_dir = '/group/mwaops/vcs/{0}'.format(obsid)
         #Check if pointing in cold storage
         try :
             exists_remote_check = exists_remote("hsm",
@@ -329,21 +358,23 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
         except:
             print "Connection to cold storage failed. Will only check for local files"
         
+        
+        #Go through some file checks (true is something is missing)
+        path_check = False
+        missing_file_check = False
+        unspliced_check = False
+        missing_chan_list = []
         if os.path.exists(fits_dir):
             #first check is there's already spliced files
+            #does check if they have the same start time
             expected_file_num = int( (end-begin)/200 ) + 2
-            print expected_file_num, fits_dir
-            missing_file_check = False
             for fnc in range(1,expected_file_num):
                 if not glob.glob(fits_dir+obsid+"_*"+str(fnc)+".fits"):
                     missing_file_check = True
             if fits_dir_base is not None:
                 #assumes that maybe they didn't use the whole obs and that's ok
-                print len(glob.glob(fits_dir+obsid+"_*.fits"))
                 if len(glob.glob(fits_dir+obsid+"_*.fits")) > 0:
                     missing_file_check = False
-
-            
             
             if missing_file_check:
                 #check if we have any unspliced files
@@ -356,116 +387,88 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                     job_id_list =[]
                     unspliced_check = False
                     for ch in channels:
-                        channel_check = False
                         for ne in range(1,expected_file_num):
                             if not glob.glob(fits_dir+"*_"+obsid+"_ch*"+str(ch)+"_00*"+\
                                     str(ne)+".fits"):
-                                channel_check = True
                                 unspliced_check = True
-                        if channel_check:
-                            #missing some files for that channel so resumbit script
-                            if os.path.exists("/group/mwaops/vcs/"+obsid+"/batch/mb_"+pointing+"_ch"+str(ch)+".batch"):
-                                #delete files of that channel
-                                files_list = os.listdir(fits_dir)
-                                for f in files_list:
-                                    if ("ch0"+str(ch) in f) or ("ch"+str(ch) in f):
-                                        os.remove(fits_dir + f)
-                                submit_line = "sbatch /group/mwaops/vcs/"+obsid+"/batch/mb_"+pointing+"_ch"+str(ch)+".batch"
-                                submit_cmd = subprocess.Popen(submit_line,shell=True,\
-                                                                stdout=subprocess.PIPE)
-                                print submit_line
-                                for line in submit_cmd.stdout:
-                                    print line,
-                                    if "Submitted" in line:
-                                        temp = line.split()
-                                        job_id_list.append(temp[3])
-
-                            else:
-                                print "ERROR no batch file found"
-
-                    if unspliced_check:
-                        #splice wraps them when they're done
-                        sleep(1)
-                        job_id_str = ""
-                        for j in job_id_list:
-                            job_id_str += ":" + str(j)
-                        splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obsid, pointing)
-                        commands = []
-                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, fits_dir))
-                        if search:
-                            if not bsd_row_num_input:
-                                bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
-                                                 pointing, "{0} {1}".format(code_comment,n))
-                            else:
-                                bsd_row_num = bsd_row_num_input
-                            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script,\
-                                                              bsd_row_num, pointing))
-                        submit_slurm(splice_wrapper_batch, commands,
-                                     batch_dir='/group/mwaops/vcs/{0}/batch'.format(obsid),
-                                     slurm_kwargs={"time": "1:00:00", "partition": "workq"},
-                                     submit=True, depend=job_id_str[1:])
- 
-                    else:
-                        #If only unspliced files then splice
-                        splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obsid, pointing)
-                        commands = []
-                        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, fits_dir))
-                        if search:
-                            if not bsd_row_num_input:
-                                bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
-                                                  pointing, "{0} {1}".format(code_comment,n))
-                            else:
-                                bsd_row_num = bsd_row_num_input
-                            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script,\
-                                                            bsd_row_num, pointing))
-                        submit_slurm(splice_wrapper_batch, commands,
-                                     batch_dir='/group/mwaops/vcs/{0}/batch'.format(obsid),
-                                     slurm_kwargs={"time": "1:00:00", "partition": "workq"},
-                                     submit=True)
- 
- 
-                else:
-                    print "No files in {0} starting beamforming".format(pointing)
-                    exit() #TODO REMOVE
-                    if search:
-                        if not bsd_row_num_input:
-                            bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
-                                                    pointing, "{0} {1}".format(code_comment,n))
-                        else:
-                            bsd_row_num = bsd_row_num_input
-                    else:
-                        bsd_row_num = None
-                    process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,\
-                                     fits_dir, search, bsd_row_num, relaunch_script)
-                              
-            else:
-                #All files there so the check has succeded and going to start the pipeline
-                if search and not relaunch:
-                    sub_dir = pointing + "/" + obsid + "/"
-                    if not bsd_row_num_input:
-                        bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
-                                            pointing, "{0} {1}".format(code_comment,n))
-                    else:
-                        bsd_row_num = bsd_row_num_input
-                    if len(pointing_list) > 1:
-                        your_slurm_queue_check(max_queue = 50)
-                    prepdata(obsid, pointing, "{0} -p {1}".format(relaunch_script, pointing),
-                             work_dir=work_dir, pbs=pbs,
-                             bsd_row_num=bsd_row_num, pulsar=pulsar,
-                             fits_dir=fits_dir, dm_max=dm_max, script_test=script_test)
-                #remove any extra unspliced files
-                for fr in glob.glob(fits_dir+"*_"+obsid+"_*.fits"):
-                    os.remove(fr)
+                                missing_chan_list.append(ch)
         else:
+            path_check = True
+
+
+        #work out what needs to be done
+        if path_check or len(missing_chan_list) == 24:
             # do beamforming
-            print "No pointing directory for "+ra+"_"+dec+" starting beamforming"
+            print "No pointing directory or files for {0} starting beamforming".format(pointing)
             if search:
                 bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                                pointing, "{0} {1}".format(code_comment,n))
             else:
                 bsd_row_num = None
-            process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,\
-                                fits_dir, search, bsd_row_num, relaunch_script)
+            process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,
+                                fits_dir, relaunch_script,
+                                search=search, bsd_row_num=bsd_row_num)
+        elif missing_file_check and not unspliced_check:
+            #splice files
+            dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
+                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
+                           relaunch_script=relaunch_script)
+ 
+        elif unspliced_check:
+            #resubmit any channels that are incomplete
+            job_id_list = []
+            for ch in missing_chan_list:   
+                if os.path.exists("/group/mwaops/vcs/{0}/batch/mb_{1}_ch{2}.batch".\
+                                  format(obsid, pointing, ch)):
+                    #remove all files to prevent errors
+                    remove_files = glob.glob("{}*_{}_ch{:03d}_*fits".format(fits_dir, obsid, ch))
+                    for rf in remove_files:
+                        os.remove(rf)
+                    
+                    #resubmit missing channels
+                    submit_line = "sbatch /group/mwaops/vcs/{0}/batch/mb_{1}_ch{2}.batch".\
+                                  format(obsid, pointing, ch)
+                    submit_cmd = subprocess.Popen(submit_line,shell=True,\
+                                                    stdout=subprocess.PIPE)
+                    print submit_line
+                    for line in submit_cmd.stdout:
+                        print line,
+                        if "Submitted" in line:
+                            temp = line.split()
+                            job_id_list.append(temp[3])
+
+                else:
+                    print "ERROR no batch file found"
+            #TODO add splice wrapper here
+            dependant_splice_batch(obsid, pointing, product_dir, fits_dir, job_id_list,
+                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
+                           relaunch_script=relaunch_script)
+
+        else:
+            #All files there so the check has succeded and going to start the pipeline
+            if search and not relaunch:
+                sub_dir = pointing + "/" + obsid + "/"
+                if not bsd_row_num_input:
+                    bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
+                                        pointing, "{0} {1}".format(code_comment,n))
+                else:
+                    bsd_row_num = bsd_row_num_input
+                if len(pointing_list) > 1:
+                    your_slurm_queue_check(max_queue = 50)
+                prepdata(obsid, pointing, "{0} -p {1}".format(relaunch_script, pointing),
+                         work_dir=work_dir, pbs=pbs,
+                         bsd_row_num=bsd_row_num, pulsar=pulsar,
+                         fits_dir=fits_dir, dm_max=dm_max, script_test=script_test)
+            #remove any extra unspliced files
+            for fr in glob.glob(fits_dir+"*_"+obsid+"_*.fits"):
+                os.remove(fr)
+
+            #Sending off the splice wrapper just for the folding
+            #splice_wrapper should fail
+            if pulsar_check is not None:
+                dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
+                                       bsd_row_num=None, pulsar_check=pulsar_check, 
+                                       cal_id=cal_id)
     return
  
 
