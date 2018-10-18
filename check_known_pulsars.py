@@ -8,7 +8,7 @@ import subprocess
 import numpy as np
 import blindsearch_pipeline as blind_pipe
 
-def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args):
+def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False):
     
     
     cmd_line='file_maxmin.py {0}'.format(obsid)
@@ -44,7 +44,6 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args):
     
     for pulsar_line in pulsar_lines:
         if pulsar_line.startswith("J"):
-            print pulsar_line
             PSRJ = pulsar_line.split()[0]
             if len(PSRJ) < 11 or PSRJ[-1] == 'A':
                 inpc = float(pulsar_line.split()[1])
@@ -55,18 +54,25 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args):
                 temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
                 temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
                 jname, raj, decj = temp[0]
-                print PSRJ, raj, decj
+                #get pulsar period
+                cmd = ['psrcat', '-c', 'p0', jname]
+                output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0]
+                period = output.split('\n')[4].split()[1] #in s
+                print PSRJ, raj, decj, period
                 fits_dir = '/group/mwaops/vcs/{0}/pointings/{1}_{2}/'.format(obsid, raj, decj)
                 if PSRJ[-1] == 'A':
                     #Got to find all the pulsar J names with other letters
+                    vdif_check = True
                     jname_list = []
                     for pulsar_l in pulsar_lines:
                         if pulsar_l.startswith(PSRJ[:-1]):
                             jname_list.append(pulsar_l.split()[0])
                 else:
                     jname_list = [jname]
+                    if float(period) < .05 :
+                        vdif_check = True
                 blind_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
-                                    DI_dir, fits_dir_base=fits_dir,
+                                    DI_dir, vdif=vdif_check
                                     args=args, pulsar_check=jname_list, cal_id=cal_obs)
     os.remove(known_pulsar_file)
     return
@@ -80,11 +86,10 @@ if __name__ == "__main__":
     Based on a script written by Mengyao Xue.
     """)
     parser.add_argument('-o','--obsid',type=str,help='The observation ID of the fits file to be searched')
-    group_beamform = parser.add_argument_group('group_beamform','Beamforming Options')
-    group_beamform.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
-    group_beamform.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
-    group_beamform.add_argument("--pulsar_file", default=None, help="Location of a file containting the pointings to be processed. Made using grid.py.")
-    group_beamform.add_argument("-a", "--all", action="store_true",  help="Uses all of the combined data available. If the options isn't used it'll only use the start and stops times that are recommened by find_pulsar_in_obs.py.")
+    parser.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
+    parser.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
+    parser.add_argument("-a", "--all", action="store_true",  help="Uses all of the combined data available. If the options isn't used it'll only use the start and stops times that are recommened by find_pulsar_in_obs.py.")
+    parser.add_argument("-v", "--vdif", action="store_true",  help="Create vdif files for all pulsars. Default is to only create vdif files for pulsar with a period shorter than 50 ms.")
     args=parser.parse_args()
     
     #option parsing
@@ -100,5 +105,5 @@ if __name__ == "__main__":
         args.DI_dir = "/group/mwaops/vcs/{0}/cal/{1}/rts/".format(args.obsid, args.cal_obs)
         print "No DI_dir given so assuming {0} is the directory".format(args.DI_dir)
     
-    beamform_and_fold(args.obsid, args.DI_dir, args.all, args.cal_obs, args)
+    beamform_and_fold(args.obsid, args.DI_dir, args.all, args.cal_obs, args, vdif_check=args.vdif)
 

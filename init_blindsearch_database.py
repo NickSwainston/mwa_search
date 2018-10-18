@@ -121,7 +121,6 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT,
-                DMFileInt INT,
                 FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
@@ -137,7 +136,6 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT,
-                DMFileInt INT,
                 FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
@@ -153,7 +151,6 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT,
-                DMFileInt INT,
                 FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
@@ -161,7 +158,6 @@ with con:
     cur.execute("""CREATE TABLE Candidates(
                 Rownum integer primary key autoincrement, 
                 BSID INT, 
-                DMFileInt INT, 
                 FileLocation TEXT, 
                 RESULT TEXT, 
                 FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum))""")

@@ -149,96 +149,10 @@ def database_script_check(table, bs_id, attempt_num):
     return error_data            
 
 
-def database_mass_process(table, bs_id, dm_file_int=None):
-    
-    
-    #goes through jobs of that id and command type and counts errors and processing time
-    query = "SELECT * FROM " + table + " WHERE BSID=" + str(bs_id)
-    if dm_file_int is not None:
-        query += " AND DMFileInt=" + str(dm_file_int)
-    print query
-    con = lite.connect(DB_FILE, timeout = TIMEOUT)
-    con.row_factory = dict_factory
-    cur = con.cursor()
-    cur.execute(query)
-    rows = cur.fetchall()
-    
-    processing = 0.
-    errors = 0
-    
-    for row in rows:
-        #print row['Ended'], row['Started']
-        #processsing += 
-        if not row['Ended'] == None and not row['Started'] == None:
-            end_s = date_to_sec(row['Ended'])
-            start_s = date_to_sec(row['Started'])
-            if (end_s - start_s) >= 0.:
-                processing += (end_s - start_s)
-            else:
-                print "error in processing calc"
-                print "row num: " + str(row)
-                print "End secs: " + str(end_s)
-                print "Strat secs: " + str(start_s)
-                exit()
-                
-        if str(row['Exit']).endswith("\n"):
-            if not str(row['Exit'])[:-1] == "0":
-                    errors += 1
-        else:
-            if not row['Exit'] == 0:
-                    errors += 1
-    #TODO make a better fix
-    try:
-        nodes = float(rows[0]['CPUs'])
-    except:
-        nodes =1
-    print "Processing time (s): " + str(processing)
-    print "Errors number: " + str(errors)
-    print "Nodes: " + str(nodes)
-    print "Database Table name: " + str(table)
-    
-    query = "SELECT * FROM Blindsearch WHERE Rownum='" + str(bs_id) + "'"
-    cur.execute(query)
-    row = cur.fetchall()
-    
-    
-    tot_proc = row[0]['TotalProc']
-    if tot_proc:
-        new_total_proc = tot_proc + processing/3600.*nodes
-    else:
-        new_total_proc = 0. + processing/3600.*nodes
-        
-    tot_er = row[0]['TotalErrors']
-    if tot_er:
-        new_total_er = tot_er + errors
-    else:
-        new_total_er = 0 + errors
-        
-    job_proc = row[0][table+'Proc']
-    if job_proc:
-        new_job_proc = job_proc + processing/3600.*nodes
-    else:
-        new_job_proc = 0. + processing/3600.*nodes
-    
-    job_er = row[0][table+'Errors']
-    if job_er:
-        new_job_er = job_er + errors
-    else:
-        new_job_er = 0 + errors
-        
-    print new_total_proc, new_total_er, new_job_proc, new_job_er
-    
-    
-    con = lite.connect(DB_FILE, timeout = TIMEOUT)
-    with con:
-        cur = con.cursor()
-        cur.execute("UPDATE Blindsearch SET TotalProc=?, TotalErrors=?, "+table+"Proc=?, "+table+"Errors=? WHERE Rownum=?", (str(new_total_proc)[:9], new_total_er, str(new_job_proc)[:9], new_job_er, bs_id))
- 
-
-
-
 def database_mass_update(table,file_location):
-    print table
+    """
+    Takes a csv from short period jobs and makes a large amount of updates
+    """
     with open(file_location,'r') as csv:
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = lite.Row
@@ -247,17 +161,19 @@ def database_mass_update(table,file_location):
             lines = csv.readlines()
             for i,l in enumerate(lines):
                 l = l.split(',')
-                if i % 2 == 0:
+                if len(l) > 2:
+                    started = l[0]
                     rownum = l[2]
                     attempt_num = l[3]
                     bs_id = l[1]
                 
-                    cur.execute("UPDATE "+table+\
-                            " SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
-                            (l[0], rownum, attempt_num, bs_id))
                 else:
                     end_time = l[0]
                     errorcode = l[1]
+
+                    cur.execute("UPDATE "+table+\
+                            " SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
+                            (started, rownum, attempt_num, bs_id))
 
                     cur.execute("SELECT * FROM "+table+" WHERE Rownum=? AND AttemptNum=? AND BSID=?",
                                 (rownum, attempt_num, bs_id))
@@ -297,8 +213,21 @@ def database_mass_update(table,file_location):
                         cur.execute("UPDATE Blindsearch SET TotalErrors=?, "+table+\
                                     "Errors=? WHERE Rownum=?",
                                     (tot_er,job_er, bs_id))
-
     return
+
+
+def database_wrap_up(rownum, cand_val, end_time=datetime.datetime.now()):
+    """
+    Updated the cand numbers
+    """
+    cand_total, cand_over_noise, cand_detect = opts.cand_val.split()
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    with con:
+        cur = con.cursor()
+        cur.execute("UPDATE Blindsearch SET Ended=?, CandTotal=?, CandOverNoise=?, CandDect=? WHERE Rownum=?",
+                    (end_time, cand_total, cand_over_noise, cand_detect, rownum))
+    return
+
 
 def database_beamform_find(table,file_location, bs_id):
     time_now = datetime.datetime.now()
@@ -353,8 +282,9 @@ if __name__ == '__main__':
     blindsearch_database.py -m vs -c <presto command>
     
     """)
-    parser.add_option("-m", "--mode", dest="mode", metavar="mode", default='v', type=str, help='This script has three modes: "vc" used to view the database commands, "vs" used to view the database scripts, "vp" view processing and error statistics, "s" used to start a record of a script on the database, "e" used to record the end time and error code of a script on the database, "p" counts errors and processing time for one id and "b" is a special mode for receiving the total time of beamforming jobs. Default mode is v')
+    parser.add_option("-m", "--mode", dest="mode", metavar="mode", default='vc', type=str, help='This script has three modes: "vc" used to view the database commands, "vs" used to view the database scripts, "vp" view processing and error statistics, "s" used to start a record of a script on the database, "e" used to record the end time and error code of a script on the database, "p" counts errors and processing time for one id and "b" is a special mode for receiving the total time of beamforming jobs. Default mode is v')
     parser.add_option("-f", "--file_location", dest="file_location", metavar="file_location", type=str, help='mass update csv file location.')
+    parser.add_option("--cand_val", dest="cand_val", metavar="cand_val", type=str, help='Cand values in the form of "<total> <overnoise> <detected>. Cand detected not yet implimented.')
     
     view_options = OptionGroup(parser, 'View Options')
     view_options.add_option("--recent", dest="recent", metavar="HOURS", default=None, type=float, help="print only jobs started in the last N hours")
@@ -372,7 +302,7 @@ if __name__ == '__main__':
     start_options.add_option("-d", "--dm_file_int", dest="dm_file_int", default=None, type=int, help="The DM file reference eg 1 = DM_002_004.")
     
     end_options = OptionGroup(parser, 'Script End Options')
-    end_options.add_option("--errorcode", dest="errorcode", default=None, type=str, help="Error code of scripts.")
+    end_options.add_option("--errorcode", dest="errorcode", default=None, type=int, help="Error code of scripts.")
     end_options.add_option("-r", "--rownum", dest="rownum", default=None, type=str, help="The row number of the script.")
     parser.add_option_group(view_options)
     parser.add_option_group(start_options)
@@ -400,8 +330,8 @@ if __name__ == '__main__':
         vcs_row = database_script_start(table, opts.bs_id, opts.rownum, opts.attempt_num)
     elif opts.mode == "e":
         database_script_stop(table, opts.bs_id, opts.rownum, opts.attempt_num, opts.errorcode)
-    elif opts.mode == 'p':
-        database_mass_process(table, opts.bs_id, dm_file_int=opts.dm_file_int)
+    elif opts.mode == 'w':
+        database_wrap_up(opts.bs_id, opts.cand_val)
     elif opts.mode == 'm':
         if opts.file_location:
             file_loc = opts.file_location
@@ -457,13 +387,17 @@ if __name__ == '__main__':
         
         
         if opts.mode == "vc": 
-            print 'Row# ','Obsid       ','Pointing                      ','Started               ','Comments'
+            print 'Row# ','Obsid       ','Pointing                      ','Started               ','Ended                 ','Comments'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
                 print '%-5s' % (str(row['Rownum']).rjust(4)),
                 print '%-12s' % (row['Obsid']),
                 print '%-30s' % (row['Pointing']),
                 print '%-22s' % (row['Started'][:19]),
+                if row['Ended'] is None:
+                    print '%-22s' % (row['Ended']), 
+                else:
+                    print '%-22s' % (row['Ended'][:19]),
                 print row['Comment']
                 #print "\n"
                 
@@ -509,6 +443,6 @@ if __name__ == '__main__':
                     print '-----|------------|------|---------------|------|-----------|------|----------|------|------------|------|-----------|------|'
 
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
-                print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc'],row['TotalErrors'],row['BeamformProc'],row['BeamformErrors'],row['PrepdataProc'],row['PrepdataErrors'],row['FFTProc'],row['FFTErrors'],row['AccelProc'],row['AccelErrors'],row['FoldProc'],row['FoldErrors'])
+                print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc']/3600.,row['TotalErrors'],row['BeamformProc']/3600.,row['BeamformErrors'],row['PrepdataProc']/3600.,row['PrepdataErrors'],row['FFTProc']/3600.,row['FFTErrors'],row['AccelProc']/3600.,row['AccelErrors'],row['FoldProc']/3600.,row['FoldErrors'])
                 
        
