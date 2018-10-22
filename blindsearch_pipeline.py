@@ -3,6 +3,7 @@
 import subprocess
 import os
 import argparse
+import textwrap
 import urllib
 import urllib2
 import json
@@ -1032,36 +1033,83 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
 
 
 if __name__ == "__main__":
+    mode_options = ["b", "r", "p", "t", "a", "f", "c", "w"]
+    default_work_dir = os.environ['BLINDSEARCH_WORK_DIR']
     parser = argparse.ArgumentParser(description="""
-    Does a blind search for a pulsar in MWA data using the galaxy supercomputer.
-    """)
-    parser.add_argument('-o','--observation',type=str,help='The observation ID of the fits file to be searched')
-    parser.add_argument('-p','--pointing',type=str,help='The pointing of the fits file to be searched')
-    parser.add_argument('-m','--mode',type=str,help='There are three modes or steps to complete the pipeline. ["b","p","s","a","f"]. The inital mode is to beamform "b" everything using process_vcs.py. The first mode is to prepdata "p" which dedisperses the the fits files into .dat files. The second mode sort and search "s" which sorts the files it folders and performs a fft. The third mode is accel search "a" runs an accel search on them. The final mode is fold "f" which folds all possible candidates so they can be visaully inspected.', default="b")
-    parser.add_argument('-i','--incoh', action="store_true", help='Uses the incoh fits file location')
-    parser.add_argument('-w','--work_dir',type=str,help='Work directory. Default: /group/mwaops/nswainston/blindsearch/')
-    parser.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
-    parser.add_argument('-r','--bsd_row_num',type=int,help='Database row reference number for keeping track of the scripts.')
-    parser.add_argument('-d','--dm_file_int',type=int,help='Used by the program to keep track DM file being used to stagger the jobs and not send off over 9000 jobs.')
-    parser.add_argument('--dm_max',type=int, default = 4,help='DM max searched. Default 4')
-    parser.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
-    parser.add_argument('--pbs',action="store_true",help="PBS queue mode.")
-    parser.add_argument('-t','--test',action="store_true",help="Uses the scripts that haven't been put in bin/ yet to test them before building.")
-    parser.add_argument("--attempt", type=int, help="The number of attempts that a script has mase. Default is 1.", default=1)
-    parser.add_argument("--table", type=str, help="The table name for the blindsearch database to check, similar to the commands used.")
-    parser.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
-    parser.add_argument("--relaunch", action="store_true",  help="Relaunch check that doesn't send off pipeline again.")
+    Used to automate mass beamforming of MWA data and pulsar searches using the galaxy supercomputer (Ozstar coming soon).
+    """, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-o','--observation',type=str,help='The observation ID of the MWA observation')
+    parser.add_argument('--pbs',action="store_true",help="PBS queue mode. Not fully implemented yet.")
+    parser.add_argument('-t','--test',action="store_true",help="Uses the scripts that haven't been put in bin/ yet. Used to test them before using the build script")
 
-    group_beamform = parser.add_argument_group('group_beamform','Beamforming Options')
-    group_beamform.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
-    group_beamform.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
-    group_beamform.add_argument("--pulsar_file", default=None, help="Location of a file containting the pointings to be processed. Made using grid.py.")
-    group_beamform.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
-    group_beamform.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
-    group_beamform.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
-    group_beamform.add_argument("--fits_dir", default=None, help="The directory containing the fits files")
+    pointing_options = parser.add_argument_group('Pointing Options')
+    pointing_options.add_argument('-p','--pointing',type=str,help='The pointing of the fits file to be searched. The RA and Dec seperated by _ in the format HH:MM:SS_+DD:MM:SS.')
+    pointing_options.add_argument("--pulsar_file", default=None, help='Location of a file containting the pointings to be processed. Each line contains a pointing with an RA and Dec seperated by a space in the format "HH:MM:SS +DD:MM:SS". Can be made using grid.py.')
+    pointing_options.add_argument('-i','--incoh', action="store_true", help='Uses the incoh fits file location') 
+    
+    beamform_options = parser.add_argument_group('Beamforming Options')
+    beamform_options.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
+    beamform_options.add_argument('-O','--cal_obs', type=int, help="Observation ID of calibrator you want to process. Used to work out default DI_dir directory.")
+    beamform_options.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
+    beamform_options.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
+    beamform_options.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
+    beamform_options.add_argument("--fits_dir", default=None, help="The directory containing the fits files. Only required if the fits files aren't in the standard vcs location.")
+
+    blindsearch_options = parser.add_argument_group('Blindsearch Options')     
+    blindsearch_options.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
+    blindsearch_options.add_argument("--relaunch", action="store_true",  help="Will rerun the blindsearch pipeline even when no beamforming is required. Otherwise assumes that if the beamforming is complete then a search has already been performed..")
+    blindsearch_options.add_argument("--attempt", type=int, help="The number of attempts that a script has made. Default is 1.", default=1)
+    blindsearch_options.add_argument('-w','--work_dir',type=str,help='Work directory. Default: {}'.format(default_work_dir))
+    blindsearch_options.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
+    blindsearch_options.add_argument('-r','--bsd_row_num',type=int,help='Database row reference number for keeping track of the scripts.')
+    blindsearch_options.add_argument('--dm_max',type=int, default = 250,help='DM max searched. Default 250')
+    blindsearch_options.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
+    blindsearch_options.add_argument('-m','--mode',type=str,help=textwrap.dedent('''Modes used by the pipeline do indicate which step in the process it is up to. The default is beamform mode.
+"b" Checks the fits file directory to decide if all files are there or if splicing or beamforming is required.
+"r" Uses PRESTO's rfifind to create a RFI mask.
+"p" Uses PRESTO's prepdata to dedisperses the the fits files into .dat files. 
+"t" Uses PRESTO's realfft to do a fast fourier transform on the .dat files.
+"a" Uses PRESTO's accelsearch to search for periodic signals.
+"f" Uses PRESTO's prepfold to fold on any significant candidates.
+"w" Wraps up the pipeline by moving significant pulse profiles to it's own file for inspection.
+"c" Check script that runs after each step to make sure no jobs have failed.'''), default="b")
+    blindsearch_options.add_argument("--table", type=str, help="The table name for the blindsearch database to check, similar to the commands used.")
     args=parser.parse_args()
+   
+    #argument parsing
+    if args.mode not in mode_options:
+        print "Unrecognised mode [{0}]. Please use a mode from {1}. Exiting".format(args.mode, mode_options)
+        quit()
 
+    if not args.observation:
+        print "No observation id given. Please supply one using -o. Exiting"
+        quit()
+
+    if not (args.pointing or args.pulsar_file or args.incoh):
+        print "No pointing option supplied. Please either use -p or --pulsar_file. Exiting"
+        quit()
+
+    
+    if args.mode == "b":
+        if not args.DI_dir:
+            if args.cal_obs:
+                args.DI_dir = "/group/mwaops/vcs/{0}/cal/{1}/rts/".format(args.obsid, args.cal_obs)
+                print "No DI_dir given so assuming {0} is the directory".format(args.DI_dir)
+            else:
+                print "Please use either --DI_dir to explicitly or use --cal_obs if the DI Jones matrices are in the standard directory. Exiting."
+                quit()
+        #check begining end times
+        if args.all and (args.begin or args.end):
+            print "Please specify EITHER (-b,-e) OR -a"
+            quit()
+        elif args.all:
+            args.begin, args.end = meta.obs_max_min(args.observation)
+        elif not (args.all or args.begin or args.end):
+            print "Please specify the beginning and end times using (-b,-e) OR -a. Exiting"
+            quit()
+
+    
+    #Default parsing
     obsid = args.observation
     if args.incoh:
         pointing = 'incoh'
@@ -1069,7 +1117,6 @@ if __name__ == "__main__":
     else:
         pointing = args.pointing
 
-    #Default parsing
     if args.work_dir:
         work_dir = args.work_dir
     elif args.pbs:
@@ -1097,14 +1144,7 @@ if __name__ == "__main__":
         n_omp_threads = 8
     else:
         n_omp_threads = 20
-
-    #check begining end times
-    if args.all and (args.begin or args.end):
-        print "Please specify EITHER (-b,-e) OR -a"
-        quit()
-    elif args.all:
-        args.begin, args.end = meta.obs_max_min(args.observation)
-        
+   
 
     #Base launch of this code (everything except mode and dmfile int)
     relaunch_script = "blindsearch_pipeline.py -o " + str(obsid) + " -w " + work_dir 
@@ -1176,7 +1216,7 @@ if __name__ == "__main__":
                  work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
                  n_omp_threads=n_omp_threads, fits_dir=args.fits_dir, dm_max=args.dm_max, 
                  script_test=args.test)
-    elif args.mode == "s":
+    elif args.mode == "t":
         sort_fft(obsid, pointing, sub_dir, relaunch_script,
                  work_dir=work_dir, pbs=args.pbs, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
                  n_omp_threads=n_omp_threads, dm_max=args.dm_max, script_test=args.test)
