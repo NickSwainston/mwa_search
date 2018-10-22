@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os, datetime, logging
 import sqlite3 as lite
+import glob
 from optparse import OptionParser #NB zeus does not have argparse!
 
 DB_FILE = os.environ['CMD_BS_DB_DEF_FILE']
@@ -50,6 +51,8 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
     Will create all the rows in the database for each job
     """
     #works out the table from the command
+    if command == 'make_beam':
+        table = 'Beamform'
     if command == 'prepsubband':
         table = 'Prepdata'
     elif command == 'realfft':
@@ -58,15 +61,26 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
         table = 'Accel'
     elif command == 'prepfold':
         table = 'Fold'
-    print "attempt: "+str(attempt)
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
         row_id_list = []
         for ai, arguments in enumerate(arguments_list):
             cur.execute("INSERT OR IGNORE INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)", (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
-            row_id_list.append(cur.lastrowid)
-    return row_id_list
+        #update expected jobs
+        if attempt == 1:
+            cur.execute("UPDATE Blindsearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list)),bs_id))
+        else:
+            cur.execute("SELECT "+table+"JobExp FROM Blindsearch WHERE Rownum=?", (str(bs_id)))
+            table_job_exp = cur.fetchone()[0]
+            cur.execute("UPDATE Blindsearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list) + table_job_exp),bs_id))
+        cur.execute("SELECT TotalJobExp FROM Blindsearch WHERE Rownum={}".format(bs_id))
+        blind_job_exp = cur.fetchone()[0]
+        if blind_job_exp is None:
+            blind_job_exp = 0
+        cur.execute("UPDATE Blindsearch SET TotalJobExp=? WHERE Rownum=?", (str(len(arguments_list) + blind_job_exp),bs_id))
+
+    return 
 
 
 def database_script_start(table, bs_id, rownum, attempt_num, time=datetime.datetime.now()):
@@ -229,36 +243,49 @@ def database_wrap_up(rownum, cand_val, end_time=datetime.datetime.now()):
     return
 
 
-def database_beamform_find(table,file_location, bs_id):
+def database_beamform_find(file_location, bs_id):
     time_now = datetime.datetime.now()
     #go through the batch file for info
-    with open("{0}.batch".format(file_location),'r') as batch:
-        lines = batch.readlines()
-        for l in lines:
-            if l.startswith("export OMP_NUM_THREADS"):
-                nodes = l.split("=")[1]
-            if l.startswith("srun"):
-                command = "make_beam" #I don't think these needs to be more robust
-                arguments = l.split(command)[1]
-    with open("{0}.out".format(file_location),'r') as output:
-        lines = output.readlines()
-        find_check = False
-        for l in lines:
-            if "**FINISHED BEAMFORMING**" in l:
-                find_check = True
-                time_seconds = float(l[1:10])
-                #So this may be inaccurate because now isn't when the job 
-                #finished but should get the right delta
-                time_then = datetime.datetime.now() - datetime.timedelta(seconds=time_seconds)
-                row_num = database_script_start(table, bs_id, command, arguments, nodes, None,\
-                                                time_then)
-                database_script_stop(table, row_num, 0, end_time=time_now)
-        if not find_check:
-            #no finshed string so likely it failed:
-            #TODO make this more robust to work out how long it ran before it died
-            row_num = database_script_start(table, bs_id, command, arguments, nodes, None, time_now)
-            database_script_stop(table, bs_id, rownum, attempt_num, end_time=time_now)
- 
+    arguments_list = []
+    batch_file_list = glob.glob('{0}*.batch'.format(file_location))
+    for batch_file in batch_file_list:
+        with open(batch_file,'r') as batch:
+            lines = batch.readlines()
+            for l in lines:
+                if l.startswith("#SBATCH --time="):
+                    time_str = l.split("=")[1]
+                    hr, mi, se = time_str.split(":")
+                    expe_proc_time = float(se) + float(mi)*60. + float(hr)*3600.
+                if l.startswith("export OMP_NUM_THREADS"):
+                    nodes = l.split("=")[1]
+                if l.startswith("srun"):
+                    command = "make_beam" #I don't think these needs to be more robust
+                    arguments_list.append(l.split(command)[1])
+    #set up the beamform database
+    database_script_list(bs_id, command, arguments_list, nodes, expe_proc_time)
+
+    #go through the output files for start stop times
+    out_file_list = glob.glob('{0}*.out'.format(file_location))
+    for rownum, out_file in enumerate(out_file_list):
+        with open(out_file,'r') as output:
+            lines = output.readlines()
+            find_check = False
+            for l in lines:
+                if "**FINISHED BEAMFORMING**" in l:
+                    find_check = True
+                    time_seconds = float(l[1:10])
+                    #So this may be inaccurate because now isn't when the job 
+                    #finished but should get the right delta
+                    time_then = datetime.datetime.now() - datetime.timedelta(seconds=time_seconds)
+                    #TODO add attemp number options
+                    database_script_start('Beamform', bs_id, rownum, 1, time=time_then)
+                    database_script_stop('Beamform', bs_id, rownum, 1, 0, end_time=time_now)
+            if not find_check:
+                #no finshed string so likely it failed:
+                #TODO make this more robust to work out how long it ran before it died
+                database_script_start('Beamform', bs_id, rownum, 1, time=time_now)
+                database_script_stop('Beamform', bs_id, rownum, 1, 1, end_time=time_now)
+    return 
 
 def date_to_sec(string):
     #just an approximation (doesn't even use year and month
@@ -320,7 +347,7 @@ if __name__ == '__main__':
         table = 'Accel'
     elif opts.command == 'prepfold':
         table = 'Fold'
-    elif opts.mode == 'vc' or opts.mode == 'vp':
+    elif opts.mode == 'vc' or opts.mode == 'vp' or opts.mode == 'vprog':
         table = 'Blindsearch'
     elif opts.mode == 'b' or opts.command == 'make_beam':
         table = 'Beamform'
@@ -339,7 +366,7 @@ if __name__ == '__main__':
             file_loc = opts.command + '_temp_database_file.csv'
         database_mass_update(table,file_loc)
     elif opts.mode == 'b':
-        database_beamform_find(table,opts.file_location, opts.bs_id)
+        database_beamform_find(opts.file_location, opts.bs_id)
     elif opts.mode.startswith("v"):
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory
@@ -352,10 +379,10 @@ if __name__ == '__main__':
         if opts.recent is not None:
             query += ''' WHERE Started > "%s"''' % str(datetime.datetime.now() - relativedelta(hours=opts.recent))
             logging.debug(query)
-        if opts.bs_id and not opts.mode == 'vp':
-            query += " WHERE BSID='" + str(opts.bs_id) + "'"
-        elif opts.mode == 'vp' and opts.bs_id:
-            query += " WHERE Rownum='" + str(opts.bs_id) + "'"
+        if opts.bs_id and opts.mode == 'vs':
+            query += " WHERE BSID=" + str(opts.bs_id)
+        elif opts.bs_id and not opts.mode == 'vs':
+            query += " WHERE Rownum=" + str(opts.bs_id) 
             
         if opts.dm_file_int:
             query += " WHERE DMFileInt='" + str(opts.dm_file_int) + "'"
@@ -372,7 +399,7 @@ if __name__ == '__main__':
             else:
                 query += " WHERE Exit='" + str(opts.errorcode) + "'"
 
-
+        print query
         with con:
             cur = con.cursor()
             cur.execute(query)
@@ -403,20 +430,12 @@ if __name__ == '__main__':
                 
                 
         if opts.mode == "vs":
-            if (table =='RFI' or table == 'Prepdata'):
-                print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments'
-            else:
-                print 'BDIS ','Row# ','DM_i ','Atm#','Started               ','Ended                 ','Err_Code','ProcTime ','ExpecTime ','CPUs','Arguments'
+            print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
                 print '%-5s' % (row['BSID']),
                 print '%-5s' % (str(row['Rownum']).rjust(4)),
-                if not (table =='RFI' or table == 'Prepdata' or table == 'Beamform'):
-                    if str(row['DMFileInt']).endswith('\n'):
-                        print '%-5s' % str((row['DMFileInt']))[:-1],
-                    else:
-                        print '%-5s' % (row['DMFileInt']),
                 print '%-5s' % (row['AttemptNum']),
                 if row['Started'] is None:
                     print '%-22s' % (row['Started']),
@@ -444,5 +463,19 @@ if __name__ == '__main__':
 
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
                 print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc']/3600.,row['TotalErrors'],row['BeamformProc']/3600.,row['BeamformErrors'],row['PrepdataProc']/3600.,row['PrepdataErrors'],row['FFTProc']/3600.,row['FFTErrors'],row['AccelProc']/3600.,row['AccelErrors'],row['FoldProc']/3600.,row['FoldErrors'])
-                
+        
+        if opts.mode == "vprog":
+            for ri, row in enumerate(rows):
+                if ri%20 == 0:
+                    print 'Row# |  Total Jobs |Beamform Jobs|Prepdata Jobs|'+\
+                            '   FFT Jobs  |  Accel Jobs |  Fold Jobs  |'
+                    print '-----|-------------|-------------|-------------|'+\
+                            '-------------|-------------|-------------|'
+                print '{:4d} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} |'.\
+                        format(row['Rownum'], row['TotalJobComp'], str(row['TotalJobExp']),
+                               row['BeamformJobComp'], str(row['BeamformJobExp']),
+                               row['PrepdataJobComp'], str(row['PrepdataJobExp']),
+                               row['FFTJobComp'], str(row['FFTJobExp']),
+                               row['AccelJobComp'], str(row['AccelJobExp']),
+                               row['FoldJobComp'], str(row['FoldJobExp']) )
        
