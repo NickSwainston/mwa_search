@@ -64,11 +64,10 @@ def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'workq'):
     return
 
 
-def job_setup_headers(pbs, script_test=False, n_omp_threads=1):
+def job_setup_headers(pbs=False, script_test=False, n_omp_threads=1):
     batch_line ='ncpus={0}\n'.format(n_omp_threads) +\
                 'export OMP_NUM_THREADS={0}\n'.format(n_omp_threads) +\
                 'export CMD_VCS_DB_FILE=/astro/mwaops/vcs/.vcs.db\n' + \
-                'export CMD_BS_DB_FILE=/group/mwaops/nswainston/blindsearch/.blindsearch_database.db\n' +\
                 'export CMD_BS_DB_DEF_FILE=/group/mwaops/nswainston/blindsearch/.blindsearch_database_defensive.db\n'
     if script_test:
         batch_line += """export PATH="$( echo $PATH| tr : '\n' |grep -v /group/mwaops/nswainston/code/blindsearch_scripts/bin/ | paste -s -d: )"\n
@@ -78,7 +77,7 @@ def job_setup_headers(pbs, script_test=False, n_omp_threads=1):
     return batch_line
 
 
-def add_database_function(pbs, script_test=False, n_omp_threads=1):
+def add_database_function(pbs=False, script_test=False, n_omp_threads=1):
     batch_line ='function run\n' +\
                 '{\n' +\
                 '    # run command and add relevant data to the job database\n' +\
@@ -98,11 +97,11 @@ def add_database_function(pbs, script_test=False, n_omp_threads=1):
                 '    fi\n' +\
                 '}\n' +\
                 '\n'
-    batch_line += job_setup_headers(pbs, script_test=script_test, n_omp_threads=n_omp_threads)
+    batch_line += job_setup_headers(pbs=pbs, script_test=script_test, n_omp_threads=n_omp_threads)
     return batch_line
 
 
-def add_temp_database_function(pbs, job_num, attempt_num, n_omp_threads=1, threads=True):
+def add_temp_database_function(job_num, attempt_num, pbs=False, n_omp_threads=1, threads=True):
     #srun removed because all quick jobs are run with a single srun command within a bash script
 
     batch_line ='function run\n' +\
@@ -127,17 +126,18 @@ def add_temp_database_function(pbs, job_num, attempt_num, n_omp_threads=1, threa
     return batch_line
     
     
-def numout_calc(fits_dir):
+def numout_calc(fits_dir, obsid):
     """
     Find the number of time samples of all fits files in the given directory
     """
-    dirlist = glob.glob("{0}/1*fits".format(fits_dir))
+    dirlist = glob.glob("{0}/{1}_00*.fits".format(fits_dir, obsid))
     numout = 0 
     for d in dirlist:
         submit_line = 'readfile ' + d
+        print submit_line
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
         for line in submit_cmd.stdout:
-            if line.startswith('        Time per file (sec) ='):
+            if 'Time per file (sec) =' in line:
                 subint = int(line.split('=')[-1])
         numout += int(subint * 1e4)
 
@@ -221,7 +221,7 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
 
 
 def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
-                            bsd_row_num=None, pulsar_check=None, 
+                            bsd_row_num=None, pulsar_check=None, pbs=False, 
                             relaunch_script="echo no relaunch", cal_id=None):
     """
     Launches a script that splices the beamformed files and, where approriate,
@@ -230,14 +230,13 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     #create a split wrapper dependancy
     splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obsid, pointing)
     commands = []
+    commands.append(job_setup_headers(pbs=pbs))
     if bsd_row_num is not None:
         #record beamforming processing time
-        for f in glob.glob("{0}/batch/mb_{1}*.batch".format(product_dir,pointing)):
-            commands.append('blindsearch_database.py -m b -b ' +str(bsd_row_num) + " -f " + str(f)[:-6])
-        commands.append('blindsearch_database.py -c make_beam -m p -b ' +str(bsd_row_num))
+        commands.append('blindsearch_database.py -m b -b {0} -f mb_{1}'.format(bsd_row_num, pointing))
     if pulsar_check is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
-        commands.append('#splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
+        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
         commands.append('cd {0}'.format(pointing_dir))
         for pulsar in pulsar_check:
             commands.append("prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256 {2}/1*fits".\
@@ -333,7 +332,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             exists_remote_check = exists_remote("hsm",
                     "/project/mwaops/nswainston/yogesh_low_DM_candiate/{0}_pointing.tar.gz".\
                     format(pointing))
-            if exists_remote_check:
+            if exists_remote_check and len(pointing_list) > 1:
                 print "The pointing is in cold storage so assumed it is analysised so not reprocessing"
                 continue
         except:
@@ -359,21 +358,19 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             
             if missing_file_check:
                 #check if we have any unspliced files
-                print fits_dir+"*_"+obsid+"_*.fits"
-                if glob.glob(fits_dir+"*_"+obsid+"_*.fits"):
-                    #there are some so going to resubmit jobs
-                    beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
-                    channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
-                    
-                    job_id_list =[]
-                    unspliced_check = False
-                    for ch in channels:
-                        for ne in range(1,expected_file_num):
-                            if not glob.glob(fits_dir+"*_"+obsid+"_ch*"+str(ch)+"_00*"+\
-                                    str(ne)+".fits"):
-                                unspliced_check = True
-                                if ch not in missing_chan_list:
-                                    missing_chan_list.append(ch)
+                #there are some so going to resubmit jobs
+                beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
+                channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+                
+                job_id_list =[]
+                unspliced_check = False
+                for ch in channels:
+                    for ne in range(1,expected_file_num):
+                        if not glob.glob(fits_dir+"*_"+obsid+"_ch*"+str(ch)+"_00*"+\
+                                str(ne)+".fits"):
+                            unspliced_check = True
+                            if ch not in missing_chan_list:
+                                missing_chan_list.append(ch)
         else:
             path_check = True
 
@@ -397,13 +394,13 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
 
 
-
         #work out what needs to be done
         if path_check or len(missing_chan_list) == 24:
             # do beamforming
             print "No pointing directory or files for {0} starting beamforming".format(pointing)
             process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,
-                                fits_dir, relaunch_script, vdif=vdif,
+                                fits_dir, relaunch_script, vdif=vdif, 
+                                pulsar_check=pulsar_check,
                                 search=search, bsd_row_num=bsd_row_num)
         elif missing_file_check and not unspliced_check:
             #splice files
@@ -481,7 +478,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
         fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
            
     #Calculates -numout for prepsubbands
-    numout = numout_calc(fits_dir)
+    numout = numout_calc(fits_dir, obsid)
     
     
     rfi_batch = str(bsd_row_num) + '_rfi_{0}'.format(obsid)
@@ -587,7 +584,7 @@ def prepdata(obsid, pointing, relaunch_script,
     #dm_list = [['1.500','3.500','0.01','4','200','1']]
           
     #Calculates -numout for prepsubbands
-    numout = numout_calc(fits_dir)
+    numout = numout_calc(fits_dir, obsid)
 
     #Calculates the expected procesing time (conservative) in seconds
     #the number of DMs doesn't appear to greatly affect the processing time so not included in the calculation
@@ -606,26 +603,24 @@ def prepdata(obsid, pointing, relaunch_script,
             commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) +\
                             " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
                             " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            '1*.fits')
+                            str(obsid) + '_00*.fits')
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
         commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) +\
                             " -dmstep " + str(dm_line[2]) + " -numdms "+str(steps)+\
                             " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            '1*.fits')
+                            str(obsid) + '_00*.fits')
     #Puts all the expected jobs on the databse
     #blindsearcg_database_script_id_list
     bdsil = blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
                          n_omp_threads, expe_proc_time)
-    print bdsil
-        
     #Submit a bunch some prepsubbands to create our .dat files
     job_id_list = []
     for cli, prepdata_command in enumerate(commands_list):
         DM_batch = str(bsd_row_num) + '_DM_' + str(cli)
         commands = []
-        commands.append(add_database_function(pbs, script_test=script_test,
+        commands.append(add_database_function(pbs=pbs, script_test=script_test,
                                               n_omp_threads=n_omp_threads))
         commands.append('cd {0}{1}/{2}'.format(work_dir, pointing, obsid))
         commands.append('run prepsubband "{0}" "{1}" "{2}" "1"'.format(prepdata_command,
@@ -648,14 +643,14 @@ def prepdata(obsid, pointing, relaunch_script,
     
     DM_depend_batch = str(bsd_row_num) + '_dep_prepsubbands'
     commands = []
-    commands.append(add_database_function(pbs, script_test=script_test, n_omp_threads=n_omp_threads))
+    commands.append(add_database_function(pbs=pbs, script_test=script_test, n_omp_threads=n_omp_threads))
     commands.append("{0} -m c --table Prepdata -r {1} --attempt 1".\
                     format(relaunch_script, bsd_row_num))
     
     submit_slurm(DM_depend_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
-                 submit=True, depend=job_id_str[1:])
+                 submit=True, depend=job_id_str[1:], module_list=["presto/master"])
     return
                 
 #-------------------------------------------------------------------------------------------------------------
@@ -765,7 +760,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
             
     print fits_dir   
     #calcs sn_min for candidates
-    numout = numout_calc(fits_dir)
+    numout = numout_calc(fits_dir, obsid)
     from math import sqrt,log
     sn_min = ( sqrt(log(numout)) - 0.88 ) / 0.47
     
@@ -850,7 +845,7 @@ def wrap_up(obsid, pointing,
     #TODO make this the clean up script            
     wrap_batch = str(bsd_row_num) + "_wrap_up" 
     commands = []
-    commands.append(add_database_function(pbs, script_test=script_test, n_omp_threads=n_omp_threads))
+    commands.append(add_database_function(pbs=pbs, script_test=script_test, n_omp_threads=n_omp_threads))
     commands.append('cd {0}{1}/{2}/presto_profiles'.format(work_dir, pointing, obsid))
     commands.append('echo "Searching for a profile with a sigma greater than 3"')
     commands.append('count=0')
@@ -872,7 +867,7 @@ def wrap_up(obsid, pointing,
     submit_slurm(wrap_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
-                 submit=True)
+                 submit=True, module_list=["presto/master"])
     return
 
 
@@ -939,10 +934,10 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         bash_commands = []
 
         if bash_job:
-            commands.append(job_setup_headers(pbs, script_test=script_test,
+            commands.append(job_setup_headers(pbs=pbs, script_test=script_test,
                                               n_omp_threads=n_omp_threads))
         else:
-            commands.append(add_database_function(pbs, script_test=script_test, 
+            commands.append(add_database_function(pbs=pbs, script_test=script_test, 
                                                   n_omp_threads=n_omp_threads))
         commands.append('cd {0}{1}/{2}/{3}'.format(work_dir, pointing, obsid, subdir))
         for ei, er in enumerate(error_data):
@@ -956,8 +951,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                     #if it's a bash job make a file for it to run
                     with open('{0}{1}/{2}/{3}.bash'.format(work_dir,
                               pointing,obsid,check_batch), "w") as srun_bash:
-                        srun_bash.write(add_temp_database_function(pbs, check_job_num, 
-                                        attempt_num + 1, n_omp_threads=n_omp_threads,
+                        srun_bash.write(add_temp_database_function(check_job_num, 
+                                        attempt_num + 1, pbs=pbs, n_omp_threads=n_omp_threads,
                                         threads=threads))
                         for sc in bash_commands:
                             srun_bash.write("{}\n".format(sc))
@@ -982,10 +977,10 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 bash_commands = []
 
                 if bash_job:
-                    commands.append(job_setup_headers(pbs, script_test=script_test,
+                    commands.append(job_setup_headers(pbs=pbs, script_test=script_test,
                                                       n_omp_threads=n_omp_threads))
                 else:
-                    commands.append(add_database_function(pbs, script_test=script_test, 
+                    commands.append(add_database_function(pbs=pbs, script_test=script_test, 
                                                           n_omp_threads=n_omp_threads))
                 commands.append('cd {0}{1}/{2}/{3}'.format(work_dir, pointing, obsid, subdir))
         
@@ -995,8 +990,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 #if it's a bash job make a file for it to run
                 with open('{0}{1}/{2}/{3}.bash'.format(work_dir,
                           pointing,obsid,check_batch), "w") as srun_bash:
-                    srun_bash.write(add_temp_database_function(pbs, check_job_num,
-                                    attempt_num + 1, n_omp_threads=n_omp_threads,
+                    srun_bash.write(add_temp_database_function(check_job_num,
+                                    attempt_num + 1, pbs=pbs, n_omp_threads=n_omp_threads,
                                     threads=threads))
                     for sc in bash_commands:
                         srun_bash.write("{}\n".format(sc))
@@ -1021,7 +1016,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         check_depend_batch = '{0}_dep_{1}_check_a{2}'.format(bsd_row_num,
                                 presto_command, attempt_num +1)
         commands = []
-        commands.append(job_setup_headers(pbs, script_test=script_test,
+        commands.append(job_setup_headers(pbs=pbs, script_test=script_test,
                                                n_omp_threads=n_omp_threads))
         commands.append("{0} --attempt {1} -m c --table {2}".format(relaunch_script,
                                               attempt_num + 1, table))
@@ -1029,7 +1024,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         submit_slurm(check_depend_batch, commands,
                      batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                      slurm_kwargs={"time": "20:00", "partition": "workq"},
-                     submit=True, depend=job_id_list, depend_type="afterany")
+                     submit=True, depend=job_id_list, depend_type="afterany", 
+                     module_list=["presto/master"])
     return
 
 

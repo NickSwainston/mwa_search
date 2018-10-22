@@ -58,7 +58,7 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
                 cmd = ['psrcat', '-c', 'p0', jname]
                 output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0]
                 period = output.split('\n')[4].split()[1] #in s
-                print PSRJ, raj, decj, period
+                print PSRJ, raj, decj, period, psrbeg, psrend
                 fits_dir = '/group/mwaops/vcs/{0}/pointings/{1}_{2}/'.format(obsid, raj, decj)
                 if PSRJ[-1] == 'A':
                     #Got to find all the pulsar J names with other letters
@@ -72,7 +72,7 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
                     if float(period) < .05 :
                         vdif_check = True
                 blind_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
-                                    DI_dir, vdif=vdif_check
+                                    DI_dir, vdif=vdif_check,
                                     args=args, pulsar_check=jname_list, cal_id=cal_obs)
     os.remove(known_pulsar_file)
     return
