@@ -1,2 +1,3 @@
 #!/usr/bin/env bash
-cp /group/mwaops/nswainston/code/blindsearch_scripts/*py /group/mwaops/nswainston/code/blindsearch_scripts/bin/
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+cp ${DIR}/*py ${DIR}/bin/

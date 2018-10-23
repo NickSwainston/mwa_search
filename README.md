@@ -8,11 +8,12 @@ The PRESTO software suite and the vcs\_tools repoistory must be installed on you
 
 ### Installing
 
-To install you must put the bin directory into your PATH and PYTHONPATH. So add these to your .bashrc replacing \<your\_install_directory\> with the directory that you clone the repository
+To install you must put the bin directory into your PATH and PYTHONPATH. So add these to your .bashrc replacing \<your\_install_directory\> with the directory that you clone the repository and \<search\_directory\> with where you would like your search pipeline products.
 
 ```
 export PATH=${PATH}:<your_install_directory>/blindsearch_scripts/bin/
 export PYTHONPATH=${PYTHONPATH}:<your_install_directory>/blindsearch_scripts/bin/
+export BLINDSEARCH_WORK_DIR=<search_directory>
 ```
 
 If you would like to use my blindsearch database add:
@@ -34,3 +35,6 @@ touch <where_you_would_like_you_database>.db
 python init_blindsearch_database.py
 ```
 
+### Common Use Cases
+
+#TODO
