@@ -248,11 +248,15 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
             commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{2}.pfd.bestprof --ppps {0}_PSR_{2}.pfd.ps'.format(obsid, cal_id, pulsar))
             #move files for mengyao to analyse
             pol_census_dir = '/group/mwaops/xuemy/pol_census/{0}/pointing/{1}'.format(obsid,pulsar)
-            commands.append('mv /group/mwaops/vcs/{0}/pointings/{1} {2}'.format(obsid,
-                                                                pointing, pol_census_dir))
-            if not os.path.exists('/group/mwaops/xuemy/pol_census/{0}/pfold/'.format(obsid)):
-               os.makedirs('/group/mwaops/xuemy/pol_census/{0}/pfold/'.format(obsid))
-            commands.append('mv {0}/{1}_PSR_{2}.pfd* /group/mwaops/xuemy/pol_census/{1}/pfold/'.format(pol_census_dir, obsid, pulsar))
+            pol_census_fold_dir = '/group/mwaops/xuemy/pol_census/{0}/pfold/'.format(obsid)
+            vcs_pointing_dir = '/group/mwaops/vcs/{0}/pointings/{1}'.format(obsid, pointing)
+            if not os.path.exists(pol_census_fold_dir):
+               os.makedirs(pol_census_fold_dir)
+            commands.append('mv {0}/{1}_PSR_{2}.pfd* {3}'.format(vcs_pointing_dir, 
+                                            obsid, pulsar, pol_census_fold_dir))
+            if not os.path.exists('/group/mwaops/xuemy/pol_census/{0}/pointing'.format(obsid)):
+                os.makedirs('/group/mwaops/xuemy/pol_census/{0}/pointing'.format(obsid))
+            commands.append('mv {0} {1}'.format(vcs_pointing_dir, pol_census_dir))
             commands.append('echo "{0}_PSR_{1}.pfd.png is over 5"'.format(obsid,pulsar))
         commands.append("fi")
     elif os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obsid)):
