@@ -22,7 +22,7 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
 
     #wrapping for find_pulsar_in_obs.py
     names_ra_dec = np.array(fpio.grab_source_alog())
-    fpio.find_sources_in_obs([obsid], names_ra_dec)
+    fpio.find_sources_in_obs([obsid], names_ra_dec, dt=100)
     known_pulsar_file = "{0}_analytic_beam.txt".format(obsid)
 
     if all_check:
