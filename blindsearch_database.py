@@ -262,8 +262,8 @@ def database_beamform_find(file_location, bs_id):
                     command = "make_beam" #I don't think these needs to be more robust
                     arguments_list.append(l.split(command)[1])
     #set up the beamform database
-    database_script_list(bs_id, command, arguments_list, nodes, expe_proc_time)
-
+    database_script_list(bs_id, 'make_beam', arguments_list, nodes, expe_proc_time)
+    
     #go through the output files for start stop times
     out_file_list = glob.glob('{0}*.out'.format(file_location))
     for rownum, out_file in enumerate(out_file_list):

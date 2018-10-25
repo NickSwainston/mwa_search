@@ -385,7 +385,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
         
         if (not path_check and not missing_file_check and not unspliced_check):
             #everything is ok so start blind search database recording
-            if search and ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
+            if search and bsd_row_num_input is None and\
+               ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
                 #start the blind search database recording
                 bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                           pointing, "{0} {1}".format(code_comment,n))
@@ -393,7 +394,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 bsd_row_num = bsd_row_num_input
         else:
             #need to fix some files then search
-            if search:
+            if search and bsd_row_num_input is None:
                 #start the blind search database recording
                 bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                           pointing, "{0} {1}".format(code_comment,n))
