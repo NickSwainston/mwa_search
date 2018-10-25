@@ -42,14 +42,17 @@ def exists_remote(host, path):
     raise Exception('SSH failed')
 
 
-def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'workq'):
+def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'workq', grep=None):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
     if pbs:
-        submit_line = 'qstat -u $USER | wc -l'
+        submit_line = 'qstat -u $USER '
     else:
-        submit_line = 'squeue -u $USER --partition={0}| wc -l'.format(queue)
+        submit_line = 'squeue -u $USER --partition={0}'.format(queue)
+    if grep is not None:
+        submit_line += ' | grep "{0}"'.format(grep)
+    submit_line += ' | wc -l'
     submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
     q_num = ""
     for line in submit_cmd.stdout:
@@ -382,7 +385,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
         
         if (not path_check and not missing_file_check and not unspliced_check):
             #everything is ok so start blind search database recording
-            if search and relaunch:
+            if search and ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
                 #start the blind search database recording
                 bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
                                           pointing, "{0} {1}".format(code_comment,n))
@@ -450,7 +453,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
         else:
             #All files there so the check has succeded and going to start the pipeline
-            if search and relaunch:
+            if search and ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
                 print "Fits files available, begining pipeline for {0}".format(pointing)
                 sub_dir = pointing + "/" + obsid + "/"
                 if len(pointing_list) > 1:
