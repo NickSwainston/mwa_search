@@ -621,7 +621,7 @@ def prepdata(obsid, pointing, relaunch_script,
                             str(obsid) + '_00*.fits')
     #Puts all the expected jobs on the databse
     #blindsearcg_database_script_id_list
-    bdsil = blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
+    blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
                          n_omp_threads, expe_proc_time)
     #Submit a bunch some prepsubbands to create our .dat files
     job_id_list = []
@@ -808,15 +808,14 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
     
     #cand_list = [accel_file_name, cand_num, SN, DM, period(ms)]
     print "Sending off jobs with fft sn greater than {}".format(sn_min)
+    expe_proc_time = 5400.
+    commands_list = []
     if len(cand_list) > 0:
         #sort by DM
         from operator import itemgetter
         cand_list.sort(key=itemgetter(3))
         print "Number of cands in this file: " + str(len(cand_list))
         
-        expe_proc_time = 5400.
-        commands_list = []
-
         for i,c in enumerate(cand_list):
             accel_file_name, cand_num, SN, cand_DM, period = c
             #through some stuffing around sort the fold into 100 folds per job
@@ -827,9 +826,9 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
            
             #the fold options that uses .fits files which is slower but more accurate
             commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5}*.fits'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, fits_dir, bsd_row_num))
-        blindsearch_database.database_script_list(bsd_row_num, 'prepfold', commands_list,
+    blindsearch_database.database_script_list(bsd_row_num, 'prepfold', commands_list,
                                                   n_omp_threads, expe_proc_time)
-
+    if len(cand_list) > 0:
         #Send off jobs
         error_check('Fold', 0, bsd_row_num, relaunch_script,
                     obsid, pointing, pbs=pbs, script_test=script_test,
@@ -928,7 +927,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
             command_list = []
             for er in error_data:
                command_list.append(er[1])
-            bdsil = blindsearch_database.database_script_list(bsd_row_num, presto_command,
+            blindsearch_database.database_script_list(bsd_row_num, presto_command,
                       command_list, n_omp_threads, error_data[0][2], attempt=(attempt_num+1)) 
 
         #submit jobs
