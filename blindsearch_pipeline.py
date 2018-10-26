@@ -889,7 +889,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
     """
     subdir = ''
     if table == 'Prepdata':
-        next_mode = 's'
+        next_mode = 't'
         cur_mode = 'p'
     elif table == 'FFT':
         n_omp_threads = 1 #fft is not parrelised
@@ -897,7 +897,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         threads = False
         bash_job = True
         next_mode = 'a'
-        cur_mode = 's'
+        cur_mode = 't'
     elif table == 'Accel':
         threads = True
         bash_job = True
