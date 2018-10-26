@@ -2,7 +2,8 @@
 import os, datetime, logging
 import sqlite3 as lite
 import glob
-from optparse import OptionParser #NB zeus does not have argparse!
+import argparse
+import textwrap
 
 DB_FILE = os.environ['CMD_BS_DB_DEF_FILE']
 #how many seconds the sqlite database conection takes until it times out
@@ -234,7 +235,7 @@ def database_wrap_up(rownum, cand_val, end_time=datetime.datetime.now()):
     """
     Updated the cand numbers
     """
-    cand_total, cand_over_noise, cand_detect = opts.cand_val.split()
+    cand_total, cand_over_noise, cand_detect = args.cand_val.split()
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
@@ -300,104 +301,106 @@ def date_to_sec(string):
     
 
 if __name__ == '__main__':
-    from optparse import OptionParser, OptionGroup, SUPPRESS_HELP
-    parser = OptionParser(usage = "usage: %prog <options>" +
-    """
-    Script used to manage the VCS database by recording the scripts process_vcs.py uses and prints the database.
-    Common commands:
-    blindsearch_database.py -m vc
-    blindsearch_database.py -m vs -c <presto command>
+    mode_options = ['vc', 'vs', 'vp', 'vprog', 's', 'e', 'm', 'b', 'w']
+    parser = argparse.ArgumentParser(description="""A script used to keep track of the scripts run by the blindsearch database.""", 
+                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("-m", "--mode", dest="mode", metavar="mode", default='vc', type=str, help=textwrap.dedent('''This script has the following modes {}. All modes starting with v are used for viewing parts of the database, other options will be used by the pipeline not the user.
+"vc" used to view the commands that start the pipeline.
+"vs" used to view the the individual scripts processing time and arguments.
+"vp" used to view the total processing for each command type in walltime hours.
+"vprog" used to view the progress of how many scripts have finished.
+"s" used to record the start time of a script.
+"e" used to record the end time, error code and processing time of a script.
+"m" used to record the start and stop time using an csv file. Used for quick commands.
+"b" is a special mode for receiving the total time of beamforming jobs. 
+"w" is a wrap up for the pipeline that records candidate statistics and the end time.
+Default mode is vc'''.format(mode_options)))
     
-    """)
-    parser.add_option("-m", "--mode", dest="mode", metavar="mode", default='vc', type=str, help='This script has three modes: "vc" used to view the database commands, "vs" used to view the database scripts, "vp" view processing and error statistics, "s" used to start a record of a script on the database, "e" used to record the end time and error code of a script on the database, "p" counts errors and processing time for one id and "b" is a special mode for receiving the total time of beamforming jobs. Default mode is v')
-    parser.add_option("-f", "--file_location", dest="file_location", metavar="file_location", type=str, help='mass update csv file location.')
-    parser.add_option("--cand_val", dest="cand_val", metavar="cand_val", type=str, help='Cand values in the form of "<total> <overnoise> <detected>. Cand detected not yet implimented.')
+    view_options = parser.add_argument_group('View Options')
+    view_options.add_argument("--recent", default=None, type=float, help="Print only jobs started in the last N hours")
+    view_options.add_argument("--number", default=20, type=int, help="Number of jobs to print. Default is 20")
+    view_options.add_argument("--all", action="store_true", help="Print all lines of the database")
+    view_options.add_argument("-s", "--startrow", default=0, type=int, help="Ignore any row earlier than this one")
+    view_options.add_argument("-e", "--endrow", default=None, type=int, help="Ignore any row later than this one")
+    view_options.add_argument("-o", "--obsid", default=None, type=str, help="Only prints one obsid's jobs.")
     
-    view_options = OptionGroup(parser, 'View Options')
-    view_options.add_option("--recent", dest="recent", metavar="HOURS", default=None, type=float, help="print only jobs started in the last N hours")
-    view_options.add_option("--number", dest="n", metavar="N", default=20, type=int, help="number of jobs to print [default=%default]")
-    view_options.add_option("--all", dest="all", action="store_true", help="print all lines of the database")
-    view_options.add_option("-s", "--startrow", dest="startrow", default=0, type=int, help="ignore any row earlier than this one")
-    view_options.add_option("-e", "--endrow", dest="endrow", default=None, type=int, help="ignore any row later than this one")
-    view_options.add_option("-o", "--obsid", dest="obsid", default=None, type=str, help="Only prints one obsid's jobs.")
+    start_options = parser.add_argument_group('Script Start Options')
+    start_options.add_argument("-b", "--bs_id", default=None, type=str, help="The row number of the blindsearch command of the databse")
+    start_options.add_argument("-c", "--command", default=None, type=str, help="The script name being run. eg volt_download.py.")
+    start_options.add_argument("-a", "--attempt_num", default=None, type=str, help="The attempt number of a script.")
+    start_options.add_argument("-n", "--nodes", default=1, type=int, help="The number of cpu nodes used.")
     
-    start_options = OptionGroup(parser, 'Script Start Options')
-    start_options.add_option("-b", "--bs_id", dest="bs_id", default=None, type=str, help="The row number of the blindsearch command of the databse")
-    start_options.add_option("-c", "--command", dest="command", default=None, type=str, help="The script name being run. eg volt_download.py.")
-    start_options.add_option("-a", "--attempt_num", dest="attempt_num", default=None, type=str, help="The attempt number of a script.")
-    start_options.add_option("-n", "--nodes", dest="nodes", default=None, type=int, help="The number of cpu nodes used.")
-    start_options.add_option("-d", "--dm_file_int", dest="dm_file_int", default=None, type=int, help="The DM file reference eg 1 = DM_002_004.")
-    
-    end_options = OptionGroup(parser, 'Script End Options')
-    end_options.add_option("--errorcode", dest="errorcode", default=None, type=int, help="Error code of scripts.")
-    end_options.add_option("-r", "--rownum", dest="rownum", default=None, type=str, help="The row number of the script.")
-    parser.add_option_group(view_options)
-    parser.add_option_group(start_options)
-    parser.add_option_group(end_options)
-    (opts, args) = parser.parse_args()
-    
+    end_options = parser.add_argument_group('Script End Options')
+    end_options.add_argument("--errorcode", dest="errorcode", default=None, type=int, help="Error code of scripts.")
+    end_options.add_argument("-r", "--rownum", dest="rownum", default=None, type=str, help="The row number of the script.")
+    end_options.add_argument("-f", "--file_location", type=str, help='Mode "m" csv file location.')
+    end_options.add_argument("--cand_val", type=str, help='Cand values in the form of "<total> <overnoise> <detected>. Cand detected not yet implimented.')
+    args=parser.parse_args()
+
+    #argument parsing 
+    if args.mode not in mode_options:
+        print "Unrecognised mode, please use one of the following {}. Exiting".format(mode_options)
+        quit()
+
     #work out table
-    if opts.command == 'rfifind':
+    if args.command == 'rfifind':
         table = 'RFI'
-    elif opts.command == 'prepsubband':
+    elif args.command == 'prepsubband':
         table = 'Prepdata'
-    elif opts.command == 'realfft':
+    elif args.command == 'realfft':
         table = 'FFT'
-    elif opts.command == 'accelsearch':
+    elif args.command == 'accelsearch':
         table = 'Accel'
-    elif opts.command == 'prepfold':
+    elif args.command == 'prepfold':
         table = 'Fold'
-    elif opts.mode == 'vc' or opts.mode == 'vp' or opts.mode == 'vprog':
+    elif args.mode == 'vc' or args.mode == 'vp' or args.mode == 'vprog':
         table = 'Blindsearch'
-    elif opts.mode == 'b' or opts.command == 'make_beam':
+    elif args.mode == 'b' or args.command == 'make_beam':
         table = 'Beamform'
         
     
-    if opts.mode == "s":
-        vcs_row = database_script_start(table, opts.bs_id, opts.rownum, opts.attempt_num)
-    elif opts.mode == "e":
-        database_script_stop(table, opts.bs_id, opts.rownum, opts.attempt_num, opts.errorcode)
-    elif opts.mode == 'w':
-        database_wrap_up(opts.bs_id, opts.cand_val)
-    elif opts.mode == 'm':
-        if opts.file_location:
-            file_loc = opts.file_location
+    if args.mode == "s":
+        vcs_row = database_script_start(table, args.bs_id, args.rownum, args.attempt_num)
+    elif args.mode == "e":
+        database_script_stop(table, args.bs_id, args.rownum, args.attempt_num, args.errorcode)
+    elif args.mode == 'w':
+        database_wrap_up(args.bs_id, args.cand_val)
+    elif args.mode == 'm':
+        if args.file_location:
+            file_loc = args.file_location
         else:
-            file_loc = opts.command + '_temp_database_file.csv'
+            file_loc = args.command + '_temp_database_file.csv'
         database_mass_update(table,file_loc)
-    elif opts.mode == 'b':
-        database_beamform_find(opts.file_location, opts.bs_id)
-    elif opts.mode.startswith("v"):
+    elif args.mode == 'b':
+        database_beamform_find(args.file_location, args.bs_id)
+    elif args.mode.startswith("v"):
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory
     
         query = "SELECT * FROM " + table
 
-        if opts.obsid:
-            query += " WHERE Arguments LIKE '%" + str(opts.obsid) + "%'"
+        if args.obsid:
+            query += " WHERE Arguments LIKE '%" + str(args.obsid) + "%'"
 
-        if opts.recent is not None:
-            query += ''' WHERE Started > "%s"''' % str(datetime.datetime.now() - relativedelta(hours=opts.recent))
+        if args.recent is not None:
+            query += ''' WHERE Started > "%s"''' % str(datetime.datetime.now() - relativedelta(hours=args.recent))
             logging.debug(query)
-        if opts.bs_id and opts.mode == 'vs':
-            query += " WHERE BSID=" + str(opts.bs_id)
-        elif opts.bs_id and not opts.mode == 'vs':
-            query += " WHERE Rownum=" + str(opts.bs_id) 
+        if args.bs_id and args.mode == 'vs':
+            query += " WHERE BSID=" + str(args.bs_id)
+        elif args.bs_id and not args.mode == 'vs':
+            query += " WHERE Rownum=" + str(args.bs_id) 
             
-        if opts.dm_file_int:
-            query += " WHERE DMFileInt='" + str(opts.dm_file_int) + "'"
-        
-        if opts.attempt_num:
+        if args.attempt_num:
             if "WHERE" in query:
-                query += " AND AttemptNum='" + str(opts.attempt_num) + "'"
+                query += " AND AttemptNum='" + str(args.attempt_num) + "'"
             else:
-                query += " WHERE AttemptNum='" + str(opts.attempt_num) + "'"
+                query += " WHERE AttemptNum='" + str(args.attempt_num) + "'"
         
-        if opts.errorcode:
+        if args.errorcode:
             if "WHERE" in query:
-                query += " AND Exit='" + str(opts.errorcode) + "'"
+                query += " AND Exit='" + str(args.errorcode) + "'"
             else:
-                query += " WHERE Exit='" + str(opts.errorcode) + "'"
+                query += " WHERE Exit='" + str(args.errorcode) + "'"
 
         print query
         with con:
@@ -405,15 +408,15 @@ if __name__ == '__main__':
             cur.execute(query)
             rows = cur.fetchall()
 
-        if opts.startrow and opts.endrow is None:
-            rows = rows[opts.startrow:]
-        elif opts.endrow is not None:
-            rows = rows[opts.startrow:opts.endrow+1]
-        elif not (opts.all or opts.recent):
-            rows = rows[-opts.n:]
+        if args.startrow and args.endrow is None:
+            rows = rows[args.startrow:]
+        elif args.endrow is not None:
+            rows = rows[args.startrow:args.endrow+1]
+        elif not (args.all or args.recent):
+            rows = rows[-args.number:]
         
         
-        if opts.mode == "vc": 
+        if args.mode == "vc": 
             print 'Row# ','Obsid       ','Pointing                      ','Started               ','Ended                 ','Comments'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
@@ -429,7 +432,7 @@ if __name__ == '__main__':
                 #print "\n"
                 
                 
-        if opts.mode == "vs":
+        if args.mode == "vs":
             print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments'
             print '--------------------------------------------------------------------------------------------------'
             for row in rows:
@@ -455,7 +458,7 @@ if __name__ == '__main__':
                 print row['Arguments'],
                 print "\n"
                 
-        if opts.mode == "vp":
+        if args.mode == "vp":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
                     print 'Row# | Total proc | err# | Beamform proc | err# | Prep proc | err# | FFT proc | err# | Accel proc | err# | Fold proc | err# |'
@@ -464,7 +467,7 @@ if __name__ == '__main__':
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
                 print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc']/3600.,row['TotalErrors'],row['BeamformProc']/3600.,row['BeamformErrors'],row['PrepdataProc']/3600.,row['PrepdataErrors'],row['FFTProc']/3600.,row['FFTErrors'],row['AccelProc']/3600.,row['AccelErrors'],row['FoldProc']/3600.,row['FoldErrors'])
         
-        if opts.mode == "vprog":
+        if args.mode == "vprog":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
                     print 'Row# |  Total Jobs |Beamform Jobs|Prepdata Jobs|'+\
