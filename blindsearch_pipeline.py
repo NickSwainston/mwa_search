@@ -139,7 +139,6 @@ def numout_calc(fits_dir, obsid):
     numout = 0 
     for d in dirlist:
         submit_line = 'readfile ' + d
-        print submit_line
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
         for line in submit_cmd.stdout:
             if 'Time per file (sec) =' in line:
@@ -1102,7 +1101,8 @@ if __name__ == "__main__":
     if args.mode == "b":
         if not args.DI_dir:
             if args.cal_obs:
-                args.DI_dir = "/group/mwaops/vcs/{0}/cal/{1}/rts/".format(args.obsid, args.cal_obs)
+                args.DI_dir = "/group/mwaops/vcs/{0}/cal/{1}/rts/".format(args.observation,
+                                                                          args.cal_obs)
                 print "No DI_dir given so assuming {0} is the directory".format(args.DI_dir)
             else:
                 print "Please use either --DI_dir to explicitly or use --cal_obs if the DI Jones matrices are in the standard directory. Exiting."
