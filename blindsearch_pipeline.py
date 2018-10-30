@@ -74,8 +74,9 @@ def job_setup_headers(pbs=False, script_test=False, n_omp_threads=1):
                 'export CMD_VCS_DB_FILE=/astro/mwaops/vcs/.vcs.db\n' + \
                 'export CMD_BS_DB_DEF_FILE=/group/mwaops/nswainston/blindsearch/.blindsearch_database_defensive.db\n'
     if script_test:
-        batch_line += """export PATH="$( echo $PATH| tr : '\n' |grep -v /group/mwaops/nswainston/code/blindsearch_scripts/bin/ | paste -s -d: )"\n
-                      export PATH=${PATH}:/group/mwaops/nswainston/code/blindsearch_scripts/\n"""
+        #batch_line += """export PATH="$( echo $PATH| tr : '\n' |grep -v /group/mwaops/nswainston/code/blindsearch_scripts/bin/ | paste -s -d: )"\n
+        #              export PATH=${PATH}:/group/mwaops/nswainston/code/blindsearch_scripts/\n"""
+        batch_line +='module list'
     else:
         batch_line += 'export PATH=${PATH}:/group/mwaops/nswainston/code/blindsearch_scripts/bin/\n'
     return batch_line
