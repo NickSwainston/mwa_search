@@ -42,7 +42,7 @@ def exists_remote(host, path):
     raise Exception('SSH failed')
 
 
-def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'workq', grep=None):
+def your_slurm_queue_check(max_queue = 80, pbs = False, queue = 'gpuq', grep=None):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
@@ -288,7 +288,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
         batch_dir = product_dir
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir,
-                 slurm_kwargs={"time": "5:00:00", "partition": "workq"},
+                 slurm_kwargs={"time": "5:00:00", "partition": "gpuq", "nice":"90"},
                  submit=True, depend=job_id_list, depend_type='afterany',
                  module_list=["presto/master"])
     return
@@ -478,7 +478,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 #-------------------------------------------------------------------------------------------------------------
 def rfifind(obsid, pointing, sub_dir, relaunch_script,
             work_dir='/group/mwaops/nswainston/blindsearch/', pbs=False,
-            n_omp_threads = 20,
+            n_omp_threads = 8,
             bsd_row_num=None, pulsar=None,
             fits_dir=None, script_test=False):
 
@@ -510,7 +510,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
 
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "2:00:00", "partition": "workq"},#4 hours
+                 slurm_kwargs={"time": "2:00:00", "partition": "gpuq", "nice":"90"},#4 hours
                  submit=True, module_list=["presto/master"])
  
     return
@@ -520,7 +520,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
 def prepdata(obsid, pointing, relaunch_script,
              work_dir='/group/mwaops/nswainston/blindsearch/', pbs=False,
              bsd_row_num=None, pulsar=None,
-             n_omp_threads = 20,
+             n_omp_threads = 8,
              fits_dir=None, dm_max=4, script_test=False):
    
     if fits_dir == None:
@@ -623,6 +623,8 @@ def prepdata(obsid, pointing, relaunch_script,
     #blindsearcg_database_script_id_list
     blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
                          n_omp_threads, expe_proc_time)
+    
+    #TODO put this in check
     #Submit a bunch some prepsubbands to create our .dat files
     job_id_list = []
     for cli, prepdata_command in enumerate(commands_list):
@@ -636,7 +638,7 @@ def prepdata(obsid, pointing, relaunch_script,
         
         job_id = submit_slurm(DM_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                         slurm_kwargs={"time": "3:00:00", "partition": "workq"},#4 hours
+                         slurm_kwargs={"time": "3:00:00", "partition": "gpuq", "nice":"90"},#4 hours
                          submit=True, module_list=["presto/master"])
         job_id_list.append(job_id)    
         
@@ -657,7 +659,7 @@ def prepdata(obsid, pointing, relaunch_script,
     
     submit_slurm(DM_depend_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "20:00", "partition": "workq"},#4 hours
+                 slurm_kwargs={"time": "20:00", "partition": "gpuq", "nice":"90"},#4 hours
                  submit=True, depend=job_id_str[1:], module_list=["presto/master"])
     return
                 
@@ -665,7 +667,7 @@ def prepdata(obsid, pointing, relaunch_script,
 def sort_fft(obsid, pointing, sub_dir, relaunch_script,
              work_dir='/group/mwaops/nswainston/blindsearch/', pbs=False,
              bsd_row_num=None, pulsar=None,
-             fits_dir=None, dm_max=4, n_omp_threads = 20, script_test=False):
+             fits_dir=None, dm_max=4, n_omp_threads=8, script_test=False):
 
     if fits_dir == None:
         fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
@@ -713,7 +715,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
 #-------------------------------------------------------------------------------------------------------------
 def accel(obsid, pointing, sub_dir, relaunch_script,
           work_dir='/group/mwaops/nswainston/blindsearch/', pbs=False,
-          bsd_row_num=None, pulsar=None, n_omp_threads=20, script_test=False):
+          bsd_row_num=None, pulsar=None, n_omp_threads=8, script_test=False):
     
     DIR=work_dir + sub_dir
     os.chdir(DIR)
@@ -740,7 +742,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
 #-------------------------------------------------------------------------------------------------------------
 def fold(obsid, pointing, sub_dir, relaunch_script,
          work_dir='/group/mwaops/nswainston/blindsearch/', pbs=False,
-         bsd_row_num=None, pulsar=None, fits_dir=None, n_omp_threads = 20, script_test=False):
+         bsd_row_num=None, pulsar=None, fits_dir=None, n_omp_threads=8, script_test=False):
     from math import floor
     
     if fits_dir == None:
@@ -873,14 +875,14 @@ def wrap_up(obsid, pointing,
     commands.append('blindsearch_database.py -m w -b ' +str(bsd_row_num) +' --cand_val "$total $over_sn 0"')
     submit_slurm(wrap_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "2:50:00", "partition": "workq"},#4 hours
+                 slurm_kwargs={"time": "2:50:00", "partition": "gpuq", "nice":"90"},#4 hours
                  submit=True, module_list=["presto/master"])
     return
 
 
 def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 obsid, pointing, pbs=False, script_test=False, bash_job=False,
-                work_dir='/group/mwaops/nswainston/blindsearch/', n_omp_threads=1,
+                work_dir='/group/mwaops/nswainston/blindsearch/', n_omp_threads=8,
                 total_job_time=18000.):
     """
     Checkes the database for any jobs that didn't complete (or didn't even start)
@@ -972,7 +974,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 
                 job_id = submit_slurm(check_batch, commands,
                          batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                         slurm_kwargs={"time": total_job_time_str , "partition": "workq"},#4 hours
+                         slurm_kwargs={"time": total_job_time_str , "partition": "gpuq", "nice":"90"},#4 hours
                          submit=True, module_list=["presto/master"])
                 job_id_list.append(job_id)
                 
@@ -1012,7 +1014,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
             print "submit at end {}".format(check_batch)
             job_id = submit_slurm(check_batch, commands,
                      batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                     slurm_kwargs={"time": total_job_time_str , "partition": "workq"},#4 hours
+                     slurm_kwargs={"time": total_job_time_str , "partition": "gpuq", "nice":"90"},#4 hours
                      submit=True, module_list=["presto/master"])
             job_id_list.append(job_id)
         
@@ -1030,7 +1032,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         
         submit_slurm(check_depend_batch, commands,
                      batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                     slurm_kwargs={"time": "20:00", "partition": "workq"},
+                     slurm_kwargs={"time": "20:00", "partition": "gpuq", "nice":"90"},
                      submit=True, depend=job_id_list, depend_type="afterany", 
                      module_list=["presto/master"])
     return
@@ -1146,10 +1148,8 @@ if __name__ == "__main__":
             else:
                 fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,args.pointing)
 
-    if args.pbs:
-        n_omp_threads = 8
-    else:
-        n_omp_threads = 20
+    #core control
+    n_omp_threads = 8
    
 
     #Base launch of this code (everything except mode and dmfile int)
