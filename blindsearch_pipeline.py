@@ -1042,7 +1042,10 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
 
 if __name__ == "__main__":
     mode_options = ["b", "r", "p", "t", "a", "f", "c", "w"]
-    default_work_dir = os.environ['BLINDSEARCH_WORK_DIR']
+    if 'BLINDSEARCH_WORK_DIR' in os.environ:
+        default_work_dir = os.environ['BLINDSEARCH_WORK_DIR']
+    else:
+        default_work_dir = None
     parser = argparse.ArgumentParser(description="""
     Used to automate mass beamforming of MWA data and pulsar searches using the galaxy supercomputer (Ozstar coming soon).
     """, formatter_class=argparse.RawTextHelpFormatter)
