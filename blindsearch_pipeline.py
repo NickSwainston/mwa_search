@@ -345,7 +345,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 continue
         except:
             print "Connection to cold storage failed. Will only check for local files"
-
+            pass
         
         #Go through some file checks (true is something is missing)
         path_check = False
