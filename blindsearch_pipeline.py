@@ -233,11 +233,16 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     """
     #create a split wrapper dependancy
     splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(obsid, pointing)
+    if os.path.exists("{0}/batch/".format(product_dir)):
+        batch_dir = "{0}/batch/".format(product_dir)
+    else:
+        batch_dir = product_dir
+
     commands = []
     commands.append(job_setup_headers(pbs=pbs))
     if bsd_row_num is not None:
         #record beamforming processing time
-        commands.append('blindsearch_database.py -m b -b {0} -f mb_{1}'.format(bsd_row_num, pointing))
+        commands.append('blindsearch_database.py -m b -b {0} -f {1}mb_{2}'.format(bsd_row_num, batch_dir, pointing))
     if pulsar_check is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
@@ -282,10 +287,6 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     else:
         commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
     
-    if os.path.exists("{0}/batch/".format(product_dir)):
-        batch_dir = "{0}/batch/".format(product_dir)
-    else:
-        batch_dir = product_dir
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir,
                  slurm_kwargs={"time": "5:00:00", "partition": "gpuq", "nice":"90"},
