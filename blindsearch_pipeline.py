@@ -19,11 +19,7 @@ import mwa_metadb_utils as meta
 import process_vcs as pvcs
 from job_submit import submit_slurm
 
-#python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1133329792 -p 19:45:14.00_-31:47:36.00
-#python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1150234552 -p 00:34:08.8703_-07:21:53.409 --pulsar J0034-0721
-#python /group/mwaops/nswainston/bin/blindsearch_pipeline.py -o 1099414416 -p 05:34:32_+22:00:53 --pulsar J0534+2200
-
-#1163853320 47 tuck data
+DB_FILE_LOC = os.environ['CMD_BS_DB_DEF_FILE']
 
 def chunks(l, n):
     # For item i in a range that is a length of l,
@@ -72,7 +68,7 @@ def job_setup_headers(pbs=False, script_test=False, n_omp_threads=1):
     batch_line ='ncpus={0}\n'.format(n_omp_threads) +\
                 'export OMP_NUM_THREADS={0}\n'.format(n_omp_threads) +\
                 'export CMD_VCS_DB_FILE=/astro/mwaops/vcs/.vcs.db\n' + \
-                'export CMD_BS_DB_DEF_FILE=/group/mwaops/nswainston/blindsearch/.blindsearch_database_defensive.db\n'
+                'export CMD_BS_DB_DEF_FILE={}\n'.format(DB_FILE_LOC)
     if script_test:
         #batch_line += """export PATH="$( echo $PATH| tr : '\n' |grep -v /group/mwaops/nswainston/code/blindsearch_scripts/bin/ | paste -s -d: )"\n
         #              export PATH=${PATH}:/group/mwaops/nswainston/code/blindsearch_scripts/\n"""

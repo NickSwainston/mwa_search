@@ -16,13 +16,7 @@ export PYTHONPATH=${PYTHONPATH}:<your_install_directory>/blindsearch_scripts/bin
 export BLINDSEARCH_WORK_DIR=<search_directory>
 ```
 
-If you would like to use my blindsearch database add:
-
-```
-export CMD_BS_DB_DEF_FILE=/group/mwaops/nswainston/blindsearch/.blindsearch_database_defensive.db
-```
-
-If you would like your own databse:
+If you would like your own database (required for pulsar searches):
 
 ```
 export CMD_BS_DB_DEF_FILE=<where_you_would_like_you_database>.db
