@@ -1128,6 +1128,8 @@ if __name__ == "__main__":
 
     if args.work_dir:
         work_dir = args.work_dir
+    elif default_work_dir is not None:
+        work_dir = default_work_dir
     elif args.pbs:
         work_dir = '/home/nswainst/blindsearch/'
     else:
@@ -1212,7 +1214,7 @@ if __name__ == "__main__":
     elif args.mode == "c":
         error_check(args.table, args.attempt, args.bsd_row_num, relaunch_script,
                     obsid, pointing, pbs=args.pbs, script_test=args.test,
-                    n_omp_threads=n_omp_threads)
+                    work_dir=work_dir, n_omp_threads=n_omp_threads)
         
     elif args.mode == "r":
         rfifind(obsid, pointing, sub_dir, relaunch_script,
