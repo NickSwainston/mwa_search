@@ -6,7 +6,9 @@ import os
 import glob
 import subprocess
 import numpy as np
+
 import blindsearch_pipeline as blind_pipe
+from mwa_metadb_utils import get_common_obs_metadata as get_meta
 
 def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False):
     
@@ -28,7 +30,13 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
     if all_check:
         #looks through the comined files to use the max and min
         #TODO have some sort of check to look for gaps
-        combined_files = glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ics.dat".format(obsid))
+        if glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ics.dat".format(obsid)):
+            combined_files = glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ics.dat".format(obsid))
+        else:
+            meta_data = get_meta(obsid)
+            channels = meta_data[-1]
+            combined_files = glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ch{1}.dat".\
+                                       format(obsid, channels[-1]))
         comb_times = []
         for comb in combined_files:
             comb_times.append(int(comb.split("_")[1]))
