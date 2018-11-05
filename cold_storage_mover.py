@@ -12,19 +12,28 @@ def tar_job_wrapper(pointing_file, default_work_dir, obsid=1117643248):
     for pn, pointing in enumerate(pointing_list):
         if pointing.endswith("\n"):
             pointing = pointing[:-1]
-        print pointing
         #only lets 5 jobs at a time to not flood the transfer (could probably handle more
-        your_slurm_queue_check(max_queue=5, grep='tar')
         fits_dir='/group/mwaops/vcs/{0}/pointings/{1}/'.format(obsid,pointing)
-        commands = []
-        commands.append('cd {}'.format(fits_dir))
-        commands.append("srun -n 1 -c 10 tar zcvvf - {0}_00*.fits | ssh hsm 'cat - > /project/mwaops/nswainston/yogesh_low_DM_candiate/temp_{1}.tar.gz'".format(obsid, pn))
-        commands.append('echo $?')
-        #TODO and a move command
-        submit_slurm('tar_{0}_{1}'.format(pointing,pn), commands,
-                 batch_dir="{}tar_batch".format(default_work_dir),
-                 slurm_kwargs={"time": "5:00:00", "partition": "workq"},
-                 submit=True, export='ALL')
+        if os.path.exists(fits_dir):
+            print pointing
+            your_slurm_queue_check(max_queue=5, grep='tar', queue='workq')
+            commands = []
+            commands.append('cd {}'.format(fits_dir))
+            commands.append("srun -n 1 -c 10 tar zcvvf - {0}_00*.fits | ssh hsm 'cat - > /project/mwaops/nswainston/yogesh_low_DM_candiate/temp_{1}.tar.gz'".format(obsid, pn))
+            commands.append('errorcode=$?')
+            commands.append('if [ $errorcode == "0" ]; then')
+            commands.append('   echo mv temp_{0}.tar.gz {1}_pointing.tar.gz'.format(pn, pointing))
+            commands.append('   ssh hsm "mv /project/mwaops/nswainston/yogesh_low_DM_candiate/temp_{0}.tar.gz /project/mwaops/nswainston/yogesh_low_DM_candiate/{1}_pointing.tar.gz"'.format(pn, pointing))
+            commands.append('   cd ..')
+            commands.append('   rm -r {}'.format(pointing))
+            commands.append('fi')
+            #TODO and a move command
+            submit_slurm('tar_{0}_{1}'.format(pointing,pn), commands,
+                     batch_dir="{}tar_batch".format(default_work_dir),
+                     slurm_kwargs={"time": "5:00:00", "partition": "workq"},
+                     submit=True, export='ALL')
+        else:
+           print '{} does not exist'.format(pointing)
 
 
 #srun -n 1 -c 10 tar zcvvf - 1117643248_00*.fits | ssh hsm 'cat - > /project/mwaops/nswainston/yogesh_low_DM_candiate/temp_${2}.tar.gz
