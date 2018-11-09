@@ -194,11 +194,14 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     #check queue
     your_slurm_queue_check(queue = 'gpuq')
 
+
     #check for incoh file which is used to predict if you have used rfifind
+    incoh_check = False
+    bf_formats = " -p"
     if not os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obsid)):
-        bf_formats = " -p -i"
-    else:
-        bf_formats = " -p"
+        bf_formats += " -i"
+        os.mkdir('/group/mwaops/vcs/{0}/incoh'.format(obsid))
+        incoh_check = True
     if vdif:
         bf_formats += " -u"
 
@@ -216,13 +219,13 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     pointing = "{0}_{1}".format(pointing[0],pointing[1])
     dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
-                           relaunch_script=relaunch_script, cal_id=cal_id)
+                           relaunch_script=relaunch_script, cal_id=cal_id, incoh=incoh_check)
     return
 
 
 def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
                             bsd_row_num=None, pulsar_check=None, pbs=False, 
-                            relaunch_script="echo no relaunch", cal_id=None):
+                            relaunch_script="echo no relaunch", cal_id=None, incoh=False):
     """
     Launches a script that splices the beamformed files and, where approriate,
     launches the blindsearch pipeline or folds on known pulsars.
@@ -239,36 +242,8 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     if bsd_row_num is not None:
         #record beamforming processing time
         commands.append('blindsearch_database.py -m b -b {0} -f {1}mb_{2}'.format(bsd_row_num, batch_dir, pointing))
-    if pulsar_check is not None:
-        #check_known_pulsars.py uses this to check if it was detected and if so upload it
-        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
-        commands.append('cd {0}'.format(pointing_dir))
-        for pulsar in pulsar_check:
-            commands.append("prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256 {2}/1*fits".\
-                            format(obsid, pulsar, pointing_dir))
-            commands.append('chi=`sed "13q;d" {0}_PSR_{1}.pfd.bestprof`'.format(obsid,pulsar))
-            commands.append('chi=${chi#*=}')
-            commands.append('if [ ${chi%.*} -ge 5 ]; then')
-            commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{2}.pfd.bestprof --ppps {0}_PSR_{2}.pfd.ps'.format(obsid, cal_id, pulsar))
-            #move files for mengyao to analyse
-            pol_census_dir = '/group/mwaops/xuemy/pol_census/{0}/pointing/{1}'.format(obsid,pulsar)
-            pol_census_fold_dir = '/group/mwaops/xuemy/pol_census/{0}/pfold/'.format(obsid)
-            vcs_pointing_dir = '/group/mwaops/vcs/{0}/pointings/{1}'.format(obsid, pointing)
-            if not os.path.exists(pol_census_fold_dir):
-               os.makedirs(pol_census_fold_dir)
-            commands.append('mv {0}/{1}_PSR_{2}.pfd* {3}'.format(vcs_pointing_dir, 
-                                            obsid, pulsar, pol_census_fold_dir))
-            if not os.path.exists('/group/mwaops/xuemy/pol_census/{0}/pointing'.format(obsid)):
-                os.makedirs('/group/mwaops/xuemy/pol_census/{0}/pointing'.format(obsid))
-            commands.append('mv {0} {1}'.format(vcs_pointing_dir, pol_census_dir))
-            commands.append('echo "{0}_PSR_{1}.pfd.png is over 5"'.format(obsid,pulsar))
-        commands.append("fi")
-    elif os.path.exists('/group/mwaops/vcs/{0}/incoh'.format(obsid)):
-        #run normally
-        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
-    else:
-        #make a incoh pointing
-        commands.append('mkdir /group/mwaops/vcs/{0}/incoh'.format(obsid))
+    
+    if incoh:
         commands.append('splice_wrapper.py -o {0} -w {1} -i -d'.format(obsid, pointing_dir))
         commands.append('mv /group/mwaops/vcs/{0}/pointings/{1}/*incoh* /group/mwaops/vcs/{0}/incoh/'.
                             format(obsid, pointing))
@@ -277,6 +252,34 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
             commands.append('{0} -m r -p {1}'.format(relaunch_script, pointing))
         else:
             commands.append('{0} -m r -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
+
+    else:
+        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
+    
+    if pulsar_check is not None:
+        #check_known_pulsars.py uses this to check if it was detected and if so upload it
+        commands.append('cd {0}'.format(pointing_dir))
+        for pulsar in pulsar_check:
+            commands.append("prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256 {2}/1*fits".\
+                            format(obsid, pulsar, pointing_dir))
+            commands.append('chi=`sed "13q;d" {0}_PSR_{1}.pfd.bestprof`'.format(obsid,pulsar))
+            commands.append('chi=${chi#*=}')
+            commands.append('if [ ${chi%.*} -ge 5 ]; then')
+            commands.append('   submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{2}.pfd.bestprof --ppps {0}_PSR_{2}.pfd.ps'.format(obsid, cal_id, pulsar))
+            #move files for mengyao to analyse
+            pol_census_dir = '/group/mwaops/xuemy/pol_census/{0}/pointing/{1}'.format(obsid,pulsar)
+            pol_census_fold_dir = '/group/mwaops/xuemy/pol_census/{0}/pfold/'.format(obsid)
+            vcs_pointing_dir = '/group/mwaops/vcs/{0}/pointings/{1}'.format(obsid, pointing)
+            if not os.path.exists(pol_census_fold_dir):
+               os.makedirs(pol_census_fold_dir)
+            commands.append('   mv {0}/{1}_PSR_{2}.pfd* {3}'.format(vcs_pointing_dir, 
+                                            obsid, pulsar, pol_census_fold_dir))
+            if not os.path.exists('/group/mwaops/xuemy/pol_census/{0}/pointing'.format(obsid)):
+                os.makedirs('/group/mwaops/xuemy/pol_census/{0}/pointing'.format(obsid))
+            commands.append('   mv {0} {1}'.format(vcs_pointing_dir, pol_census_dir))
+            commands.append('   echo "{0}_PSR_{1}.pfd.png is over 5"'.format(obsid,pulsar))
+        commands.append("fi")
+    
     #add relaunch script
     if bsd_row_num is None:
         commands.append('{0} -m b -p {1}'.format(relaunch_script, pointing))
