@@ -1006,7 +1006,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                      batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                      slurm_kwargs={"time": "20:00", "partition": "gpuq", "nice":"90"},
                      submit=True, depend=job_id_list, depend_type="afterany", 
-                     module_list=["presto/master"])
+                     module_list=["presto/master", "matplotlib"])
     return
 
 
