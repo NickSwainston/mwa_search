@@ -131,7 +131,7 @@ def numout_calc(fits_dir, obsid):
     """
     Find the number of time samples of all fits files in the given directory
     """
-    dirlist = glob.glob("{0}/{1}_00*.fits".format(fits_dir, obsid))
+    dirlist = glob.glob("{0}/{1}_*.fits".format(fits_dir, obsid))
     numout = 0 
     for d in dirlist:
         submit_line = 'readfile ' + d
@@ -308,8 +308,9 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
         print "Checking pointing {0} out of {1}".format(n+1, len(pointing_list))
         if incoh:
             pointing = "incoh"
-        elif fits_dir_base is not None:
-            pointing = fits_dir_base.split("/")[-1]
+        elif ':' not in line:
+            #pointing = fits_dir_base.split("/")[-1]
+            pointing = line
         else:
             ra, dec = line.split(" ")
             if dec.endswith("\n"):
@@ -601,6 +602,10 @@ def prepdata(obsid, pointing, relaunch_script,
     print dm_list    
 
     #Create a list of all the commands needed
+    if os.path.exists('{0}rfi_masks/{1}_rfifind.mask'.format(work_dir, obsid)):
+        mask_command = ' -mask {0}rfi_masks/{1}_rfifind.mask'.format(work_dir, obsid)
+    else:
+        mask_command = ''
     dms_per_job = 1024
     commands_list = []
     for dm_line in dm_list:
@@ -608,59 +613,25 @@ def prepdata(obsid, pointing, relaunch_script,
         dm_end = float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
-            commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) +\
+            commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) + str(mask_command) +\
                             " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
                             " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            str(obsid) + '_00*.fits')
+                            str(obsid) + '_*.fits')
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
-        commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) +\
+        commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) + str(mask_command) +\
                             " -dmstep " + str(dm_line[2]) + " -numdms "+str(steps)+\
                             " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            str(obsid) + '_00*.fits')
+                            str(obsid) + '_*.fits')
     #Puts all the expected jobs on the databse
     #blindsearcg_database_script_id_list
     blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
                          n_omp_threads, expe_proc_time)
     
-    #TODO put this in check
-    #Submit a bunch some prepsubbands to create our .dat files
-    job_id_list = []
-    for cli, prepdata_command in enumerate(commands_list):
-        DM_batch = str(bsd_row_num) + '_DM_' + str(cli)
-        commands = []
-        commands.append(add_database_function(pbs=pbs, script_test=script_test,
-                                              n_omp_threads=n_omp_threads))
-        commands.append('cd {0}{1}/{2}'.format(work_dir, pointing, obsid))
-        commands.append('run prepsubband "{0}" "{1}" "{2}" "1"'.format(prepdata_command,
-                                bsd_row_num, cli))
-        
-        job_id = submit_slurm(DM_batch, commands,
-                         batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                         slurm_kwargs={"time": "3:00:00", "partition": "gpuq", "nice":"90"},#4 hours
-                         submit=True, module_list=["presto/master"])
-        job_id_list.append(job_id)    
-        
-
-
-    #make a job that simply restarts this program when all prepsubband jobs are complete
-    print "Waiting 5 sec to make sure to the dependancy script works"
-    sleep(5)
-    job_id_str = ""
-    for i in job_id_list:
-        job_id_str += ":" + str(i)
-    
-    DM_depend_batch = str(bsd_row_num) + '_dep_prepsubbands'
-    commands = []
-    commands.append(add_database_function(pbs=pbs, script_test=script_test, n_omp_threads=n_omp_threads))
-    commands.append("{0} -m c --table Prepdata -r {1} --attempt 1".\
-                    format(relaunch_script, bsd_row_num))
-    
-    submit_slurm(DM_depend_batch, commands,
-                 batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "20:00", "partition": "gpuq", "nice":"90"},#4 hours
-                 submit=True, depend=job_id_str[1:], module_list=["presto/master"])
+    error_check('Prepdata', 0, bsd_row_num, relaunch_script,
+                obsid, pointing, pbs=pbs, script_test=script_test, bash_job=True,
+                work_dir=work_dir, total_job_time=7200)
     return
                 
 #-------------------------------------------------------------------------------------------------------------
@@ -889,6 +860,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
     and reruns any errors before continuing to the next step
     """
     subdir = ''
+    threads = True
+    bash_job = False
     if table == 'Prepdata':
         next_mode = 't'
         cur_mode = 'p'
@@ -900,7 +873,6 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         next_mode = 'a'
         cur_mode = 't'
     elif table == 'Accel':
-        threads = True
         bash_job = True
         next_mode = 'f'
         cur_mode = 'a'
