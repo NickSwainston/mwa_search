@@ -77,7 +77,7 @@ candfiles = glob.glob(globaccel)
 #print inffiles
 
 # In how many DMs must a candidate be detected to be considered "good"
-min_num_DMs = 10
+min_num_DMs = 8
 # Lowest DM to consider as a "real" pulsar
 low_DM_cutoff = 1.0
 # Ignore candidates with a sigma (from incoherent power summation) less than this
