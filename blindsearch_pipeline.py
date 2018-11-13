@@ -647,10 +647,8 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
     os.chdir(work_dir + "/" + sub_dir)
     if not os.path.exists("over_3_png"):
         os.mkdir("over_3_png")
-    if not os.path.exists("other_png"):
-        os.mkdir("other_png")
-    if not os.path.exists("cand_files"):
-        os.mkdir("cand_files")
+    if not os.path.exists("{}/cand_files".format(work_dir)):
+        os.mkdir("{}/cand_files".format(work_dir))
         
     DIR=work_dir + sub_dir
     os.chdir(DIR)
@@ -798,7 +796,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
             #           c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bsd_row_num)+'" "'+str(dm_i)+'"' 
            
             #the fold options that uses .fits files which is slower but more accurate
-            commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5}*.fits'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, fits_dir, bsd_row_num))
+            commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5}{6}_*.fits'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, fits_dir, obsid))
     blindsearch_database.database_script_list(bsd_row_num, 'prepfold', commands_list,
                                                   n_omp_threads, expe_proc_time)
     if len(cand_list) > 0:
