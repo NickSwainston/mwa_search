@@ -629,6 +629,10 @@ def prepdata(obsid, pointing, relaunch_script,
     blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
                          n_omp_threads, expe_proc_time)
     
+    if "-r" not in relaunch_script:
+        relaunch_script += " -r {}".format(bsd_row_num)
+    
+    
     error_check('Prepdata', 0, bsd_row_num, relaunch_script,
                 obsid, pointing, pbs=pbs, script_test=script_test, bash_job=True,
                 work_dir=work_dir, total_job_time=7200)
