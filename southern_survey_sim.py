@@ -138,6 +138,7 @@ if __name__ == "__main__":
   parser.add_argument('--semester_ra', action='store_true', help='Similar to semester but uses a RA cut off (changes number per group)')
   parser.add_argument('-p','--plot_type',type=str,help='Determines the output plot type, Default="png".',default='png')
   parser.add_argument('--obsid_list',type=str,nargs='+',help='Instead of calculating which positions to use the script will use the input obsids. eg: "1088850560 1090249472"')
+  parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
   parser.add_argument('--all_obsids',action='store_true', help='Uses all VCS obsids on the MWA metadatabase.')
   args=parser.parse_args()
 
@@ -155,8 +156,8 @@ if __name__ == "__main__":
 
 
   #levels = np.arange(0.25, 1., 0.05)
-  colors= ['0.5' for _ in xrange(50)] ; colors[0]= 'r'
-  linewidths= [0.4 for _ in xrange(50)] ; linewidths[0]= 0.7
+  colors= ['0.5' for _ in xrange(50)] ; colors[0]= 'blue'
+  linewidths= [0.4 for _ in xrange(50)] ; linewidths[0]= 1.0
   
   #txtfile=open('/group/mwaops/xuemy/incoh_census/fold_code/get_obs_oblist_test.txt').readlines()
   
@@ -394,15 +395,15 @@ if __name__ == "__main__":
                       temppower = power_ra
               #print temppower, power_ra
           z.append(temppower)
-          
-          if RA[i] > 180:
-              x.append(-RA[i]/180.*np.pi+2*np.pi)
+          if RA[c] > 180:
+              x.append(-RA[c]/180.*np.pi+2*np.pi)
               #x.append(-RA[i]+360.)
           else:
-              x.append(-RA[i]/180.*np.pi)
+              x.append(-RA[c]/180.*np.pi)
               #x.append(-RA[i])
           """
-          x.append(-RA[c]/180.*np.pi+np.pi)
+          
+          x.append(-RA[c]/180.*np.pi +np.pi)
           y.append(Dec[c]/180.*np.pi)
           #y.append(Dec[i])
       nx=np.array(x) ; ny=np.array(y); nz=np.array(z)
@@ -546,7 +547,7 @@ if __name__ == "__main__":
                           sens_colour_z[zi] = zs
             
           else:
-            plt.tricontour(nx, ny, nz, levels=levels, alpha = alpha, 
+            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6, 
                      colors=colors,
                      linewidths=linewidths)
           
@@ -587,10 +588,9 @@ if __name__ == "__main__":
       dec_limit_mask = ny > np.radians(30)
       nz[dec_limit_mask] = np.nan
       plt.pcolor(nx, ny, nz, cmap=colour_map)
-      plt.xlabel("Right Ascension")
-      plt.ylabel("Declination")
       plt.colorbar(spacing='uniform', shrink = 0.65, label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
         
+  
   if args.semester or args.semester_ra:
       #sort the output into the right order
       import glob
@@ -608,8 +608,13 @@ if __name__ == "__main__":
              for l in lines:
                  spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])
 
+  
+  plt.xlabel("Right Ascension")
+  plt.ylabel("Declination")
+      
   #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
   xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
+  #xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
   ax.set_xticklabels(xtick_labels) 
   print "plotting grid"
   plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
@@ -648,6 +653,18 @@ if __name__ == "__main__":
   handles, labels = ax.get_legend_handles_labels()
   plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
              ncol=1, mode="expand", borderaxespad=0., fontsize=6)
+  
+  if args.pulsar:
+      from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
+      #add some pulsars
+      ra_PCAT = []
+      dec_PCAT = []
+      pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
+      for pulsar in pulsar_list:
+          ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+          ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+          dec_PCAT.append(dec_temp/180.*np.pi)
+      ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r')
   
   if args.aitoff:
       plot_name = 'tile_beam_t'+str(time)+'s_o'+str(args.degree)+'deg_res' + str(res) + '_n'+str(pointing_count)+'_aitoff'
