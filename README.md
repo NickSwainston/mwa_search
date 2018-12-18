@@ -14,20 +14,16 @@ To install you must put the bin directory into your PATH and PYTHONPATH. So add 
 export PATH=${PATH}:<your_install_directory>/blindsearch_scripts/bin/
 export PYTHONPATH=${PYTHONPATH}:<your_install_directory>/blindsearch_scripts/bin/
 export BLINDSEARCH_WORK_DIR=<search_directory>
-```
-
-If you would like your own database (required for pulsar searches):
-
-```
 export CMD_BS_DB_DEF_FILE=<where_you_would_like_you_database>.db
 ```
-
 then run
 
 ```
 touch <where_you_would_like_you_database>.db
 python init_blindsearch_database.py
 ```
+
+You will also have to make the directories such as the bin foulder in \<your\_install_directory\>/blindsearch\_scripts/ and the \<search\_directory\>
 
 ### Common Use Cases
 
