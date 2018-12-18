@@ -31,90 +31,8 @@ import matplotlib.cm as cm
 #vcstools/mwapy
 from mwapy.pb import primary_beam
 from mwapy import ephem_utils,metadata
-import find_pulsar_in_obs
+import find_pulsar_in_obs as fpio
 import mwa_metadb_utils as meta
-
-def get_beam_power(obsid_data,
-                   sources,
-                   dt=296,
-                   centeronly=True,
-                   verbose=False,
-                   min_power=0.6):
-    """
-    obsid_data = [obsid,ra, dec, time, delays,centrefreq, channels]
-    sources=[names,coord1,coord2] #astropy table coloumn names
-
-    Calulates the power (gain at coordinate/gain at zenith) for each source and if it is above
-    the min_power then it outputs it to the text file.
-
-    """
-    #print "Calculating beam power"
-    obsid,ra, dec, time, delays,centrefreq, channels = obsid_data
-    
-    starttimes=np.arange(0,time,dt)
-    #starttimes=np.arange(0,time,time)
-    stoptimes=starttimes+dt
-    stoptimes[stoptimes>time]=time
-    Ntimes=len(starttimes)
-    midtimes=float(obsid)+0.5*(starttimes+stoptimes)
-
-    mwa = ephem_utils.Obs[ephem_utils.obscode['MWA']]
-    # determine the LST
-    observer = ephem.Observer()
-    # make sure no refraction is included
-    observer.pressure = 0
-    observer.long = mwa.long / ephem_utils.DEG_IN_RADIAN
-    observer.lat = mwa.lat / ephem_utils.DEG_IN_RADIAN
-    observer.elevation = mwa.elev
-
-    if not centeronly:
-        PowersX=np.zeros((len(sources),
-                             Ntimes,
-                             len(channels)))
-        PowersY=np.zeros((len(sources),
-                             Ntimes,
-                             len(channels)))
-        # in Hz
-        frequencies=np.array(channels)*1.28e6
-    else:
-        PowersX=np.zeros((len(sources),
-                             Ntimes,1))
-        PowersY=np.zeros((len(sources),
-                             Ntimes,1))
-        frequencies=np.array([centrefreq])*1.0e6 
-
-    RAs=np.array([x[0] for x in sources])
-    Decs=np.array([x[1] for x in sources])
-    if len(RAs)==0:
-        sys.stderr.write('Must supply >=1 source positions\n')
-        return None
-    if not len(RAs)==len(Decs):
-        sys.stderr.write('Must supply equal numbers of RAs and Decs\n')
-        return None
-    for itime in xrange(Ntimes):
-        obstime = Time(midtimes[itime],format='gps',scale='utc')
-        observer.date = obstime.datetime.strftime('%Y/%m/%d %H:%M:%S')
-        LST_hours = observer.sidereal_time() * ephem_utils.HRS_IN_RADIAN
-
-        HAs = -RAs + LST_hours * 15
-        Azs, Alts = ephem_utils.eq2horz(HAs, Decs, mwa.lat)
-        # go from altitude to zenith angle
-        theta=np.radians(90-Alts)
-        phi=np.radians(Azs)
-        #az, za = np.meshgrid(sorted(set(phi)), sorted(set(theta)))
-
-        for ifreq in xrange(len(frequencies)):
-            rX,rY=primary_beam.MWA_Tile_analytic(theta, phi,
-                                                 freq=frequencies[ifreq], delays=delays,
-                                                 zenithnorm=True,
-                                                 power=True)#pixels_per_deg=1)
-            PowersX[:,itime,ifreq]=rX
-            PowersY[:,itime,ifreq]=rY
-
-    #Power [#sources, #times, #frequencies]
-    Powers=0.5*(PowersX+PowersY)
-                 
-    return Powers
 
 
 if __name__ == "__main__":
@@ -140,6 +58,7 @@ if __name__ == "__main__":
   parser.add_argument('--obsid_list',type=str,nargs='+',help='Instead of calculating which positions to use the script will use the input obsids. eg: "1088850560 1090249472"')
   parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
   parser.add_argument('--all_obsids',action='store_true', help='Uses all VCS obsids on the MWA metadatabase.')
+  parser.add_argument('--ra_offset',action='store_true', help='Offsets the RA by 180 so that 0h is in the centre')
   args=parser.parse_args()
 
   #Setting up some of the plots
@@ -161,6 +80,7 @@ if __name__ == "__main__":
   
   #txtfile=open('/group/mwaops/xuemy/incoh_census/fold_code/get_obs_oblist_test.txt').readlines()
   
+  #setting up the dec ranges
   dec_range = [-72., -55., -40.5, -26.7, -13., +1.6, +18.3] #Gleam pointings
   delays_range = [[0,0,0,0,6,6,6,6,12,12,12,12,18,18,18,18],\
                   [0,0,0,0,4,4,4,4,8,8,8,8,12,12,12,12],\
@@ -170,7 +90,8 @@ if __name__ == "__main__":
                   [12,12,12,12,8,8,8,8,4,4,4,4,0,0,0,0],\
                   [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0]]
   
-  #setting up the dec ranges
+  print "Using GLEAM dec range: {}".format(dec_range)
+  """
   sweet_dec_range = [-82.8,-71.4,-63.1,-55.,-47.5,-40.4,-33.5,-26.7,-19.9,-13.,-5.9,1.6,9.7,18.6,29.4,44.8]
   sweet_delays_range= [[0,0,0,0,7,7,7,7,14,14,14,14,21,21,21,21],\
                        [0,0,0,0,6,6,6,6,12,12,12,12,18,18,18,18],\
@@ -188,7 +109,7 @@ if __name__ == "__main__":
                        [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0],\
                        [21,21,21,21,14,14,14,14,7,7,7,7,0,0,0,0],\
                        [24,24,24,24,16,16,16,16,8,8,8,8,0,0,0,0]]
-  """
+  
   dec_range = []
   delays_range =[]
   sweet_spots_range = [0,2,4,7,10,12,14]
@@ -208,22 +129,23 @@ if __name__ == "__main__":
           Dec.append(i)
           RA.append(j)
 
-  
+  #Working out the observations required -----------------------------------------------
   if args.all_obsids:
       #observations= find_pulsar_in_obs.find_obsids_meta_pages()
-      observations = find_pulsar_in_obs.find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
+      observations = fpio.find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
       pointing_count = len(observations)
       print observations
   elif args.obsid_list:
       observations = args.obsid_list
       pointing_count = len(observations)
   else:
+      #Going to work out how many pointings are needed
       #setting up some metadata requirements
-      time = 4800 #one hour 
+      time = 4800 #one hour 20 min 
       channels = range(107,131)
       minfreq = float(min(channels))
       maxfreq = float(max(channels))
-      centrefreq = 1.28e6 * (minfreq + (maxfreq-minfreq)/2) #in MHz
+      centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2) #in MHz
 
       start_obsid = '1117624530'
       start_ra = 180.
@@ -244,9 +166,11 @@ if __name__ == "__main__":
       pointing_count = 0
       for i in range(len(dec_range)):
         #calculating the FWHM at this dec
-        cord = [start_obsid, start_ra, dec_range[i], 1, delays_range[i],centrefreq, channels]
-        powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
-
+        ra_sex, deg_sex = fpio.deg2sex(start_ra, dec_range[i]).split()
+        cord = [start_obsid, str(ra_sex), str(deg_sex), 1, delays_range[i],centrefreq, channels]
+        #powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
+        names_ra_dec = np.column_stack((['source']*len(RA_FWHM_calc), RA_FWHM_calc, Dec_FWHM_calc))
+        powout = fpio.get_beam_power_over_time(cord, names_ra_dec, dt=600, degrees = True)
         powout_RA_line = []
         powout_Dec_line = []
         RA_line = []
@@ -279,6 +203,7 @@ if __name__ == "__main__":
         #work out Dec FWHM
         if args.fwhm:
             spline = UnivariateSpline(Dec_line, powout_Dec_line-np.max(powout_Dec_line)/2., s=0)
+            print spline.roots(), max(powout_Dec_line)
             r1, r2 = spline.roots()
             FWHM_Dec.append(float(r2-r1))
             print "FWHM along Dec at dec "+ str(dec_range[i]) + ": " + str(FWHM_Dec[i])
@@ -314,6 +239,7 @@ if __name__ == "__main__":
           total_angle += deg_move
           pointing_count+=1
       
+      #Sort by ra
       dec_list = [x for _,x in sorted(zip(ra_list,dec_list))]
       observations = [x for _,x in sorted(zip(ra_list,observations))]
       ra_list = sorted(ra_list)
@@ -365,7 +291,8 @@ if __name__ == "__main__":
 
       #print max(Dec), min(RA), Dec.dtype
       time_intervals = 600 # seconds
-      powout=get_beam_power(cord, zip(RA,Dec), dt=time_intervals)
+      names_ra_dec = np.column_stack((['source']*len(RA), RA, Dec))
+      powout = fpio.get_beam_power_over_time(cord, names_ra_dec, dt=time_intervals, degrees = True)
       #grab a line of beam power for the pointing declination
       if i == 0:
           print "len powers list: " + str(powout.shape)
@@ -395,17 +322,16 @@ if __name__ == "__main__":
                       temppower = power_ra
               #print temppower, power_ra
           z.append(temppower)
-          if RA[c] > 180:
-              x.append(-RA[c]/180.*np.pi+2*np.pi)
-              #x.append(-RA[i]+360.)
+          """ 
+          if args.ra_offset:
+              if RA[c] > 180:
+                  x.append(-RA[c]/180.*np.pi+2*np.pi)
+              else:
+                  x.append(-RA[c]/180.*np.pi)
           else:
-              x.append(-RA[c]/180.*np.pi)
-              #x.append(-RA[i])
-          """
-          
-          x.append(-RA[c]/180.*np.pi +np.pi)
+              x.append(-RA[c]/180.*np.pi +np.pi)
           y.append(Dec[c]/180.*np.pi)
-          #y.append(Dec[i])
+      
       nx=np.array(x) ; ny=np.array(y); nz=np.array(z)
       if args.sens:
           nz_sense = []
@@ -458,11 +384,27 @@ if __name__ == "__main__":
           for p in range(len(nz)):
             #print int(y[i]/np.pi*180.), int(dec) 
             
-            if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
-              powout_RA_line.append(float(nz[p]))
-              RA_line.append(180. - float(nx[p])*180/np.pi)
+            if args.ra_offset:
+                if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
+                  powout_RA_line.append(float(nz[p]))
+                  temp_ra_line = - float(nx[p])*180/np.pi
+                  if temp_ra_line <= 0:
+                      temp_ra_line += 360.
+                  RA_line.append(temp_ra_line)
+
+            else:
+                if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
+                  powout_RA_line.append(float(nz[p]))
+                  RA_line.append(180. - float(nx[p])*180/np.pi)
           
-          #print RA_line
+          #if ra_offset it needs to be restarted because it'll start at 180 not 0
+          if args.ra_offset:
+              powout_RA_line = [x for _,x in sorted(zip(RA_line,powout_RA_line))]
+              RA_line = sorted(RA_line)
+              #janky fix because there's two 360 values at the end
+              RA_line = [0.] + RA_line[:-1] 
+              powout_RA_line = [powout_RA_line[-1]] + powout_RA_line[:-1]
+          
           spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
           r1, r2 = spline.roots()
       
@@ -547,19 +489,21 @@ if __name__ == "__main__":
                           sens_colour_z[zi] = zs
             
           else:
-            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6, 
+              plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6, 
                      colors=colors,
                      linewidths=linewidths)
           
-            
-      """ 
-      cs = plt.tricontour(nx, ny, nz, levels=levels[0],alpha=0)
-      cs0 = cs.collections[0]
-      cspaths = cs0.get_paths()
-      spch_0 = patches.PathPatch(cspaths[0], facecolor='k', edgecolor='gray',lw=0.5, alpha=0.1)
-          ax.add_patch(spch_0)
-          """
       
+      #shades only the blue ones
+      if colors[0] == 'blue':
+          print "check"
+          cs = plt.tricontour(nx, ny, nz, levels=levels[0],alpha=0.0)
+          cs0 = cs.collections[0]
+          cspaths = cs0.get_paths()
+          spch_0 = patches.PathPatch(cspaths[0], facecolor='skyblue', 
+                                     edgecolor='gray',lw=0.5, alpha=0.55)
+          ax.add_patch(spch_0)
+
   if args.sens_overlap:
       print "making np arrays"
       nz=np.sqrt(np.array(s_overlap_z))
@@ -601,7 +545,6 @@ if __name__ == "__main__":
             lines = [line.split("\t") for line in f]
             lines = lines[1:]
             lines = sorted(lines, key=itemgetter(0))
-            print lines
           with open(g, 'wb') as csvfile:
              spamwriter = csv.writer(csvfile, delimiter=',')
              spamwriter.writerow(['RA','Dec'])
@@ -613,14 +556,14 @@ if __name__ == "__main__":
   plt.ylabel("Declination")
       
   #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
-  xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
-  #xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
+  if args.ra_offset:
+      xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
+  else:
+      xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
+
   ax.set_xticklabels(xtick_labels) 
   print "plotting grid"
   plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
-  
-  #p1=ax.scatter(ra_PCAT_N, dec_PCAT_N, 1.5, lw=0, marker='o', color ='gray', label="Known pulsars beyond MWA Dec limitation")
-  #p1=ax.scatter(ra_PCAT, dec_PCAT, 1.5, lw=0, marker='o', color ='blue', label="Known pulsars MWA could reach")
   
 
   #add lines of other surveys
@@ -662,9 +605,15 @@ if __name__ == "__main__":
       pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
       for pulsar in pulsar_list:
           ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
-          ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+          if args.ra_offset:
+              if ra_temp > 180:
+                  ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+              else:
+                  ra_PCAT.append(-ra_temp/180.*np.pi)
+          else:
+              ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
           dec_PCAT.append(dec_temp/180.*np.pi)
-      ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r')
+      ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r', zorder=100)
   
   if args.aitoff:
       plot_name = 'tile_beam_t'+str(time)+'s_o'+str(args.degree)+'deg_res' + str(res) + '_n'+str(pointing_count)+'_aitoff'
