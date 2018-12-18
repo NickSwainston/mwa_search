@@ -23,7 +23,9 @@ touch <where_you_would_like_you_database>.db
 python init_blindsearch_database.py
 ```
 
-You will also have to make the directories such as the bin foulder in \<your\_install_directory\>/blindsearch\_scripts/ and the \<search\_directory\>
+You will also have to make the directories such as the bin foulder in \<your\_install_directory\>/blindsearch\_scripts/ and the \<search\_directory\>.
+
+Finally you will need to run build.sh now and every time you pull in an update.
 
 ### Common Use Cases
 
