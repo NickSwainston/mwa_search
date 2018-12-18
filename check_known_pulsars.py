@@ -23,7 +23,7 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
     obsdur=obsend-obsbeg
 
     #wrapping for find_pulsar_in_obs.py
-    names_ra_dec = np.array(fpio.grab_source_alog())
+    names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
     fpio.find_sources_in_obs([obsid], names_ra_dec, dt=100)
     known_pulsar_file = "{0}_analytic_beam.txt".format(obsid)
 
@@ -77,6 +77,8 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
                             jname_list.append(pulsar_l.split()[0])
                 else:
                     jname_list = [jname]
+                    if '*' in period:
+                        continue
                     if float(period) < .05 :
                         vdif_check = True
                 blind_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
