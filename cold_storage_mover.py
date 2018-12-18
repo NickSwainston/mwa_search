@@ -6,8 +6,11 @@ from blindsearch_pipeline import your_slurm_queue_check
 from job_submit import submit_slurm
 import subprocess
 
-def tar_job_wrapper(hsm_work_dir, file_list, default_work_dir, remove=True):
+def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
+    print file_list
     for fn, fits_dir in enumerate(file_list):
+        if fits_dir.endswith("\n"):
+            fits_dir = fits_dir[:-1]
         pointing = fits_dir.split("/")[-1]
         #only lets 5 jobs at a time to not flood the transfer (could probably handle more
         if os.path.exists(fits_dir):
@@ -26,7 +29,7 @@ def tar_job_wrapper(hsm_work_dir, file_list, default_work_dir, remove=True):
             commands.append('fi')
             #TODO and a move command
             submit_slurm('tar_{0}_{1}'.format(pointing,fn), commands,
-                     batch_dir="{}tar_batch".format(default_work_dir),
+                     batch_dir="./",
                      slurm_kwargs={"time": "5:00:00", "partition": "workq"},
                      submit=True, export='ALL')
         else:
@@ -49,12 +52,12 @@ if __name__ == "__main__":
     args=parser.parse_args() 
     
     #parseing the options
-    if not args.workdir:
+    if not args.work_dir:
         print "No --work_dir option given, please add one. Exiting"
         exit()
     else:
-        if args.workdir.endswith("/"):
-            args.workdir = args.workdir[:-1]
+        if args.work_dir.endswith("/"):
+            args.work_dir = args.wor_kdir[:-1]
 
     if args.pointing_file and args.dir_file:
         print "Please us only --pointing_dir or --dir_file, not both. Exiting"
@@ -67,18 +70,22 @@ if __name__ == "__main__":
             temp_list = f.readlines()
         fits_foulder_list = []
         for temp in temp_list:
-            fits_foulder_list.append('/group/mwaops/vcs/{0}/pointings/{1}/'.format(args.obsid,temp))
+            fits_foulder_list.append('/group/mwaops/vcs/{0}/pointings/{1}'.format(args.obsid,temp))
     elif args.dir_file:
         with open(args.dir_file) as f:
             fits_foulder_list = f.readlines()
     else:
         print "Please us either --pointing_dir or --dir_file. Exiting"
         exit()
-    output = subprocess.Popen('ssh -oNumberOfPasswordPrompts=0 hpc-hsm.pawsey.org.au "echo hello"',stdout=subprocess.PIPE).communicate()[0]
-    if output.returncode !=0:
+    
+    #TODO add a step that checks if you have an sshkey (that actually works)
+    """
+    try:
+        output = subprocess.check_output('ssh -oNumberOfPasswordPrompts=0 hpc-hsm.pawsey.org.au "echo hello"', shell=True)
+    except subprocess.CalledProcessError as error:
         print "Error sshing into hpc-hsm.pawsey.org.au. Pleas emake sure you've set up an sshkey. Exiting"
+        print "Full error: " + error.output
         exit()
+    """
     
-    default_work_dir = os.environ['BLINDSEARCH_WORK_DIR']
-    
-    tar_job_wrapper(args.work_dir, fits_foulder_list, default_work_dir, remove=(not args.no_remove))
+    tar_job_wrapper(args.work_dir, fits_foulder_list, remove=(not args.no_remove))
