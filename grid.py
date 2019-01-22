@@ -270,6 +270,7 @@ if __name__ == "__main__":
     parser.add_argument('--dec_range',type=float,nargs='+',help='Dec limits: "decmin decmax". Default -90 90', default=[-90,90])
     parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 390', default=[0,360])
     parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
+    parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
 
     args=parser.parse_args()
 
@@ -366,8 +367,9 @@ if __name__ == "__main__":
         #check each pointing is within the tile beam
         radls = []
         decdls = []
+        tFWHM = np.amax(power)/2. #assumed half power point of the tile beam
         for ni in range(len(rads)):
-            if max(power[ni]) > 0.5:
+            if max(power[ni]) > tFWHM:
                 radls.append(rads[ni])
                 decdls.append(decds[ni])
         rads = radls
@@ -385,12 +387,10 @@ if __name__ == "__main__":
     for i in range(len(rags_uf)):
         rag = rags_uf[i] 
         decg = decgs_uf[i]
-        print rag,decg
 
         temp = fpio.format_ra_dec([[rag,decg]])
         rag = temp[0][0]
         decg = temp[0][1]
-        print rag,decg
 
         if args.verbose_file:
             az,za,azd,zad = getTargetAZZA(rag,decg,time)
@@ -470,8 +470,20 @@ if __name__ == "__main__":
             #fwhm_circle = centre_fwhm/cos(np.radians(decds[i])) / 2.
             #circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),
             #                     color='r', lw=0.1,fill=False)
-    plt.scatter(rads,decds,s=0.1,c='black')
-
+    #plt.scatter(rads,decds,s=0.1,c='black')
+    
+    #add pulsars
+    from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
+    #add some pulsars
+    if args.pulsar:
+        ra_PCAT = []
+        dec_PCAT = []
+        pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
+        for pulsar in pulsar_list:
+            ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+            ra_PCAT.append(ra_temp)
+            dec_PCAT.append(dec_temp)
+        ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='b', zorder=100)
 
     plt.savefig('grid_positions_'+str(args.obsid)+'_n'+str(len(rads))+'_f'+str(args.fraction)+\
                 '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'.png',bbox_inches='tight',\
