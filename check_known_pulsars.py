@@ -97,7 +97,7 @@ if __name__ == "__main__":
     """)
     parser.add_argument('-o','--obsid',type=str,help='The observation ID of the fits file to be searched')
     parser.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
-    parser.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
+    parser.add_argument('-O','--cal_obs', type=int, help="Observation ID of calibrator you want to process.", default=None)
     parser.add_argument("-a", "--all", action="store_true",  help="Uses all of the combined data available. If the options isn't used it'll only use the start and stops times that are recommened by find_pulsar_in_obs.py.")
     parser.add_argument("-v", "--vdif", action="store_true",  help="Create vdif files for all pulsars. Default is to only create vdif files for pulsar with a period shorter than 50 ms.")
     args=parser.parse_args()

@@ -312,7 +312,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
                  batch_dir=batch_dir,
                  slurm_kwargs={"time": "5:00:00", "partition": "gpuq", "nice":"90"},
                  submit=True, depend=job_id_list, depend_type='afterany',
-                 module_list=["presto/master"])
+                 module_list=["presto/master","matplotlib","ephem","mwapy","mwa_pb"])
     return
 
 
