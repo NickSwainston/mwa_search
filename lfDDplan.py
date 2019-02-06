@@ -18,7 +18,13 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM):
         #difference in DM that will double the effective width (eq 6.4 of pulsar handbook)
         #TODO make this more robust
         DM_step = math.sqrt( (2.*timeres)**2 - timeres**2 )/\
-                  (8.3 * 10**6 * bandwidth / 150**3)
+                  (8.3 * 10**6 * bandwidth / centrefreq**3)
+
+        #round to nearest 0.01
+        DM_step = round(DM_step, 2)
+        if DM_step == 0.0:
+            #set DM to 0.01 as a zero DM doesn't make sense
+            DM_step = 0.01
 
         if D_DM > highDM:
             #last one so range from to max
@@ -54,6 +60,9 @@ if __name__ == "__main__":
     
     DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM)
     print " low DM | high DM | DeltaDM | Nsteps | Effective time resolution (ms)"
+    total_steps = 0
     for d in DD_plan_array:
-        print "{0:7.1f} | {1:7.1f} | {2:7.3f} | {3:6d} | {4:7.3f}".\
+        print "{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:7.3f}".\
                format(d[0], d[1], d[2], d[3], d[4])
+        total_steps += d[3]
+    print "Total DM steps required: {}".format(total_steps)
