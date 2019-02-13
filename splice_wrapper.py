@@ -65,10 +65,9 @@ else:
     n_fits_file = glob.glob('*{0}_ch{1}*fits'.format(args.observation, channels[-1]))    
 n_fits = []
 for file_name in n_fits_file:
-    print file_name[-9:-5]
     n_fits.append(int(file_name[-9:-5]))
 n_fits.sort()
-print 'fits number order: {}'.format(n_fits)
+print 'Fits number order: {}'.format(n_fits)
 
 for n in n_fits:
     submit_line = submit_line_incoh = 'splice_psrfits '

@@ -367,7 +367,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             product_dir = '/group/mwaops/vcs/{0}'.format(obsid)
         #Check if pointing in cold storage
         try :
-            exists_remote_check = exists_remote("hsm",
+            exists_remote_check = exists_remote("hpc-hsm.pawsey.org.au",
                     "/project/mwaops/nswainston/yogesh_low_DM_candiate/{0}_pointing.tar.gz".\
                     format(pointing))
             if exists_remote_check and len(pointing_list) > 1:
@@ -446,7 +446,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             print "Splicing the files in {0}".format(pointing)
             dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
-                           relaunch_script=relaunch_script, begin=beign, 
+                           relaunch_script=relaunch_script, begin=begin, 
                            end=end, cal_id=cal_id)
  
         elif unspliced_check:
