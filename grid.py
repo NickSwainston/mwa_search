@@ -202,33 +202,52 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
         loop_temp = []
         for c in range(6):
             corner_temp = []
-            if l == 0:
-                c = 0
             for n in range(l + 1):
-                if l == n: 
-                    if l != 0:
-                        #change the 2 for each loop
-                        #uses next corner
-                        if c == 0:
-                            ra,dec =left(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 1:
-                            ra,dec =up_left(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 2:
-                            ra,dec =up_right(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 3:
-                            ra,dec =right(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 4:
-                            ra,dec =down_right(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 5:
-                            ra,dec =down_left(pointing_list[l][0][0][0],
-                                     pointing_list[l][0][0][1],centre_fwhm)
-                    
-                if l != n or l == 0:
+                if l == 0: 
+                    #First loop so all c = 0
+                    if c == 0:
+                        ra,dec =left(pointing_list[l][0][n][0],
+                                     pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 1:
+                        
+                        ra,dec =up_left(pointing_list[l][0][n][0],
+                                        pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec =up_right(pointing_list[l][0][n][0],
+                                         pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec =right(pointing_list[l][0][n][0],
+                                      pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 4:
+                        ra,dec =down_right(pointing_list[l][0][n][0],
+                                           pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 5:  
+                        ra,dec =down_left(pointing_list[l][0][n][0],
+                                          pointing_list[l][0][n][1],centre_fwhm)
+
+                elif l == n:
+                    #change the 2 for each loop
+                    #uses next corner
+                    if c == 0:
+                        ra,dec =left(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 1:
+                        ra,dec =up_left(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec =up_right(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec =right(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 4:
+                        ra,dec =down_right(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 5:
+                        ra,dec =down_left(pointing_list[l][0][0][0],
+                                 pointing_list[l][0][0][1],centre_fwhm)
+                
+                else:
                     if c == 0:
                         ra,dec =left(pointing_list[l][c][n][0],
                                      pointing_list[l][c][n][1],centre_fwhm)
@@ -283,7 +302,8 @@ if __name__ == "__main__":
             else:
                 opts_string = opts_string + ' --' + str(k) + ' ' + str(args.__dict__[k])
             
-    obs, ra, dec, duration, xdelays, centrefreq, channels = meta.get_common_obs_metadata(args.obsid)
+    if args.obsid:
+        obs, ra, dec, duration, xdelays, centrefreq, channels = meta.get_common_obs_metadata(args.obsid)
         
     #get fwhm in radians
     centre_fwhm = np.radians(args.deg_fwhm)
@@ -450,6 +470,7 @@ if __name__ == "__main__":
     else:
         plt.axes().set_aspect('equal')
         ax = plt.gca()
+        #ax.axis([325., 345., -9., 0.])
 
     plt.xlabel("ra (degrees)")
     plt.ylabel("dec (degrees)")
@@ -465,12 +486,12 @@ if __name__ == "__main__":
             fwhm_horiz = np.degrees(centre_fwhm/cos(np.radians(decds[i])) )
             
             ellipse = patches.Ellipse((rads[i],decds[i]), fwhm_horiz, fwhm_vert,
-                                          linewidth=0.2, fill=False, edgecolor='red')
+                                          linewidth=0.3, fill=False, edgecolor='green')
             ax.add_patch(ellipse)
             #fwhm_circle = centre_fwhm/cos(np.radians(decds[i])) / 2.
             #circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),
             #                     color='r', lw=0.1,fill=False)
-    #plt.scatter(rads,decds,s=0.1,c='black')
+    plt.scatter(rads,decds,s=0.1,c='black')
     
     #add pulsars
     from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
@@ -483,7 +504,7 @@ if __name__ == "__main__":
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
             ra_PCAT.append(ra_temp)
             dec_PCAT.append(dec_temp)
-        ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='b', zorder=100)
+        ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r', zorder=100)
 
     plt.savefig('grid_positions_'+str(args.obsid)+'_n'+str(len(rads))+'_f'+str(args.fraction)+\
                 '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'.png',bbox_inches='tight',\
