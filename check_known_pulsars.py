@@ -53,7 +53,7 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
     for pulsar_line in pulsar_lines:
         if pulsar_line.startswith("J"):
             PSRJ = pulsar_line.split()[0]
-            if len(PSRJ) < 11 or PSRJ[-1] == 'A':
+            if len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
                 inpc = float(pulsar_line.split()[1])
                 otpc = float(pulsar_line.split()[2])
                 if not all_check:
@@ -68,12 +68,12 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
                 period = output.split('\n')[4].split()[1] #in s
                 print PSRJ, raj, decj, period, psrbeg, psrend
                 fits_dir = '/group/mwaops/vcs/{0}/pointings/{1}_{2}/'.format(obsid, raj, decj)
-                if PSRJ[-1] == 'A':
+                if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
                     #Got to find all the pulsar J names with other letters
                     vdif_check = True
                     jname_list = []
                     for pulsar_l in pulsar_lines:
-                        if pulsar_l.startswith(PSRJ[:-1]):
+                        if pulsar_l.startswith(PSRJ[:-2]):
                             jname_list.append(pulsar_l.split()[0])
                 else:
                     jname_list = [jname]
