@@ -622,7 +622,8 @@ def prepdata(obsid, pointing, relaunch_script,
         mask_command = ' -mask {0}rfi_masks/{1}_rfifind.mask'.format(work_dir, obsid)
     else:
         mask_command = ''
-    dms_per_job = 1024
+    #dms_per_job = 1024
+    dms_per_job = 512
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
@@ -912,6 +913,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                              shell=True,stdout=subprocess.PIPE)
         for line in cmd.stdout:
             print line,
+    elif attempt_num > 10:
+        print "Still failing after 10 attempts. Exiting Here."
     else:
         print "Submiting {} commands".format(len(error_data))
         presto_command = error_data[0][0]
