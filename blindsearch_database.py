@@ -72,7 +72,7 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
         if attempt == 1:
             cur.execute("UPDATE Blindsearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list)),bs_id))
         else:
-            cur.execute("SELECT "+table+"JobExp FROM Blindsearch WHERE Rownum=?", (str(bs_id)))
+            cur.execute("SELECT "+table+"JobExp FROM Blindsearch WHERE Rownum=?", (str(bs_id),))
             table_job_exp = cur.fetchone()[0]
             cur.execute("UPDATE Blindsearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list) + table_job_exp),bs_id))
         cur.execute("SELECT TotalJobExp FROM Blindsearch WHERE Rownum={}".format(bs_id))
