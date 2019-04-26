@@ -33,6 +33,7 @@ from mwapy.pb import primary_beam
 from mwapy import ephem_utils,metadata
 import find_pulsar_in_obs as fpio
 import mwa_metadb_utils as meta
+from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
 
 
 if __name__ == "__main__":
@@ -55,8 +56,9 @@ if __name__ == "__main__":
   parser.add_argument('--semester', action='store_true', help='Changed the colours of the FWHM for each semester')
   parser.add_argument('--semester_ra', action='store_true', help='Similar to semester but uses a RA cut off (changes number per group)')
   parser.add_argument('-p','--plot_type',type=str,help='Determines the output plot type, Default="png".',default='png')
-  parser.add_argument('--obsid_list',type=str,nargs='+',help='Instead of calculating which positions to use the script will use the input obsids. eg: "1088850560 1090249472"')
+  parser.add_argument('--obsid_list',type=str,nargs='*',help='Instead of calculating which positions to use the script will use the input obsids. eg: "1088850560 1090249472"')
   parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
+  parser.add_argument('--pulsar_all', action='store_true',help='Plots all known pulsars')
   parser.add_argument('--all_obsids',action='store_true', help='Uses all VCS obsids on the MWA metadatabase.')
   parser.add_argument('--ra_offset',action='store_true', help='Offsets the RA by 180 so that 0h is in the centre')
   args=parser.parse_args()
@@ -488,11 +490,12 @@ if __name__ == "__main__":
                           #append if larger
                           sens_colour_z[zi] = zs
             
+          """
           else:
               plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6, 
                      colors=colors,
                      linewidths=linewidths)
-          
+          """
       
       #shades only the blue ones
       if colors[0] == 'blue':
@@ -502,7 +505,7 @@ if __name__ == "__main__":
           cspaths = cs0.get_paths()
           spch_0 = patches.PathPatch(cspaths[0], facecolor='skyblue', 
                                      edgecolor='gray',lw=0.5, alpha=0.55)
-          ax.add_patch(spch_0)
+          #ax.add_patch(spch_0)
 
   if args.sens_overlap:
       print "making np arrays"
@@ -561,27 +564,25 @@ if __name__ == "__main__":
   else:
       xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
 
-  ax.set_xticklabels(xtick_labels) 
+  ax.set_xticklabels(xtick_labels, zorder=150) 
   print "plotting grid"
   plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
   
 
   #add lines of other surveys
   if args.lines:
-    """
     plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi, np.full(len(map_ra_range),0./180.*np.pi),\
-          'r',label='LOFAR limit')
+          '--m',label=r'LOTAS $\delta_{min}$', zorder=130)
     plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi, np.full(len(map_ra_range),-40./180.*np.pi),\
-          '--g',label='GBT limit')
+          '--g',label=r'GBT $\delta_{min}$', zorder=130)
     plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi, np.full(len(map_ra_range),-55./180.*np.pi),\
-          '--b',label='GMRT limit')
-    """
-    plt.plot(np.radians(np.array(map_ra_range)) - np.pi, 
-             np.full(len(map_ra_range),np.radians(-15.)),
-             '--b',label=r'FAST $\delta_{min}$')
+          '--c',label=r'GMRT $\delta_{min}$', zorder=130)
+    #plt.plot(np.radians(np.array(map_ra_range)) - np.pi, 
+    #         np.full(len(map_ra_range),np.radians(-15.)),
+    #         '--b',label=r'FAST $\delta_{min}$', zorder=130)
     plt.plot(np.radians(np.array(map_ra_range)) - np.pi, 
              np.full(len(map_ra_range),np.radians(30.)),
-             '--r',label=r'MWA $\delta_{max}$')
+             'y',label=r'MWA $\delta_{max}$', zorder=130)
   if args.fill:
       import matplotlib.transforms as mtransforms
       trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
@@ -597,8 +598,25 @@ if __name__ == "__main__":
   plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
              ncol=1, mode="expand", borderaxespad=0., fontsize=6)
   
+  if args.pulsar_all:
+      #add some pulsars
+      ra_PCAT = []
+      dec_PCAT = []
+      pulsar_list = get_psrcat_ra_dec()
+      for pulsar in pulsar_list:
+          ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+          if args.ra_offset:
+              if ra_temp > 180:
+                  ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+              else:
+                  ra_PCAT.append(-ra_temp/180.*np.pi)
+          else:
+              ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+          dec_PCAT.append(dec_temp/180.*np.pi)
+      ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color ='b', zorder=90)
+
+  
   if args.pulsar:
-      from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
       #add some pulsars
       ra_PCAT = []
       dec_PCAT = []
@@ -613,7 +631,7 @@ if __name__ == "__main__":
           else:
               ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
           dec_PCAT.append(dec_temp/180.*np.pi)
-      ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r', zorder=100)
+      ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
   
   if args.aitoff:
       plot_name = 'tile_beam_t'+str(time)+'s_o'+str(args.degree)+'deg_res' + str(res) + '_n'+str(pointing_count)+'_aitoff'
