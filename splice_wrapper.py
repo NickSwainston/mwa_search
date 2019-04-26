@@ -24,28 +24,9 @@ args=parser.parse_args()
 obsid = args.observation
 chan_st = range(24) 
 
-with open('/group/mwaops/nswainston/code/blindsearch_scripts/obs_meta.csv', 'rb') as csvfile:
-    spamreader = csv.reader(csvfile)
-    next(spamreader, None)
-    obsid_meta_file = []
-    for row in spamreader:
-        obsid_meta_file.append(row)
-
-obs_foun_check = False
-for omi in range(len(obsid_meta_file)):
-  if int(obsid) == int(obsid_meta_file[omi][0]):
-      print "getting obs metadata from obs_meta.csv"
-      ob, ra, dec, duration, delays,centrefreq, channels =\
-                  obsid_meta_file[omi]
-      channels = map(int,channels[1:-1].split(","))
-      obs_foun_check = True
-if not obs_foun_check:
-  ob, ra, dec, duration, delays,centrefreq, channels =\
-          meta.get_common_obs_metadata(obsid)  
-  
-  with open('obs_meta.csv', 'a') as csvfile:
-      spamwriter = csv.writer(csvfile)
-      spamwriter.writerow([ob, ra, dec, duration, delays,centrefreq, channels])
+with open('obs_meta.csv', 'a') as csvfile:
+    spamwriter = csv.writer(csvfile)
+    spamwriter.writerow([ob, ra, dec, duration, delays,centrefreq, channels])
 
 print "Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(obsid)
 beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
