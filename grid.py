@@ -272,6 +272,63 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
         pointing_list.append(loop_temp)
     return pointing_list
 
+
+def square_grid(ra0,dec0,centre_fwhm, loop):
+    #start location list [loop number][shape corner (4 for square)][number from corner]
+    #each item has [ra,dec,fwhm] in radians
+    pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
+    print "Calculating the tile positions"
+
+    for l in range(loop):
+        #different step for each corner
+        loop_temp = []
+        for c in range(4):
+            corner_temp = []
+            for n in range((l + 1) * 2):
+                if n == 0: 
+                    #grab from previous corner
+                    cfrom = (c + 3)%4
+                    if l == 0:
+                        #if first loop set all corners to zero
+                        cfrom = 0
+                    #and last number from corner
+                    nfrom = l * 2 - 1
+                    #First loop so all c = 0
+                    if c == 0:
+                        ra,dec = left(pointing_list[l][cfrom][nfrom][0],
+                                      pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    elif c == 1:
+                        ra,dec = up(pointing_list[l][cfrom][nfrom][0],
+                                    pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec = right(pointing_list[l][cfrom][nfrom][0],
+                                       pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec = down(pointing_list[l][cfrom][nfrom][0],
+                                      pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    
+                else:
+                    #moves to the edges
+                    if c == 0:
+                        ra,dec = up(corner_temp[n-1][0],
+                                    corner_temp[n-1][1],centre_fwhm)
+                    elif c == 1:
+                        ra,dec = right(corner_temp[n-1][0],
+                                       corner_temp[n-1][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec = down(corner_temp[n-1][0],
+                                      corner_temp[n-1][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec = left(corner_temp[n-1][0],
+                                      corner_temp[n-1][1],centre_fwhm)
+                    
+                                
+                corner_temp.append([ra,dec])
+            loop_temp.append(corner_temp)
+        pointing_list.append(loop_temp)
+    return pointing_list
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     Makes a hexogonal grid pattern around a pointing for a MWA VCS observation.
@@ -338,6 +395,9 @@ if __name__ == "__main__":
                                  args.loop)
     elif args.type == 'cross':
         pointing_list = cross_grid(ra, dec, centre_fwhm*args.fraction,
+                                   args.loop)
+    elif args.type == 'square':
+        pointing_list = square_grid(ra, dec, centre_fwhm*args.fraction,
                                    args.loop)
     else:
         print "Unrecognised grid type. Exiting."
