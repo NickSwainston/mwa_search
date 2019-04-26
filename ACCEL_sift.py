@@ -1,21 +1,6 @@
 #! /usr/bin/env python
 import sifting, re, glob, argparse
 
-def dm_i_to_file(dm_i):
-    if 0 <= dm_i <= 3:
-        dm_file = "DM_00" + str(dm_i*2) + "-00" + str((dm_i+1)*2)
-    elif dm_i == 4:
-        dm_file = "DM_008-010"
-    elif 5 <= dm_i <= 48:
-        dm_file = "DM_0" + str(dm_i*2) + "-0" + str((dm_i+1)*2)
-    elif dm_i == 49:
-        dm_file = "DM_098-100"
-    elif 50 <= dm_i <= 149:
-        dm_file = "DM_" + str(dm_i*2) + "-" + str((dm_i+1)*2)
-    else:
-        print dm_i
-    return dm_file
-    
 parser = argparse.ArgumentParser(description="""
 Finds candidates with DM paterns.
 """)
@@ -29,40 +14,6 @@ d=args.dir
 print d
 if d.endswith("/"):
     d = d[:-1]
-"""
-if d[-10:-7] == "DM_":
-    i = int(d[-7:-4])
-    j = int(d[-3:])
-    # glob for ACCEL files
-    globaccel = d+"/*ACCEL_*0"
-    # glob for .inf files
-    globinf = d+"/*DM*.inf"
-    inffiles = glob.glob(globinf)
-    candfiles = glob.glob(globaccel)
-    if i > 0:
-        #search for append the previous few DM steps
-        dm_i = i/2 -1
-        dm_file = dm_i_to_file(dm_i)
-        globaccel_append = d[:-10] + dm_file + "/*DM"+str(i-1)+".9*ACCEL_*0"
-        globinf_append = d[:-10] + dm_file + "/*DM"+str(i-1)+".9*.inf"
-        #print d[:-10] + dm_file + "/*DM"+str(i-1)+".9*.inf"
-        
-        #append this extra files
-        inftemp = glob.glob(globinf_append)
-        for i in inftemp:
-            inffiles.append(i)
-        candtemp = glob.glob(globaccel_append)
-        for i in candtemp:
-            candfiles.append(i)
-else:
-    # glob for ACCEL files
-    globaccel = d+"*ACCEL_*0"
-    # glob for .inf files
-    #globinf = "../*/*DM*.inf"
-    globinf = d+"*DM*.inf"
-    inffiles = glob.glob(globinf)
-    candfiles = glob.glob(globaccel)
-"""
 # glob for ACCEL files
 globaccel = "{0}/*ACCEL_*0".format(d)
 # glob for .inf files
@@ -77,7 +28,7 @@ candfiles = glob.glob(globaccel)
 #print inffiles
 
 # In how many DMs must a candidate be detected to be considered "good"
-min_num_DMs = 10
+min_num_DMs = 8
 # Lowest DM to consider as a "real" pulsar
 low_DM_cutoff = 1.0
 # Ignore candidates with a sigma (from incoherent power summation) less than this
@@ -137,11 +88,13 @@ if len(cands):
 # Note:  this includes only a small set of harmonics
 if len(cands):
     cands = sifting.remove_harmonics(cands)
-print cands
+print "Number of candidates remaining {}".format(len(cands))
 # Write candidates to STDOUT
 if len(cands):
     cands.sort(sifting.cmp_sigma)
     cands_file_name = 'cand_files/cands_'+ d.replace("/","_") +'.txt'
     sifting.write_candlist(cands,cands_file_name)
     print cands_file_name
+else:
+    print "No candidates left, no file created"
 

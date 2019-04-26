@@ -202,33 +202,52 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
         loop_temp = []
         for c in range(6):
             corner_temp = []
-            if l == 0:
-                c = 0
             for n in range(l + 1):
-                if l == n: 
-                    if l != 0:
-                        #change the 2 for each loop
-                        #uses next corner
-                        if c == 0:
-                            ra,dec =left(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 1:
-                            ra,dec =up_left(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 2:
-                            ra,dec =up_right(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 3:
-                            ra,dec =right(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 4:
-                            ra,dec =down_right(pointing_list[l][c+1][0][0],
-                                         pointing_list[l][c+1][0][1],centre_fwhm)
-                        elif c == 5:
-                            ra,dec =down_left(pointing_list[l][0][0][0],
-                                     pointing_list[l][0][0][1],centre_fwhm)
-                    
-                if l != n or l == 0:
+                if l == 0: 
+                    #First loop so all c = 0
+                    if c == 0:
+                        ra,dec =left(pointing_list[l][0][n][0],
+                                     pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 1:
+                        
+                        ra,dec =up_left(pointing_list[l][0][n][0],
+                                        pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec =up_right(pointing_list[l][0][n][0],
+                                         pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec =right(pointing_list[l][0][n][0],
+                                      pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 4:
+                        ra,dec =down_right(pointing_list[l][0][n][0],
+                                           pointing_list[l][0][n][1],centre_fwhm)
+                    elif c == 5:  
+                        ra,dec =down_left(pointing_list[l][0][n][0],
+                                          pointing_list[l][0][n][1],centre_fwhm)
+
+                elif l == n:
+                    #change the 2 for each loop
+                    #uses next corner
+                    if c == 0:
+                        ra,dec =left(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 1:
+                        ra,dec =up_left(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec =up_right(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec =right(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 4:
+                        ra,dec =down_right(pointing_list[l][c+1][0][0],
+                                     pointing_list[l][c+1][0][1],centre_fwhm)
+                    elif c == 5:
+                        ra,dec =down_left(pointing_list[l][0][0][0],
+                                 pointing_list[l][0][0][1],centre_fwhm)
+                
+                else:
                     if c == 0:
                         ra,dec =left(pointing_list[l][c][n][0],
                                      pointing_list[l][c][n][1],centre_fwhm)
@@ -253,6 +272,63 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
         pointing_list.append(loop_temp)
     return pointing_list
 
+
+def square_grid(ra0,dec0,centre_fwhm, loop):
+    #start location list [loop number][shape corner (4 for square)][number from corner]
+    #each item has [ra,dec,fwhm] in radians
+    pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
+    print "Calculating the tile positions"
+
+    for l in range(loop):
+        #different step for each corner
+        loop_temp = []
+        for c in range(4):
+            corner_temp = []
+            for n in range((l + 1) * 2):
+                if n == 0: 
+                    #grab from previous corner
+                    cfrom = (c + 3)%4
+                    if l == 0:
+                        #if first loop set all corners to zero
+                        cfrom = 0
+                    #and last number from corner
+                    nfrom = l * 2 - 1
+                    #First loop so all c = 0
+                    if c == 0:
+                        ra,dec = left(pointing_list[l][cfrom][nfrom][0],
+                                      pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    elif c == 1:
+                        ra,dec = up(pointing_list[l][cfrom][nfrom][0],
+                                    pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec = right(pointing_list[l][cfrom][nfrom][0],
+                                       pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec = down(pointing_list[l][cfrom][nfrom][0],
+                                      pointing_list[l][cfrom][nfrom][1],centre_fwhm)
+                    
+                else:
+                    #moves to the edges
+                    if c == 0:
+                        ra,dec = up(corner_temp[n-1][0],
+                                    corner_temp[n-1][1],centre_fwhm)
+                    elif c == 1:
+                        ra,dec = right(corner_temp[n-1][0],
+                                       corner_temp[n-1][1],centre_fwhm)
+                    elif c == 2:
+                        ra,dec = down(corner_temp[n-1][0],
+                                      corner_temp[n-1][1],centre_fwhm)
+                    elif c == 3:
+                        ra,dec = left(corner_temp[n-1][0],
+                                      corner_temp[n-1][1],centre_fwhm)
+                    
+                                
+                corner_temp.append([ra,dec])
+            loop_temp.append(corner_temp)
+        pointing_list.append(loop_temp)
+    return pointing_list
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     Makes a hexogonal grid pattern around a pointing for a MWA VCS observation.
@@ -270,6 +346,7 @@ if __name__ == "__main__":
     parser.add_argument('--dec_range',type=float,nargs='+',help='Dec limits: "decmin decmax". Default -90 90', default=[-90,90])
     parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 390', default=[0,360])
     parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
+    parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
 
     args=parser.parse_args()
 
@@ -282,7 +359,8 @@ if __name__ == "__main__":
             else:
                 opts_string = opts_string + ' --' + str(k) + ' ' + str(args.__dict__[k])
             
-    obs, ra, dec, duration, xdelays, centrefreq, channels = meta.get_common_obs_metadata(args.obsid)
+    if args.obsid:
+        obs, ra, dec, duration, xdelays, centrefreq, channels = meta.get_common_obs_metadata(args.obsid)
         
     #get fwhm in radians
     centre_fwhm = np.radians(args.deg_fwhm)
@@ -317,6 +395,9 @@ if __name__ == "__main__":
                                  args.loop)
     elif args.type == 'cross':
         pointing_list = cross_grid(ra, dec, centre_fwhm*args.fraction,
+                                   args.loop)
+    elif args.type == 'square':
+        pointing_list = square_grid(ra, dec, centre_fwhm*args.fraction,
                                    args.loop)
     else:
         print "Unrecognised grid type. Exiting."
@@ -366,8 +447,9 @@ if __name__ == "__main__":
         #check each pointing is within the tile beam
         radls = []
         decdls = []
+        tFWHM = np.amax(power)/2. #assumed half power point of the tile beam
         for ni in range(len(rads)):
-            if max(power[ni]) > 0.5:
+            if max(power[ni]) > tFWHM:
                 radls.append(rads[ni])
                 decdls.append(decds[ni])
         rads = radls
@@ -385,12 +467,10 @@ if __name__ == "__main__":
     for i in range(len(rags_uf)):
         rag = rags_uf[i] 
         decg = decgs_uf[i]
-        print rag,decg
 
         temp = fpio.format_ra_dec([[rag,decg]])
         rag = temp[0][0]
         decg = temp[0][1]
-        print rag,decg
 
         if args.verbose_file:
             az,za,azd,zad = getTargetAZZA(rag,decg,time)
@@ -450,6 +530,7 @@ if __name__ == "__main__":
     else:
         plt.axes().set_aspect('equal')
         ax = plt.gca()
+        #ax.axis([325., 345., -9., 0.])
 
     plt.xlabel("ra (degrees)")
     plt.ylabel("dec (degrees)")
@@ -465,13 +546,25 @@ if __name__ == "__main__":
             fwhm_horiz = np.degrees(centre_fwhm/cos(np.radians(decds[i])) )
             
             ellipse = patches.Ellipse((rads[i],decds[i]), fwhm_horiz, fwhm_vert,
-                                          linewidth=0.2, fill=False, edgecolor='red')
+                                          linewidth=0.3, fill=False, edgecolor='green')
             ax.add_patch(ellipse)
             #fwhm_circle = centre_fwhm/cos(np.radians(decds[i])) / 2.
             #circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),
             #                     color='r', lw=0.1,fill=False)
     plt.scatter(rads,decds,s=0.1,c='black')
-
+    
+    #add pulsars
+    from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
+    #add some pulsars
+    if args.pulsar:
+        ra_PCAT = []
+        dec_PCAT = []
+        pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
+        for pulsar in pulsar_list:
+            ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+            ra_PCAT.append(ra_temp)
+            dec_PCAT.append(dec_temp)
+        ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r', zorder=100)
 
     plt.savefig('grid_positions_'+str(args.obsid)+'_n'+str(len(rads))+'_f'+str(args.fraction)+\
                 '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'.png',bbox_inches='tight',\

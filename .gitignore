@@ -1,4 +1,4 @@
 output/*
-blindsearch_database.pyc
+*.pyc
 obs_meta.csv
 bin/*

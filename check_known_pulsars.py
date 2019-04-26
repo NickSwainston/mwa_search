@@ -6,7 +6,9 @@ import os
 import glob
 import subprocess
 import numpy as np
+
 import blindsearch_pipeline as blind_pipe
+from mwa_metadb_utils import get_common_obs_metadata as get_meta
 
 def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False):
     
@@ -21,14 +23,20 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
     obsdur=obsend-obsbeg
 
     #wrapping for find_pulsar_in_obs.py
-    names_ra_dec = np.array(fpio.grab_source_alog())
-    fpio.find_sources_in_obs([obsid], names_ra_dec)
+    names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
+    fpio.find_sources_in_obs([obsid], names_ra_dec, dt=100)
     known_pulsar_file = "{0}_analytic_beam.txt".format(obsid)
 
     if all_check:
         #looks through the comined files to use the max and min
         #TODO have some sort of check to look for gaps
-        combined_files = glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ics.dat".format(obsid))
+        if glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ics.dat".format(obsid)):
+            combined_files = glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ics.dat".format(obsid))
+        else:
+            meta_data = get_meta(obsid)
+            channels = meta_data[-1]
+            combined_files = glob.glob("/group/mwaops/vcs/{0}/combined/{0}*_ch{1}.dat".\
+                                       format(obsid, channels[-1]))
         comb_times = []
         for comb in combined_files:
             comb_times.append(int(comb.split("_")[1]))
@@ -45,7 +53,7 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
     for pulsar_line in pulsar_lines:
         if pulsar_line.startswith("J"):
             PSRJ = pulsar_line.split()[0]
-            if len(PSRJ) < 11 or PSRJ[-1] == 'A':
+            if len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
                 inpc = float(pulsar_line.split()[1])
                 otpc = float(pulsar_line.split()[2])
                 if not all_check:
@@ -60,15 +68,17 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args, vdif_check=False)
                 period = output.split('\n')[4].split()[1] #in s
                 print PSRJ, raj, decj, period, psrbeg, psrend
                 fits_dir = '/group/mwaops/vcs/{0}/pointings/{1}_{2}/'.format(obsid, raj, decj)
-                if PSRJ[-1] == 'A':
+                if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
                     #Got to find all the pulsar J names with other letters
                     vdif_check = True
                     jname_list = []
                     for pulsar_l in pulsar_lines:
-                        if pulsar_l.startswith(PSRJ[:-1]):
+                        if pulsar_l.startswith(PSRJ[:-2]):
                             jname_list.append(pulsar_l.split()[0])
                 else:
                     jname_list = [jname]
+                    if '*' in period:
+                        continue
                     if float(period) < .05 :
                         vdif_check = True
                 blind_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
@@ -87,7 +97,7 @@ if __name__ == "__main__":
     """)
     parser.add_argument('-o','--obsid',type=str,help='The observation ID of the fits file to be searched')
     parser.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
-    parser.add_argument('--cal_obs', '-O', type=int, help="Observation ID of calibrator you want to process.", default=None)
+    parser.add_argument('-O','--cal_obs', type=int, help="Observation ID of calibrator you want to process.", default=None)
     parser.add_argument("-a", "--all", action="store_true",  help="Uses all of the combined data available. If the options isn't used it'll only use the start and stops times that are recommened by find_pulsar_in_obs.py.")
     parser.add_argument("-v", "--vdif", action="store_true",  help="Create vdif files for all pulsars. Default is to only create vdif files for pulsar with a period shorter than 50 ms.")
     args=parser.parse_args()
