@@ -61,9 +61,7 @@ def your_slurm_queue_check(max_queue = 80, queue = 'gpuq', grep=None):
 
 
 def job_setup_headers(script_test=False, n_omp_threads=1):
-    batch_line ='ncpus={0}\n'.format(n_omp_threads) +\
-                'export OMP_NUM_THREADS={0}\n'.format(n_omp_threads) +\
-                'export CMD_VCS_DB_FILE=/astro/mwaops/vcs/.vcs.db\n' + \
+    batch_line ='export CMD_VCS_DB_FILE=/astro/mwaops/vcs/.vcs.db\n' + \
                 'export CMD_BS_DB_DEF_FILE={}\n'.format(DB_FILE_LOC)
     if script_test:
         #batch_line += """export PATH="$( echo $PATH| tr : '\n' |grep -v /group/mwaops/nswainston/code/blindsearch_scripts/bin/ | paste -s -d: )"\n
@@ -128,14 +126,17 @@ def numout_calc(fits_dir, obsid):
     """
     Find the number of time samples of all fits files in the given directory
     """
+    import socket
+    hostname = socket.gethostname()
     dirlist = glob.glob("{0}/{1}_*.fits".format(fits_dir, obsid))
     numout = 0 
     for d in dirlist:
         submit_line = 'readfile ' + d
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+        print(submit_cmd.stdout)
         for line in submit_cmd.stdout:
-            if 'Time per file (sec) =' in line:
-                subint = int(line.split('=')[-1])
+            if b'Time per file (sec) =' in line:
+                subint = int(line.split(b'=')[-1])
         numout += int(subint * 1e4)
 
     if numout%2:
@@ -312,7 +313,6 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir,
                  slurm_kwargs={"time": "5:00:00", 
-                               "partition": comp_config['cpuq_partition'], 
                                "nice":"90"},
                  submit=True, depend=job_id_list, depend_type='afterany')
     return
@@ -542,9 +542,8 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "2:00:00", 
-                               "partition": comp_config['cpuq_partition'], 
                                "nice":"90"},#4 hours
-                 submit=True, module_list=["presto/master"])
+                 submit=True, module_list=[comp_config['presto_module']])
  
     return
 
@@ -590,7 +589,8 @@ def prepdata(obsid, pointing, relaunch_script,
     maxfreq = float(max(channels))
     centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2) #in MHz
     
-    
+    #Old DDplan method
+    """
     output = subprocess.Popen(['DDplan.py','-l',str(dm_min),
                                '-d',str(dm_max),
                                '-f',str(centrefreq),
@@ -608,7 +608,15 @@ def prepdata(obsid, pointing, relaunch_script,
         dm_list.append(columns)
     
     #dm_list = [['1.500','3.500','0.01','4','200','1']]
-          
+    """
+
+    #new lfDDplan method #TODO make this more robust
+
+    from lfDDplan import dd_plan
+    dm_list = dd_plan(centrefreq, 30.72, 3072, 0.1, dm_min, dm_max)
+    #dm_list = [[low_dm, high_dm, DM_step, number_of_steps, time_res]]
+
+
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir, obsid)
 
@@ -628,7 +636,7 @@ def prepdata(obsid, pointing, relaunch_script,
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
-        dm_end = float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
+        dm_end = dm_line[1] #float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
             commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) + str(mask_command) +\
@@ -860,9 +868,8 @@ def wrap_up(obsid, pointing,
     submit_slurm(wrap_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "2:50:00", 
-                               "partition": comp_config['cpuq_partition'], 
                                "nice":"90"},#4 hours
-                 submit=True, module_list=["presto/master"])
+                 submit=True, module_list=[comp_config['presto_module']])
     return
 
 
@@ -874,6 +881,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
     Checkes the database for any jobs that didn't complete (or didn't even start)
     and reruns any errors before continuing to the next step
     """
+    comp_config = config.load_config_file()
     if sub_dir is None:
         sub_dir = '{0}/{1}'.format(pointing,obsid)
     sub_sub_dir = ''
@@ -967,9 +975,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 job_id = submit_slurm(check_batch, commands,
                          batch_dir="{0}{1}/batch".format(work_dir,sub_dir),
                          slurm_kwargs={"time": total_job_time_str , 
-                                       "partition": comp_config['cpuq_partition'], 
                                        "nice":"90"},#4 hours
-                         submit=True, module_list=["presto/master"])
+                         submit=True, module_list=[comp_config['presto_module']])
                 job_id_list.append(job_id)
                 
                 check_job_num += 1
@@ -1008,9 +1015,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
             job_id = submit_slurm(check_batch, commands,
                      batch_dir="{0}{1}/batch".format(work_dir, sub_dir),
                      slurm_kwargs={"time": total_job_time_str , 
-                                   "partition": comp_config['cpuq_partition'], 
                                    "nice":"90"},#4 hours
-                     submit=True, module_list=["presto/master"])
+                     submit=True, module_list=[comp_config['presto_module']])
             job_id_list.append(job_id)
         
         #Dependancy job
@@ -1028,10 +1034,9 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         submit_slurm(check_depend_batch, commands,
                      batch_dir="{0}{1}/batch".format(work_dir, sub_dir),
                      slurm_kwargs={"time": "20:00",
-                                   "partition": comp_config['cpuq_partition'], 
                                    "nice":"90"},
                      submit=True, depend=job_id_list, depend_type="afterany", 
-                     module_list=["presto/master", "matplotlib"])
+                     module_list=[comp_config['presto_module'], "matplotlib"])
     return
 
 
@@ -1145,7 +1150,9 @@ if __name__ == "__main__":
         work_dir = args.work_dir
     elif default_work_dir is not None:
         work_dir = default_work_dir
-    work_dir = os.environ['BLINDSEARCH_WORK_DIR']
+    #work_dir = os.environ['BLINDSEARCH_WORK_DIR']
+    if not work_dir.endswith('/'):
+        work_dir = "{0}/".format(work_dir)
 
     if args.sub_dir:
         sub_dir = args.sub_dir
