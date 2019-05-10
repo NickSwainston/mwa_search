@@ -417,19 +417,15 @@ Default mode is vc'''.format(mode_options)))
         
         
         if args.mode == "vc": 
-            print('Row# ','Obsid       ','Pointing                      ','Started               ','Ended                 ','Comments')
-            print('--------------------------------------------------------------------------------------------------')
+            print('{:4s} | {:10s} | {:26s} | {:19s} | {:19s} | {}'.format('Row', 
+                  'Obsid', 'Pointing', 'Started', 'Ended', 'Comments'))
+            print('-----------------------------------------------------------------------------------------------------')
             for row in rows:
-                print('%-5s' % (str(row['Rownum']).rjust(4)),)
-                print('%-12s' % (row['Obsid']),)
-                print('%-30s' % (row['Pointing']),)
-                print('%-22s' % (row['Started'][:19]),)
                 if row['Ended'] is None:
-                    print('%-22s' % (row['Ended']),)
+                    temp_ended = '{:19s}'.format('None')
                 else:
-                    print('%-22s' % (row['Ended'][:19]),)
-                print(row['Comment'])
-                #print "\n"
+                    temp_ended = '{:19s}'.format(row['Ended'])
+                print('{:4d} | {:10d} | {:26s} | {:19s} | {:19s} | {}'.format(row['Rownum'], row['Obsid'], row['Pointing'], row['Started'][:19], temp_ended, row['Comment']))
                 
                 
         if args.mode == "vs":
