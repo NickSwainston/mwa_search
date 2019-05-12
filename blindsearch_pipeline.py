@@ -781,14 +781,14 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
                             cand_list.append([f,l[0],l[1],f[13:-8],l[5]])
     else:
         os.chdir(work_dir)
-        print("Removing Candidates without DM structure using ACCEL_sift.py")
-        print(submit_line)
-        submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-        print(submit_cmd.communicate()[0],)
+        #print("Removing Candidates without DM structure using ACCEL_sift.py")
+        #print(submit_line)
+        #submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
+        #print(submit_cmd.communicate()[0],)
         if os.path.exists(file_loc):
             #creat a list of s/n>7 cands
             #[[accel_file,cand,s/n,DM,period(ms)]]
-            with open(file_loc,"rb") as sifted_cands:
+            with open(file_loc,"r") as sifted_cands:
                 lines = sifted_cands.readlines()
                 for l in lines:
                     if l.startswith(obsid):
@@ -915,9 +915,18 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         error_data = blindsearch_database.database_script_check(table, bsd_row_num, attempt_num)
     if len(error_data) == 0:
         print("No incomplete jobs, moving on to next part of the pipeline")
+        if cur_mode == 'a':
+            # changing to python 2 to use ACCELsift
+            print('Switching python versions to run ACCELsift')
+            print(subprocess.check_output('module load presto/d6265c2', shell=True))
+            print(subprocess.check_output('ml matplotlib/2.2.2-python-2.7.14', shell=True))
+            os.chdir(work_dir)
+            cmd = subprocess.call('ACCEL_sift.py {0}/'.format(sub_dir), 
+                                          shell=True, stdout=subprocess.PIPE)
+            print(subprocess.check_output('module load python/3.6.4', shell=True))
         print("{0} -m {1}".format(relaunch_script, next_mode))
-        cmd=subprocess.Popen("{0} -m {1}".format(relaunch_script, next_mode),
-                             shell=True,stdout=subprocess.PIPE)
+        cmd=subprocess.run("{0} -m {1}".format(relaunch_script, next_mode),
+                             shell=True, stdout=subprocess.PIPE)
         for line in cmd.stdout:
             print(line,)
     elif attempt_num > 10:
@@ -976,7 +985,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                          batch_dir="{0}{1}/batch".format(work_dir,sub_dir),
                          slurm_kwargs={"time": total_job_time_str , 
                                        "nice":"90"},#4 hours
-                         submit=True, module_list=[comp_config['presto_module']])
+                         submit=True, module_list=[comp_config['presto_module']],
+                         cpu_threads=n_omp_threads)
                 job_id_list.append(job_id)
                 
                 check_job_num += 1
@@ -1016,7 +1026,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                      batch_dir="{0}{1}/batch".format(work_dir, sub_dir),
                      slurm_kwargs={"time": total_job_time_str , 
                                    "nice":"90"},#4 hours
-                     submit=True, module_list=[comp_config['presto_module']])
+                     submit=True, module_list=[comp_config['presto_module']],
+                     cpu_threads=n_omp_threads)
             job_id_list.append(job_id)
         
         #Dependancy job
@@ -1036,7 +1047,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                      slurm_kwargs={"time": "20:00",
                                    "nice":"90"},
                      submit=True, depend=job_id_list, depend_type="afterany", 
-                     module_list=[comp_config['presto_module'], "matplotlib"])
+                     module_list=[comp_config['presto_module']],
+                     cpu_threads=n_omp_threads)
     return
 
 
