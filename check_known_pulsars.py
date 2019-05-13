@@ -23,14 +23,15 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args,
     fpio.find_sources_in_obs([obsid], names_ra_dec, dt=100)
     known_pulsar_file = "{0}_analytic_beam.txt".format(obsid)
 
+    meta_data = get_meta(obsid)
+    channels = meta_data[-1]
+            
     if all_check:
         #looks through the comined files to use the max and min
         #TODO have some sort of check to look for gaps
         if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(product_dir, obsid)):
             combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(product_dir, obsid))
         else:
-            meta_data = get_meta(obsid)
-            channels = meta_data[-1]
             combined_files = glob.glob("{0}/{1}/combined/{1}*_ch{2}.dat".\
                                        format(product_dir, obsid, channels[-1]))
         comb_times = []
@@ -79,7 +80,8 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args,
                         vdif_check = True
                 blind_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
                                     DI_dir, vdif=vdif_check,
-                                    args=args, pulsar_check=jname_list, cal_id=cal_obs)
+                                    args=args, pulsar_check=jname_list, cal_id=cal_obs,
+                                    channels=channels)
     os.remove(known_pulsar_file)
     return
 

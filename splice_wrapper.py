@@ -15,22 +15,31 @@ parser.add_argument('-o','--observation',type=str,help='The observation ID to be
 parser.add_argument('-i','--incoh',action='store_true',help='Use this check if there are and incoh files from the beamformer.')
 parser.add_argument('-d','--delete',action='store_true',help='This will cause the script to remove the unspliced files if splice_psrfits.sh succeeds (error code of 0).')
 parser.add_argument('-w','--work_dir',type=str,help='Working directory of the vcs files.', default="./")
+parser.add_argument('-c', '--channels', type=int, nargs=24, help='A list of the observations channel IDs for example "-c 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132". If this option is not used a metadata call will be used to find the channel IDs.')
 args=parser.parse_args()
 
     
 obsid = args.observation
 chan_st = range(24) 
 
-print("Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(obsid))
-beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
-channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+if args.channels:
+    channels = args.channels
+else:
+    print("Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(obsid))
+    beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
+    channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
 
-chan_order=channels
-print("Chan order: {}".format(chan_order))
 
+print("Chan order: {}".format(channels))
 #move into working fdir
 old_dir = os.getcwd()
 os.chdir(args.work_dir)
+
+if glob.glob('{0}*fits'.format(args.observation)) and \
+   not glob.glob('*_{0}*fits'.format(args.observation)):
+    print('All files are already spliced so exiting')
+    exit()
+    
 
 #getting number of files list
 if args.incoh:
@@ -45,7 +54,7 @@ print('Fits number order: {}'.format(n_fits))
 
 for n in n_fits:
     submit_line = submit_line_incoh = 'splice_psrfits '
-    for ch in chan_order:
+    for ch in channels:
         submit_line += '*{}_ch{:03d}_{:04d}.fits '.format(obsid, ch, n)
         submit_line_incoh +=  '*{}_ch{:03d}_incoh_{:04d}.fits '.format(obsid, ch, n)
     submit_line += 'temp_'+str(n)

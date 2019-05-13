@@ -424,7 +424,7 @@ Default mode is vc'''.format(mode_options)))
                 if row['Ended'] is None:
                     temp_ended = '{:19s}'.format('None')
                 else:
-                    temp_ended = '{:19s}'.format(row['Ended'])
+                    temp_ended = '{:.19}'.format(row['Ended'])
                 print('{:4d} | {:10d} | {:26s} | {:19s} | {:19s} | {}'.format(row['Rownum'], row['Obsid'], row['Pointing'], row['Started'][:19], temp_ended, row['Comment']))
                 
                 

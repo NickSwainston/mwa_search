@@ -36,6 +36,12 @@ def exists_remote(host, path):
         return False
     raise Exception('SSH failed')
 
+def get_channels(obsid, channels=None):
+    if channels is None:
+        print("Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(obsid))
+        beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
+        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+    return channels
 
 def your_slurm_queue_check(max_queue = 80, queue = 'gpuq', grep=None):
     """
@@ -146,7 +152,7 @@ def numout_calc(fits_dir, obsid):
 def get_pulsar_dm_p(pulsar):
     #Gets the ra and dec from the output of PSRCAT
     cmd = ['psrcat', '-c', 'dm', pulsar]
-    output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0]
+    output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
     temp = []
     lines = output.split('\n')
     for l in lines[4:-1]: 
@@ -155,7 +161,7 @@ def get_pulsar_dm_p(pulsar):
         if len(columns) > 1:
             dm = columns[1]
     cmd = ['psrcat', '-c', 'p0', pulsar]
-    output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0]
+    output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
     temp = []
     lines = output.split('\n')
     for l in lines[4:-1]: 
@@ -182,7 +188,8 @@ def dm_i_to_file(dm_i):
 def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
                         pointing_dir,relaunch_script,
                         search=False, bsd_row_num=None, nice=100,
-                        pulsar_check=None, cal_id=None, vdif=False):
+                        pulsar_check=None, cal_id=None, vdif=False,
+                        channels=None):
     """
     Does some basic checks and formating before 
     if args.pulsar_file:
@@ -203,7 +210,6 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     if vdif:
         bf_formats += " -u"
 
-
     #set up and launch beamfroming
     comp_config = config.load_config_file()
     data_dir = '{0}{1}'.format(comp_config['base_data_dir'], obsid)
@@ -218,14 +224,16 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     pointing = "{0}_{1}".format(pointing[0],pointing[1])
     dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
-                           relaunch_script=relaunch_script, cal_id=cal_id, incoh=incoh_check)
+                           relaunch_script=relaunch_script, cal_id=cal_id, 
+                           incoh=incoh_check, channels=channels)
     return
 
 
 def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
                            bsd_row_num=None, pulsar_check=None, 
                            relaunch_script="echo no relaunch", cal_id=None, 
-                           incoh=False, begin=None, end=None):
+                           incoh=False, begin=None, end=None,
+                           channels=None):
     """
     Launches a script that splices the beamformed files and, where approriate,
     launches the blindsearch pipeline or folds on known pulsars.
@@ -245,8 +253,13 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
         #record beamforming processing time
         commands.append('blindsearch_database.py -m b -b {0} -f {1}mb_{2}'.format(bsd_row_num, batch_dir, pointing))
     
+    #grabbing chan ids for splicing
+    channels = get_channels(obsid, channels=channels)
+    
+    splice_command = 'splice_wrapper.py -o {0} -w {1} -d -c {2}'.format(obsid, 
+                     pointing_dir, ' '.join(map(str, channels)))
     if incoh:
-        commands.append('splice_wrapper.py -o {0} -w {1} -i -d'.format(obsid, pointing_dir))
+        commands.append(splice_command = '{0} -i'.format(splice_command))
         commands.append('mv {0}{1}/pointings/{2}/*incoh* {0}{1}/incoh/'.
                             format(comp_config['base_product_dir'], obsid, pointing))
         #run rfi job
@@ -256,14 +269,13 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
             commands.append('{0} -m r -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
 
     else:
-        commands.append('splice_wrapper.py -o {0} -w {1} -d'.format(obsid, pointing_dir))
+        commands.append(splice_command)
     
     if pulsar_check is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('cd {0}'.format(pointing_dir))
         for pulsar in pulsar_check:
             #load presto module here because it uses python 2
-            commands.append('module load {0}'.format(comp_config['presto_module']))
             commands.append('echo "Folding on known pulsar"'.format(pulsar))
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
             commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
@@ -305,15 +317,18 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
         commands.append("fi")
     
     #add relaunch script
-    if bsd_row_num is None:
-        commands.append('{0} -m b -p {1}'.format(relaunch_script, pointing))
-    else:
-        commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
+    if 'None' not in relaunch_script:
+        if bsd_row_num is None:
+            commands.append('{0} -m b -p {1}'.format(relaunch_script, pointing))
+        else:
+            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
     
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir,
                  slurm_kwargs={"time": "5:00:00", 
                                "nice":"90"},
+                 module_list=[comp_config['presto_module'],
+                              comp_config['psrcat_module']],
                  submit=True, depend=job_id_list, depend_type='afterany')
     return
 
@@ -325,7 +340,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
              search=False, bsd_row_num_input=None, incoh=False, 
              pulsar=None, args=None, script_test=False,
              fits_dir_base=None, pulsar_check=None, cal_id=None,
-             vdif=False):
+             vdif=False, cold_storage_check=False, 
+             channels=None):
                     
     for n, line in enumerate(pointing_list):
         if line.startswith("#"):
@@ -365,17 +381,19 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             #    fits_dir = '{0}/{1}/'.format(fits_dir_base, pulsar)
             fits_dir = fits_dir_base + "/"
             product_dir = '{0}{1}'.format(comp_config['base_product_dir'], obsid)
-        #Check if pointing in cold storage
-        try :
-            exists_remote_check = exists_remote("hpc-hsm.pawsey.org.au",
-                    "/project/mwaops/nswainston/yogesh_low_DM_candiate/{0}_pointing.tar.gz".\
-                    format(pointing))
-            if exists_remote_check and len(pointing_list) > 1:
-                print("The pointing is in cold storage so assumed it is analysised so not reprocessing")
-                continue
-        except:
-            print("Connection to cold storage failed. Will only check for local files")
-            pass
+        
+        if cold_storage_check:
+            #Check if pointing in cold storage
+            try :
+                exists_remote_check = exists_remote("hpc-hsm.pawsey.org.au",
+                        "/project/mwaops/nswainston/yogesh_low_DM_candiate/{0}_pointing.tar.gz".\
+                        format(pointing))
+                if exists_remote_check and len(pointing_list) > 1:
+                    print("The pointing is in cold storage so assumed it is analysised so not reprocessing")
+                    continue
+            except:
+                print("Connection to cold storage failed. Will only check for local files")
+                pass
         
         #Go through some file checks (true is something is missing)
         path_check = False
@@ -397,9 +415,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             if missing_file_check:
                 #check if we have any unspliced files
                 #there are some so going to resubmit jobs
-                beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
-                channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
-                
+                channels = get_channels(obsid, channels=channels) 
                 job_id_list =[]
                 unspliced_check = False
                 for ch in channels:
@@ -447,7 +463,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
                            relaunch_script=relaunch_script, begin=begin, 
-                           end=end, cal_id=cal_id)
+                           end=end, cal_id=cal_id, channels=channels)
  
         elif unspliced_check:
             #resubmit any channels that are incomplete
@@ -481,7 +497,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             dependant_splice_batch(obsid, pointing, product_dir, fits_dir, job_id_list,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
                            relaunch_script=relaunch_script, cal_id=cal_id,
-                           begin=begin, end=end)
+                           begin=begin, end=end, channels=channels)
 
         else:
             #All files there so the check has succeded and going to start the pipeline
@@ -493,7 +509,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                          work_dir=work_dir,
                          bsd_row_num=bsd_row_num, pulsar=pulsar,
                          fits_dir=fits_dir, dm_min=dm_min, dm_max=dm_max, 
-                         script_test=script_test)
+                         script_test=script_test, channels=channels)
             #remove any extra unspliced files
             for fr in glob.glob(fits_dir+"*_"+obsid+"_*.fits"):
                 os.remove(fr)
@@ -503,7 +519,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             if pulsar_check is not None:
                 dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
                                        bsd_row_num=None, pulsar_check=pulsar_check, 
-                                       cal_id=cal_id, begin=begin, end=end)
+                                       cal_id=cal_id, begin=begin, end=end,
+                                       channels=channels)
     return
  
 
@@ -553,7 +570,8 @@ def prepdata(obsid, pointing, relaunch_script,
              work_dir='/group/mwaops/nswainston/blindsearch/', 
              bsd_row_num=None, pulsar=None,
              n_omp_threads = 8, fits_dir=None, 
-             dm_min=1.0, dm_max=250.0, script_test=False):
+             dm_min=1.0, dm_max=250.0, script_test=False,
+             channels=None):
     comp_config = config.load_config_file()
     if fits_dir == None:
         fits_dir='{0}{1}/pointings/{2}/'.format(comp_config['base_product_dir'], obsid, pointing)
@@ -582,9 +600,7 @@ def prepdata(obsid, pointing, relaunch_script,
     
 
     #Get the centre freq channel and then run DDplan.py to work out the most effective DMs
-    print("Obtaining metadata from http://mwa-metadata01.pawsey.org.au/metadata/ for OBS ID: " + str(obsid))
-    beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
-    channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+    channels = get_channels(obsid, channels=channels)
     minfreq = float(min(channels))
     maxfreq = float(max(channels))
     centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2) #in MHz
@@ -925,7 +941,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                                           shell=True, stdout=subprocess.PIPE)
             print(subprocess.check_output('module load python/3.6.4', shell=True))
         print("{0} -m {1}".format(relaunch_script, next_mode))
-        cmd=subprocess.run("{0} -m {1}".format(relaunch_script, next_mode),
+        cmd=subprocess.call("{0} -m {1}".format(relaunch_script, next_mode),
                              shell=True, stdout=subprocess.PIPE)
         for line in cmd.stdout:
             print(line,)
@@ -1064,6 +1080,7 @@ if __name__ == "__main__":
     Used to automate mass beamforming of MWA data and pulsar searches using the galaxy supercomputer (Ozstar coming soon).
     """, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-o','--observation',type=str,help='The observation ID of the MWA observation')
+    parser.add_argument('-c', '--channels', type=int, nargs=24, help='A list of the observations channel IDs for example "-c 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132". If this option is not used a metadata call will be used to find the channel IDs.', default=None)
     parser.add_argument('-t','--test',action="store_true",help="Uses the scripts that haven't been put in bin/ yet. Used to test them before using the build script")
 
     pointing_options = parser.add_argument_group('Pointing Options')
@@ -1100,6 +1117,7 @@ if __name__ == "__main__":
 "w" Wraps up the pipeline by moving significant pulse profiles to it's own file for inspection.
 "c" Check script that runs after each step to make sure no jobs have failed.'''), default="b")
     blindsearch_options.add_argument("--table", type=str, help="The table name for the blindsearch database to check, similar to the commands used.")
+    blindsearch_options.add_argument("--csc", action="store_true",  help="If option used will check if the pointing is being stored in Galaxy's cold storage HSM.")
     args=parser.parse_args()
     comp_config = config.load_config_file()
     #argument parsing
@@ -1211,6 +1229,8 @@ if __name__ == "__main__":
         relaunch_script +=  " --test"
     if args.fits_dir:
         relaunch_script +=  " --fits_dir " + str(args.fits_dir)
+    if args.channels:
+        relaunch_script +=  " --channels " + str(args.channels)
 
 
     #work out start and stop times for beamforming
@@ -1242,7 +1262,8 @@ if __name__ == "__main__":
                  relaunch_script=relaunch_script, code_comment=code_comment,
                  search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
                  pulsar=args.pulsar, args=args, script_test=args.test,
-                 fits_dir_base=args.fits_dir)
+                 fits_dir_base=args.fits_dir, cold_storage_check=args.csc,
+                 channels=args.channels)
     elif args.mode == "c":
         error_check(args.table, args.attempt, args.bsd_row_num, relaunch_script,
                     obsid, pointing, script_test=args.test,
@@ -1258,7 +1279,7 @@ if __name__ == "__main__":
                  work_dir=work_dir, bsd_row_num=args.bsd_row_num, 
                  pulsar=args.pulsar, n_omp_threads=n_omp_threads, 
                  fits_dir=args.fits_dir, dm_min=args.dm_min, dm_max=args.dm_max, 
-                 script_test=args.test)
+                 script_test=args.test, channels=args.channels)
     elif args.mode == "t":
         sort_fft(obsid, pointing, sub_dir, relaunch_script,
                  work_dir=work_dir, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
