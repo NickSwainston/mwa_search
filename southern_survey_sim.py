@@ -4,9 +4,6 @@ import os
 import sys
 import math
 import argparse
-import urllib
-import urllib2
-import json
 import subprocess
 import numpy as np
 import csv
@@ -29,8 +26,7 @@ import matplotlib.cm as cm
 #plt.rc("text",usetex=True)
 
 #vcstools/mwapy
-from mwapy.pb import primary_beam
-from mwapy import ephem_utils,metadata
+from mwa_pb import primary_beam
 import find_pulsar_in_obs as fpio
 import mwa_metadb_utils as meta
 from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
@@ -68,7 +64,7 @@ if __name__ == "__main__":
   plt.rc("font", size=8)
   if args.aitoff:
     fig.add_subplot(111)
-    print "changing axis"
+    print("changing axis")
     ax = plt.axes(projection='mollweide')
   else:
     fig.add_subplot(111)
@@ -77,8 +73,8 @@ if __name__ == "__main__":
 
 
   #levels = np.arange(0.25, 1., 0.05)
-  colors= ['0.5' for _ in xrange(50)] ; colors[0]= 'blue'
-  linewidths= [0.4 for _ in xrange(50)] ; linewidths[0]= 1.0
+  colors= ['0.5' for _ in range(50)] ; colors[0]= 'blue'
+  linewidths= [0.4 for _ in range(50)] ; linewidths[0]= 1.0
   
   #txtfile=open('/group/mwaops/xuemy/incoh_census/fold_code/get_obs_oblist_test.txt').readlines()
   
@@ -92,7 +88,7 @@ if __name__ == "__main__":
                   [12,12,12,12,8,8,8,8,4,4,4,4,0,0,0,0],\
                   [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0]]
   
-  print "Using GLEAM dec range: {}".format(dec_range)
+  print("Using GLEAM dec range: {}".format(dec_range))
   """
   sweet_dec_range = [-82.8,-71.4,-63.1,-55.,-47.5,-40.4,-33.5,-26.7,-19.9,-13.,-5.9,1.6,9.7,18.6,29.4,44.8]
   sweet_delays_range= [[0,0,0,0,7,7,7,7,14,14,14,14,21,21,21,21],\
@@ -136,7 +132,7 @@ if __name__ == "__main__":
       #observations= find_pulsar_in_obs.find_obsids_meta_pages()
       observations = fpio.find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
       pointing_count = len(observations)
-      print observations
+      print(observations)
   elif args.obsid_list:
       observations = args.obsid_list
       pointing_count = len(observations)
@@ -178,7 +174,7 @@ if __name__ == "__main__":
         RA_line = []
         Dec_line = []
         for p in range(len(powout)):
-          #print int(y[i]/np.pi*180.), int(dec) 
+          #print(int(y[i]/np.pi*180.), int(dec) )
           if int(Dec_FWHM_calc[p]) == int(dec_range[i]):
               powout_RA_line.append(float(powout[p]))
               RA_line.append(float(RA_FWHM_calc[p]))
@@ -186,7 +182,7 @@ if __name__ == "__main__":
               powout_Dec_line.append(float(powout[p]))
               Dec_line.append(float(Dec_FWHM_calc[p]))
         
-        print "\nValues for Dec " + str(dec_range[i])
+        print("\nValues for Dec " + str(dec_range[i]))
         #work out RA FWHM (not including the drift scan, 0sec observation)
         if args.fwhm:
             spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
@@ -195,20 +191,20 @@ if __name__ == "__main__":
         try:
             r1, r2 = spline.roots()
         except ValueError:
-            print "No FWHM for " + str(dec_range[i]) + " setting to 1000 to skip"
+            print("No FWHM for " + str(dec_range[i]) + " setting to 1000 to skip")
             FWHM.append(1000.)
             pointing_count -=1
         else:
             FWHM.append(float(r2-r1))
-            print "FWHM along RA at dec "+ str(dec_range[i]) + ": " + str(FWHM[i])
+            print("FWHM along RA at dec "+ str(dec_range[i]) + ": " + str(FWHM[i]))
         
         #work out Dec FWHM
         if args.fwhm:
             spline = UnivariateSpline(Dec_line, powout_Dec_line-np.max(powout_Dec_line)/2., s=0)
-            print spline.roots(), max(powout_Dec_line)
+            print(spline.roots(), max(powout_Dec_line))
             r1, r2 = spline.roots()
             FWHM_Dec.append(float(r2-r1))
-            print "FWHM along Dec at dec "+ str(dec_range[i]) + ": " + str(FWHM_Dec[i])
+            print("FWHM along Dec at dec "+ str(dec_range[i]) + ": " + str(FWHM_Dec[i]))
         
         deg_move = total_angle = FWHM[i] - args.degree*math.cos(math.radians(dec_range[i])) + \
                     float(time)/3600.*15.*math.cos(math.radians(dec_range[i]))
@@ -216,11 +212,11 @@ if __name__ == "__main__":
             point_num_this_deg = manual_point_num[i]
         else:
             point_num_this_deg = int(360./deg_move) + 1
-        print "Number for this dec: " +str(point_num_this_deg)
+        print("Number for this dec: " +str(point_num_this_deg))
         deg_move = 360. / point_num_this_deg
         overlap_true = FWHM[i] + float(time)/3600.*15.*math.cos(math.radians(dec_range[i])) -\
                        360./point_num_this_deg
-        print "True overlap this dec: " + str(overlap_true)
+        print("True overlap this dec: " + str(overlap_true))
         
         # offset every second dec range by half a FWHM in RA
         if i % 2 == 0:
@@ -250,7 +246,9 @@ if __name__ == "__main__":
   sens_colour_z =[]
   max_ra_list = []
   RA_FWHM_atdec =[]
-  with open('obs_meta.csv', 'rb') as csvfile: 
+  if not os.path.exists('obs_meta.csv'):
+      os.mknod('obs_meta.csv')
+  with open('obs_meta.csv', 'r') as csvfile: 
       spamreader = csv.reader(csvfile)
       next(spamreader, None)
       obsid_meta_file = []
@@ -261,7 +259,7 @@ if __name__ == "__main__":
           obs_foun_check = False
           for omi in range(len(obsid_meta_file)):
               if int(ob) == int(obsid_meta_file[omi][0]):
-                  print "getting obs metadata from obs_meta.csv"
+                  print("getting obs metadata from obs_meta.csv")
                   ob, ra, dec, time, delays,centrefreq, channels =\
                               obsid_meta_file[omi]
                   ob = int(ob)
@@ -291,13 +289,13 @@ if __name__ == "__main__":
       
       
 
-      #print max(Dec), min(RA), Dec.dtype
+      #print(max(Dec), min(RA), Dec.dtype)
       time_intervals = 600 # seconds
       names_ra_dec = np.column_stack((['source']*len(RA), RA, Dec))
       powout = fpio.get_beam_power_over_time(cord, names_ra_dec, dt=time_intervals, degrees = True)
       #grab a line of beam power for the pointing declination
       if i == 0:
-          print "len powers list: " + str(powout.shape)
+          print("len powers list: " + str(powout.shape))
       for c in range(len(RA)):
           s_overlap_z[c] += powout[c,0,0]*math.cos(Dec[c]/180.*np.pi)
 
@@ -322,7 +320,7 @@ if __name__ == "__main__":
               else:
                   if power_ra > temppower:
                       temppower = power_ra
-              #print temppower, power_ra
+              #print(temppower, power_ra)
           z.append(temppower)
           """ 
           if args.ra_offset:
@@ -356,17 +354,17 @@ if __name__ == "__main__":
               max_ra = nx[max_index]
               for m in range(len(nz)):
                   if nx[m] == max_ra and abs((ny[m] - max_dec)*180/np.pi) < (res/2.):
-                      #print (ny[m] - max_dec)*180/np.pi
+                      #print((ny[m] - max_dec)*180/np.pi)
                       sens_min = nz_sense[m]
               levels = np.arange(sens_min, max(nz_sense), (max(nz_sense)-sens_min))#/10.)
 
               #plot in different colours
-              colors= ['0.5' for _ in xrange(50)] ; colors[0]= 'g'
+              colors= ['0.5' for _ in range(50)] ; colors[0]= 'g'
               ax.scatter(max_ra,max_dec, 1.5, lw=0, marker='o', color ='blue')
               plt.tricontour(nx, ny, nz_sense, levels=levels, alpha = 0.3,
                              colors=colors,
                              linewidths=linewidths)
-              colors= ['0.5' for _ in xrange(50)] ; colors[0]= 'r'
+              colors= ['0.5' for _ in range(50)] ; colors[0]= 'r'
           #else:
           levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
       else:
@@ -384,7 +382,7 @@ if __name__ == "__main__":
           powout_RA_line = []
           RA_line = []
           for p in range(len(nz)):
-            #print int(y[i]/np.pi*180.), int(dec) 
+            #print(int(y[i]/np.pi*180.), int(dec) )
             
             if args.ra_offset:
                 if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
@@ -413,8 +411,6 @@ if __name__ == "__main__":
           diff = r2 - r1
           if diff > 180.:
               diff = r1 - (r2 -360)
-              #print r1,r2
-              #print diff
               max_ra = r1 - (diff)/2.
           else:
               max_ra = r1 + (diff)/2.
@@ -424,14 +420,12 @@ if __name__ == "__main__":
           if max_ra > 360.:
               max_ra -= 360.
           #max_ra = max_ra*180/np.pi
-          #print max_ra 
-          #print str(ra)
       
       
       if args.semester:
           for c in range(len(colour_groups)):
               if 14*c <= i and i < 14*(c+1):
-                  colors = [colour_groups[c] for _ in xrange(50)]
+                  colors = [colour_groups[c] for _ in range(50)]
                   
                   f = open(str(colour_groups[c]) + '_group_file.txt','a+')
                   f.write(str(max_ra) + '\t' + str(dec) + '\n')
@@ -450,10 +444,10 @@ if __name__ == "__main__":
                   max_check = False
               
               if i == 0:
-                  print min_lim,max_lim
+                  print(min_lim,max_lim)
               if c == (len(colour_groups)-1) and max_check:
                   if (min_lim < max_ra and max_ra < 360.) or (0. < max_ra and max_ra <= max_lim):
-                      colors = ['0.5' for _ in xrange(50)]
+                      colors = ['0.5' for _ in range(50)]
                       colors[0] = colour_groups[c]
 
                       f = open(str(colour_groups[c]) + '_group_file.txt','a+')
@@ -463,7 +457,7 @@ if __name__ == "__main__":
                       #            lw=0, marker='o', color=colour_groups[c])
 
               if min_lim < max_ra and max_ra <= max_lim:
-                  colors = ['0.5' for _ in xrange(50)]
+                  colors = ['0.5' for _ in range(50)]
                   colors[0] = colour_groups[c]
 
                   f = open(str(colour_groups[c]) + '_group_file.txt','a+')
@@ -499,7 +493,6 @@ if __name__ == "__main__":
       
       #shades only the blue ones
       if colors[0] == 'blue':
-          print "check"
           cs = plt.tricontour(nx, ny, nz, levels=levels[0],alpha=0.0)
           cs0 = cs.collections[0]
           cspaths = cs0.get_paths()
@@ -508,7 +501,7 @@ if __name__ == "__main__":
           #ax.add_patch(spch_0)
 
   if args.sens_overlap:
-      print "making np arrays"
+      print("making np arrays")
       nz=np.sqrt(np.array(s_overlap_z))
       #nz = nz/max(nz)
       if args.colour:
@@ -516,12 +509,12 @@ if __name__ == "__main__":
         nx.shape = (len(map_dec_range),len(map_ra_range))
         ny.shape = (len(map_dec_range),len(map_ra_range))
         nz.shape = (len(map_dec_range),len(map_ra_range))
-        print "colour plotting"
+        print("colour plotting")
         plt.pcolor(nx, ny, nz, cmap=colour_map)
         plt.colorbar(spacing='uniform', shrink = 0.65)
       else:
         levels = np.arange(0.5*max(nz), max(nz), max(nz)/20.)
-        print "plotting"
+        print("plotting")
         plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.3,
                                    colors=colors,
                                    linewidths=linewidths)
@@ -548,7 +541,7 @@ if __name__ == "__main__":
             lines = [line.split("\t") for line in f]
             lines = lines[1:]
             lines = sorted(lines, key=itemgetter(0))
-          with open(g, 'wb') as csvfile:
+          with open(g, 'w') as csvfile:
              spamwriter = csv.writer(csvfile, delimiter=',')
              spamwriter.writerow(['RA','Dec'])
              for l in lines:
@@ -565,7 +558,7 @@ if __name__ == "__main__":
       xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
 
   ax.set_xticklabels(xtick_labels, zorder=150) 
-  print "plotting grid"
+  print("plotting grid")
   plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
   
 
@@ -668,7 +661,7 @@ if __name__ == "__main__":
   
   plot_type = args.plot_type
   #plt.title(plot_name)
-  print "saving {}.{}".format(plot_name, plot_type)
+  print("saving {}.{}".format(plot_name, plot_type))
   fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000)
   #plt.show()
   plt.close
