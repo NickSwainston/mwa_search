@@ -27,6 +27,13 @@ if [ ! -d $ROOT/$VERSION ]; then
     mkdir $ROOT/$VERSION
 fi
 
+# Updates to the project version are explained in CHANGELOG.md
+PROJECT_VERSION="1.0.0"
+VERSION_GIT=$(git log -1 --format=%h)
+SEARCH_VERSION="${PROJECT_VERSION}_${VERSION_GIT}"
+# Creates version.py to track git version in scripts
+echo '__version__ = ''"'${SEARCH_VERSION}'"' > ${ROOT}/${VERSION}/version.py
+
 cp ${ROOT_DIR}/*py $ROOT/$VERSION/
 
 # Fix permissions.

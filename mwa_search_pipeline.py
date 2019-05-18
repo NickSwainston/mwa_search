@@ -1135,7 +1135,7 @@ if __name__ == "__main__":
     search_options.add_argument("--relaunch", action="store_true",  help="Will rerun the search pipeline even when no beamforming is required. Otherwise assumes that if the beamforming is complete then a search has already been performed..")
     search_options.add_argument('--code_comment', type=str, help='A comment describing the purpose of this search. eg testing')
     search_options.add_argument("--attempt", type=int, help="The number of attempts that a script has made. Default is 1.", default=1)
-    search_options.add_argument('-w','--work_dir',type=str,help='Work directory. Default: {}'.format(default_work_dir))
+    search_options.add_argument('-w','--work_dir',type=str,help='Work directory. Default: {}'.format(DEFAULT_WORK_DIR))
     search_options.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
     search_options.add_argument('-r','--bsd_row_num',type=int,help='Database row reference number for keeping track of the scripts.')
     search_options.add_argument('--dm_min',type=float, default = 1.0,help='DM max searched. Default 1')
@@ -1212,8 +1212,8 @@ if __name__ == "__main__":
 
     if args.work_dir:
         work_dir = args.work_dir
-    elif default_work_dir is not None:
-        work_dir = default_work_dir
+    elif DEFAULT_WORK_DIR is not None:
+        work_dir = DEFAULT_WORK_DIR
     #work_dir = os.environ['BLINDSEARCH_WORK_DIR']
     if not work_dir.endswith('/'):
         work_dir = "{0}/".format(work_dir)
