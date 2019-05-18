@@ -11,7 +11,7 @@ import datetime
 import numpy as np
 
 #vcstools imports
-import blindsearch_database
+import search_database
 import mwa_metadb_utils as meta
 import process_vcs as pvcs
 from job_submit import submit_slurm
@@ -83,11 +83,8 @@ def job_setup_headers(script_test=False, n_omp_threads=1):
     batch_line ='export CMD_VCS_DB_FILE=/astro/mwaops/vcs/.vcs.db\n' + \
                 'export CMD_BS_DB_DEF_FILE={}\n'.format(DB_FILE_LOC)
     if script_test:
-        #batch_line += """export PATH="$( echo $PATH| tr : '\n' |grep -v /group/mwaops/nswainston/code/blindsearch_scripts/bin/ | paste -s -d: )"\n
-        #              export PATH=${PATH}:/group/mwaops/nswainston/code/blindsearch_scripts/\n"""
         batch_line +='module list'
     else:
-        #batch_line += 'export PATH=${PATH}:/group/mwaops/nswainston/code/blindsearch_scripts/bin/\n'
         batch_line += 'export PATH=${PATH}:/home/nswainst/code/blindsearch_scripts/bin/'
     return batch_line
 
@@ -101,12 +98,12 @@ def add_database_function(script_test=False, n_omp_threads=1):
                 '    # 3rd parameter is bsd_row_num\n' +\
                 '    # 4th parameter is script_row_num\n' +\
                 '    # 5th parameter is attempt_num\n' +\
-                '    echo blindsearch_database.py -m s -c $1 -b $3 -r $4 -a $5 \n' +\
-                '    blindsearch_database.py -m s -c $1 -b $3 -r $4 -a $5 \n' +\
+                '    echo search_database.py -m s -c $1 -b $3 -r $4 -a $5 \n' +\
+                '    search_database.py -m s -c $1 -b $3 -r $4 -a $5 \n' +\
                 '    echo $1 $2\n' +\
                 '    srun --export=ALL -n 1 -c $ncpus $1 $2\n' +\
                 '    errcode=$?\n' +\
-                '    blindsearch_database.py -m e -c $1 -b $3 -r $4 -a $5 --errorcode $errcode\n' +\
+                '    search_database.py -m e -c $1 -b $3 -r $4 -a $5 --errorcode $errcode\n' +\
                 '    if [ "$errcode" != "0" ]; then\n' +\
                 '        exit $errcode\n' +\
                 '    fi\n' +\
@@ -247,7 +244,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
                            channels=None):
     """
     Launches a script that splices the beamformed files and, where approriate,
-    launches the blindsearch pipeline or folds on known pulsars.
+    launches the search pipeline or folds on known pulsars.
     """
     comp_config = config.load_config_file()
 
@@ -262,7 +259,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     commands.append(job_setup_headers())
     if bsd_row_num is not None:
         #record beamforming processing time
-        commands.append('blindsearch_database.py -m b -b {0} -f {1}mb_{2}'.format(bsd_row_num, batch_dir, pointing))
+        commands.append('search_database.py -m b -b {0} -f {1}mb_{2}'.format(bsd_row_num, batch_dir, pointing))
     
     #grabbing chan ids for splicing
     channels = get_channels(obsid, channels=channels)
@@ -311,7 +308,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
             commands.append('   echo "Strong detection. Uploading to MWA Pulsar Database"')
             commands.append('   submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {0}_PSR_{3}.pfd.bestprof --ppps {0}_PSR_{3}.pfd.ps'.format(obsid, cal_id, pulsar, pulsar_bash_string))
             commands.append('   echo "Searching for pulsar using the pipeline to test the pipelines effectivness"')
-            commands.append('   blindsearch_pipeline.py -o {0} -b {1} -e {2} --search --pulsar {3} -O {4} --code_comment "Known pulsar auto test {3}"'.format(obsid, begin, end, pulsar, cal_id))
+            commands.append('   mwa_search_pipeline.py -o {0} -b {1} -e {2} --search --pulsar {3} -O {4} --code_comment "Known pulsar auto test {3}"'.format(obsid, begin, end, pulsar, cal_id))
             #move files for mengyao to analyse
             #pol_census_dir = '/group/mwaops/xuemy/pol_census/{0}/pointing/{1}'.format(obsid,pulsar)
             #pol_census_fold_dir = '/group/mwaops/xuemy/pol_census/{0}/pfold/'.format(obsid)
@@ -345,7 +342,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
 
 
 def beamform(pointing_list, obsid, begin, end, DI_dir, 
-             work_dir='/group/nswainston/blindsearch/', relaunch=False,             
+             work_dir='/fred/oz125/nswainst/pulsar_search/', relaunch=False,             
              relaunch_script=None, code_comment=None, 
              dm_min=1.0, dm_max=250.0,
              search=False, bsd_row_num_input=None, incoh=False, 
@@ -441,19 +438,19 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
         
         if (not path_check and not missing_file_check and not unspliced_check):
-            #everything is ok so start blind search database recording
+            #everything is ok so start search database recording
             if search and bsd_row_num_input is None and\
                ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
-                #start the blind search database recording
-                bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
+                #start the search database recording
+                bsd_row_num = search_database.database_search_start(obsid,
                                           pointing, "{0} {1}".format(code_comment,n))
             else:
                 bsd_row_num = bsd_row_num_input
         else:
             #need to fix some files then search
             if search and bsd_row_num_input is None:
-                #start the blind search database recording
-                bsd_row_num = blindsearch_database.database_blindsearch_start(obsid,
+                #start the search database recording
+                bsd_row_num = search_database.database_search_start(obsid,
                                           pointing, "{0} {1}".format(code_comment,n))
             else:
                 bsd_row_num = bsd_row_num_input
@@ -536,7 +533,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
 #-------------------------------------------------------------------------------------------------------------
 def rfifind(obsid, pointing, sub_dir, relaunch_script,
-            work_dir='/group/mwaops/nswainston/blindsearch/', 
+            work_dir='/fred/oz125/nswainst/pulsar_search/', 
             n_omp_threads = 8,
             bsd_row_num=None, pulsar=None,
             fits_dir=None, script_test=False):
@@ -558,7 +555,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
                         ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
                         '*incoh*.fits')
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
-        commands.append('blindsearch_database.py -c rfifind -m p -b ' +str(bsd_row_num))
+        commands.append('search_database.py -c rfifind -m p -b ' +str(bsd_row_num))
         commands.append("prepdata -ncpus $ncpus -dm 0 " "-numout " + str(numout) + " -o " +\
                         str(obsid) + "_DM0.00 " + fits_dir + "*incoh*.fits")
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
@@ -577,7 +574,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
 
 #-------------------------------------------------------------------------------------------------------------
 def prepdata(obsid, pointing, relaunch_script,
-             work_dir='/group/mwaops/nswainston/blindsearch/', 
+             work_dir='/fred/oz125/nswainst/pulsar_search/', 
              bsd_row_num=None, pulsar=None,
              n_omp_threads = 8, fits_dir=None, 
              dm_min=1.0, dm_max=250.0, script_test=False,
@@ -674,8 +671,8 @@ def prepdata(obsid, pointing, relaunch_script,
                                          steps, numout, obsid, fits_dir))
 
     #Puts all the expected jobs on the databse
-    #blindsearcg_database_script_id_list
-    blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
+    #search_database_script_id_list
+    search_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
                          n_omp_threads, expe_proc_time)
     
     if "-r" not in relaunch_script:
@@ -689,7 +686,7 @@ def prepdata(obsid, pointing, relaunch_script,
                 
 #-------------------------------------------------------------------------------------------------------------
 def sort_fft(obsid, pointing, sub_dir, relaunch_script,
-             work_dir='/group/mwaops/nswainston/blindsearch/', 
+             work_dir='/fred/oz125/nswainst/pulsar_search/', 
              bsd_row_num=None, pulsar=None,
              fits_dir=None, dm_max=4, n_omp_threads=8, script_test=False):
 
@@ -723,7 +720,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
             fft_command = ''
     if fi%16 != 15:
         commands_list.append(fft_command)
-    blindsearch_database.database_script_list(bsd_row_num, 'realfft', commands_list,
+    search_database.database_script_list(bsd_row_num, 'realfft', commands_list,
                                  n_omp_threads, expe_proc_time)
 
     #Send off jobs
@@ -737,7 +734,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
                 
 #-------------------------------------------------------------------------------------------------------------
 def accel(obsid, pointing, sub_dir, relaunch_script,
-          work_dir='/group/mwaops/nswainston/blindsearch/', 
+          work_dir='/fred/oz125/nswainst/pulsar_search/', 
           bsd_row_num=None, pulsar=None, n_omp_threads=8, script_test=False):
     
     DIR=work_dir + sub_dir
@@ -765,7 +762,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
                              format(int(max_search_accel), min_f_harm, max_f_harm,
                                     int(nharm), fft_file))
     
-    blindsearch_database.database_script_list(bsd_row_num, 'accelsearch', commands_list,
+    search_database.database_script_list(bsd_row_num, 'accelsearch', commands_list,
                                  n_omp_threads, expe_proc_time)
 
     #Send off jobs
@@ -778,7 +775,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
        
 #-------------------------------------------------------------------------------------------------------------
 def fold(obsid, pointing, sub_dir, relaunch_script,
-         work_dir='/group/mwaops/nswainston/blindsearch/', 
+         work_dir='/fred/oz125/nswainst/pulsar_search/', 
          bsd_row_num=None, pulsar=None, fits_dir=None, n_omp_threads=8, script_test=False):
     from math import floor
     
@@ -857,7 +854,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
            
             #the fold options that uses .fits files which is slower but more accurate
             commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5}{6}_*.fits'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, fits_dir, obsid))
-    blindsearch_database.database_script_list(bsd_row_num, 'prepfold', commands_list,
+    search_database.database_script_list(bsd_row_num, 'prepfold', commands_list,
                                                   n_omp_threads, expe_proc_time)
     if len(cand_list) > 0:
         #Send off jobs
@@ -872,7 +869,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
 
 
 def wrap_up(obsid, pointing, 
-            work_dir='/group/mwaops/nswainston/blindsearch/', 
+            work_dir='/fred/oz125/nswainst/pulsar_search/', 
             bsd_row_num=None, script_test=False):
 
     #put all significant candidates into the over directory
@@ -901,7 +898,7 @@ def wrap_up(obsid, pointing,
     commands.append('   count=$(($count+1))')
     commands.append('done')
     commands.append('over_sn=`ls ../over_3_png/*.png | wc -l`')
-    commands.append('blindsearch_database.py -m w -b ' +str(bsd_row_num) +' --cand_val "$total $over_sn 0"')
+    commands.append('search_database.py -m w -b ' +str(bsd_row_num) +' --cand_val "$total $over_sn 0"')
     submit_slurm(wrap_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
                  slurm_kwargs={"time": "2:50:00", 
@@ -912,7 +909,7 @@ def wrap_up(obsid, pointing,
 
 def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 obsid, pointing, script_test=False, bash_job=False,
-                work_dir='/group/mwaops/nswainston/blindsearch/', n_omp_threads=8,
+                work_dir='/fred/oz125/nswainst/pulsar_search/', n_omp_threads=8,
                 sub_dir=None, total_job_time=18000.):
     """
     Checkes the database for any jobs that didn't complete (or didn't even start)
@@ -947,10 +944,10 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
     total_job_time_str = datetime.timedelta(seconds=total_job_time)
     if attempt_num == 0:
         print("Launching {} scripts for the first time.".format(table))
-        error_data = blindsearch_database.database_script_check(table, bsd_row_num, 1)
+        error_data = search_database.database_script_check(table, bsd_row_num, 1)
     else:
         print("Checking for any {} scripts that failed.".format(table))
-        error_data = blindsearch_database.database_script_check(table, bsd_row_num, attempt_num)
+        error_data = search_database.database_script_check(table, bsd_row_num, attempt_num)
     if len(error_data) == 0:
         print("No incomplete jobs, moving on to next part of the pipeline")
         if cur_mode == 'a':
@@ -984,7 +981,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
             command_list = []
             for er in error_data:
                command_list.append(er[1])
-            blindsearch_database.database_script_list(bsd_row_num, presto_command,
+            search_database.database_script_list(bsd_row_num, presto_command,
                       command_list, n_omp_threads, error_data[0][2], attempt=(attempt_num+1)) 
 
         #submit jobs
@@ -1023,7 +1020,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                     
                     commands.append("srun --export=ALL -n 1 -c {0} bash {1}.bash".\
                                     format(n_omp_threads, check_batch))
-                    commands.append('blindsearch_database.py -c {0} -m m --file_location {0}_temp_database_file_{1}_{2}.csv\n'.format(presto_command, attempt_num + 1, check_job_num))
+                    commands.append('search_database.py -c {0} -m m --file_location {0}_temp_database_file_{1}_{2}.csv\n'.format(presto_command, attempt_num + 1, check_job_num))
                 else:
                     commands = commands + bash_commands
                 
@@ -1064,7 +1061,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 
                 commands.append("srun --export=ALL -n 1 -c {0} bash {1}.bash".\
                                 format(n_omp_threads, check_batch))
-                commands.append('blindsearch_database.py -c {0} -m m --file_location {0}_temp_database_file_{1}_{2}.csv\n'.format(presto_command, attempt_num + 1, check_job_num))
+                commands.append('search_database.py -c {0} -m m --file_location {0}_temp_database_file_{1}_{2}.csv\n'.format(presto_command, attempt_num + 1, check_job_num))
             else:
                 commands = commands + bash_commands
                 
@@ -1127,18 +1124,18 @@ if __name__ == "__main__":
     beamform_options.add_argument("-a", "--all", action="store_true",  help="Perform on entire observation span. Use instead of -b & -e.")
     beamform_options.add_argument("--fits_dir", default=None, help="The directory containing the fits files. Only required if the fits files aren't in the standard vcs location.")
 
-    blindsearch_options = parser.add_argument_group('Blindsearch Options')     
-    blindsearch_options.add_argument("--search", action="store_true",  help="Continue with the blindsearch pipeline after a successful beamforming check. Default False")
-    blindsearch_options.add_argument("--relaunch", action="store_true",  help="Will rerun the blindsearch pipeline even when no beamforming is required. Otherwise assumes that if the beamforming is complete then a search has already been performed..")
-    blindsearch_options.add_argument('--code_comment', type=str, help='A comment describing the purpose of this blindsearch. eg testing')
-    blindsearch_options.add_argument("--attempt", type=int, help="The number of attempts that a script has made. Default is 1.", default=1)
-    blindsearch_options.add_argument('-w','--work_dir',type=str,help='Work directory. Default: {}'.format(default_work_dir))
-    blindsearch_options.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
-    blindsearch_options.add_argument('-r','--bsd_row_num',type=int,help='Database row reference number for keeping track of the scripts.')
-    blindsearch_options.add_argument('--dm_min',type=float, default = 1.0,help='DM max searched. Default 1')
-    blindsearch_options.add_argument('--dm_max',type=float, default = 250.0,help='DM max searched. Default 250')
-    blindsearch_options.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
-    blindsearch_options.add_argument('-m','--mode',type=str,help=textwrap.dedent('''Modes used by the pipeline do indicate which step in the process it is up to. The default is beamform mode.
+    search_options = parser.add_argument_group('Blindsearch Options')     
+    search_options.add_argument("--search", action="store_true",  help="Continue with the search pipeline after a successful beamforming check. Default False")
+    search_options.add_argument("--relaunch", action="store_true",  help="Will rerun the search pipeline even when no beamforming is required. Otherwise assumes that if the beamforming is complete then a search has already been performed..")
+    search_options.add_argument('--code_comment', type=str, help='A comment describing the purpose of this search. eg testing')
+    search_options.add_argument("--attempt", type=int, help="The number of attempts that a script has made. Default is 1.", default=1)
+    search_options.add_argument('-w','--work_dir',type=str,help='Work directory. Default: {}'.format(default_work_dir))
+    search_options.add_argument('-s','--sub_dir',type=str,help='Used by the program to keep track of the sub directory its using')
+    search_options.add_argument('-r','--bsd_row_num',type=int,help='Database row reference number for keeping track of the scripts.')
+    search_options.add_argument('--dm_min',type=float, default = 1.0,help='DM max searched. Default 1')
+    search_options.add_argument('--dm_max',type=float, default = 250.0,help='DM max searched. Default 250')
+    search_options.add_argument('--pulsar',type=str,help="Used to search for a known pulsar by inputing it's Jname. The code then looks within 1 DM and 15%% of the pulsar's period.")
+    search_options.add_argument('-m','--mode',type=str,help=textwrap.dedent('''Modes used by the pipeline do indicate which step in the process it is up to. The default is beamform mode.
 "b" Checks the fits file directory to decide if all files are there or if splicing or beamforming is required.
 "r" Uses PRESTO's rfifind to create a RFI mask.
 "p" Uses PRESTO's prepdata to dedisperses the the fits files into .dat files. 
@@ -1147,8 +1144,8 @@ if __name__ == "__main__":
 "f" Uses PRESTO's prepfold to fold on any significant candidates.
 "w" Wraps up the pipeline by moving significant pulse profiles to it's own file for inspection.
 "c" Check script that runs after each step to make sure no jobs have failed.'''), default="b")
-    blindsearch_options.add_argument("--table", type=str, help="The table name for the blindsearch database to check, similar to the commands used.")
-    blindsearch_options.add_argument("--csc", action="store_true",  help="If option used will check if the pointing is being stored in Galaxy's cold storage HSM.")
+    search_options.add_argument("--table", type=str, help="The table name for the search database to check, similar to the commands used.")
+    search_options.add_argument("--csc", action="store_true",  help="If option used will check if the pointing is being stored in Galaxy's cold storage HSM.")
     args=parser.parse_args()
     comp_config = config.load_config_file()
     #argument parsing
@@ -1234,7 +1231,7 @@ if __name__ == "__main__":
    
 
     #Base launch of this code (everything except mode and dmfile int)
-    relaunch_script = "blindsearch_pipeline.py -o " + str(obsid) + " -w " + work_dir 
+    relaunch_script = "mwa_search_pipeline.py -o " + str(obsid) + " -w " + work_dir 
 
     if not args.mode =='b':
         relaunch_script +=  " -s " + str(sub_dir)
@@ -1282,7 +1279,7 @@ if __name__ == "__main__":
         if args.code_comment:
             code_comment = args.code_comment
         elif args.search and not args.bsd_row_num:
-            code_comment = input("Please write a comment describing the purpose of this blindsearch. eg testing: ")
+            code_comment = input("Please write a comment describing the purpose of this search. eg testing: ")
             if args.pulsar_file:
                 code_comment += " (using: {0}) ".format(args.pulsar_file)
         else:
@@ -1329,4 +1326,4 @@ if __name__ == "__main__":
 
             
         
-    #blindsearch_pipeline.py -o 1166459712 -p 06:30:00.0_-28:34:00.0
+    #mwa_search_pipeline.py -o 1166459712 -p 06:30:00.0_-28:34:00.0

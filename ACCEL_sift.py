@@ -4,7 +4,7 @@ import sifting, re, glob, argparse
 parser = argparse.ArgumentParser(description="""
 Finds candidates with DM paterns.
 """)
-parser.add_argument('dir',type=str,help="Work dir. Should be my blindsearch sub dirs, eg DM_000-002.")
+parser.add_argument('dir',type=str,help="Work dir. Should be my search sub dirs, eg DM_000-002.")
 args=parser.parse_args()
 
 # Note:  You will almost certainly want to adjust

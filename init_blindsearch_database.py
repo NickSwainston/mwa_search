@@ -7,7 +7,7 @@ except:
     
 con = lite.connect(DB_FILE)
 with con:
-    #Blindsearch Table: stores all major values for the blind search pipeline for each pointing
+    #PulsarSearch Table: stores all major values for the mwa search pipeline for each pointing
     #Rownum: ID to reference
     #Comment: What the pipeline's purpose (eg testing or main search centered at x y)
     #SampleNum: Number of time samples in fits files used
@@ -21,7 +21,7 @@ with con:
     #CandOverNoise: total cands over noise (normaly 3 sigma but I may change it)
     #CandDect: cands that were confirmed as pulsars (known or hopefully new)
     cur = con.cursor()
-    cur.execute("""CREATE TABLE Blindsearch(
+    cur.execute("""CREATE TABLE PulsarSearch(
                 Rownum INTEGER PRIMARY KEY AUTOINCREMENT, 
                 Started date, 
                 Ended date, 
@@ -73,7 +73,7 @@ with con:
     #A table for each job type
     
     #Rownum: ID to reference
-    #BSID: Blindsearch id Rownum reference
+    #BSID: PulsarSearch id Rownum reference
     #Command: the code being run
     #Arguments: arguments put into the code
     #Exit: error code
@@ -92,7 +92,7 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT, 
-                FOREIGN KEY (BSID) REFERENCES Blindsearch(Rownum),
+                FOREIGN KEY (BSID) REFERENCES PulsarSearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
     cur.execute("""CREATE TABLE Prepdata( 
@@ -107,7 +107,7 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT, 
-                FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum),
+                FOREIGN KEY(BSID) REFERENCES PulsarSearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
     cur.execute("""CREATE TABLE FFT( 
@@ -122,7 +122,7 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT,
-                FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum),
+                FOREIGN KEY(BSID) REFERENCES PulsarSearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
     cur.execute("""CREATE TABLE Accel( 
@@ -137,7 +137,7 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT,
-                FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum),
+                FOREIGN KEY(BSID) REFERENCES PulsarSearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
     cur.execute("""CREATE TABLE Fold( 
@@ -152,7 +152,7 @@ with con:
                 ExpProc FLOAT,
                 Exit INT, 
                 CPUs INT,
-                FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum),
+                FOREIGN KEY(BSID) REFERENCES PulsarSearch(Rownum),
                 primary key (Rownum, AttemptNum, BSID))""")
     
     #Result: if not yet checked by a human eye unchecked, otherwise under, RFI, Noise, Potential, Pulsar
@@ -161,5 +161,5 @@ with con:
                 BSID INT, 
                 FileLocation TEXT, 
                 RESULT TEXT, 
-                FOREIGN KEY(BSID) REFERENCES Blindsearch(Rownum))""")
+                FOREIGN KEY(BSID) REFERENCES PulsarSearch(Rownum))""")
 

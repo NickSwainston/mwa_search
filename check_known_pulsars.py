@@ -7,7 +7,7 @@ import glob
 import subprocess
 import numpy as np
 
-import blindsearch_pipeline as blind_pipe
+import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 import config
 import file_maxmin
@@ -78,10 +78,10 @@ def beamform_and_fold(obsid, DI_dir, all_check, cal_obs, args,
                         continue
                     if float(period) < .05 :
                         vdif_check = True
-                blind_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
-                                    DI_dir, vdif=vdif_check,
-                                    args=args, pulsar_check=jname_list, cal_id=cal_obs,
-                                    channels=channels)
+                search_pipe.beamform(["{0} {1}".format(raj,decj)], obsid, psrbeg, psrend,
+                                     DI_dir, vdif=vdif_check,
+                                     args=args, pulsar_check=jname_list, cal_id=cal_obs,
+                                     channels=channels)
     os.remove(known_pulsar_file)
     return
 

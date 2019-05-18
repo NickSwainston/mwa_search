@@ -15,11 +15,11 @@ def dict_factory(cursor, row):
         d[col[0]] = row[idx]
     return d
     
-def database_blindsearch_start(obsid, pointing, comment):
+def database_search_start(obsid, pointing, comment):
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         with con:
                 cur = con.cursor()
-                cur.execute("""INSERT INTO Blindsearch(Started, Obsid, Pointing, UserID, Comment, 
+                cur.execute("""INSERT INTO PulsarSearch(Started, Obsid, Pointing, UserID, Comment, 
                         TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
                         BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
                         PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
@@ -71,16 +71,16 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
             cur.execute("INSERT OR IGNORE INTO "+table+" (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)", (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
         #update expected jobs
         if attempt == 1:
-            cur.execute("UPDATE Blindsearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list)),bs_id))
+            cur.execute("UPDATE PulsarSearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list)),bs_id))
         else:
-            cur.execute("SELECT "+table+"JobExp FROM Blindsearch WHERE Rownum=?", (str(bs_id),))
+            cur.execute("SELECT "+table+"JobExp FROM PulsarSearch WHERE Rownum=?", (str(bs_id),))
             table_job_exp = cur.fetchone()[0]
-            cur.execute("UPDATE Blindsearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list) + table_job_exp),bs_id))
-        cur.execute("SELECT TotalJobExp FROM Blindsearch WHERE Rownum={}".format(bs_id))
-        blind_job_exp = cur.fetchone()[0]
-        if blind_job_exp is None:
-            blind_job_exp = 0
-        cur.execute("UPDATE Blindsearch SET TotalJobExp=? WHERE Rownum=?", (str(len(arguments_list) + blind_job_exp),bs_id))
+            cur.execute("UPDATE PulsarSearch SET "+table+"JobExp=? WHERE Rownum=?", (str(len(arguments_list) + table_job_exp),bs_id))
+        cur.execute("SELECT TotalJobExp FROM PulsarSearch WHERE Rownum={}".format(bs_id))
+        search_job_exp = cur.fetchone()[0]
+        if search_job_exp is None:
+            search_job_exp = 0
+        cur.execute("UPDATE PulsarSearch SET TotalJobExp=? WHERE Rownum=?", (str(len(arguments_list) + search_job_exp),bs_id))
 
     return 
 
@@ -106,8 +106,8 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
         cur.execute("SELECT * FROM "+table+" WHERE Rownum=? AND AttemptNum=? AND BSID=?",
                     (rownum, attempt_num, bs_id))
         columns = cur.fetchone()
-        #get blindsearch data
-        cur.execute("SELECT * FROM Blindsearch WHERE Rownum="+str(bs_id))
+        #get search data
+        cur.execute("SELECT * FROM PulsarSearch WHERE Rownum="+str(bs_id))
         bs_columns = cur.fetchone()
 
         if int(errorcode) == 0:
@@ -125,7 +125,7 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
             tot_jc = int(bs_columns['TotalJobComp']) + 1
             job_jc = int(bs_columns[table+'JobComp']) + 1
 
-            cur.execute("UPDATE Blindsearch SET TotalProc=?, "+table+\
+            cur.execute("UPDATE PulsarSearch SET TotalProc=?, "+table+\
                         "Proc=?, TotalJobComp=?, "+table+\
                         "JobComp=? WHERE Rownum=?",
                         (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9],
@@ -138,7 +138,7 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
                         " SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
                               (end_time, errorcode, rownum, attempt_num, bs_id))
                 
-            cur.execute("UPDATE Blindsearch SET TotalErrors=?, "+table+\
+            cur.execute("UPDATE PulsarSearch SET TotalErrors=?, "+table+\
                         "Errors=? WHERE Rownum=?",
                         (tot_er,job_er, bs_id))
     return
@@ -194,8 +194,8 @@ def database_mass_update(table,file_location):
                     cur.execute("SELECT * FROM "+table+" WHERE Rownum=? AND AttemptNum=? AND BSID=?",
                                 (rownum, attempt_num, bs_id))
                     columns = cur.fetchone()
-                    #get blindsearch data
-                    cur.execute("SELECT * FROM Blindsearch WHERE Rownum="+str(bs_id))
+                    #get search data
+                    cur.execute("SELECT * FROM PulsarSearch WHERE Rownum="+str(bs_id))
                     bs_columns = cur.fetchone()
 
                     if int(errorcode) == 0:
@@ -213,7 +213,7 @@ def database_mass_update(table,file_location):
                         tot_jc = int(bs_columns['TotalJobComp']) + 1
                         job_jc = int(bs_columns[table+'JobComp']) + 1
 
-                        cur.execute("UPDATE Blindsearch SET TotalProc=?, "+table+\
+                        cur.execute("UPDATE PulsarSearch SET TotalProc=?, "+table+\
                                     "Proc=?, TotalJobComp=?, "+table+\
                                     "JobComp=? WHERE Rownum=?",
                                     (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9],
@@ -226,7 +226,7 @@ def database_mass_update(table,file_location):
                                     " SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
                                           (end_time, errorcode, rownum, attempt_num, bs_id))
                             
-                        cur.execute("UPDATE Blindsearch SET TotalErrors=?, "+table+\
+                        cur.execute("UPDATE PulsarSearch SET TotalErrors=?, "+table+\
                                     "Errors=? WHERE Rownum=?",
                                     (tot_er,job_er, bs_id))
     return
@@ -240,7 +240,7 @@ def database_wrap_up(rownum, cand_val, end_time=datetime.datetime.now()):
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
-        cur.execute("UPDATE Blindsearch SET Ended=?, CandTotal=?, CandOverNoise=?, CandDect=? WHERE Rownum=?",
+        cur.execute("UPDATE PulsarSearch SET Ended=?, CandTotal=?, CandOverNoise=?, CandDect=? WHERE Rownum=?",
                     (end_time, cand_total, cand_over_noise, cand_detect, rownum))
     return
 
@@ -303,7 +303,7 @@ def date_to_sec(string):
 
 if __name__ == '__main__':
     mode_options = ['vc', 'vs', 'vp', 'vprog', 's', 'e', 'm', 'b', 'w']
-    parser = argparse.ArgumentParser(description="""A script used to keep track of the scripts run by the blindsearch database.""", 
+    parser = argparse.ArgumentParser(description="""A script used to keep track of the scripts run by the pulsar search database.""", 
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-m", "--mode", dest="mode", metavar="mode", default='vc', type=str, help=textwrap.dedent('''This script has the following modes {}. All modes starting with v are used for viewing parts of the database, other options will be used by the pipeline not the user.
 "vc" used to view the commands that start the pipeline.
@@ -326,7 +326,7 @@ Default mode is vc'''.format(mode_options)))
     view_options.add_argument("-o", "--obsid", default=None, type=str, help="Only prints one obsid's jobs.")
     
     start_options = parser.add_argument_group('Script Start Options')
-    start_options.add_argument("-b", "--bs_id", default=None, type=str, help="The row number of the blindsearch command of the databse")
+    start_options.add_argument("-b", "--bs_id", default=None, type=str, help="The row number of the pulsar search command of the databse")
     start_options.add_argument("-c", "--command", default=None, type=str, help="The script name being run. eg volt_download.py.")
     start_options.add_argument("-a", "--attempt_num", default=None, type=str, help="The attempt number of a script.")
     start_options.add_argument("-n", "--nodes", default=1, type=int, help="The number of cpu nodes used.")
@@ -355,7 +355,7 @@ Default mode is vc'''.format(mode_options)))
     elif args.command == 'prepfold':
         table = 'Fold'
     elif args.mode == 'vc' or args.mode == 'vp' or args.mode == 'vprog':
-        table = 'Blindsearch'
+        table = 'PulsarSearch'
     elif args.mode == 'b' or args.command == 'make_beam':
         table = 'Beamform'
         

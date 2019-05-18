@@ -2,7 +2,7 @@
 
 import argparse
 import os
-from blindsearch_pipeline import your_slurm_queue_check
+from mwa_search_pipeline import your_slurm_queue_check
 from job_submit import submit_slurm
 import subprocess
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--work_dir', type=str, help='The working directory on Pawsey\'s HSM cold storage that you would like to store your files in (please make this foulder before running this script). For example /project/mwaops/nswainston/yogesh_low_DM_candiate/.')
     parser.add_argument('-r', '--no_remove', action="store_true", help='By default this script will remove the directory after the file has succesfully been transfered to cold storage. If you use this option it will NOT delete the foulder after transfering it.')
     default_options = parser.add_argument_group('Default Directory Structure Options', "Options to use if the fits files you would like to transfer are in the directory format /group/mwaops/vcs/<obsid>/pointings/<pointing_ra_dec>/")
-    default_options.add_argument('-p','--pointing_file',type=str,help='A text file with a pointing on each line in the format HH:MM:SS_+DD:MM:SS. Such a file can be made using the command: for i in $(blindsearch_database.py -m vc --all | grep low | grep -v None); do if [[ $i = 17:* ]]; then echo $i; fi; done >> pointings_to_tar.txt')
+    default_options.add_argument('-p','--pointing_file',type=str,help='A text file with a pointing on each line in the format HH:MM:SS_+DD:MM:SS. Such a file can be made using the command: for i in $(search_database.py -m vc --all | grep low | grep -v None); do if [[ $i = 17:* ]]; then echo $i; fi; done >> pointings_to_tar.txt')
     default_options.add_argument("-o", '--obsid', type=int, help='The obsid of the MWA observation')
     full_options = parser.add_argument_group('Full Path Options', 'If you do not have the defualt directory structure please use these options.')
     full_options.add_argument('-d', '--dir_file', type=str, help='The text file that contains full path to a foulder full of fits files on each line. For example /group/mwaops/xuemy/pol_census/1118509648/ which contains fits files')
