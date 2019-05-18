@@ -20,6 +20,19 @@ import config
 
 DB_FILE_LOC = os.environ['CMD_BS_DB_DEF_FILE']
 
+def send_cmd_shell(cmd):
+    output = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, shell=True,
+                              stderr=subprocess.STDOUT).communicate()[0].decode()
+    return output
+
+def send_cmd(cmd):
+    output = subprocess.Popen(cmd.split(' '), stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, 
+                              stderr=subprocess.STDOUT).communicate()[0].decode()
+    return output
+
+
 def chunks(l, n):
     # For item i in a range that is a length of l,
     for i in range(0, len(l), n):
@@ -151,18 +164,16 @@ def numout_calc(fits_dir, obsid):
     
 def get_pulsar_dm_p(pulsar):
     #Gets the ra and dec from the output of PSRCAT
-    cmd = ['psrcat', '-c', 'dm', pulsar]
-    output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
-    temp = []
+    cmd = 'psrcat -c dm {}'.format(pulsar)
+    output = send_cmd(cmd)
     lines = output.split('\n')
     for l in lines[4:-1]: 
         columns = l.split()
 
         if len(columns) > 1:
             dm = columns[1]
-    cmd = ['psrcat', '-c', 'p0', pulsar]
-    output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
-    temp = []
+    cmd = 'psrcat -c p0 {}'.format(pulsar)
+    output = send_cmd(cmd)
     lines = output.split('\n')
     for l in lines[4:-1]: 
         columns = l.split()
@@ -483,11 +494,10 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                     #resubmit missing channels
                     submit_line = "sbatch {0}{1}/batch/mb_{2}_ch{3}.batch".\
                                   format(comp_config['base_product_dir'], obsid, pointing, ch)
-                    submit_cmd = subprocess.Popen(submit_line,shell=True,\
-                                                    stdout=subprocess.PIPE)
+                    submit_output = send_cmd_shell(submit_line)
                     print(submit_line)
-                    for line in submit_cmd.stdout:
-                        print(line,)
+                    for line in submit_output:
+                        print(line)
                         if "Submitted" in line:
                             temp = line.split()
                             job_id_list.append(temp[3])
@@ -638,7 +648,7 @@ def prepdata(obsid, pointing, relaunch_script,
 
     #Calculates the expected procesing time (conservative) in seconds
     #the number of DMs doesn't appear to greatly affect the processing time so not included in the calculation
-    expe_proc_time = 1.7*10**11 / numout 
+    expe_proc_time = 3.*10**11 / numout 
     
     print(dm_list)
 
@@ -648,24 +658,21 @@ def prepdata(obsid, pointing, relaunch_script,
     else:
         mask_command = ''
     #dms_per_job = 1024
-    dms_per_job = 512
+    dms_per_job = 128
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = dm_line[1] #float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
-            commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) + str(mask_command) +\
-                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(dms_per_job)+\
-                            " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            str(obsid) + '_*.fits')
+            commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub 1536 -dmstep {2} -numdms {3} -numout {4} -zerodm -o {5} {6}{5}_*.fits'.format(dm_start, mask_command, dm_line[2], 
+                                             dms_per_job, numout, obsid, fits_dir))
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
-        commands_list.append('-ncpus $ncpus -lodm ' + str(dm_start) + str(mask_command) +\
-                            " -dmstep " + str(dm_line[2]) + " -numdms "+str(steps)+\
-                            " -numout " + str(numout) + " -o " + str(obsid) + " " + fits_dir +\
-                            str(obsid) + '_*.fits')
+        commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub 1536 -dmstep {2} -numdms {3} -numout {4} -zerodm -o {5} {6}{5}_*.fits'.format(dm_start, mask_command, dm_line[2], 
+                                         steps, numout, obsid, fits_dir))
+
     #Puts all the expected jobs on the databse
     #blindsearcg_database_script_id_list
     blindsearch_database.database_script_list(bsd_row_num, 'prepsubband', commands_list, 
@@ -735,14 +742,28 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
     
     DIR=work_dir + sub_dir
     os.chdir(DIR)
+    
+    nharm = 16. # number of harmonics to search
+    min_period = 0.001 # min period to search for in sec (ANTF min = 0.0013)
+    max_period = 30. # max period to search for in sec  (ANTF max = 23.5)
+    #convert to freq
+    min_freq = 1. / max_period
+    max_freq = 1. / min_period
+    #adjust the freq to include the harmonics
+    min_f_harm = min_freq - min_freq / nharm 
+    max_f_harm = max_freq + max_freq / nharm
+
+    #For initial search we will save processing by not doing an acceleration search
+    max_search_accel = 0.
 
     dir_files = glob.glob("*fft")
     commands_list = []
     for fft_file in dir_files:
         #calc processing time
         expe_proc_time = 300.
-        commands_list.append('-ncpus $ncpus -zmax 0 -flo 0.75 -fhi 500 '+\
-                              '-numharm 8 {}'.format(fft_file))
+        commands_list.append('-ncpus $ncpus -zmax {0:d} -flo {1} -fhi {2} -numharm {3:d} {4}'.\
+                             format(max_search_accel, min_f_harm, max_f_harm,
+                                    nharm, fft_file))
     
     blindsearch_database.database_script_list(bsd_row_num, 'accelsearch', commands_list,
                                  n_omp_threads, expe_proc_time)
@@ -904,6 +925,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
     threads = True
     bash_job = False
     if table == 'Prepdata':
+        total_job_time = 24000
         next_mode = 't'
         cur_mode = 'p'
     elif table == 'FFT':
@@ -934,17 +956,25 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         if cur_mode == 'a':
             # changing to python 2 to use ACCELsift
             print('Switching python versions to run ACCELsift')
-            print(subprocess.check_output('module load presto/d6265c2', shell=True))
-            print(subprocess.check_output('ml matplotlib/2.2.2-python-2.7.14', shell=True))
-            os.chdir(work_dir)
-            cmd = subprocess.call('ACCEL_sift.py {0}/'.format(sub_dir), 
-                                          shell=True, stdout=subprocess.PIPE)
-            print(subprocess.check_output('module load python/3.6.4', shell=True))
-        print("{0} -m {1}".format(relaunch_script, next_mode))
-        cmd=subprocess.call("{0} -m {1}".format(relaunch_script, next_mode),
-                             shell=True, stdout=subprocess.PIPE)
-        for line in cmd.stdout:
-            print(line,)
+            commands = []
+            commands.append(add_database_function(script_test=script_test,
+                                                  n_omp_threads=1))
+            commands.append('cd {0}'.format(work_dir))
+            commands.append('srun --export=ALL -n 1 -c 1 ACCEL_sift.py {0}/'.format(sub_dir))
+            commands.append('module use /fred/oz125/software/modulefiles')
+            commands.append('module load vcstools/master')
+            commands.append("{0} -m {1}".format(relaunch_script, next_mode))
+            submit_slurm("{0}_ACCEL_sift".format(bsd_row_num), commands,
+                         batch_dir="{0}{1}/batch".format(work_dir, sub_dir),
+                         slurm_kwargs={"time": '59:00', 
+                                       "nice":"90"},
+                         submit=True, module_list=['module use /apps/users/pulsar/skylake/modulefiles\nmodule load presto/d6265c2', 
+                                    comp_config['psrcat_module'],
+                                    'matplotlib/2.2.2-python-2.7.14'],
+                         cpu_threads=1)
+        else:
+            print("{0} -m {1}".format(relaunch_script, next_mode))
+            print(send_cmd("{0} -m {1}".format(relaunch_script, next_mode)))
     elif attempt_num > 10:
         print("Still failing after 10 attempts. Exiting Here.")
     else:
@@ -1063,7 +1093,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                      slurm_kwargs={"time": "20:00",
                                    "nice":"90"},
                      submit=True, depend=job_id_list, depend_type="afterany", 
-                     module_list=[comp_config['presto_module']],
+                     module_list=[comp_config['presto_module'],
+                                  comp_config['psrcat_module']],
                      cpu_threads=n_omp_threads)
     return
 
