@@ -1,9 +1,10 @@
+#!/usr/bin/env python
 import os
 import sqlite3 as lite
 try:
-    DB_FILE = os.environ['CMD_BS_DB_DEF_FILE']
+    DB_FILE = os.environ['SEARCH_DB']
 except:
-    print "environmental variable CMD_BS_DB_DEF_FILE must be defined"
+    print("environmental variable CMD_BS_DB_DEF_FILE must be defined")
     
 con = lite.connect(DB_FILE)
 with con:
@@ -28,6 +29,7 @@ with con:
                 Obsid INT, 
                 Pointing TEXT,
                 UserID TEXT,
+                Version TEXT,
                 Comment TEXT, 
                 SampleNum INT,
                 TotalProc FLOAT, 

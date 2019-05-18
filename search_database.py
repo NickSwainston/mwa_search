@@ -16,36 +16,38 @@ def dict_factory(cursor, row):
     return d
     
 def database_search_start(obsid, pointing, comment):
-        con = lite.connect(DB_FILE, timeout = TIMEOUT)
-        with con:
-                cur = con.cursor()
-                cur.execute("""INSERT INTO PulsarSearch(Started, Obsid, Pointing, UserID, Comment, 
-                        TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
-                        BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
-                        PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
-                        FFTProc, FFTErrors, FFTDS, FFTDE, FFTJobComp,
-                        AccelProc, AccelErrors, AccelDS, AccelDE, AccelJobComp,
-                        FoldProc, FoldErrors, FoldDS, FoldDE, FoldJobComp,
-                        CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,?
-                               ?,?,?,?,?,
-                               ?,?,?,?,?,
-                               ?,?,?,?,?,
-                               ?,?,?,?,?,
-                               ?,?,?,?,?,
-                               ?,?,?,?,?,
-                               ?,?,?)""",
-                          (datetime.datetime.now(), obsid, pointing, 
-                          os.environ['USER'], comment,
-                          0.0, 0, 0, 0, 0,
-                          0.0, 0, 0, 0, 0,
-                          0.0, 0, 0, 0, 0,
-                          0.0, 0, 0, 0, 0,
-                          0.0, 0, 0, 0, 0,
-                          0.0, 0, 0, 0, 0,
-                          0, 0, 0))
-                vcs_command_id = cur.lastrowid
-        return vcs_command_id
-    
+    import version
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    with con:
+        cur = con.cursor()
+        cur.execute("""INSERT INTO PulsarSearch(Started, Obsid, Pointing,
+                UserID, Version, Comment, 
+                TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
+                BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
+                PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
+                FFTProc, FFTErrors, FFTDS, FFTDE, FFTJobComp,
+                AccelProc, AccelErrors, AccelDS, AccelDE, AccelJobComp,
+                FoldProc, FoldErrors, FoldDS, FoldDE, FoldJobComp,
+                CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,?,?,
+                       ?,?,?,?,?,
+                       ?,?,?,?,?,
+                       ?,?,?,?,?,
+                       ?,?,?,?,?,
+                       ?,?,?,?,?,
+                       ?,?,?,?,?,
+                       ?,?,?)""",
+                  (datetime.datetime.now(), obsid, pointing, 
+                  os.environ['USER'], version.__version__, comment,
+                  0.0, 0, 0, 0, 0,
+                  0.0, 0, 0, 0, 0,
+                  0.0, 0, 0, 0, 0,
+                  0.0, 0, 0, 0, 0,
+                  0.0, 0, 0, 0, 0,
+                  0.0, 0, 0, 0, 0,
+                  0, 0, 0))
+        vcs_command_id = cur.lastrowid
+    return vcs_command_id
+
 
 def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time,
                          attempt=1):
