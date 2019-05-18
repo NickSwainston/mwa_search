@@ -19,14 +19,14 @@ def database_blindsearch_start(obsid, pointing, comment):
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         with con:
                 cur = con.cursor()
-                cur.execute("""INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, 
+                cur.execute("""INSERT INTO Blindsearch(Started, Obsid, Pointing, UserID, Comment, 
                         TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
                         BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
                         PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
                         FFTProc, FFTErrors, FFTDS, FFTDE, FFTJobComp,
                         AccelProc, AccelErrors, AccelDS, AccelDE, AccelJobComp,
                         FoldProc, FoldErrors, FoldDS, FoldDE, FoldJobComp,
-                        CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,
+                        CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,?
                                ?,?,?,?,?,
                                ?,?,?,?,?,
                                ?,?,?,?,?,
@@ -34,7 +34,8 @@ def database_blindsearch_start(obsid, pointing, comment):
                                ?,?,?,?,?,
                                ?,?,?,?,?,
                                ?,?,?)""",
-                          (datetime.datetime.now(), obsid, pointing, comment,
+                          (datetime.datetime.now(), obsid, pointing, 
+                          os.environ['USER'], comment,
                           0.0, 0, 0, 0, 0,
                           0.0, 0, 0, 0, 0,
                           0.0, 0, 0, 0, 0,
@@ -339,7 +340,7 @@ Default mode is vc'''.format(mode_options)))
 
     #argument parsing 
     if args.mode not in mode_options:
-        print "Unrecognised mode, please use one of the following {}. Exiting".format(mode_options)
+        print("Unrecognised mode, please use one of the following {}. Exiting".format(mode_options))
         quit()
 
     #work out table
@@ -402,7 +403,7 @@ Default mode is vc'''.format(mode_options)))
             else:
                 query += " WHERE Exit='" + str(args.errorcode) + "'"
 
-        print query
+        print(query)
         with con:
             cur = con.cursor()
             cur.execute(query)
@@ -417,68 +418,63 @@ Default mode is vc'''.format(mode_options)))
         
         
         if args.mode == "vc": 
-            print 'Row# ','Obsid       ','Pointing                      ','Started               ','Ended                 ','Comments'
-            print '--------------------------------------------------------------------------------------------------'
+            print('{:4s} | {:10s} | {:26s} | {:19s} | {:19s} | {}'.format('Row', 
+                  'Obsid', 'Pointing', 'Started', 'Ended', 'Comments'))
+            print('-----------------------------------------------------------------------------------------------------')
             for row in rows:
-                print '%-5s' % (str(row['Rownum']).rjust(4)),
-                print '%-12s' % (row['Obsid']),
-                print '%-30s' % (row['Pointing']),
-                print '%-22s' % (row['Started'][:19]),
                 if row['Ended'] is None:
-                    print '%-22s' % (row['Ended']), 
+                    temp_ended = '{:19s}'.format('None')
                 else:
-                    print '%-22s' % (row['Ended'][:19]),
-                print row['Comment']
-                #print "\n"
+                    temp_ended = '{:.19}'.format(row['Ended'])
+                print('{:4d} | {:10d} | {:26s} | {:19s} | {:19s} | {}'.format(row['Rownum'], row['Obsid'], row['Pointing'], row['Started'][:19], temp_ended, row['Comment']))
                 
                 
         if args.mode == "vs":
-            print 'BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments'
-            print '--------------------------------------------------------------------------------------------------'
+            print('BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments')
+            print('--------------------------------------------------------------------------------------------------')
             for row in rows:
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
-                print '%-5s' % (row['BSID']),
-                print '%-5s' % (str(row['Rownum']).rjust(4)),
-                print '%-5s' % (row['AttemptNum']),
+                print('%-5s' % (row['BSID']),)
+                print('%-5s' % (str(row['Rownum']).rjust(4)),)
+                print('%-5s' % (row['AttemptNum']),)
                 if row['Started'] is None:
-                    print '%-22s' % (row['Started']),
+                    print('%-22s' % (row['Started']),)
                 else:
-                    print '%-22s' % (row['Started'][:19]),
+                    print('%-22s' % (row['Started'][:19]),)
                 if row['Ended'] is None:
-                    print '%-22s' % (row['Ended']),
+                    print('%-22s' % (row['Ended']),)
                 else:
-                    print '%-22s' % (row['Ended'][:19]),
-                print '%-7s' % (row['Proc']),
-                print '%-7s' % (row['ExpProc']),
+                    print('%-22s' % (row['Ended'][:19]),)
+                print('%-7s' % (row['Proc']),)
+                print('%-7s' % (row['ExpProc']),)
                 if str(row['Exit']).endswith('\n'):
-                    print '%-5s' % str(row['Exit'])[:-1],
+                    print('%-5s' % str(row['Exit'])[:-1],)
                 else:
-                    print '%-5s' % (row['Exit']),
-                print '%-5s' % (row['CPUs']),
-                print row['Arguments'],
-                print "\n"
+                    print('%-5s' % (row['Exit']),)
+                print('%-5s' % (row['CPUs']),)
+                print(row['Arguments'])
                 
         if args.mode == "vp":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
-                    print 'Row# | Total proc | err# | Beamform proc | err# | Prep proc | err# | FFT proc | err# | Accel proc | err# | Fold proc | err# |'
-                    print '-----|------------|------|---------------|------|-----------|------|----------|------|------------|------|-----------|------|'
+                    print('Row# | Total proc | err# | Beamform proc | err# | Prep proc | err# | FFT proc | err# | Accel proc | err# | Fold proc | err# |')
+                    print('-----|------------|------|---------------|------|-----------|------|----------|------|------------|------|-----------|------|')
 
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
-                print '{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc']/3600.,row['TotalErrors'],row['BeamformProc']/3600.,row['BeamformErrors'],row['PrepdataProc']/3600.,row['PrepdataErrors'],row['FFTProc']/3600.,row['FFTErrors'],row['AccelProc']/3600.,row['AccelErrors'],row['FoldProc']/3600.,row['FoldErrors'])
+                print('{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc']/3600.,row['TotalErrors'],row['BeamformProc']/3600.,row['BeamformErrors'],row['PrepdataProc']/3600.,row['PrepdataErrors'],row['FFTProc']/3600.,row['FFTErrors'],row['AccelProc']/3600.,row['AccelErrors'],row['FoldProc']/3600.,row['FoldErrors']))
         
         if args.mode == "vprog":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
-                    print 'Row# |  Total Jobs |Beamform Jobs|Prepdata Jobs|'+\
-                            '   FFT Jobs  |  Accel Jobs |  Fold Jobs  |'
-                    print '-----|-------------|-------------|-------------|'+\
-                            '-------------|-------------|-------------|'
-                print '{:4d} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} |'.\
+                    print('Row# |  Total Jobs |Beamform Jobs|Prepdata Jobs|'+\
+                            '   FFT Jobs  |  Accel Jobs |  Fold Jobs  |')
+                    print('-----|-------------|-------------|-------------|'+\
+                            '-------------|-------------|-------------|')
+                print('{:4d} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} | {:5d}/{:5s} |'.\
                         format(row['Rownum'], row['TotalJobComp'], str(row['TotalJobExp']),
                                row['BeamformJobComp'], str(row['BeamformJobExp']),
                                row['PrepdataJobComp'], str(row['PrepdataJobExp']),
                                row['FFTJobComp'], str(row['FFTJobExp']),
                                row['AccelJobComp'], str(row['AccelJobExp']),
-                               row['FoldJobComp'], str(row['FoldJobExp']) )
+                               row['FoldJobComp'], str(row['FoldJobExp']) ))
        

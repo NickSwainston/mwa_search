@@ -20,9 +20,8 @@ from math import cos,sin,acos,asin
 import os,sys
 #from mpi4py import MPI
 import argparse
-from mwapy import ephem_utils,metadata
-from mwapy.pb import primary_beam as pb
-from mwapy.pb.mwa_tile import h2e
+from mwa_pb import primary_beam as pb
+from mwa_pb.mwa_tile import h2e
 #import urllib
 #import urllib2
 #import json
@@ -164,7 +163,7 @@ def cross_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    print "Calculating the tile positions"
+    print("Calculating the tile positions")
     for l in range(loop):
         loop_temp = []
         for c in range(4):
@@ -195,7 +194,7 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    print "Calculating the tile positions"
+    print("Calculating the tile positions")
 
     for l in range(loop):
         #different step for each corner
@@ -277,7 +276,7 @@ def square_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    print "Calculating the tile positions"
+    print("Calculating the tile positions")
 
     for l in range(loop):
         #different step for each corner
@@ -367,10 +366,10 @@ if __name__ == "__main__":
 
     #all_pointing parsing
     if (args.loop != 1) and args.all_pointings:
-        print "Can't use --loop and --all_poinitings as all_pointings calculates the loops required. Exiting."
+        print("Can't use --loop and --all_poinitings as all_pointings calculates the loops required. Exiting.")
         quit()
     if args.pointing and args.all_pointings:
-        print "Can't use --pointing and --all_poinntings as --all_pointings calculates the pointing. Exitting."
+        print("Can't use --pointing and --all_poinntings as --all_pointings calculates the pointing. Exitting.")
         quit()
     if args.all_pointings:
         #calculating loop number
@@ -400,7 +399,7 @@ if __name__ == "__main__":
         pointing_list = square_grid(ra, dec, centre_fwhm*args.fraction,
                                    args.loop)
     else:
-        print "Unrecognised grid type. Exiting."
+        print("Unrecognised grid type. Exiting.")
         quit()
     #TODO add square
 
@@ -408,7 +407,7 @@ if __name__ == "__main__":
     ra_decs = []      
     ras = []; decs = []; theta = []; phi = []; rads = []; decds = []
     
-    print "Converting ra dec to degrees"                
+    print("Converting ra dec to degrees")
     for l in range(len(pointing_list)):
         for c in range(len(pointing_list[l])):
             for n in range(len(pointing_list[l][c])):
@@ -423,7 +422,7 @@ if __name__ == "__main__":
                 #ra_decs.append([rag,decg,az,za,rad,decd])
     
     if (args.dec_range or args.ra_range):
-        print "Removing pointings outside of ra dec ranges"
+        print("Removing pointings outside of ra dec ranges")
         radls = []
         decdls = []
         for i in range(len(rads)):
@@ -455,14 +454,14 @@ if __name__ == "__main__":
         rads = radls
         decds = decdls
     
-    print "Using skycord to convert ra dec"
+    print("Using skycord to convert ra dec")
     #Use skycoord to get asci
     coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
     #unformated
     rags_uf = coord.ra.to_string(unit=u.hour, sep=':')
     decgs_uf = coord.dec.to_string(unit=u.degree, sep=':')
     
-    print "Formating the outputs"
+    print("Formating the outputs")
     #format the ra dec strings 
     for i in range(len(rags_uf)):
         rag = rags_uf[i] 
@@ -484,7 +483,7 @@ if __name__ == "__main__":
  
     if (args.dec_range or args.ra_range):
         #some ra and dec string for radec limited degreees
-        print "Recording the dec limited poisitons in grid_positions_dec_limited.txt"            
+        print("Recording the dec limited poisitons in grid_positions_dec_limited.txt")
         with open('grid_positions_ra_dec_limited_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
                   '_l'+str(args.loop) +'.txt','w') as out_file:
             if args.verbose_file:
@@ -500,7 +499,7 @@ if __name__ == "__main__":
                 out_file.write(out_line)
           
     else:    
-        print "Recording the poisitons in grid_positions.txt"            
+        print("Recording the poisitons in grid_positions.txt")
         with open('grid_positions_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
                   '_l'+str(args.loop)+'.txt','w') as out_file:
             if args.verbose_file:
@@ -519,11 +518,11 @@ if __name__ == "__main__":
            
 
     #matplotlib.use('Agg')
-    print "Plotting"
+    print("Plotting")
     fig = plt.figure(figsize=(7, 7))
     if args.aitoff:
         fig.add_subplot(111)
-        print "changing axis"
+        print("changing axis")
         ax = plt.axes(projection='mollweide')
         rads = -(np.radians(np.array(rads)))+ np.pi
         decds = np.radians(np.array(decds))
@@ -573,7 +572,7 @@ if __name__ == "__main__":
        
         
     
-    print "Number of pointings: " + str(len(rads))
+    print("Number of pointings: " + str(len(rads)))
     #times out and segfaults after this so I'm going to exit here
     exit()
    

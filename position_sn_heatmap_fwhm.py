@@ -34,7 +34,7 @@ def find_fwhm_and_plot(obsid, pointing):
     ra_hex = pointing.split("_")[0]
     dec_hex = pointing.split("_")[1]
     
-    print ra_hex, dec_hex
+    print(ra_hex, dec_hex)
     coord = SkyCoord(ra_hex,dec_hex,unit=(u.hourangle,u.deg))
     dec_centre = coord.dec.degree
     ra_centre = coord.ra.degree
@@ -47,7 +47,6 @@ def find_fwhm_and_plot(obsid, pointing):
         coord = SkyCoord(rah,dech,unit=(u.hourangle,u.deg))
         ras.append(coord.ra.degree)
         decs.append(coord.dec.degree)
-        #print decs,dec_centre
         if decs[i] == dec_centre:
             ra_line.append(ras[i])
             ra_sn_line.append(sn[i])
@@ -61,36 +60,35 @@ def find_fwhm_and_plot(obsid, pointing):
     ra_max_hex = max_coord.ra.to_string(unit=u.hour, sep=':')
     dec_max_hex = max_coord.dec.to_string(unit=u.degree, sep=':')
 
-    print "sn max coord: {0}_{1}".format(ra_max_hex, dec_max_hex)
+    print("sn max coord: {0}_{1}".format(ra_max_hex, dec_max_hex))
 
 
     
     #sort and calc FWHM
     ra_sn_line = [x for _,x in sorted(zip(ra_line,ra_sn_line))]
     ra_line = sorted(ra_line)
-    print ra_sn_line,ra_line
+    print(ra_sn_line,ra_line)
 
     dec_sn_line = [x for _,x in sorted(zip(dec_line,dec_sn_line))]
     dec_line = sorted(dec_line)
-    print dec_sn_line,dec_line 
+    print(dec_sn_line,dec_line )
 
     ra_sn_line = np.array(ra_sn_line) ; dec_sn_line = np.array(dec_sn_line)
 
     spline = UnivariateSpline(ra_line, ra_sn_line-np.max(ra_sn_line)/2., s=0)
-    print spline.roots()
+    print(spline.roots())
     r1, r2 = spline.roots()
     ra_FWHM = abs(r1-r2)
-    print "raw ra FHWM: " + str(ra_FWHM)
+    print("raw ra FHWM: " + str(ra_FWHM))
     cor_ra_FWHM = float(ra_FWHM)*math.cos(np.radians(dec_centre))
-    print "corrected ra FWHM: {0}".format(cor_ra_FWHM)
+    print("corrected ra FWHM: {0}".format(cor_ra_FWHM))
 
     spline = UnivariateSpline(dec_line, dec_sn_line-np.max(dec_sn_line)/2., s=0)
-    #print spline.roots()
     r1, r2 = spline.roots()
     dec_FWHM = abs(r1-r2)
-    print "raw dec FHWM: " + str(dec_FWHM)
+    print("raw dec FHWM: " + str(dec_FWHM))
     cor_dec_FWHM = float(dec_FWHM)*math.cos(np.radians(dec_centre) + np.radians(26.7))**2
-    print "corrected dec FWHM: {0}".format(cor_dec_FWHM)
+    print("corrected dec FWHM: {0}".format(cor_dec_FWHM))
 
     
 
@@ -108,8 +106,6 @@ def find_fwhm_and_plot(obsid, pointing):
     plt.colorbar(sp)
     plt.savefig("{0}_position_heatmap.png".format(obsid))
     plt.show()
-    #print sorted(ras)
-    #print sorted(decs)
     
 
 if __name__ == '__main__':

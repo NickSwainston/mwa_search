@@ -61,10 +61,10 @@ if __name__ == "__main__":
     args=parser.parse_args()
     
     DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM)
-    print " low DM | high DM | DeltaDM | Nsteps | Effective time resolution (ms)"
+    print(" low DM | high DM | DeltaDM | Nsteps | Effective time resolution (ms)")
     total_steps = 0
     for d in DD_plan_array:
-        print "{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:7.3f}".\
-               format(d[0], d[1], d[2], d[3], d[4])
+        print("{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:7.3f}".\
+               format(d[0], d[1], d[2], d[3], d[4]))
         total_steps += d[3]
-    print "Total DM steps required: {}".format(total_steps)
+    print("Total DM steps required: {}".format(total_steps))

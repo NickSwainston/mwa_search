@@ -11,7 +11,7 @@ args=parser.parse_args()
 #        the following variables for your particular search
  
 d=args.dir
-print d
+print(d)
 if d.endswith("/"):
     d = d[:-1]
 # glob for ACCEL files
@@ -88,13 +88,13 @@ if len(cands):
 # Note:  this includes only a small set of harmonics
 if len(cands):
     cands = sifting.remove_harmonics(cands)
-print "Number of candidates remaining {}".format(len(cands))
+print("Number of candidates remaining {}".format(len(cands)))
 # Write candidates to STDOUT
 if len(cands):
     cands.sort(sifting.cmp_sigma)
     cands_file_name = 'cand_files/cands_'+ d.replace("/","_") +'.txt'
     sifting.write_candlist(cands,cands_file_name)
-    print cands_file_name
+    print(cands_file_name)
 else:
-    print "No candidates left, no file created"
+    print("No candidates left, no file created")
 

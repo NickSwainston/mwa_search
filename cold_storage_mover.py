@@ -7,14 +7,14 @@ from job_submit import submit_slurm
 import subprocess
 
 def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
-    print file_list
+    print(file_list)
     for fn, fits_dir in enumerate(file_list):
         if fits_dir.endswith("\n"):
             fits_dir = fits_dir[:-1]
         pointing = fits_dir.split("/")[-1]
         #only lets 5 jobs at a time to not flood the transfer (could probably handle more
         if os.path.exists(fits_dir):
-            print pointing
+            print(pointing)
             your_slurm_queue_check(max_queue=5, grep='tar', queue='workq')
             commands = []
             commands.append('cd {}'.format(fits_dir))
@@ -33,7 +33,7 @@ def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
                      slurm_kwargs={"time": "5:00:00", "partition": "workq"},
                      submit=True, export='ALL')
         else:
-           print '{} does not exist'.format(pointing)
+           print('{} does not exist'.format(pointing))
 
 
 #srun -n 1 -c 10 tar zcvvf - 1117643248_00*.fits | ssh hsm 'cat - > /project/mwaops/nswainston/yogesh_low_DM_candiate/temp_${2}.tar.gz
@@ -53,18 +53,18 @@ if __name__ == "__main__":
     
     #parseing the options
     if not args.work_dir:
-        print "No --work_dir option given, please add one. Exiting"
+        print("No --work_dir option given, please add one. Exiting")
         exit()
     else:
         if args.work_dir.endswith("/"):
             args.work_dir = args.wor_kdir[:-1]
 
     if args.pointing_file and args.dir_file:
-        print "Please us only --pointing_dir or --dir_file, not both. Exiting"
+        print("Please us only --pointing_dir or --dir_file, not both. Exiting")
         exit()
     elif args.pointing_file:
         if not args.obsid:
-            print "--pointing_file requires the option --obsid but none is given. Exiting"
+            print("--pointing_file requires the option --obsid but none is given. Exiting")
             exit()
         with open(args.pointing_file) as f:
             temp_list = f.readlines()
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         with open(args.dir_file) as f:
             fits_foulder_list = f.readlines()
     else:
-        print "Please us either --pointing_dir or --dir_file. Exiting"
+        print("Please us either --pointing_dir or --dir_file. Exiting")
         exit()
     
     #TODO add a step that checks if you have an sshkey (that actually works)
@@ -83,8 +83,8 @@ if __name__ == "__main__":
     try:
         output = subprocess.check_output('ssh -oNumberOfPasswordPrompts=0 hpc-hsm.pawsey.org.au "echo hello"', shell=True)
     except subprocess.CalledProcessError as error:
-        print "Error sshing into hpc-hsm.pawsey.org.au. Pleas emake sure you've set up an sshkey. Exiting"
-        print "Full error: " + error.output
+        print("Error sshing into hpc-hsm.pawsey.org.au. Pleas emake sure you've set up an sshkey. Exiting")
+        print("Full error: " + error.output)
         exit()
     """
     
