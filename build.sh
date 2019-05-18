@@ -14,8 +14,9 @@ elif git describe --tags &> /dev/null; then
 else
     VERSION=$(git branch | grep "\\*" | grep "detached" | rev | cut -d" " -f1 | rev | sed "s|)||")
 fi
+cd -
 
-PACKAGE=mwa_search_pipeline
+PACKAGE=mwa_search
 
 if [[ $ROOT == *${PACKAGE}/${PACKAGE} ]]; then
     # This is the prefereed directory structure
