@@ -19,14 +19,14 @@ def database_blindsearch_start(obsid, pointing, comment):
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         with con:
                 cur = con.cursor()
-                cur.execute("""INSERT INTO Blindsearch(Started, Obsid, Pointing, Comment, 
+                cur.execute("""INSERT INTO Blindsearch(Started, Obsid, Pointing, UserID, Comment, 
                         TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
                         BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
                         PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
                         FFTProc, FFTErrors, FFTDS, FFTDE, FFTJobComp,
                         AccelProc, AccelErrors, AccelDS, AccelDE, AccelJobComp,
                         FoldProc, FoldErrors, FoldDS, FoldDE, FoldJobComp,
-                        CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,
+                        CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,?
                                ?,?,?,?,?,
                                ?,?,?,?,?,
                                ?,?,?,?,?,
@@ -34,7 +34,8 @@ def database_blindsearch_start(obsid, pointing, comment):
                                ?,?,?,?,?,
                                ?,?,?,?,?,
                                ?,?,?)""",
-                          (datetime.datetime.now(), obsid, pointing, comment,
+                          (datetime.datetime.now(), obsid, pointing, 
+                          os.environ['USER'], comment,
                           0.0, 0, 0, 0, 0,
                           0.0, 0, 0, 0, 0,
                           0.0, 0, 0, 0, 0,
