@@ -762,8 +762,8 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
         #calc processing time
         expe_proc_time = 300.
         commands_list.append('-ncpus $ncpus -zmax {0:d} -flo {1} -fhi {2} -numharm {3:d} {4}'.\
-                             format(max_search_accel, min_f_harm, max_f_harm,
-                                    nharm, fft_file))
+                             format(int(max_search_accel), min_f_harm, max_f_harm,
+                                    int(nharm), fft_file))
     
     blindsearch_database.database_script_list(bsd_row_num, 'accelsearch', commands_list,
                                  n_omp_threads, expe_proc_time)
