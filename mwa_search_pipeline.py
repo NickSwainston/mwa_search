@@ -18,7 +18,17 @@ from job_submit import submit_slurm
 import find_pulsar_in_obs as fpio
 import config
 
-DB_FILE_LOC = os.environ['CMD_BS_DB_DEF_FILE']
+if 'SEARCH_WORK_DIR' in os.environ:
+    DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
+else:
+    DEFAULT_WORK_DIR = '/fred/oz125/nswainst/pulsar_search'
+if 'SEARCH_DB' in os.environ:
+    DB_FILE_LOC = os.environ['SEARCH_DB']
+else:
+    print("#WARNING: No enviormental variable DB_FILE_LOC. Search tracking won't work")
+
+DB_FILE_LOC = os.environ['SEARCH_DB']
+DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
 
 def send_cmd_shell(cmd):
     output = subprocess.Popen(cmd, stdin=subprocess.PIPE,
@@ -342,7 +352,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
 
 
 def beamform(pointing_list, obsid, begin, end, DI_dir, 
-             work_dir='/fred/oz125/nswainst/pulsar_search/', relaunch=False,             
+             work_dir=DEFAULT_WORK_DIR, relaunch=False,             
              relaunch_script=None, code_comment=None, 
              dm_min=1.0, dm_max=250.0,
              search=False, bsd_row_num_input=None, incoh=False, 
@@ -533,7 +543,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
 #-------------------------------------------------------------------------------------------------------------
 def rfifind(obsid, pointing, sub_dir, relaunch_script,
-            work_dir='/fred/oz125/nswainst/pulsar_search/', 
+            work_dir=DEFAULT_WORK_DIR, 
             n_omp_threads = 8,
             bsd_row_num=None, pulsar=None,
             fits_dir=None, script_test=False):
@@ -574,7 +584,7 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
 
 #-------------------------------------------------------------------------------------------------------------
 def prepdata(obsid, pointing, relaunch_script,
-             work_dir='/fred/oz125/nswainst/pulsar_search/', 
+             work_dir=DEFAULT_WORK_DIR, 
              bsd_row_num=None, pulsar=None,
              n_omp_threads = 8, fits_dir=None, 
              dm_min=1.0, dm_max=250.0, script_test=False,
@@ -686,7 +696,7 @@ def prepdata(obsid, pointing, relaunch_script,
                 
 #-------------------------------------------------------------------------------------------------------------
 def sort_fft(obsid, pointing, sub_dir, relaunch_script,
-             work_dir='/fred/oz125/nswainst/pulsar_search/', 
+             work_dir=DEFAULT_WORK_DIR, 
              bsd_row_num=None, pulsar=None,
              fits_dir=None, dm_max=4, n_omp_threads=8, script_test=False):
 
@@ -734,7 +744,7 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
                 
 #-------------------------------------------------------------------------------------------------------------
 def accel(obsid, pointing, sub_dir, relaunch_script,
-          work_dir='/fred/oz125/nswainst/pulsar_search/', 
+          work_dir=DEFAULT_WORK_DIR, 
           bsd_row_num=None, pulsar=None, n_omp_threads=8, script_test=False):
     
     DIR=work_dir + sub_dir
@@ -775,7 +785,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
        
 #-------------------------------------------------------------------------------------------------------------
 def fold(obsid, pointing, sub_dir, relaunch_script,
-         work_dir='/fred/oz125/nswainst/pulsar_search/', 
+         work_dir=DEFAULT_WORK_DIR, 
          bsd_row_num=None, pulsar=None, fits_dir=None, n_omp_threads=8, script_test=False):
     from math import floor
     
@@ -869,7 +879,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
 
 
 def wrap_up(obsid, pointing, 
-            work_dir='/fred/oz125/nswainst/pulsar_search/', 
+            work_dir=DEFAULT_WORK_DIR, 
             bsd_row_num=None, script_test=False):
 
     #put all significant candidates into the over directory
@@ -909,7 +919,7 @@ def wrap_up(obsid, pointing,
 
 def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 obsid, pointing, script_test=False, bash_job=False,
-                work_dir='/fred/oz125/nswainst/pulsar_search/', n_omp_threads=8,
+                work_dir=DEFAULT_WORK_DIR, n_omp_threads=8,
                 sub_dir=None, total_job_time=18000.):
     """
     Checkes the database for any jobs that didn't complete (or didn't even start)
@@ -1100,10 +1110,6 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
 
 if __name__ == "__main__":
     mode_options = ["b", "r", "p", "t", "a", "f", "c", "w"]
-    if 'BLINDSEARCH_WORK_DIR' in os.environ:
-        default_work_dir = os.environ['BLINDSEARCH_WORK_DIR']
-    else:
-        default_work_dir = None
     parser = argparse.ArgumentParser(description="""
     Used to automate mass beamforming of MWA data and pulsar searches using the galaxy supercomputer (Ozstar coming soon).
     """, formatter_class=argparse.RawTextHelpFormatter)

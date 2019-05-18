@@ -5,7 +5,7 @@ import glob
 import argparse
 import textwrap
 
-DB_FILE = os.environ['CMD_BS_DB_DEF_FILE']
+DB_FILE = os.environ['SEARCH_DB']
 #how many seconds the sqlite database conection takes until it times out
 TIMEOUT=120
 
