@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+module load git/2.18.0
+
 # Find directory of this build script
 ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 ROOT_DIR=$ROOT
