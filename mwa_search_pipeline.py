@@ -221,11 +221,18 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     data_dir = '{0}{1}'.format(comp_config['base_data_dir'], obsid)
     product_dir = '{0}{1}'.format(comp_config['base_product_dir'], obsid)
     metafits_dir = "{0}/{1}_metafits_ppds.fits".format(data_dir, obsid)
+    rts_flag_file = '{0}{1}/cal/{2}/rts/flagged_tiles.txt'.\
+                     format(comp_config['base_product_dir'], 
+                            obsid, cal_id)
+    if not os.path.exists(rts_flag_file):
+        print('RTS flag file is not in the default location of: '+\
+              '{} please move it there. Exiting'.format(rts_flag_file))
     pvcs.ensure_metafits(data_dir, obsid, metafits_dir)
     job_id_list = pvcs.coherent_beam(obsid, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
                   metafits_dir, 128, pointing, args,
-                  bf_formats=bf_formats, DI_dir=DI_dir, calibration_type="rts", nice=nice)
+                  rts_flag_file=, bf_formats=bf_formats, DI_dir=DI_dir,
+                  calibration_type="rts", nice=nice)
     
     pointing = "{0}_{1}".format(pointing[0],pointing[1])
     dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
