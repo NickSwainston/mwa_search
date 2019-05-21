@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 import argparse
 import find_pulsar_in_obs as fpio
