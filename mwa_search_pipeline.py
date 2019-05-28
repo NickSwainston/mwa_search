@@ -196,7 +196,7 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
                         pointing_dir,relaunch_script,
                         search=False, bsd_row_num=None, nice=100,
                         pulsar_check=None, cal_id=None, vdif=False,
-                        channels=None):
+                        channels=None, search_ver='master'):
     """
     Does some basic checks and formating before 
     if args.pulsar_file:
@@ -231,14 +231,15 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     job_id_list = pvcs.coherent_beam(obsid, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
                   metafits_dir, 128, pointing, args,
-                  rts_flag_file=, bf_formats=bf_formats, DI_dir=DI_dir,
+                  rts_flag_file=rts_flag_file, bf_formats=bf_formats, DI_dir=DI_dir,
                   calibration_type="rts", nice=nice)
     
     pointing = "{0}_{1}".format(pointing[0],pointing[1])
     dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
                            relaunch_script=relaunch_script, cal_id=cal_id, 
-                           incoh=incoh_check, channels=channels)
+                           incoh=incoh_check, channels=channels,
+                           search_ver=search_ver)
     return
 
 
@@ -246,7 +247,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
                            bsd_row_num=None, pulsar_check=None, 
                            relaunch_script="echo no relaunch", cal_id=None, 
                            incoh=False, begin=None, end=None,
-                           channels=None):
+                           channels=None, search_ver='master'):
     """
     Launches a script that splices the beamformed files and, where approriate,
     launches the search pipeline or folds on known pulsars.
@@ -467,14 +468,16 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,
                                 fits_dir, relaunch_script, vdif=vdif, 
                                 pulsar_check=pulsar_check, cal_id=cal_id,
-                                search=search, bsd_row_num=bsd_row_num)
+                                search=search, bsd_row_num=bsd_row_num,
+                                search_ver=search_ver)
         elif missing_file_check and not unspliced_check:
             #splice files
             print("Splicing the files in {0}".format(pointing))
             dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
                            relaunch_script=relaunch_script, begin=begin, 
-                           end=end, cal_id=cal_id, channels=channels)
+                           end=end, cal_id=cal_id, channels=channels,
+                           search_ver=search_ver)
  
         elif unspliced_check:
             #resubmit any channels that are incomplete
@@ -507,7 +510,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             dependant_splice_batch(obsid, pointing, product_dir, fits_dir, job_id_list,
                            bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
                            relaunch_script=relaunch_script, cal_id=cal_id,
-                           begin=begin, end=end, channels=channels)
+                           begin=begin, end=end, channels=channels,
+                           search_ver=search_ver)
 
         else:
             #All files there so the check has succeded and going to start the pipeline
@@ -530,7 +534,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
                                        bsd_row_num=None, pulsar_check=pulsar_check, 
                                        cal_id=cal_id, begin=begin, end=end,
-                                       channels=channels)
+                                       channels=channels, search_ver=search_ver)
     return
  
 
