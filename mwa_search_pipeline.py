@@ -340,7 +340,8 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
                  batch_dir=batch_dir,
                  slurm_kwargs={"time": "5:00:00", 
                                "nice":"90"},
-                 module_list=['mwa_search/{}'.format(search_ver)],
+                 module_list=['mwa_search/{}'.format(search_ver),
+                              comp_config['presto_module']],
                  submit=True, depend=job_id_list, depend_type='afterany')
     return
 
@@ -661,19 +662,20 @@ def prepdata(obsid, pointing, relaunch_script,
     else:
         mask_command = ''
     #dms_per_job = 1024
-    dms_per_job = 128
+    dms_per_job = 256
+    nsub = 256
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = dm_line[1] #float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
-            commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub 1536 -dmstep {2} -numdms {3} -numout {4} -zerodm -o {5} {6}{5}_*.fits'.format(dm_start, mask_command, dm_line[2], 
+            commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} -numdms {4} -numout {5} -zerodm -o {6} {7}{6}_*.fits'.format(dm_start, mask_command, nsub, dm_line[2], 
                                              dms_per_job, numout, obsid, fits_dir))
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
-        commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub 1536 -dmstep {2} -numdms {3} -numout {4} -zerodm -o {5} {6}{5}_*.fits'.format(dm_start, mask_command, dm_line[2], 
+        commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} -numdms {4} -numout {5} -zerodm -o {6} {7}{6}_*.fits'.format(dm_start, mask_command, nsub, dm_line[2], 
                                          steps, numout, obsid, fits_dir))
 
     #Puts all the expected jobs on the databse

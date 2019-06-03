@@ -43,9 +43,9 @@ if glob.glob('{0}*fits'.format(args.observation)) and \
 
 #getting number of files list
 if args.incoh:
-    n_fits_file = glob.glob('*{0}_ch{1}_incoh*fits'.format(args.observation, channels[-1]))
+    n_fits_file = glob.glob('*{0}*_ch{1}_incoh*fits'.format(args.observation, channels[-1]))
 else:
-    n_fits_file = glob.glob('*{0}_ch{1}*fits'.format(args.observation, channels[-1]))    
+    n_fits_file = glob.glob('*{0}*_ch{1}*fits'.format(args.observation, channels[-1]))    
 n_fits = []
 for file_name in n_fits_file:
     n_fits.append(int(file_name[-9:-5]))
@@ -55,8 +55,8 @@ print('Fits number order: {}'.format(n_fits))
 for n in n_fits:
     submit_line = submit_line_incoh = 'splice_psrfits '
     for ch in channels:
-        submit_line += '*{}_ch{:03d}_{:04d}.fits '.format(obsid, ch, n)
-        submit_line_incoh +=  '*{}_ch{:03d}_incoh_{:04d}.fits '.format(obsid, ch, n)
+        submit_line += '*{}*_ch{:03d}_{:04d}.fits '.format(obsid, ch, n)
+        submit_line_incoh +=  '*{}*_ch{:03d}_incoh_{:04d}.fits '.format(obsid, ch, n)
     submit_line += 'temp_'+str(n)
     submit_line_incoh += 'temp_incoh_'+str(n)
     
