@@ -51,15 +51,34 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     Used to calculate the Dedispersion plan for low-frequency telescopes. Inspired by PRESTO's DDplan.py.
     """)
-    parser.add_argument('-f', '--centrefreq', type=float, help='Centre frequency of the observation in MHz.')
-    parser.add_argument('-b', '--bandwidth', type=float, help='Bandwidth of the observation in MHz.')
-    parser.add_argument('-nf', '--nfreqchan', type=int, help='Number of frequency channels.')
-    parser.add_argument('-t', '--timeres', type=float, help='Time resolution in ms.')
-    parser.add_argument('-ld', '--lowDM', type=float, help='Lowest DM of the required range.')
-    parser.add_argument('-hd', '--highDM', type=float, help='Highest DM of the required range.')
+    parser.add_argument('-f', '--centrefreq', type=float, default=150.,
+                        help='Centre frequency of the observation in MHz.')
+    parser.add_argument('-b', '--bandwidth', type=float, default=30.72,
+                        help='Bandwidth of the observation in MHz.')
+    parser.add_argument('-nf', '--nfreqchan', type=int, default=3072,
+                        help='Number of frequency channels.')
+    parser.add_argument('-t', '--timeres', type=float, default=0.1,
+                        help='Time resolution in ms.')
+    parser.add_argument('-ld', '--lowDM', type=float, default=1.,
+                        help='Lowest DM of the required range.')
+    parser.add_argument('-hd', '--highDM', type=float, default=250.,
+                        help='Highest DM of the required range.')
+    parser.add_argument('-o', '--obsid', type=int, 
+                        help='The MWA observation ID of an observation. Using this command will get the require observation parameters.')
     #parser.add_argument()
     args=parser.parse_args()
     
+    if args.obsid:
+        #get the centrefreq from the obsid metadata
+        beam_meta_data = getmeta(service='obs', params={'obs_id':args.obsid})
+        
+        #work out centrefreq
+        minfreq = float(min(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
+        maxfreq = float(max(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
+        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
+        args.centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2)
+
+
     DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM)
     print(" low DM | high DM | DeltaDM | Nsteps | Effective time resolution (ms)")
     total_steps = 0
