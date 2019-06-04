@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 import subprocess
 import os
@@ -231,6 +231,8 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     job_id_list = pvcs.coherent_beam(obsid, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
                   metafits_dir, 128, pointing, args,
+                  rts_flag_file=rts_flag_file, bf_formats=bf_formats, DI_dir=DI_dir,
+                  calibration_type="rts", nice=nice)
                   rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                   DI_dir=DI_dir, calibration_type="rts", nice=nice)
     
@@ -469,7 +471,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,
                                 fits_dir, relaunch_script, vdif=vdif, 
                                 pulsar_check=pulsar_check, cal_id=cal_id,
-                                search=search, bsd_row_num=bsd_row_num)
+                                search=search, bsd_row_num=bsd_row_num,
+                                search_ver=search_ver)
         elif missing_file_check and not unspliced_check:
             #splice files
             print("Splicing the files in {0}".format(pointing))
