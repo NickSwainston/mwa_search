@@ -9,32 +9,17 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM):
     DD_plan_array = []
     freqres = bandwidth / float(nfreqchan)
     previous_DM = lowDM
-    
-    #minimum period to be sensitive to
-    min_p = 20. #in ms
-    #relative min S/n
-    r_SN = 0.5
-    #assumed duty cycle
-    DC = 0.1 #10%
-    W_int = min_p * DC
-
     #Loop until you've made a hit your range max
     D_DM = 0.
     while D_DM < highDM:
         #calculate the DM where the current time resolution equals the 
         #dispersion in a frequency channel (a bit of an overkill)
-        D_DM = 2. * timeres * centrefreq**3 /\
+        D_DM = timeres * centrefreq**3 /\
                (8.3 * 10.**6 * freqres)
-        
-        #effective period due to effective time resolution
-        W_int = math.sqrt( (min_p * DC)**2 + timeres**2 )
-        #the effective width os a smeared pulsar at the relative S/N
-        W_eff = min_p / (r_SN**2 * ( ( 1 - (W_int/min_p) )/(W_int/min_p) ) + 1. )
         
         #difference in DM that will double the effective width (eq 6.4 of pulsar handbook)
         #TODO make this more robust
-        print(W_eff,W_int)
-        DM_step = math.sqrt( W_eff**2 - W_int**2 )/\
+        DM_step = math.sqrt( (2.*timeres)**2 - timeres**2 )/\
                   (8.3 * 10**6 * bandwidth / centrefreq**3)
 
         #round to nearest 0.01
