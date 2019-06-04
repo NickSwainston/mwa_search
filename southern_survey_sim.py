@@ -1,32 +1,17 @@
 #! /usr/bin/env python3
 
 import os
-import sys
 import math
 import argparse
-import subprocess
 import numpy as np
 import csv
 from scipy.interpolate import UnivariateSpline
-import ephem
-
-#astropy
-from astropy.io import fits
-from astropy.coordinates import SkyCoord
-from astropy import units as u
-from astropy.table import Table
-from astropy.time import Time
 
 #matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.path as Path
 import matplotlib.patches as patches
-import matplotlib.tri as tri
-import matplotlib.cm as cm
-#plt.rc("text",usetex=True)
 
 #vcstools/mwapy
-from mwa_pb import primary_beam
 import find_pulsar_in_obs as fpio
 import mwa_metadb_utils as meta
 from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
@@ -47,7 +32,7 @@ if __name__ == "__main__":
   parser.add_argument('-o','--sens_overlap',action='store_true',help='Plots sensitivity that overlaps between observations.')
   parser.add_argument('-c','--colour',action='store_true',help='Plots sensitivity plots in colour instead of contour')
   parser.add_argument('-l','--lines',action='store_true',help='Includes the min decs of other telescopes in plots')
-  parser.add_argument('--fill',action='store_true',help='Shades and area') 
+  parser.add_argument('--fill',action='store_true',help='Shades and area')
   parser.add_argument('-m','--manual', nargs='+', type=int, help='Makes the pointing numbers manual, input them as 1 2 3 4 5 6 7')
   parser.add_argument('--semester', action='store_true', help='Changed the colours of the FWHM for each semester')
   parser.add_argument('--semester_ra', action='store_true', help='Similar to semester but uses a RA cut off (changes number per group)')
@@ -139,7 +124,7 @@ if __name__ == "__main__":
   else:
       #Going to work out how many pointings are needed
       #setting up some metadata requirements
-      time = 4800 #one hour 20 min 
+      time = 4800 #one hour 20 min
       channels = range(107,131)
       minfreq = float(min(channels))
       maxfreq = float(max(channels))
@@ -154,7 +139,7 @@ if __name__ == "__main__":
             Dec_FWHM_calc.append(i)
             RA_FWHM_calc.append(j)
               
-      manual_point_num = args.manual   
+      manual_point_num = args.manual
               
       observations = []
       ra_list =[]
@@ -248,7 +233,7 @@ if __name__ == "__main__":
   RA_FWHM_atdec =[]
   if not os.path.exists('obs_meta.csv'):
       os.mknod('obs_meta.csv')
-  with open('obs_meta.csv', 'r') as csvfile: 
+  with open('obs_meta.csv', 'r') as csvfile:
       spamreader = csv.reader(csvfile)
       next(spamreader, None)
       obsid_meta_file = []
@@ -257,11 +242,10 @@ if __name__ == "__main__":
   for i, ob in enumerate(observations):
       if args.obsid_list or args.all_obsids:
           obs_foun_check = False
-          for omi in range(len(obsid_meta_file)):
-              if int(ob) == int(obsid_meta_file[omi][0]):
+          for omf in obsid_meta_file:
+              if int(ob) == int(omf[0]):
                   print("getting obs metadata from obs_meta.csv")
-                  ob, ra, dec, time, delays,centrefreq, channels =\
-                              obsid_meta_file[omi]
+                  ob, ra, dec, time, delays,centrefreq, channels = omf
                   ob = int(ob)
                   time = int(time)
                   delays = map(int,delays[1:-1].split(","))
@@ -270,7 +254,7 @@ if __name__ == "__main__":
                   obs_foun_check = True
           if not obs_foun_check:
               ob, ra, dec, time, delays,centrefreq, channels =\
-                  meta.get_common_obs_metadata(ob)  
+                  meta.get_common_obs_metadata(ob)
               
               with open('obs_meta.csv', 'a') as csvfile:
                   spamwriter = csv.writer(csvfile)
@@ -313,7 +297,7 @@ if __name__ == "__main__":
           for t in range(0,(time/time_intervals)):
               if i%(len(map_ra_range)) >= t:
                   power_ra = powout[i-t,0,0] #ra+t*15./3600 3deg
-              else : 
+              else :
                   power_ra = powout[i+len(map_ra_range)-t,0,0]
               if args.sens:
                   temppower += power_ra #average power kinds
@@ -322,7 +306,7 @@ if __name__ == "__main__":
                       temppower = power_ra
               #print(temppower, power_ra)
           z.append(temppower)
-          """ 
+          """
           if args.ra_offset:
               if RA[c] > 180:
                   x.append(-RA[c]/180.*np.pi+2*np.pi)
@@ -402,7 +386,7 @@ if __name__ == "__main__":
               powout_RA_line = [x for _,x in sorted(zip(RA_line,powout_RA_line))]
               RA_line = sorted(RA_line)
               #janky fix because there's two 360 values at the end
-              RA_line = [0.] + RA_line[:-1] 
+              RA_line = [0.] + RA_line[:-1]
               powout_RA_line = [powout_RA_line[-1]] + powout_RA_line[:-1]
           
           spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
@@ -414,7 +398,7 @@ if __name__ == "__main__":
               max_ra = r1 - (diff)/2.
           else:
               max_ra = r1 + (diff)/2.
-          #max_ra = 180.-max_ra*180/np.pi 
+          #max_ra = 180.-max_ra*180/np.pi
           if max_ra < 0.:
               max_ra += 360.
           if max_ra > 360.:
@@ -496,7 +480,7 @@ if __name__ == "__main__":
           cs = plt.tricontour(nx, ny, nz, levels=levels[0],alpha=0.0)
           cs0 = cs.collections[0]
           cspaths = cs0.get_paths()
-          spch_0 = patches.PathPatch(cspaths[0], facecolor='skyblue', 
+          spch_0 = patches.PathPatch(cspaths[0], facecolor='skyblue',
                                      edgecolor='gray',lw=0.5, alpha=0.55)
           #ax.add_patch(spch_0)
 
@@ -535,7 +519,6 @@ if __name__ == "__main__":
       #sort the output into the right order
       import glob
       from operator import itemgetter
-      import csv
       for g in glob.glob("./*group*"):
           with open(g) as f:
             lines = [line.split("\t") for line in f]
@@ -557,7 +540,7 @@ if __name__ == "__main__":
   else:
       xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
 
-  ax.set_xticklabels(xtick_labels, zorder=150) 
+  ax.set_xticklabels(xtick_labels, zorder=150)
   print("plotting grid")
   plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
   
@@ -570,10 +553,10 @@ if __name__ == "__main__":
           '--g',label=r'GBT $\delta_{min}$', zorder=130)
     plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi, np.full(len(map_ra_range),-55./180.*np.pi),\
           '--c',label=r'GMRT $\delta_{min}$', zorder=130)
-    #plt.plot(np.radians(np.array(map_ra_range)) - np.pi, 
+    #plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
     #         np.full(len(map_ra_range),np.radians(-15.)),
     #         '--b',label=r'FAST $\delta_{min}$', zorder=130)
-    plt.plot(np.radians(np.array(map_ra_range)) - np.pi, 
+    plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
              np.full(len(map_ra_range),np.radians(30.)),
              'y',label=r'MWA $\delta_{max}$', zorder=130)
   if args.fill:
@@ -658,7 +641,6 @@ if __name__ == "__main__":
     plot_name += '_ownFWHM'
   else:
     plot_name +='_zenithFWHM'
-  
   plot_type = args.plot_type
   #plt.title(plot_name)
   print("saving {}.{}".format(plot_name, plot_type))
