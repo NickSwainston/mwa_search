@@ -1,26 +1,18 @@
 #!/usr/bin/env python
 
-from scipy.interpolate import griddata
-import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import patches
-import sys
-import subprocess
 
 # numerical and maths modules
 import numpy as np
-from astropy.coordinates import SkyCoord,EarthLocation,AltAz,angles
+from astropy.coordinates import SkyCoord,EarthLocation,AltAz
 from astropy.time import Time
-from astropy.io import fits
 import astropy.units as u
-from astropy.constants import c,k_B
-from math import cos,sin,acos,asin
+from astropy.constants import c
+from math import cos,sin,asin
 
-#utility and processing modules
-import os,sys
 #from mpi4py import MPI
 import argparse
-from mwa_pb import primary_beam as pb
 from mwa_pb.mwa_tile import h2e
 #import urllib
 #import urllib2
@@ -67,7 +59,7 @@ def getTargetAZZA(ra,dec,time,lat=-26.7033,lon=116.671,height=377.827):
     #print "Converting to (Az,ZA)"
     az = altaz.az.rad 
     azdeg = altaz.az.deg
-     
+    
     za = np.pi/2 - altaz.alt.rad
     zadeg = 90 - altaz.alt.deg
     
@@ -106,17 +98,17 @@ def two_floats(value):
     values = value.split()
     if len(values) != 2:
         raise argparse.ArgumentError
-    return values  
+    return values
     
     
 #gird movements all in rad
 def left(ra_in, dec_in, fwhm):
-    dec_out = dec_in 
+    dec_out = dec_in
     ra_out = ra_in - fwhm/cos(dec_in)
     return [ra_out,dec_out]
-    
+
 def right(ra_in, dec_in, fwhm):
-    dec_out = dec_in 
+    dec_out = dec_in
     ra_out = ra_in + fwhm/cos(dec_in)
     return [ra_out,dec_out]
     
@@ -127,7 +119,7 @@ def up(ra_in, dec_in, fwhm):
 
 def down(ra_in, dec_in, fwhm):
     dec_out = dec_in - fwhm / cos(dec_in + np.radians(26.7))**2
-    ra_out = ra_in 
+    ra_out = ra_in
     return [ra_out,dec_out]
   
 def up_left(ra_in, dec_in, fwhm):
@@ -202,7 +194,7 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
         for c in range(6):
             corner_temp = []
             for n in range(l + 1):
-                if l == 0: 
+                if l == 0:
                     #First loop so all c = 0
                     if c == 0:
                         ra,dec =left(pointing_list[l][0][n][0],
@@ -263,7 +255,7 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
                     elif c == 4:
                         ra,dec =down_right(pointing_list[l][c][n][0],
                                            pointing_list[l][c][n][1],centre_fwhm)
-                    elif c == 5:  
+                    elif c == 5:
                         ra,dec =down_left(pointing_list[l][c][n][0],
                                           pointing_list[l][c][n][1],centre_fwhm)
                 corner_temp.append([ra,dec])
@@ -284,7 +276,7 @@ def square_grid(ra0,dec0,centre_fwhm, loop):
         for c in range(4):
             corner_temp = []
             for n in range((l + 1) * 2):
-                if n == 0: 
+                if n == 0:
                     #grab from previous corner
                     cfrom = (c + 3)%4
                     if l == 0:
@@ -390,7 +382,7 @@ if __name__ == "__main__":
     
     #calc grid positions
     if args.type == 'hex':
-        pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction, 
+        pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction,
                                  args.loop)
     elif args.type == 'cross':
         pointing_list = cross_grid(ra, dec, centre_fwhm*args.fraction,
@@ -404,16 +396,16 @@ if __name__ == "__main__":
     #TODO add square
 
     time = Time(float(args.obsid),format='gps')
-    ra_decs = []      
+    ra_decs = []
     ras = []; decs = []; theta = []; phi = []; rads = []; decds = []
     
     print("Converting ra dec to degrees")
-    for l in range(len(pointing_list)):
-        for c in range(len(pointing_list[l])):
-            for n in range(len(pointing_list[l][c])):
+    for loop in pointing_list:
+        for corner in loop:
+            for num in corner:
                 #format grid pointings
-                rad = np.degrees(pointing_list[l][c][n][0])
-                decd = np.degrees(pointing_list[l][c][n][1])
+                rad = np.degrees(num[0])
+                decd = np.degrees(num[1])
                 
                 if decd > 90.:
                     decd = decd - 180.
@@ -462,9 +454,9 @@ if __name__ == "__main__":
     decgs_uf = coord.dec.to_string(unit=u.degree, sep=':')
     
     print("Formating the outputs")
-    #format the ra dec strings 
+    #format the ra dec strings
     for i in range(len(rags_uf)):
-        rag = rags_uf[i] 
+        rag = rags_uf[i]
         decg = decgs_uf[i]
 
         temp = fpio.format_ra_dec([[rag,decg]])
@@ -498,22 +490,22 @@ if __name__ == "__main__":
                     out_line = str(ras[i])+" "+str(decs[i])+"\n" 
                 out_file.write(out_line)
           
-    else:    
+    else:
         print("Recording the poisitons in grid_positions.txt")
         with open('grid_positions_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
                   '_l'+str(args.loop)+'.txt','w') as out_file:
             if args.verbose_file:
-                out_line = "#ra   dec    az     za\n" 
+                out_line = "#ra   dec    az     za\n"
                 out_file.write(out_line)
             for i in range(len(rads)):
                 if args.verbose_file:
                     out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
                                 +str(phi[i])+" "+str(rads[i])+" "\
-                                +str(decds[i])+"\n" 
+                                +str(decds[i])+"\n"
                 else:
-                    out_line = str(ras[i])+" "+str(decs[i])+"\n" 
+                    out_line = str(ras[i])+" "+str(decs[i])+"\n"
 
-                out_file.write(out_line) 
+                out_file.write(out_line)
                
            
 
@@ -575,6 +567,3 @@ if __name__ == "__main__":
     print("Number of pointings: " + str(len(rads)))
     #times out and segfaults after this so I'm going to exit here
     exit()
-   
-    
-   
