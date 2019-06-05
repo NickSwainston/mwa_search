@@ -72,16 +72,16 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
             cur.execute("INSERT OR IGNORE INTO %s (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)" % table, (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
         #update expected jobs
         if attempt == 1:
-            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (str(len(arguments_list)),bs_id))
+            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (len(arguments_list),bs_id))
         else:
-            cur.execute("SELECT %sJobExp FROM PulsarSearch WHERE Rownum=?" % table, (str(bs_id),))
+            cur.execute("SELECT %sJobExp FROM PulsarSearch WHERE Rownum=?" % table, (bs_id,))
             table_job_exp = cur.fetchone()[0]
-            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (str(len(arguments_list) + table_job_exp),bs_id))
+            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (len(arguments_list) + table_job_exp, bs_id))
         cur.execute("SELECT TotalJobExp FROM PulsarSearch WHERE Rownum=?", (bs_id,))
         search_job_exp = cur.fetchone()[0]
         if search_job_exp is None:
             search_job_exp = 0
-        cur.execute("UPDATE PulsarSearch SET TotalJobExp=? WHERE Rownum=?", (str(len(arguments_list) + search_job_exp),bs_id))
+        cur.execute("UPDATE PulsarSearch SET TotalJobExp=? WHERE Rownum=?", (len(arguments_list) + search_job_exp, bs_id))
 
     return 
 
@@ -108,7 +108,7 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
                     (rownum, attempt_num, bs_id))
         columns = cur.fetchone()
         #get search data
-        cur.execute("SELECT * FROM PulsarSearch WHERE Rownum="+str(bs_id))
+        cur.execute("SELECT * FROM PulsarSearch WHERE Rownum=?",(bs_id,))
         bs_columns = cur.fetchone()
 
         if int(errorcode) == 0:
@@ -460,4 +460,4 @@ Default mode is vc'''.format(mode_options)))
                                row['PrepdataJobComp'], str(row['PrepdataJobExp']),
                                row['FFTJobComp'], str(row['FFTJobExp']),
                                row['AccelJobComp'], str(row['AccelJobExp']),
-                               row['FoldJobComp'], str(row['FoldJobExp']) )) 
+                               row['FoldJobComp'], str(row['FoldJobExp']) ))
