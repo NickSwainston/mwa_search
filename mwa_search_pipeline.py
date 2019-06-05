@@ -233,8 +233,6 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
                   metafits_dir, 128, pointing, args,
                   rts_flag_file=rts_flag_file, bf_formats=bf_formats, DI_dir=DI_dir,
                   calibration_type="rts", nice=nice)
-                  rts_flag_file=rts_flag_file, bf_formats=bf_formats,
-                  DI_dir=DI_dir, calibration_type="rts", nice=nice)
     
     pointing = "{0}_{1}".format(pointing[0],pointing[1])
     dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
@@ -1286,7 +1284,7 @@ if __name__ == "__main__":
                  search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
                  pulsar=args.pulsar, args=args, search_ver=args.mwa_search_version,
                  fits_dir_base=args.fits_dir, cold_storage_check=args.csc,
-                 channels=args.channels)
+                 channels=args.channels, cal_id=args.cal_obs)
     elif args.mode == "c":
         error_check(args.table, args.attempt, args.bsd_row_num, relaunch_script,
                     obsid, pointing, search_ver=args.mwa_search_version,
