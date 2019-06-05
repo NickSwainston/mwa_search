@@ -68,17 +68,16 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
-        row_id_list = []
         for ai, arguments in enumerate(arguments_list):
             cur.execute("INSERT OR IGNORE INTO %s (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)" % table, (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
         #update expected jobs
         if attempt == 1:
-            cur.execute("UPDATE PulsarSearch SET ?JobExp=? WHERE Rownum=?", (table, str(len(arguments_list)),bs_id))
+            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (str(len(arguments_list)),bs_id))
         else:
-            cur.execute("SELECT ?JobExp FROM PulsarSearch WHERE Rownum=?", (table, str(bs_id),))
+            cur.execute("SELECT %sJobExp FROM PulsarSearch WHERE Rownum=?" % table, (str(bs_id),))
             table_job_exp = cur.fetchone()[0]
-            cur.execute("UPDATE PulsarSearch SET ?JobExp=? WHERE Rownum=?", (table, str(len(arguments_list) + table_job_exp),bs_id))
-        cur.execute("SELECT TotalJobExp FROM PulsarSearch WHERE Rownum={}".format(bs_id))
+            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (str(len(arguments_list) + table_job_exp),bs_id))
+        cur.execute("SELECT TotalJobExp FROM PulsarSearch WHERE Rownum=?", (bs_id,))
         search_job_exp = cur.fetchone()[0]
         if search_job_exp is None:
             search_job_exp = 0
@@ -92,8 +91,8 @@ def database_script_start(table, bs_id, rownum, attempt_num, time=datetime.datet
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
-        cur.execute("UPDATE ? SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
-                    (table, time, rownum, attempt_num, bs_id))
+        cur.execute("UPDATE %s SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table,
+                    (time, rownum, attempt_num, bs_id))
         row_id = cur.lastrowid
     return row_id
 
@@ -105,8 +104,8 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
     with con:
         cur = con.cursor()
         #get script data
-        cur.execute("SELECT * FROM ? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
-                    (table, rownum, attempt_num, bs_id))
+        cur.execute("SELECT * FROM %s WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table,
+                    (rownum, attempt_num, bs_id))
         columns = cur.fetchone()
         #get search data
         cur.execute("SELECT * FROM PulsarSearch WHERE Rownum="+str(bs_id))
@@ -118,7 +117,7 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
             start_s = date_to_sec(columns['Started'])
             processing = (end_s - start_s)
 
-            cur.execute("UPDATE ? SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?", (table, processing, end_time, errorcode, rownum, attempt_num, bs_id))
+            cur.execute("UPDATE %s SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (processing, end_time, errorcode, rownum, attempt_num, bs_id))
 
             tot_proc = float(bs_columns['TotalProc']) + processing
             job_proc = float(bs_columns[table+'Proc']) + processing
@@ -131,8 +130,8 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
             tot_er = int(bs_columns['TotalErrors']) + 1
             job_er = int(bs_columns[table+'Errors']) + 1
 
-            cur.execute("UPDATE ? SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
-                              (table, end_time, errorcode, rownum, attempt_num, bs_id))
+            cur.execute("UPDATE %s SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table,
+                              (end_time, errorcode, rownum, attempt_num, bs_id))
                 
             cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
                         (tot_er, table, job_er, bs_id))
@@ -141,7 +140,7 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
 
 def database_script_check(table, bs_id, attempt_num):
     """
-    Searches for any jobs that didn't work and return the data needed to send 
+    Searches for any jobs that didn't work and return the data needed to send
     them off again
     """
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
@@ -149,15 +148,15 @@ def database_script_check(table, bs_id, attempt_num):
     with con:
         cur = con.cursor()
         #get script data
-        cur.execute("SELECT * FROM ? WHERE AttemptNum=? AND BSID=?",
-                    (table, attempt_num, bs_id))
+        cur.execute("SELECT * FROM %s WHERE AttemptNum=? AND BSID=?" % table,
+                    (attempt_num, bs_id))
         rows = cur.fetchall()
         
         error_data = []
         for row in rows:
             if row['Started'] == None or row['Ended'] == None or row['Exit'] != 0:
                 error_data.append([row['Command'], row['Arguments'], row['ExpProc']])
-    return error_data            
+    return error_data
 
 
 def database_mass_update(table,file_location):
@@ -170,7 +169,7 @@ def database_mass_update(table,file_location):
         with con:
             cur = con.cursor()
             lines = csv.readlines()
-            for i,l in enumerate(lines):
+            for l in lines:
                 l = l.split(',')
                 if len(l) > 2:
                     started = l[0]
@@ -182,14 +181,12 @@ def database_mass_update(table,file_location):
                     end_time = l[0]
                     errorcode = l[1]
 
-                    cur.execute("UPDATE ? SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
-                                (table, started, rownum, attempt_num, bs_id))
+                    cur.execute("UPDATE %s SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (started, rownum, attempt_num, bs_id))
 
-                    cur.execute("SELECT * FROM ? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
-                                (table, rownum, attempt_num, bs_id))
+                    cur.execute("SELECT * FROM %s WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (rownum, attempt_num, bs_id))
                     columns = cur.fetchone()
                     #get search data
-                    cur.execute("SELECT * FROM PulsarSearch WHERE Rownum="+str(bs_id))
+                    cur.execute("SELECT * FROM PulsarSearch WHERE Rownum=?", (str(bs_id),))
                     bs_columns = cur.fetchone()
 
                     if int(errorcode) == 0:
@@ -198,27 +195,24 @@ def database_mass_update(table,file_location):
                         start_s = date_to_sec(columns['Started'])
                         processing = (end_s - start_s)
 
-                        cur.execute("UPDATE ? SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?", (table, processing, end_time, errorcode, rownum, attempt_num, bs_id))
+                        cur.execute("UPDATE %s SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (processing, end_time, errorcode, rownum, attempt_num, bs_id))
 
                         tot_proc = float(bs_columns['TotalProc']) + processing
                         job_proc = float(bs_columns[table+'Proc']) + processing
                         tot_jc = int(bs_columns['TotalJobComp']) + 1
                         job_jc = int(bs_columns[table+'JobComp']) + 1
 
-                        cur.execute("UPDATE PulsarSearch SET TotalProc=?, "+table+\
-                                    "Proc=?, TotalJobComp=?, "+table+\
-                                    "JobComp=? WHERE Rownum=?",
+                        cur.execute("UPDATE PulsarSearch SET TotalProc=?, %sProc=?, TotalJobComp=?, %sJobComp=? WHERE Rownum=?" % table,
                                     (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9],
                                      str(job_jc)[:9], bs_id))
-                    else:    
+                    else:
                         tot_er = int(bs_columns['TotalErrors']) + 1
                         job_er = int(bs_columns[table+'Errors']) + 1
 
-                        cur.execute("UPDATE ? SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?",
-                                          (table, end_time, errorcode, rownum, attempt_num, bs_id))
+                        cur.execute("UPDATE %s SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (end_time, errorcode, rownum, attempt_num, bs_id))
                             
                         cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
-                                    (table, tot_er,job_er, bs_id))
+                                    (tot_er,job_er, bs_id))
     return
 
 
@@ -282,8 +276,8 @@ def database_beamform_find(file_location, bs_id):
 def date_to_sec(string):
     #just an approximation (doesn't even use year and month
     date, time = string.split(' ')
-    y,m,d = date.split('-')
-    h,mi,s = time.split(':')
+    _, _, d = date.split('-')
+    h, mi, s = time.split(':')
     s_out = ((float(d)*24. + float(h))*60. + float(mi))*60. + float(s)
     #print "hours " + str(float(d)*24. + float(h))
     #print "Minutes " + str((float(d)*24. + float(h))*60. + float(mi))
@@ -293,7 +287,7 @@ def date_to_sec(string):
 
 if __name__ == '__main__':
     mode_options = ['vc', 'vs', 'vp', 'vprog', 's', 'e', 'm', 'b', 'w']
-    parser = argparse.ArgumentParser(description="""A script used to keep track of the scripts run by the pulsar search database.""", 
+    parser = argparse.ArgumentParser(description="""A script used to keep track of the scripts run by the pulsar search database.""",
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-m", "--mode", dest="mode", metavar="mode", default='vc', type=str, help=textwrap.dedent('''This script has the following modes {}. All modes starting with v are used for viewing parts of the database, other options will be used by the pipeline not the user.
 "vc" used to view the commands that start the pipeline.
@@ -328,7 +322,7 @@ Default mode is vc'''.format(mode_options)))
     end_options.add_argument("--cand_val", type=str, help='Cand values in the form of "<total> <overnoise> <detected>. Cand detected not yet implimented.')
     args=parser.parse_args()
 
-    #argument parsing 
+    #argument parsing
     if args.mode not in mode_options:
         print("Unrecognised mode, please use one of the following {}. Exiting".format(mode_options))
         quit()
@@ -368,7 +362,7 @@ Default mode is vc'''.format(mode_options)))
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory
     
-        query = "SELECT * FROM " + table
+        query = "SELECT * FROM %s" % table
 
         if args.obsid:
             query += " WHERE Arguments LIKE '%" + str(args.obsid) + "%'"
@@ -379,7 +373,7 @@ Default mode is vc'''.format(mode_options)))
         if args.bs_id and args.mode == 'vs':
             query += " WHERE BSID=" + str(args.bs_id)
         elif args.bs_id and not args.mode == 'vs':
-            query += " WHERE Rownum=" + str(args.bs_id) 
+            query += " WHERE Rownum=" + str(args.bs_id)
             
         if args.attempt_num:
             if "WHERE" in query:
@@ -407,8 +401,8 @@ Default mode is vc'''.format(mode_options)))
             rows = rows[-args.number:]
         
         
-        if args.mode == "vc": 
-            print('{:4s} | {:10s} | {:26s} | {:19s} | {:19s} | {}'.format('Row', 
+        if args.mode == "vc":
+            print('{:4s} | {:10s} | {:26s} | {:19s} | {:19s} | {}'.format('Row',
                   'Obsid', 'Pointing', 'Started', 'Ended', 'Comments'))
             print('-----------------------------------------------------------------------------------------------------')
             for row in rows:
@@ -466,5 +460,4 @@ Default mode is vc'''.format(mode_options)))
                                row['PrepdataJobComp'], str(row['PrepdataJobExp']),
                                row['FFTJobComp'], str(row['FFTJobExp']),
                                row['AccelJobComp'], str(row['AccelJobExp']),
-                               row['FoldJobComp'], str(row['FoldJobExp']) ))
-       
+                               row['FoldJobComp'], str(row['FoldJobExp']) )) 
