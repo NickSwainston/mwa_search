@@ -169,11 +169,14 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
-    A ploting script originaly written by Mengyao but editted by Nick to estimate the number of pointings required to cover the southern sky.
-    southern_survey_sim.py -r 3 -m 6 9 11 11 11 11 11 --sens --smart -f --ra_offset
-    southern_survey_sim.py -d 10 -f -r 3 -m 6 9 11 11 11 11 11 --semester_ra -a
-    southern_survey_sim.py -d 10 -f  -r 1 -a -m 6 9 11 11 11 11 11 -c -o -l
-    southern_survey_sim.py -d 10 -f -r 1 -a -c -o  --obsid_list 1088850560 1090249472
+    A ploting script tha can be used to plot MWA tile beams, pulsars and used to work out the SMART observations to best cover the southern sky.
+    
+    #SMART survey update example
+    plot_obs_pulsar.py -m 6 9 11 11 11 11 11 --smart -f --contour --pulsar J2241-5236 J2145-0750 J2222-0137 J2248-0101 J2330-2005 J0034-0721 J0133-6957 J2324-6054 J0206-4028 J0051+0423
+    #SMART sensitivity example
+    plot_obs_pulsar.py -m 6 9 11 11 11 11 11 --sens --smart -f
+    #All MWA tile beam example
+    plot_obs_pulsar.py -f --contour --all_obsids
     """)
     obs_group = parser.add_argument_group('Observation Options')
     obs_group.add_argument('--obsid_list', type=str, nargs='*',
@@ -189,18 +192,14 @@ if __name__ == "__main__":
     
     obs_plot_group = parser.add_argument_group('Observation Plot Types Options')
     obs_plot_group.add_argument('-s', '--sens', action='store_true',
-                                help='Plots sensitivity')
-    obs_plot_group.add_argument('-o', '--sens_overlap', action='store_true',
-                                help='Plots sensitivity that overlaps between observations.')
-    obs_plot_group.add_argument('-c', '--colour', action='store_true',
-                                help='Plots sensitivity plots in colour instead of contour')
+                                help='Plots sensitivity of each observation')
+    obs_plot_group.add_argument('-o', '--overlap', action='store_true',
+                                help='Plots sensitivity by summing the power of overlapping observations.')
+    obs_plot_group.add_argument('-c', '--contour', action='store_true',
+                                help='Plots the contour of each observations power')
     obs_plot_group.add_argument('-l', '--lines', action='store_true',
                                 help='Includes the min decs of other telescopes in plots')
-    obs_plot_group.add_argument('--semester', action='store_true',
-                                help='Changed the colours of the FWHM for each semester')
-    obs_plot_group.add_argument('--semester_ra', action='store_true',
-                                help='Similar to semester but uses a RA cut off (changes number per group)')
-
+    
     add_group = parser.add_argument_group('Extra Plot Layers Options')
     add_group.add_argument('--pulsar', type=str, nargs='+',
                            help='A list of pulsar to mark on the plot.')
@@ -208,6 +207,8 @@ if __name__ == "__main__":
                            help='Plots all known pulsars.')
     add_group.add_argument('--fill', action='store_true',
                            help='Shades the area the MWA can view.')
+    add_group.add_argument('--shade', type=str, choices=['red','green','purple','darkorange','blue'],
+                           help='Shades the chosen colour observations group')
     
     plot_group = parser.add_argument_group('Plotting Options')
     plot_group.add_argument('-f', '--fwhm', action='store_true',
@@ -271,8 +272,10 @@ if __name__ == "__main__":
     pointing_count = len(observations)
 
     
-    s_overlap_z = np.zeros(len(RA))
-    sens_colour_z =[]
+    nz_sens_overlap = np.zeros(len(RA))
+    nz_shade_colour = np.zeros(len(RA))
+    nz_sens = np.empty(len(RA))
+    nz_sens[:] = np.nan
     max_ra_list = []
     RA_FWHM_atdec =[]
 
@@ -340,32 +343,18 @@ if __name__ == "__main__":
         #if i == 0:
         #    print("len powers list: " + str(powout.shape))
         for c in range(len(RA)):
-            s_overlap_z[c] += powout[c,0,0]*math.cos(Dec[c]/180.*np.pi)
+            nz_sens_overlap[c] += powout[c,0,0]*math.cos(Dec[c]/180.*np.pi)
 
             temppower=powout[c,0,0]
             temppower_sense=powout[c,0,0]
             for t in range(1,powout.shape[1]):
                 power_ra = powout[c,t,0]
                 temppower_sense += power_ra #average power kinds
-                s_overlap_z[c] += powout[c,t,0]*math.cos(Dec[c]/180.*np.pi)
+                nz_sens_overlap[c] += powout[c,t,0]*math.cos(Dec[c]/180.*np.pi)
                 if power_ra > temppower:
                     temppower = power_ra
             z_sens.append(temppower_sense)
             z.append(temppower)
-            """
-            for t in range(0,(time/time_intervals)):
-                if i%(len(map_ra_range)) >= t:
-                    power_ra = powout[i-t,0,0] #ra+t*15./3600 3deg
-                else :
-                    power_ra = powout[i+len(map_ra_range)-t,0,0]
-                if args.sens:
-                    temppower += power_ra #average power kinds
-                else:
-                    if power_ra > temppower:
-                        temppower = power_ra
-                #print(temppower, power_ra)
-            z.append(temppower)
-            """
             if args.ra_offset:
                 if RA[c] > 180:
                     x.append(-RA[c]/180.*np.pi+2*np.pi)
@@ -377,49 +366,29 @@ if __name__ == "__main__":
         
         nx=np.array(x) ; ny=np.array(y); nz=np.array(z)
         
-        #Remove 0s from sensitiviy calculations
-        nz_sense = []
+        #calculates sensitiviy and removes zeros -------------------------
+        nz_sense_obs = []
         for zsi in range(len(z_sens)):
             if nz[zsi] < 0.01:
-                nz_sense.append(np.nan)
+                nz_sense_obs.append(np.nan)
             else:
-                nz_sense.append(4.96/np.sqrt(z_sens[zsi]))
-        nz_sense = np.array(nz_sense)
+                nz_sense_obs.append(4.96/np.sqrt(z_sens[zsi]))
+        nz_sense_obs = np.array(nz_sense_obs)
         sens_min = None
+                
+        for zi, zs in enumerate(nz_sense_obs):
+            if math.isnan(nz_sens[zi]):
+                nz_sens[zi] = zs
+            elif nz_sens[zi] > zs: 
+                #append if larger
+                nz_sens[zi] = zs
 
-        """if args.fwhm:
-            if args.sens:
-                #find the power at the centre (in Ra/time) of the FWHM
-                max_index = np.argmax(nz_sense) #index of the centre of the beam
-                if res > 2:
-                    round_to = 1
-                else:
-                    round_to = 2
-                max_dec = ny[max_index] + (FWHM_Dec[temp_dec_index]/2.)/180.*np.pi
-                max_ra = nx[max_index]
-                for m in range(len(nz)):
-                    if nx[m] == max_ra and abs((ny[m] - max_dec)*180/np.pi) < (res/2.):
-                        #print((ny[m] - max_dec)*180/np.pi)
-                        sens_min = nz_sense[m]
-                #levels = np.arange(sens_min, max(nz_sense), (max(nz_sense)-sens_min))#/10.)
-                levels = np.arange(0.5*max(nz_sense), max(nz_sense), 
-                                   0.5/6*(max(nz_sense)-sens_min))
-
-                #plot in different colours
-                colors= ['0.5' for _ in range(50)] ; colors[0]= 'g'
-                ax.scatter(max_ra,max_dec, 1.5, lw=0, marker='o', color ='blue')
-                plt.tricontour(nx, ny, nz_sense, levels=levels, alpha = 0.3,
-                               colors=colors,
-                               linewidths=linewidths)
-                colors= ['0.5' for _ in range(50)] ; colors[0]= 'r'
-            #else:
-        """
         if args.fwhm:
             levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
         else:
             levels = np.arange(0.5, 1., 0.05)
         
-        # Fill group files ------------------
+        # Fill group files ------------------------------------------
         if args.smart:
             #find middle ra for each pointing
             powout_RA_line = []
@@ -482,8 +451,10 @@ if __name__ == "__main__":
                 else:
                     max_check = False
                 
-                if c == (len(colour_groups)-1):
-                    if (min_lim <= max_ra and max_ra < 360.) or (0. <= max_ra and max_ra < max_lim):
+                if  c == (len(colour_groups)-1) and \
+                       ( (min_lim <= max_ra and max_ra < 360.) or \
+                         (0.      <= max_ra and max_ra < max_lim) ) \
+                    or    (min_lim < max_ra and max_ra <= max_lim ):
                         colors = ['0.5' for _ in range(50)]
                         colors[0] = colour_groups[c]
 
@@ -492,82 +463,27 @@ if __name__ == "__main__":
                         f.close()
                         #plt.scatter(-max_ra/180*np.pi + np.pi, dec/180*np.pi, 1.5,\
                         #            lw=0, marker='o', color=colour_groups[c])
+                        
+                        if args.shade == colour_groups[c] and args.smart:
+                            #sum powers for this colour to be shaded when plotting
+                            for zi in range(len(nz)):
+                                if nz[zi] >= levels[0]:
+                                    nz_shade_colour[zi] = nz[zi]
 
-                if min_lim < max_ra and max_ra <= max_lim:
-                    colors = ['0.5' for _ in range(50)]
-                    colors[0] = colour_groups[c]
-                    f = open(str(colour_groups[c]) + '_group_file.txt','a+')
-                    f.write(str(max_ra) + '\t' + str(dec) + '\n')
-                    f.close()
-                    #plt.scatter(-max_ra/180*np.pi + np.pi, dec/180*np.pi, 1.5,\
-                    #            lw=0, marker='o', color=colour_groups[c])
+                        
+        # plot contours ---------------------------------------
+        if args.contour:
+            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6, 
+                           colors=colors,
+                           linewidths=linewidths)
         
-        if not args.sens_overlap:
-            if args.colour:
-                if i == 0:
-                    sens_colour_z = nz_sense
-                else:
-                    for zi, zs in enumerate(nz_sense):
-                        if math.isnan(sens_colour_z[zi]):
-                            sens_colour_z[zi] = zs
-                        elif sens_colour_z[zi] > zs: #TODO change back after sensitivity plot over
-                            #append if larger
-                            sens_colour_z[zi] = zs
-              
-            else:
-                plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6, 
-                       colors=colors,
-                       linewidths=linewidths)
-        
-        """
-        #shades only the blue ones
-        if colors[0] == 'blue':
-            cs = plt.tricontour(nx, ny, nz, levels=levels[0],alpha=0.0)
-            cs0 = cs.collections[0]
-            cspaths = cs0.get_paths()
-            spch_0 = patches.PathPatch(cspaths[0], facecolor='skyblue',
-                                       edgecolor='gray',lw=0.5, alpha=0.55)
-            #ax.add_patch(spch_0)
-        """
-    
-    if args.smart:
-        #sort the output into the right order
-        import glob
-        from operator import itemgetter
-        for g in glob.glob("./*group*"):
-            with open(g) as f:
-              lines = [line.split("\t") for line in f]
-              lines = lines[1:]
-              lines = sorted(lines, key=itemgetter(0))
-            with open(g, 'w') as csvfile:
-               spamwriter = csv.writer(csvfile, delimiter=',')
-               spamwriter.writerow(['RA','Dec'])
-               for l in lines:
-                   spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])
-
-    
-    #plot
-    if args.sens_overlap:
-        print("making np arrays")
-        nz=np.sqrt(np.array(s_overlap_z))
-        #nz = nz/max(nz)
-        if args.colour:
-            colour_map = 'plasma_r'
-            nx.shape = (len(map_dec_range),len(map_ra_range))
-            ny.shape = (len(map_dec_range),len(map_ra_range))
-            nz.shape = (len(map_dec_range),len(map_ra_range))
-            print("colour plotting")
-            plt.pcolor(nx, ny, nz, cmap=colour_map)
-            plt.colorbar(spacing='uniform', shrink = 0.65)
+       
+    # plot sens -------------------------------------------------------
+    if args.sens: 
+        if args.overlap:
+            nz=np.sqrt(np.array(nz_sens_overlap))
         else:
-            levels = np.arange(0.5*max(nz), max(nz), max(nz)/20.)
-            print("plotting")
-            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.3,
-                                       colors=colors,
-                                       linewidths=linewidths)
-     
-    if args.sens and args.colour:
-        nz=sens_colour_z
+            nz=nz_sens
         colour_map = 'plasma_r'
         nx.shape = (len(map_dec_range),len(map_ra_range))
         ny.shape = (len(map_dec_range),len(map_ra_range))
@@ -577,7 +493,6 @@ if __name__ == "__main__":
         plt.pcolor(nx, ny, nz, cmap=colour_map)
         plt.colorbar(spacing='uniform', shrink = 0.65, label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
           
-    
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
         
@@ -593,8 +508,25 @@ if __name__ == "__main__":
     
 
 
-    #Add extra plot layers -----------------
-
+    #Add extra plot layers ---------------------------------------
+    
+    #shades only the selected colout
+    if args.shade and args.smart:
+        #choose lighter equivalent colour
+        if args.shade == 'red':
+            ecolour = 'lightcoral'
+        elif args.shade == 'blue':
+            ecolour = 'skyblue'
+        else:
+            ecolour = args.shade
+        cs = plt.tricontour(nx, ny, nz_shade_colour, levels=levels[0],alpha=0.0)
+        cs0 = cs.collections[0]
+        cspaths = cs0.get_paths()
+        spch_0 = patches.PathPatch(cspaths[0], facecolor=args.shade,
+                                   edgecolor='gray',lw=0.5, alpha=0.35)
+        ax.add_patch(spch_0)
+    
+    
     #add lines of other surveys
     if args.lines:
       """
@@ -679,17 +611,12 @@ if __name__ == "__main__":
     if args.sens:
         plot_name += '_sens'
     
-    if args.sens_overlap:
+    if args.overlap:
         plot_name += '_overlap'
-        if args.colour:
-            plot_name += '_colour_' + str(colour_map)
-        else:
-            plot_name += '_contour'
+    if args.contour:
+        plot_name += '_contour'
     if args.lines:
         plot_name += '_minlines'
-    
-    if args.semester:
-        plot_name += '_semester'
     
     if args.obsid_list:
         plot_name += '_obslist'
@@ -709,4 +636,19 @@ if __name__ == "__main__":
     fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000)
     #plt.show()
     plt.close
-
+    
+    
+    if args.smart:
+        #sort the output into the right order
+        import glob
+        from operator import itemgetter
+        for g in glob.glob("./*group*"):
+            with open(g) as f:
+              lines = [line.split("\t") for line in f]
+              lines = lines[1:]
+              lines = sorted(lines, key=itemgetter(0))
+            with open(g, 'w') as csvfile:
+               spamwriter = csv.writer(csvfile, delimiter=',')
+               spamwriter.writerow(['RA','Dec'])
+               for l in lines:
+                   spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])

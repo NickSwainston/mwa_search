@@ -8,7 +8,6 @@ import pipes
 import glob
 from time import sleep
 import datetime
-import numpy as np
 
 #vcstools imports
 import search_database
@@ -38,7 +37,7 @@ def send_cmd_shell(cmd):
 
 def send_cmd(cmd):
     output = subprocess.Popen(cmd.split(' '), stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE, 
+                              stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT).communicate()[0].decode()
     return output
 
@@ -142,9 +141,8 @@ def numout_calc(fits_dir, obsid):
     Find the number of time samples of all fits files in the given directory
     """
     import socket
-    hostname = socket.gethostname()
     dirlist = glob.glob("{0}/{1}_*.fits".format(fits_dir, obsid))
-    numout = 0 
+    numout = 0
     for d in dirlist:
         submit_line = 'readfile ' + d
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
@@ -155,7 +153,7 @@ def numout_calc(fits_dir, obsid):
         numout += int(subint * 1e4)
 
     if numout%2:
-        numout += 1        
+        numout += 1
     return numout
     
 def get_pulsar_dm_p(pulsar):
@@ -163,7 +161,7 @@ def get_pulsar_dm_p(pulsar):
     cmd = 'psrcat -c dm {}'.format(pulsar)
     output = send_cmd(cmd)
     lines = output.split('\n')
-    for l in lines[4:-1]: 
+    for l in lines[4:-1]:
         columns = l.split()
 
         if len(columns) > 1:
@@ -198,7 +196,7 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
                         pulsar_check=None, cal_id=None, vdif=False,
                         channels=None, search_ver='master'):
     """
-    Does some basic checks and formating before 
+    Does some basic checks and formating before
     if args.pulsar_file:
         code_comment += using beamforming from process_vcs.py
     """
