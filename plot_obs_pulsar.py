@@ -343,14 +343,12 @@ if __name__ == "__main__":
         #if i == 0:
         #    print("len powers list: " + str(powout.shape))
         for c in range(len(RA)):
-            nz_sens_overlap[c] += powout[c,0,0]*math.cos(Dec[c]/180.*np.pi)
-
-            temppower=powout[c,0,0]
-            temppower_sense=powout[c,0,0]
-            for t in range(1,powout.shape[1]):
+            temppower = 0.
+            temppower_sense = 0.
+            for t in range(powout.shape[1]):
                 power_ra = powout[c,t,0]
                 temppower_sense += power_ra #average power kinds
-                nz_sens_overlap[c] += powout[c,t,0]*math.cos(Dec[c]/180.*np.pi)
+                nz_sens_overlap[c] += power_ra * math.cos(Dec[c]/180.*np.pi)
                 if power_ra > temppower:
                     temppower = power_ra
             z_sens.append(temppower_sense)
@@ -373,8 +371,6 @@ if __name__ == "__main__":
                 nz_sense_obs.append(np.nan)
             else:
                 nz_sense_obs.append(4.96/np.sqrt(z_sens[zsi]))
-        nz_sense_obs = np.array(nz_sense_obs)
-        sens_min = None
                 
         for zi, zs in enumerate(nz_sense_obs):
             if math.isnan(nz_sens[zi]):
@@ -481,16 +477,21 @@ if __name__ == "__main__":
     # plot sens -------------------------------------------------------
     if args.sens: 
         if args.overlap:
-            nz=np.sqrt(np.array(nz_sens_overlap))
+            for zi in range(len(nz)):
+                if nz_sens_overlap[zi] < 1.:
+                    nz_sens_overlap[zi] = np.nan
+            nz = 1.5*4.96/np.sqrt(nz_sens_overlap)
+            #nz = nz_sens_overlap
         else:
-            nz=nz_sens
+            nz = nz_sens
         colour_map = 'plasma_r'
         nx.shape = (len(map_dec_range),len(map_ra_range))
         ny.shape = (len(map_dec_range),len(map_ra_range))
         nz.shape = (len(map_dec_range),len(map_ra_range))
         dec_limit_mask = ny > np.radians(30)
         nz[dec_limit_mask] = np.nan
-        plt.pcolor(nx, ny, nz, cmap=colour_map)
+        import matplotlib.colors as colors
+        plt.pcolor(nx, ny, nz, cmap=colour_map)#, norm=colors.LogNorm(vmin=nz.min(), vmax=nz.max()))
         plt.colorbar(spacing='uniform', shrink = 0.65, label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
           
     plt.xlabel("Right Ascension")
