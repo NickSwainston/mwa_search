@@ -662,7 +662,7 @@ def prepdata(obsid, pointing, relaunch_script,
         mask_command = ''
     #dms_per_job = 1024
     dms_per_job = 256
-    nsub = 256
+    nsub = 32
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
