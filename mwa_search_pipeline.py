@@ -65,7 +65,7 @@ def get_channels(obsid, channels=None):
         channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
     return channels
 
-def your_slurm_queue_check(max_queue = 80, queue = 'gpuq', grep=None):
+def your_slurm_queue_check(max_queue = 200, queue = 'gpuq', grep=None):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
@@ -482,7 +482,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             #resubmit any channels that are incomplete
             print("Some channels missing, resubmitting make beam scripts for {0}".format(pointing))
             if len(pointing_list) > 1:
-                your_slurm_queue_check(max_queue = 50, queue=comp_config['gpuq_partition'])
+                your_slurm_queue_check(queue=comp_config['gpuq_partition'])
                     
             job_id_list = []
             for ch in missing_chan_list:   
@@ -517,7 +517,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             if search and ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
                 print("Fits files available, begining pipeline for {0}".format(pointing))
                 if len(pointing_list) > 1:
-                    your_slurm_queue_check(max_queue = 50)
+                    your_slurm_queue_check()
                 prepdata(obsid, pointing, relaunch_script,
                          work_dir=work_dir,
                          bsd_row_num=bsd_row_num, pulsar=pulsar,
