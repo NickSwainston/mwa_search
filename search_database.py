@@ -124,17 +124,14 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
             tot_jc = int(bs_columns['TotalJobComp']) + 1
             job_jc = int(bs_columns[table+'JobComp']) + 1
 
-            cur.execute("UPDATE PulsarSearch SET TotalProc=?, ?Proc=?, TotalJobComp=?, ?JobComp=? WHERE Rownum=?", (str(tot_proc)[:9], table, str(job_proc)[:9], str(tot_jc)[:9], table,
-                         str(job_jc)[:9], bs_id))
+            cur.execute("UPDATE PulsarSearch SET TotalProc=?, %sProc=?, TotalJobComp=?, %sJobComp=? WHERE Rownum=?" % (table, table), (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9], str(job_jc)[:9], bs_id))
         else:    
             tot_er = int(bs_columns['TotalErrors']) + 1
             job_er = int(bs_columns[table+'Errors']) + 1
 
-            cur.execute("UPDATE %s SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table,
-                              (end_time, errorcode, rownum, attempt_num, bs_id))
+            cur.execute("UPDATE %s SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (end_time, errorcode, rownum, attempt_num, bs_id))
                 
-            cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
-                        (tot_er, table, job_er, bs_id))
+            cur.execute("UPDATE PulsarSearch SET TotalErrors=?, %sErrors=? WHERE Rownum=?" % table, (tot_er, job_er, bs_id))
     return
 
 
