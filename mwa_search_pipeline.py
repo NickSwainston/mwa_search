@@ -916,7 +916,8 @@ def wrap_up(obsid, pointing,
 
 def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 obsid, pointing, search_ver='master', bash_job=False,
-                work_dir=DEFAULT_WORK_DIR, n_omp_threads=8,
+                work_dir=DEFAULT_WORK_DIR, 
+                n_omp_threads=1, mem=1024,
                 sub_dir=None, total_job_time=18000.):
     """
     Checkes the database for any jobs that didn't complete (or didn't even start)
@@ -933,7 +934,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         next_mode = 't'
         cur_mode = 'p'
     elif table == 'FFT':
-        n_omp_threads = 1 #fft is not parrelised
+        #n_omp_threads = 1 #fft is not parrelised
+        mem=2048 #fft needs more memory
         total_job_time = 6000
         threads = False
         bash_job = True
@@ -976,7 +978,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                          module_list=['mwa_search/{}'.format(search_ver),
                                       'module use /apps/users/pulsar/skylake/modulefiles\nmodule load presto/d6265c2',
                                       'matplotlib/2.2.2-python-2.7.14'],
-                         cpu_threads=1, submit=True)
+                         cpu_threads=1, mem=mem, submit=True)
         else:
             print("{0} -m {1}".format(relaunch_script, next_mode))
             print(send_cmd("{0} -m {1}".format(relaunch_script, next_mode)))
@@ -1033,7 +1035,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                          slurm_kwargs={"time": total_job_time_str , 
                                        "nice":"90"},#4 hours
                          module_list=['mwa_search/{}'.format(search_ver)],
-                         submit=True, cpu_threads=n_omp_threads)
+                         submit=True, cpu_threads=n_omp_threads, mem=mem)
                 job_id_list.append(job_id)
                 
                 check_job_num += 1
@@ -1070,7 +1072,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                      slurm_kwargs={"time": total_job_time_str , 
                                    "nice":"90"},#4 hours
                      module_list=['mwa_search/{}'.format(search_ver)],
-                     cpu_threads=n_omp_threads, submit=True)
+                     cpu_threads=n_omp_threads, mem=mem, submit=True)
             job_id_list.append(job_id)
         
         #Dependancy job
@@ -1220,7 +1222,7 @@ if __name__ == "__main__":
                                                     obsid,args.pointing)
 
     #core control
-    n_omp_threads = 8
+    n_omp_threads = 1
    
 
     #Base launch of this code (everything except mode and dmfile int)
