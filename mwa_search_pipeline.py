@@ -65,7 +65,7 @@ def get_channels(obsid, channels=None):
         channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
     return channels
 
-def your_slurm_queue_check(max_queue = 80, queue = 'gpuq', grep=None):
+def your_slurm_queue_check(max_queue = 200, queue = 'gpuq', grep=None):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
@@ -123,8 +123,8 @@ def add_temp_database_function(job_num, attempt_num, n_omp_threads=1, threads=Tr
                 '    # 4th parameter is DM file int [optional]\n' +\
                 '    echo `date +%Y-%m-%d" "%H:%M:%S`",$3,$4,$5" >> ${1}_temp_database_file_'+\
                         str(attempt_num) + '_' + str(job_num) + '.csv\n' +\
-                '    $1 $2\n' +\
                 '    echo $1 $2\n' +\
+                '    $1 $2\n' +\
                 '    errcode=$?\n' +\
                 '    echo `date +%Y-%m-%d" "%H:%M:%S`",$errcode" >> ${1}_temp_database_file_'+\
                         str(attempt_num) + '_' + str(job_num) + '.csv\n' +\
@@ -190,11 +190,12 @@ def dm_i_to_file(dm_i):
         print(dm_i)
     return dm_file
 
-def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
+def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
                         pointing_dir,relaunch_script,
                         search=False, bsd_row_num=None, nice=100,
                         pulsar_check=None, cal_id=None, vdif=False,
-                        channels=None, search_ver='master'):
+                        channels=None, search_ver='master',
+                        code_comment=None):
     """
     Does some basic checks and formating before
     if args.pulsar_file:
@@ -229,16 +230,21 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     pvcs.ensure_metafits(data_dir, obsid, metafits_dir)
     job_id_list = pvcs.coherent_beam(obsid, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
-                  metafits_dir, 128, pointing, args,
+                  metafits_dir, 128, pointings, args,
                   rts_flag_file=rts_flag_file, bf_formats=bf_formats, DI_dir=DI_dir,
-                  calibration_type="rts", nice=nice)
+                  calibration_type="rts", nice=nice,
+                  vcstools_version="multi-pixel_beamform")
     
-    pointing = "{0}_{1}".format(pointing[0],pointing[1])
-    dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_list,
-                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
-                           relaunch_script=relaunch_script, cal_id=cal_id, 
-                           incoh=incoh_check, channels=channels,
-                           search_ver=search_ver)
+    channels = get_channels(obsid, channels=channels)
+    for pointing in pointings:
+        pointing_full_dir = '{0}{1}'.format(pointing_dir, pointing)
+        bsd_row_num = search_database.database_search_start(obsid,
+                                      pointing, "{0}".format(code_comment))
+        dependant_splice_batch(obsid, pointing, product_dir, pointing_full_dir, job_id_list,
+                               bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
+                               relaunch_script=relaunch_script, cal_id=cal_id, 
+                               incoh=incoh_check, channels=channels,
+                               search_ver=search_ver)
     return
 
 
@@ -350,11 +356,13 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
              relaunch_script=None, code_comment=None, 
              dm_min=1.0, dm_max=250.0,
              search=False, bsd_row_num_input=None, incoh=False, 
-             pulsar=None, args=None, search_ver='master',
+             args=None, search_ver='master',
              fits_dir_base=None, pulsar_check=None, cal_id=None,
              vdif=False, cold_storage_check=False, 
              channels=None):
                     
+    pointings_to_beamform = []
+    pulsar_list = []
     for n, line in enumerate(pointing_list):
         if line.startswith("#"):
             continue
@@ -371,10 +379,10 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             pointing = ra + "_" + dec
         
         #set up relaunch scripts
-        if pulsar is None:
+        if pulsar_check is None:
             sub_dir = '{0}/{1}'.format(pointing,obsid)
         else:
-            sub_dir = '{0}/{1}'.format(pulsar,obsid)
+            sub_dir = '{0}/{1}'.format(pulsar_check[n][0],obsid)
         relaunch_script = "{0} -p {1} -s {2}".format(relaunch_script, pointing, sub_dir)
 
         #fits dir parsing
@@ -452,11 +460,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 bsd_row_num = bsd_row_num_input
         else:
             #need to fix some files then search
-            if search and bsd_row_num_input is None:
-                #start the search database recording
-                bsd_row_num = search_database.database_search_start(obsid,
-                                          pointing, "{0} {1}".format(code_comment,n))
-            else:
+            if not (search and bsd_row_num_input is None):
                 bsd_row_num = bsd_row_num_input
 
 
@@ -464,17 +468,15 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
         #work out what needs to be done
         if path_check or len(missing_chan_list) == 24:
             # do beamforming
-            print("No pointing directory or files for {0} starting beamforming".format(pointing))
-            process_vcs_wrapper(obsid, begin, end, [ra,dec], args, DI_dir,
-                                fits_dir, relaunch_script, vdif=vdif, 
-                                pulsar_check=pulsar_check, cal_id=cal_id,
-                                search=search, bsd_row_num=bsd_row_num,
-                                search_ver=search_ver)
+            print("No pointing directory or files for {0}, will beamform shortly".format(pointing))
+            pointings_to_beamform.append(pointing)
+            #pulsars that will be checked after beamforming
+            pulsar_list.append(pulsar_check[n])
         elif missing_file_check and not unspliced_check:
             #splice files
             print("Splicing the files in {0}".format(pointing))
             dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
-                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
+                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check[n], 
                            relaunch_script=relaunch_script, begin=begin, 
                            end=end, cal_id=cal_id, channels=channels,
                            search_ver=search_ver)
@@ -483,7 +485,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             #resubmit any channels that are incomplete
             print("Some channels missing, resubmitting make beam scripts for {0}".format(pointing))
             if len(pointing_list) > 1:
-                your_slurm_queue_check(max_queue = 50, queue=comp_config['gpuq_partition'])
+                your_slurm_queue_check(queue=comp_config['gpuq_partition'])
                     
             job_id_list = []
             for ch in missing_chan_list:   
@@ -508,7 +510,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 else:
                     print("ERROR no batch file found")
             dependant_splice_batch(obsid, pointing, product_dir, fits_dir, job_id_list,
-                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
+                           bsd_row_num=bsd_row_num, pulsar_check=pulsar_check[n], 
                            relaunch_script=relaunch_script, cal_id=cal_id,
                            begin=begin, end=end, channels=channels,
                            search_ver=search_ver)
@@ -518,10 +520,10 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             if search and ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
                 print("Fits files available, begining pipeline for {0}".format(pointing))
                 if len(pointing_list) > 1:
-                    your_slurm_queue_check(max_queue = 50)
+                    your_slurm_queue_check()
                 prepdata(obsid, pointing, relaunch_script,
                          work_dir=work_dir,
-                         bsd_row_num=bsd_row_num, pulsar=pulsar,
+                         bsd_row_num=bsd_row_num, pulsar=pulsar_check[n],
                          fits_dir=fits_dir, dm_min=dm_min, dm_max=dm_max, 
                          search_ver=search_ver, channels=channels)
             #remove any extra unspliced files
@@ -532,9 +534,23 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             #splice_wrapper should fail
             if pulsar_check is not None:
                 dependant_splice_batch(obsid, pointing, product_dir, fits_dir, None,
-                                       bsd_row_num=None, pulsar_check=pulsar_check, 
+                                       bsd_row_num=None, pulsar_check=pulsar_check[n], 
                                        cal_id=cal_id, begin=begin, end=end,
                                        channels=channels, search_ver=search_ver)
+
+
+        if n - 1 == len(pointing_list) or len(pointings_to_beamform) == 15:
+            #Send of beamforming job at the end or the loop or when you have 15 pointings
+            if 'pointings' in fits_dir:
+                fits_base_dir = "{0}pointings/".format(fits_dir.split('pointings')[0])
+            else:
+                fits_base_dir = "{0}incoh/".format(fits_dir.split('incoh')[0])
+            process_vcs_wrapper(obsid, begin, end, pointings_to_beamform, args, DI_dir,
+                                fits_base_dir, relaunch_script, vdif=vdif, 
+                                pulsar_check=pulsar_list, cal_id=cal_id,
+                                search=search, bsd_row_num=bsd_row_num,
+                                search_ver=search_ver, code_comment=code_comment)
+            pointings_to_beamform = []
     return
  
 
@@ -663,7 +679,7 @@ def prepdata(obsid, pointing, relaunch_script,
         mask_command = ''
     #dms_per_job = 1024
     dms_per_job = 256
-    nsub = 256
+    nsub = 32
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
@@ -759,7 +775,7 @@ def accel(obsid, pointing, sub_dir, relaunch_script,
     max_f_harm = max_freq + max_freq / nharm
 
     #For initial search we will save processing by not doing an acceleration search
-    max_search_accel = 0.
+    max_search_accel = 0
 
     dir_files = glob.glob("*fft")
     commands_list = []
@@ -917,7 +933,8 @@ def wrap_up(obsid, pointing,
 
 def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 obsid, pointing, search_ver='master', bash_job=False,
-                work_dir=DEFAULT_WORK_DIR, n_omp_threads=8,
+                work_dir=DEFAULT_WORK_DIR, 
+                n_omp_threads=1, mem=1024,
                 sub_dir=None, total_job_time=18000.):
     """
     Checkes the database for any jobs that didn't complete (or didn't even start)
@@ -934,7 +951,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         next_mode = 't'
         cur_mode = 'p'
     elif table == 'FFT':
-        n_omp_threads = 1 #fft is not parrelised
+        #n_omp_threads = 1 #fft is not parrelised
+        mem=2048 #fft needs more memory
         total_job_time = 6000
         threads = False
         bash_job = True
@@ -977,7 +995,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                          module_list=['mwa_search/{}'.format(search_ver),
                                       'module use /apps/users/pulsar/skylake/modulefiles\nmodule load presto/d6265c2',
                                       'matplotlib/2.2.2-python-2.7.14'],
-                         cpu_threads=1, submit=True)
+                         cpu_threads=1, mem=mem, submit=True)
         else:
             print("{0} -m {1}".format(relaunch_script, next_mode))
             print(send_cmd("{0} -m {1}".format(relaunch_script, next_mode)))
@@ -1034,7 +1052,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                          slurm_kwargs={"time": total_job_time_str , 
                                        "nice":"90"},#4 hours
                          module_list=['mwa_search/{}'.format(search_ver)],
-                         submit=True, cpu_threads=n_omp_threads)
+                         submit=True, cpu_threads=n_omp_threads, mem=mem)
                 job_id_list.append(job_id)
                 
                 check_job_num += 1
@@ -1071,7 +1089,7 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                      slurm_kwargs={"time": total_job_time_str , 
                                    "nice":"90"},#4 hours
                      module_list=['mwa_search/{}'.format(search_ver)],
-                     cpu_threads=n_omp_threads, submit=True)
+                     cpu_threads=n_omp_threads, mem=mem, submit=True)
             job_id_list.append(job_id)
         
         #Dependancy job
@@ -1221,7 +1239,7 @@ if __name__ == "__main__":
                                                     obsid,args.pointing)
 
     #core control
-    n_omp_threads = 8
+    n_omp_threads = 1
    
 
     #Base launch of this code (everything except mode and dmfile int)
@@ -1283,7 +1301,7 @@ if __name__ == "__main__":
                  dm_min= args.dm_min, dm_max=args.dm_max,
                  relaunch_script=relaunch_script, code_comment=code_comment,
                  search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
-                 pulsar=args.pulsar, args=args, search_ver=args.mwa_search_version,
+                 pulsar_check=args.pulsar, args=args, search_ver=args.mwa_search_version,
                  fits_dir_base=args.fits_dir, cold_storage_check=args.csc,
                  channels=args.channels, cal_id=args.cal_obs)
     elif args.mode == "c":

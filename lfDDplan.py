@@ -11,7 +11,7 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM):
     previous_DM = lowDM
 
     #number of time samples smeared over before moving to next D_dm
-    smear_fact = 2.
+    smear_fact = 3.
 
     #Loop until you've made a hit your range max
     D_DM = 0.
@@ -38,9 +38,9 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM):
 
         #round to nearest 0.01
         DM_step = round(DM_step, 2)
-        if DM_step == 0.0:
+        if DM_step < 0.02:
             #set DM to 0.01 as a zero DM doesn't make sense
-            DM_step = 0.01
+            DM_step = 0.02
 
         if D_DM > highDM:
             #last one so range from to max

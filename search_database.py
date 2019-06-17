@@ -69,14 +69,14 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
     with con:
         cur = con.cursor()
         for ai, arguments in enumerate(arguments_list):
-            cur.execute("INSERT OR IGNORE INTO %s (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)" % table, (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
+            cur.execute("INSERT OR IGNORE INTO {0} (Rownum, AttemptNum, BSID, Command, Arguments, CPUs, ExpProc) VALUES(?, ?, ?, ?, ?, ?, ?)".format(table), (ai, attempt, bs_id, command, arguments, threads, expe_proc_time))
         #update expected jobs
         if attempt == 1:
-            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (len(arguments_list),bs_id))
+            cur.execute("UPDATE PulsarSearch SET {0}JobExp=? WHERE Rownum=?".format(table), (len(arguments_list),bs_id))
         else:
-            cur.execute("SELECT %sJobExp FROM PulsarSearch WHERE Rownum=?" % table, (bs_id,))
+            cur.execute("SELECT {0}JobExp FROM PulsarSearch WHERE Rownum=?".format(table), (bs_id,))
             table_job_exp = cur.fetchone()[0]
-            cur.execute("UPDATE PulsarSearch SET %sJobExp=? WHERE Rownum=?" % table, (len(arguments_list) + table_job_exp, bs_id))
+            cur.execute("UPDATE PulsarSearch SET {0}JobExp=? WHERE Rownum=?".format(table), (len(arguments_list) + table_job_exp, bs_id))
         cur.execute("SELECT TotalJobExp FROM PulsarSearch WHERE Rownum=?", (bs_id,))
         search_job_exp = cur.fetchone()[0]
         if search_job_exp is None:
@@ -91,7 +91,7 @@ def database_script_start(table, bs_id, rownum, attempt_num, time=datetime.datet
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
-        cur.execute("UPDATE %s SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table,
+        cur.execute("UPDATE {0} SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table),
                     (time, rownum, attempt_num, bs_id))
         row_id = cur.lastrowid
     return row_id
@@ -104,7 +104,7 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
     with con:
         cur = con.cursor()
         #get script data
-        cur.execute("SELECT * FROM %s WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table,
+        cur.execute("SELECT * FROM {0} WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table),
                     (rownum, attempt_num, bs_id))
         columns = cur.fetchone()
         #get search data
@@ -117,24 +117,21 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
             start_s = date_to_sec(columns['Started'])
             processing = (end_s - start_s)
 
-            cur.execute("UPDATE %s SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (processing, end_time, errorcode, rownum, attempt_num, bs_id))
+            cur.execute("UPDATE {0} SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (processing, end_time, errorcode, rownum, attempt_num, bs_id))
 
             tot_proc = float(bs_columns['TotalProc']) + processing
             job_proc = float(bs_columns[table+'Proc']) + processing
             tot_jc = int(bs_columns['TotalJobComp']) + 1
             job_jc = int(bs_columns[table+'JobComp']) + 1
 
-            cur.execute("UPDATE PulsarSearch SET TotalProc=?, ?Proc=?, TotalJobComp=?, ?JobComp=? WHERE Rownum=?", (str(tot_proc)[:9], table, str(job_proc)[:9], str(tot_jc)[:9], table,
-                         str(job_jc)[:9], bs_id))
+            cur.execute("UPDATE PulsarSearch SET TotalProc=?, {0}Proc=?, TotalJobComp=?, {0}JobComp=? WHERE Rownum=?".format(table), (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9], str(job_jc)[:9], bs_id))
         else:    
             tot_er = int(bs_columns['TotalErrors']) + 1
             job_er = int(bs_columns[table+'Errors']) + 1
 
-            cur.execute("UPDATE %s SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table,
-                              (end_time, errorcode, rownum, attempt_num, bs_id))
+            cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (end_time, errorcode, rownum, attempt_num, bs_id))
                 
-            cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
-                        (tot_er, table, job_er, bs_id))
+            cur.execute("UPDATE PulsarSearch SET TotalErrors=?, {0}Errors=? WHERE Rownum=?".format(table), (tot_er, job_er, bs_id))
     return
 
 
@@ -148,7 +145,7 @@ def database_script_check(table, bs_id, attempt_num):
     with con:
         cur = con.cursor()
         #get script data
-        cur.execute("SELECT * FROM %s WHERE AttemptNum=? AND BSID=?" % table,
+        cur.execute("SELECT * FROM {0} WHERE AttemptNum=? AND BSID=?".format(table),
                     (attempt_num, bs_id))
         rows = cur.fetchall()
         
@@ -181,9 +178,9 @@ def database_mass_update(table,file_location):
                     end_time = l[0]
                     errorcode = l[1]
 
-                    cur.execute("UPDATE %s SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (started, rownum, attempt_num, bs_id))
+                    cur.execute("UPDATE {0} SET Started=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (started, rownum, attempt_num, bs_id))
 
-                    cur.execute("SELECT * FROM %s WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (rownum, attempt_num, bs_id))
+                    cur.execute("SELECT * FROM {0} WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (rownum, attempt_num, bs_id))
                     columns = cur.fetchone()
                     #get search data
                     cur.execute("SELECT * FROM PulsarSearch WHERE Rownum=?", (str(bs_id),))
@@ -195,21 +192,21 @@ def database_mass_update(table,file_location):
                         start_s = date_to_sec(columns['Started'])
                         processing = (end_s - start_s)
 
-                        cur.execute("UPDATE %s SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (processing, end_time, errorcode, rownum, attempt_num, bs_id))
+                        cur.execute("UPDATE {0} SET Proc=?, Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (processing, end_time, errorcode, rownum, attempt_num, bs_id))
 
                         tot_proc = float(bs_columns['TotalProc']) + processing
                         job_proc = float(bs_columns[table+'Proc']) + processing
                         tot_jc = int(bs_columns['TotalJobComp']) + 1
                         job_jc = int(bs_columns[table+'JobComp']) + 1
 
-                        cur.execute("UPDATE PulsarSearch SET TotalProc=?, %sProc=?, TotalJobComp=?, %sJobComp=? WHERE Rownum=?" % table,
+                        cur.execute("UPDATE PulsarSearch SET TotalProc=?, {0}Proc=?, TotalJobComp=?, {0}JobComp=? WHERE Rownum=?".format(table),
                                     (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9],
                                      str(job_jc)[:9], bs_id))
                     else:
                         tot_er = int(bs_columns['TotalErrors']) + 1
                         job_er = int(bs_columns[table+'Errors']) + 1
 
-                        cur.execute("UPDATE %s SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?" % table, (end_time, errorcode, rownum, attempt_num, bs_id))
+                        cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (end_time, errorcode, rownum, attempt_num, bs_id))
                             
                         cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
                                     (tot_er,job_er, bs_id))
@@ -362,13 +359,13 @@ Default mode is vc'''.format(mode_options)))
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory
     
-        query = "SELECT * FROM %s" % table
+        query = "SELECT * FROM {0}".format(table)
 
         if args.obsid:
             query += " WHERE Arguments LIKE '%" + str(args.obsid) + "%'"
 
         if args.recent is not None:
-            query += ''' WHERE Started > "%s"''' % str(datetime.datetime.now() - relativedelta(hours=args.recent))
+            query += ''' WHERE Started > "{0}"'''.format(datetime.datetime.now() - relativedelta(hours=args.recent))
             logging.debug(query)
         if args.bs_id and args.mode == 'vs':
             query += " WHERE BSID=" + str(args.bs_id)
