@@ -225,6 +225,7 @@ def process_vcs_wrapper(obsid, begin, end, pointing, args, DI_dir,
     if not os.path.exists(rts_flag_file):
         print('RTS flag file is not in the default location of: '+\
               '{} please move it there. Exiting'.format(rts_flag_file))
+        exit()
     pvcs.ensure_metafits(data_dir, obsid, metafits_dir)
     job_id_list = pvcs.coherent_beam(obsid, begin, end, data_dir, product_dir,
                   "{0}/batch".format(product_dir), 
