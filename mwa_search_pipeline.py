@@ -17,6 +17,9 @@ from job_submit import submit_slurm
 import find_pulsar_in_obs as fpio
 import config
 
+import logging
+logger = logging.getLogger(__name__)
+
 if 'SEARCH_WORK_DIR' in os.environ:
     DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
 else:
@@ -236,12 +239,16 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
                   vcstools_version="multi-pixel_beamform")
     
     channels = get_channels(obsid, channels=channels)
-    for pointing in pointings:
+    for pn, pointing in enumerate(pointings):
+        if pulsar_check is None:
+            pulsar_list = None
+        else:
+            pulsar_list = pulsar_check[pn]
         pointing_full_dir = '{0}{1}'.format(pointing_dir, pointing)
         bsd_row_num = search_database.database_search_start(obsid,
                                       pointing, "{0}".format(code_comment))
         dependant_splice_batch(obsid, pointing, product_dir, pointing_full_dir, job_id_list,
-                               bsd_row_num=bsd_row_num, pulsar_check=pulsar_check, 
+                               bsd_row_num=bsd_row_num, pulsar_check=pulsar_list, 
                                relaunch_script=relaunch_script, cal_id=cal_id, 
                                incoh=incoh_check, channels=channels,
                                search_ver=search_ver)
@@ -346,8 +353,9 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
                  slurm_kwargs={"time": "5:00:00", 
                                "nice":"90"},
                  module_list=['mwa_search/{}'.format(search_ver),
-                              comp_config['presto_module']],
-                 submit=True, depend=job_id_list, depend_type='afterany')
+                              'presto/no-python'],
+                 submit=True, depend=job_id_list, depend_type='afterany',
+                 vcstools_version="multi-pixel_beamform")
     return
 
 
@@ -425,6 +433,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             #does check if they have the same start time
             expected_file_num = int( (end-begin)/200 ) + 2
             for fnc in range(1,expected_file_num):
+                logger.debug(fits_dir+obsid+"_*"+str(fnc)+".fits")
                 if not glob.glob(fits_dir+obsid+"_*"+str(fnc)+".fits"):
                     missing_file_check = True
             if fits_dir_base is not None:
@@ -539,7 +548,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                                        channels=channels, search_ver=search_ver)
 
 
-        if n - 1 == len(pointing_list) or len(pointings_to_beamform) == 15:
+        if n + 1 == len(pointing_list) or len(pointings_to_beamform) == 15:
             #Send of beamforming job at the end or the loop or when you have 15 pointings
             if 'pointings' in fits_dir:
                 fits_base_dir = "{0}pointings/".format(fits_dir.split('pointings')[0])
@@ -1116,12 +1125,18 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
 
 if __name__ == "__main__":
     mode_options = ["b", "r", "p", "t", "a", "f", "c", "w"]
+    # Dictionary for choosing log-levels
+    loglevels = dict(DEBUG=logging.DEBUG,
+                     INFO=logging.INFO,
+                     WARNING=logging.WARNING)
     parser = argparse.ArgumentParser(description="""
     Used to automate mass beamforming of MWA data and pulsar searches using the galaxy supercomputer (Ozstar coming soon).
     """, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-o','--observation',type=str,help='The observation ID of the MWA observation')
     parser.add_argument('-c', '--channels', type=int, nargs=24, help='A list of the observations channel IDs for example "-c 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132". If this option is not used a metadata call will be used to find the channel IDs.', default=None)
     parser.add_argument('-v','--mwa_search_version', type=str, help="The module version of mwa_search to use. Default: master", default='master')
+    parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO", 
+                                    choices=loglevels.keys(), default="INFO")
 
     pointing_options = parser.add_argument_group('Pointing Options')
     pointing_options.add_argument('-p','--pointing',type=str,help='The pointing of the fits file to be searched. The RA and Dec seperated by _ in the format HH:MM:SS_+DD:MM:SS.')
@@ -1160,6 +1175,16 @@ if __name__ == "__main__":
     search_options.add_argument("--csc", action="store_true",  help="If option used will check if the pointing is being stored in Galaxy's cold storage HSM.")
     args=parser.parse_args()
     comp_config = config.load_config_file()
+    
+    # set up the logger for stand-alone execution
+    logger.setLevel(loglevels[args.loglvl])
+    ch = logging.StreamHandler()
+    ch.setLevel(loglevels[args.loglvl])
+    formatter = logging.Formatter('%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch) 
+    
+    
     #argument parsing
     if args.mode not in mode_options:
         print("Unrecognised mode [{0}]. Please use a mode from {1}. Exiting".format(args.mode, mode_options))

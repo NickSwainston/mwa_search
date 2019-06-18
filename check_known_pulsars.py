@@ -114,8 +114,8 @@ if __name__ == "__main__":
     else:
         #looks through the comined files to use the max and min
         #TODO have some sort of check to look for gaps
-        if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(product_dir, obsid)):
-            combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(product_dir, obsid))
+        if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], obsid)):
+            combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], obsid))
         else:
             combined_files = glob.glob("{0}/{1}/combined/{1}*_ch{2}.dat".\
                                        format(product_dir, obsid, channels[-1]))
