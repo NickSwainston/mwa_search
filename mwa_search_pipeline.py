@@ -247,7 +247,7 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
         pointing_full_dir = '{0}{1}'.format(pointing_dir, pointing)
         bsd_row_num = search_database.database_search_start(obsid,
                                       pointing, "{0}".format(code_comment))
-        dependant_splice_batch(obsid, pointing, product_dir, pointing_full_dir, job_id_list,
+        dependant_splice_batch(obsid, pointing, product_dir, pointing_full_dir, job_id_list[0],
                                bsd_row_num=bsd_row_num, pulsar_check=pulsar_list, 
                                relaunch_script=relaunch_script, cal_id=cal_id, 
                                incoh=incoh_check, channels=channels,
@@ -469,8 +469,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 bsd_row_num = bsd_row_num_input
         else:
             #need to fix some files then search
-            if not (search and bsd_row_num_input is None):
-                bsd_row_num = bsd_row_num_input
+            #if not (search and bsd_row_num_input is None):
+            bsd_row_num = bsd_row_num_input
 
 
 
@@ -480,7 +480,10 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             print("No pointing directory or files for {0}, will beamform shortly".format(pointing))
             pointings_to_beamform.append(pointing)
             #pulsars that will be checked after beamforming
-            pulsar_list.append(pulsar_check[n])
+            if pulsar_check is None:
+                pulsar_list = None
+            else:
+                pulsar_list.append(pulsar_check[n])
         elif missing_file_check and not unspliced_check:
             #splice files
             print("Splicing the files in {0}".format(pointing))
@@ -548,7 +551,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                                        channels=channels, search_ver=search_ver)
 
 
-        if n + 1 == len(pointing_list) or len(pointings_to_beamform) == 15:
+        if ( n + 1 == len(pointing_list) and len(pointings_to_beamform) != 0 )\
+            or len(pointings_to_beamform) == 15:
             #Send of beamforming job at the end or the loop or when you have 15 pointings
             if 'pointings' in fits_dir:
                 fits_base_dir = "{0}pointings/".format(fits_dir.split('pointings')[0])
@@ -1321,12 +1325,18 @@ if __name__ == "__main__":
                 code_comment += " (using: {0}) ".format(args.pulsar_file)
         else:
             code_comment = None
+        
+        #pulsar check parsing
+        if args.pulsar is None:
+            pulsar_check=None
+        else:
+            pulsar_check = [[args.pulsar]]
         beamform(pointing_list, obsid, args.begin, args.end, args.DI_dir,
                  work_dir=work_dir, relaunch=args.relaunch, 
                  dm_min= args.dm_min, dm_max=args.dm_max,
                  relaunch_script=relaunch_script, code_comment=code_comment,
                  search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
-                 pulsar_check=args.pulsar, args=args, search_ver=args.mwa_search_version,
+                 pulsar_check=pulsar_check, args=args, search_ver=args.mwa_search_version,
                  fits_dir_base=args.fits_dir, cold_storage_check=args.csc,
                  channels=args.channels, cal_id=args.cal_obs)
     elif args.mode == "c":
