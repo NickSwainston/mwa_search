@@ -694,7 +694,7 @@ def prepdata(obsid, pointing, relaunch_script,
     #Calculates the expected procesing time (conservative) in seconds
     #the number of DMs doesn't appear to greatly affect the processing time so not included in the calculation
     expe_proc_time = 3.*10**11 / numout
-
+    dm_list.sort()
     print(dm_list)
 
     #Create a list of all the commands needed
@@ -704,7 +704,7 @@ def prepdata(obsid, pointing, relaunch_script,
         mask_command = ''
     #dms_per_job = 1024
     dms_per_job = 256
-    nsub = 32
+    nsub = 24
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
@@ -759,7 +759,9 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
     expe_proc_time = 180. #giving it a generous 60 seconds as these jobs don't take long at all
     commands_list = []
     dat_files = glob.glob(work_dir + sub_dir + "/*dat")
+    dat_files.sort()
 
+    """
     fft_command = ''
     for fi, dat in enumerate(dat_files):
         fft_command += ' ' + str(dat.split("/")[-1])
@@ -769,6 +771,9 @@ def sort_fft(obsid, pointing, sub_dir, relaunch_script,
             fft_command = ''
     if fi%16 != 15:
         commands_list.append(fft_command)
+    """
+    for dat in dat_files:
+        commands_list.append(dat.split("/")[-1])
     search_database.database_script_list(bsd_row_num, 'realfft', commands_list,
                                  n_omp_threads, expe_proc_time)
 
