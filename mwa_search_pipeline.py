@@ -244,6 +244,8 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
             pulsar_list = None
         else:
             pulsar_list = pulsar_check[pn]
+        if code_comment is not None:
+            code_comment += " pn {0} ".format(pn)
         pointing_full_dir = '{0}{1}'.format(pointing_dir, pointing)
         bsd_row_num = search_database.database_search_start(obsid,
                                       pointing, "{0}".format(code_comment))
@@ -251,6 +253,7 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
                                bsd_row_num=bsd_row_num, pulsar_check=pulsar_list, 
                                relaunch_script=relaunch_script, cal_id=cal_id, 
                                incoh=incoh_check, channels=channels,
+                               begin=begin, end=end,
                                search_ver=search_ver)
     return
 
@@ -535,7 +538,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                     your_slurm_queue_check()
                 prepdata(obsid, pointing, relaunch_script,
                          work_dir=work_dir,
-                         bsd_row_num=bsd_row_num, pulsar=pulsar_check[n],
+                         bsd_row_num=bsd_row_num, pulsar=pulsar_check[n][0],
                          fits_dir=fits_dir, dm_min=dm_min, dm_max=dm_max, 
                          search_ver=search_ver, channels=channels)
             #remove any extra unspliced files
@@ -1321,10 +1324,11 @@ if __name__ == "__main__":
             code_comment = args.code_comment
         elif args.search and not args.bsd_row_num:
             code_comment = input("Please write a comment describing the purpose of this search. eg testing: ")
-            if args.pulsar_file:
-                code_comment += " (using: {0}) ".format(args.pulsar_file)
         else:
             code_comment = None
+        if args.pulsar_file and code_comment is not None:
+            code_comment += " (using: {0}) ".format(args.pulsar_file)
+        
         
         #pulsar check parsing
         if args.pulsar is None:
