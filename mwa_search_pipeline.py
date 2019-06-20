@@ -1312,6 +1312,8 @@ if __name__ == "__main__":
         relaunch_script +=  " --fits_dir " + str(args.fits_dir)
     if args.channels:
         relaunch_script +=  " --channels " + str(args.channels)
+    if args.cal_obs:
+        relaunch_script +=  " -O " + str(args.cal_obs)
 
 
     #work out start and stop times for beamforming
