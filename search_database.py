@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import os, datetime, logging
 import sqlite3 as lite
 import glob
