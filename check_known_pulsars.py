@@ -9,6 +9,7 @@ import numpy as np
 
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
+from mwa_metadb_utils import obs_max_min
 import config
 import file_maxmin
 
@@ -110,7 +111,7 @@ if __name__ == "__main__":
         beg = args.begin
         end = args.end
     elif args.all:
-        beg, end = meta.obs_max_min(args.obsid)
+        beg, end = obs_max_min(args.obsid)
     else:
         #looks through the comined files to use the max and min
         #TODO have some sort of check to look for gaps
