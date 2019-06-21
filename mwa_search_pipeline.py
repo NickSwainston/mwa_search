@@ -198,7 +198,7 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
                         search=False, bsd_row_num=None, nice=100,
                         pulsar_list_list=None, cal_id=None, vdif=False,
                         channels=None, search_ver='master',
-                        code_comment=None):
+                        code_comment=None, pointing_id=None):
     """
     Does some basic checks and formating before
     if args.pulsar_file:
@@ -217,7 +217,7 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
         incoh_check = True
     if vdif:
         bf_formats += " -u"
-
+    
     #set up and launch beamfroming
     comp_config = config.load_config_file()
     data_dir = '{0}{1}'.format(comp_config['base_data_dir'], obsid)
@@ -239,12 +239,16 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
                   vcstools_version="multi-pixel_beamform")
 
     channels = get_channels(obsid, channels=channels)
+    code_comment_in = code_comment
     for pn, pointing in enumerate(pointings):
         if pulsar_list_list is None:
             pulsar_list = None
         else:
             pulsar_list = pulsar_list_list[pn]
+        if code_comment_in is not None:
+            code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
         pointing_full_dir = '{0}{1}'.format(pointing_dir, pointing)
+        
         bsd_row_num = search_database.database_search_start(obsid,
                                       pointing, "{0}".format(code_comment))
         dependant_splice_batch(obsid, pointing, product_dir, pointing_full_dir, job_id_list[0],
@@ -282,18 +286,13 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     #grabbing chan ids for splicing
     channels = get_channels(obsid, channels=channels)
 
+    #add splice command
     splice_command = 'splice_wrapper.py -o {0} -w {1} -d -c {2}'.format(obsid,
                      pointing_dir, ' '.join(map(str, channels)))
     if incoh:
         commands.append(splice_command = '{0} -i'.format(splice_command))
         commands.append('mv {0}{1}/pointings/{2}/*incoh* {0}{1}/incoh/'.
                             format(comp_config['base_product_dir'], obsid, pointing))
-        #run rfi job
-        if bsd_row_num is None:
-            commands.append('{0} -m r -p {1}'.format(relaunch_script, pointing))
-        else:
-            commands.append('{0} -m r -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
-
     else:
         commands.append(splice_command)
 
@@ -343,11 +342,16 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
         commands.append("fi")
 
     #add relaunch script
-    if 'None' not in relaunch_script:
-        if bsd_row_num is None:
-            commands.append('{0} -m b -p {1}'.format(relaunch_script, pointing))
+    if relaunch_script is not None:
+        relaunch_script += " -p {0} -s {1}".format(pointing, pointing_dir)
+        if bsd_row_num is not None:
+            relaunch_script += ' -r {0}'.format(bsd_row_num)
+        if incoh:
+            #run rfi job
+            relaunch_script += ' -m r'
         else:
-            commands.append('{0} -m b -r {1} -p {2}'.format(relaunch_script, bsd_row_num, pointing))
+            relaunch_script += ' -m b'
+        commands.append(relaunch_script)
 
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir,
@@ -378,8 +382,6 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
         if line.startswith("#"):
             continue
         print("Checking pointing {0} out of {1}".format(n+1, len(pointing_list)))
-        if code_comment_in is not None:
-            code_comment = "{0} pn {1}".format(code_comment_in, n)
         if incoh:
             pointing = "incoh"
         elif ':' not in line:
@@ -477,7 +479,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
                 #start the search database recording
                 bsd_row_num = search_database.database_search_start(obsid,
-                                          pointing, "{0} {1}".format(code_comment,n))
+                                          pointing, "{0} pn {1}".format(code_comment,n))
             else:
                 bsd_row_num = bsd_row_num_input
         else:
@@ -571,11 +573,19 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                 fits_base_dir = "{0}pointings/".format(fits_dir.split('pointings')[0])
             else:
                 fits_base_dir = "{0}incoh/".format(fits_dir.split('incoh')[0])
+            # list of pointing ids, always 1 for single pointings and 
+            # will be relivant to the line number of pointing files
+            pointing_id = []
+            for point in pointings_to_beamform:
+                pointing_id.append(pointing_list.index(point.replace("_", " ")) + 1)
+
+            print("Sending of {0} pointings for beamforming".format(len(pointings_to_beamform)))
             process_vcs_wrapper(obsid, begin, end, pointings_to_beamform, args, DI_dir,
-                                fits_base_dir, relaunch_script, vdif=vdif,
+                                fits_base_dir, relaunch_script_in, vdif=vdif,
                                 pulsar_list_list=pulsar_list_list_to_beamform, cal_id=cal_id,
                                 search=search, bsd_row_num=bsd_row_num,
-                                search_ver=search_ver, code_comment=code_comment)
+                                search_ver=search_ver, code_comment=code_comment,
+                                pointing_id=pointing_id)
             pointings_to_beamform = []
     return
 
@@ -1326,7 +1336,11 @@ if __name__ == "__main__":
     if args.mode == "b" or args.mode == None:
         if args.pulsar_file:
             with open(args.pulsar_file) as f:
-                pointing_list = f.readlines()
+                pointing_list_raw = f.readlines()
+            #remove \n 
+            pointing_list = []
+            for point in pointing_list_raw:
+                pointing_list.append(point.strip())
         elif args.pointing:
             pointing_list = [args.pointing.replace("_"," ")]
         elif args.fits_dir:
