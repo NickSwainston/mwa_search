@@ -290,7 +290,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     splice_command = 'splice_wrapper.py -o {0} -w {1} -d -c {2}'.format(obsid,
                      pointing_dir, ' '.join(map(str, channels)))
     if incoh:
-        commands.append(splice_command = '{0} -i'.format(splice_command))
+        commands.append('{0} -i'.format(splice_command))
         commands.append('mv {0}{1}/pointings/{2}/*incoh* {0}{1}/incoh/'.
                             format(comp_config['base_product_dir'], obsid, pointing))
     else:
@@ -933,7 +933,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
 
 
 
-def wrap_up(obsid, pointing,
+def wrap_up(obsid, pointing, sub_dir,
             work_dir=DEFAULT_WORK_DIR,
             bsd_row_num=None, search_ver='master'):
 
@@ -946,7 +946,7 @@ def wrap_up(obsid, pointing,
     wrap_batch = str(bsd_row_num) + "_wrap_up"
     commands = []
     commands.append(add_database_function())
-    commands.append('cd {0}{1}/{2}/presto_profiles'.format(work_dir, pointing, obsid))
+    commands.append('cd {0}{1}/presto_profiles'.format(work_dir, sub_dir))
     commands.append('echo "Searching for a profile with a sigma greater than 3"')
     commands.append('count=0')
     commands.append('total=`ls *.ps | wc -l`')
@@ -957,15 +957,24 @@ def wrap_up(obsid, pointing,
     commands.append('   chi=`sed "13q;d" ${i%.ps}.bestprof`')
     commands.append('   chi=${chi#*=}')
     commands.append('   if [ ${chi%.*} -ge 2 ]; then')
-    commands.append('       mv "${i%.ps}".png ../over_3_png/"${i%.ps}".png')
-    commands.append('       echo "${i%.ps}.png is over 3"')
+    commands.append('       if [ -f "${i%.ps}".png ]; then')
+    commands.append('           mv "${i%.ps}".png ../over_3_png/"${i%.ps}".png')
+    commands.append('           echo "${i%.ps}.png is over 3"')
+    commands.append('       else')
+    commands.append('           mv ${i} ../over_3_png/${i}')
+    commands.append('           echo "${i} is over 3"')
+    commands.append('       fi')
     commands.append('   fi')
     commands.append('   count=$(($count+1))')
     commands.append('done')
-    commands.append('over_sn=`ls ../over_3_png/*.png | wc -l`')
+    commands.append('if ls ../over_3_png/*.png 1> /dev/null 2>&1; then')
+    commands.append('   over_sn=`ls ../over_3_png/*.png | wc -l`')
+    commands.append('else')
+    commands.append('   over_sn=`ls ../over_3_png/*.ps | wc -l`')
+    commands.append('fi')
     commands.append('search_database.py -m w -b ' +str(bsd_row_num) +' --cand_val "$total $over_sn 0"')
     submit_slurm(wrap_batch, commands,
-                 batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
+                 batch_dir="{0}{1}/batch".format(work_dir, sub_dir),
                  slurm_kwargs={"time": "2:50:00",
                                "nice":"90"},#4 hours
                  submit=True, module_list=['mwa_search/{}'.format(search_ver)])
@@ -1407,7 +1416,7 @@ if __name__ == "__main__":
              work_dir=work_dir, bsd_row_num=args.bsd_row_num, pulsar=args.pulsar,
              n_omp_threads=n_omp_threads, fits_dir=args.fits_dir, search_ver=args.mwa_search_version)
     elif args.mode == "w":
-        wrap_up(obsid, pointing, work_dir=work_dir,
+        wrap_up(obsid, pointing, sub_dir, work_dir=work_dir,
                 bsd_row_num=args.bsd_row_num, search_ver=args.mwa_search_version)
 
 
