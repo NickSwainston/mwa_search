@@ -343,7 +343,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
 
     #add relaunch script
     if relaunch_script is not None:
-        relaunch_script += " -p {0} -s {1}".format(pointing, pointing_dir)
+        relaunch_script += " -p {0} -s {0}{1}".format(pointing, obsid)
         if bsd_row_num is not None:
             relaunch_script += ' -r {0}'.format(bsd_row_num)
         if incoh:
@@ -993,7 +993,11 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         cur_mode = 'p'
     elif table == 'FFT':
         #n_omp_threads = 1 #fft is not parrelised
-        mem=2048 #fft needs more memory
+        import socket
+        hostname = socket.gethostname()
+        if hostname.startswith('john') or hostname.startswith('farnarkle'):
+            #fft needs more memory, only need to change on ozstar
+            mem=2048
         total_job_time = 6000
         threads = False
         bash_job = True
