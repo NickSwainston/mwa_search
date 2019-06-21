@@ -244,8 +244,6 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
             pulsar_list = None
         else:
             pulsar_list = pulsar_list_list[pn]
-        if code_comment is not None:
-            code_comment += " pn {0} ".format(pn)
         pointing_full_dir = '{0}{1}'.format(pointing_dir, pointing)
         bsd_row_num = search_database.database_search_start(obsid,
                                       pointing, "{0}".format(code_comment))
@@ -374,11 +372,14 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
+    code_comment_in = code_comment
+    relaunch_script_in = relaunch_script
     for n, line in enumerate(pointing_list):
         if line.startswith("#"):
             continue
         print("Checking pointing {0} out of {1}".format(n+1, len(pointing_list)))
-
+        if code_comment_in is not None:
+            code_comment = "{0} pn {1}".format(code_comment_in, n)
         if incoh:
             pointing = "incoh"
         elif ':' not in line:
@@ -403,7 +404,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             sub_dir = '{0}/{1}'.format(pointing, obsid)
         else:
             sub_dir = '{0}/{1}'.format(pulsar, obsid)
-        relaunch_script = "{0} -p {1} -s {2}".format(relaunch_script, pointing, sub_dir)
+        relaunch_script = "{0} -p {1} -s {2}".format(relaunch_script_in, pointing, sub_dir)
 
         #fits dir parsing
         comp_config = config.load_config_file()
