@@ -43,7 +43,7 @@ if glob.glob('{0}*fits'.format(args.observation)) and \
 
 #getting number of files list
 if args.incoh:
-    n_fits_file = glob.glob('*{0}*_ch{1}_incoh*fits'.format(args.observation, channels[-1]))
+    n_fits_file = glob.glob('*{0}_incoh_ch{1}_*fits'.format(args.observation, channels[-1]))
 else:
     n_fits_file = glob.glob('*{0}*_ch{1}*fits'.format(args.observation, channels[-1]))    
 n_fits = []
@@ -53,34 +53,14 @@ n_fits.sort()
 print('Fits number order: {}'.format(n_fits))
 
 for n in n_fits:
-    submit_line = submit_line_incoh = 'splice_psrfits '
+    submit_line = 'splice_psrfits '
     for ch in channels:
-        submit_line += '*{}*_ch{:03d}_{:04d}.fits '.format(obsid, ch, n)
-        submit_line_incoh +=  '*{}*_ch{:03d}_incoh_{:04d}.fits '.format(obsid, ch, n)
+        if args.incoh:
+            submit_line +=  '*{}_incoh_ch{:03d}_{:04d}.fits '.format(obsid, ch, n)
+        else:
+            submit_line += '*{}*_ch{:03d}_{:04d}.fits '.format(obsid, ch, n)
     submit_line += 'temp_'+str(n)
-    submit_line_incoh += 'temp_incoh_'+str(n)
     
-    if args.incoh:
-        print(submit_line_incoh)
-        submit_cmd = subprocess.Popen(submit_line_incoh,shell=True,stdout=subprocess.PIPE)
-        out_lines = submit_cmd.stdout        
-        for l in out_lines:
-            print(l,)
-        time.sleep(5)
-        print('temp_incoh_'+str(n)+'_0001.fits', '{}_incoh_{:04d}.fits'.format(obsid, n))
-        os.rename('temp_incoh_'+str(n)+'_0001.fits',
-                  '{}_incoh_{:04d}.fits'.format(obsid, n))
-        
-        #wait to get error code
-        (output, err) = submit_cmd.communicate()  
-        p_status = submit_cmd.wait()
-        print("exist code: " + str(submit_cmd.returncode))
-        if args.delete and int(submit_cmd.returncode) == 0:
-            for fd in submit_line_incoh[15:].split(" ")[:-1]:
-                fd = glob.glob(fd)[0]
-                print("Deleting: " + str(fd))
-                if os.path.isfile(fd):
-                     os.remove(fd)
     print(submit_line)
     submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
     out_lines = submit_cmd.stdout

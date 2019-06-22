@@ -287,14 +287,12 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     channels = get_channels(obsid, channels=channels)
 
     #add splice command
-    splice_command = 'splice_wrapper.py -o {0} -w {1} -d -c {2}'.format(obsid,
-                     pointing_dir, ' '.join(map(str, channels)))
+    splice_command = 'splice_wrapper.py -o {0} -d -c {1}'.format(obsid,
+                     ' '.join(map(str, channels)))
+    commands.append('{0} -w {1}'.format(splice_command, pointing_dir))
     if incoh:
-        commands.append('{0} -i'.format(splice_command))
-        commands.append('mv {0}{1}/pointings/{2}/*incoh* {0}{1}/incoh/'.
-                            format(comp_config['base_product_dir'], obsid, pointing))
-    else:
-        commands.append(splice_command)
+        commands.append('{0} -i -w {1}{2}/incoh/'.format(splice_command,
+                         comp_config['base_product_dir'], obsid))
 
     if pulsar_list is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
@@ -343,12 +341,12 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
 
     #add relaunch script
     if relaunch_script is not None:
-        relaunch_script += " -p {0} -s {0}{1}".format(pointing, obsid)
+        relaunch_script += " -p {0} -s {0}/{1}".format(pointing, obsid)
         if bsd_row_num is not None:
             relaunch_script += ' -r {0}'.format(bsd_row_num)
         if incoh:
             #run rfi job
-            relaunch_script += ' -m r'
+            relaunch_script += ' -m r --incoh'
         else:
             relaunch_script += ' -m b'
         commands.append(relaunch_script)
@@ -593,15 +591,34 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 #-------------------------------------------------------------------------------------------------------------
 def rfifind(obsid, pointing, sub_dir, relaunch_script,
             work_dir=DEFAULT_WORK_DIR,
-            n_omp_threads = 8,
+            n_omp_threads = 8, incoh=False,
             bsd_row_num=None, pulsar=None,
             fits_dir=None, search_ver='master'):
     comp_config = config.load_config_file()
     if fits_dir == None:
-        fits_dir='{0}{1}/pointings/{1}/'.format(comp_config['base_product_dir'], obsid, pointing)
+        if incoh:
+            fits_dir='{0}{1}/incoh/'.format(comp_config['base_product_dir'], obsid)
+        else:
+            fits_dir='{0}{1}/pointings/{1}/'.format(comp_config['base_product_dir'], obsid, pointing)
 
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir, obsid)
+
+    #Set up some directories and move to it
+    if not os.path.exists("{0}{1}".format(work_dir, pointing)):
+        os.mkdir("{0}{1}".format(work_dir, pointing))
+    if not os.path.exists("{0}{1}/{2}".format(work_dir, pointing, obsid)):
+        os.mkdir("{0}{1}/{2}".format(work_dir, pointing, obsid))
+    if not os.path.exists("{0}{1}/{2}/batch".format(work_dir, pointing, obsid)):
+        os.mkdir("{0}{1}/{2}/batch".format(work_dir, pointing, obsid))
+
+    import socket
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        #fft needs more memory, only need to change on ozstar
+        mem=2048
+    else:
+        mem=1024
 
 
     rfi_batch = str(bsd_row_num) + '_rfi_{0}'.format(obsid)
@@ -610,22 +627,21 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
     commands.append("export OMP_NUM_THREADS={0}".format(n_omp_threads))
     if not os.path.exists("{0}/rfi_masks/{1}_rfifind.mask".format(work_dir, obsid)):
         #if there is not already a rfi mask make one
-        commands.append('rfifind -ncpus $ncpus -noclip -time 12.0 ' + '-o ' + str(obsid) +\
-                        ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +\
-                        '*incoh*.fits')
+        commands.append('cd {0}{1}/{2}'.format(work_dir,pointing,obsid))
+        commands.append('rfifind -ncpus $ncpus -noclip -time 12.0 -o ' + str(obsid) +\
+                        ' -zapchan 0:19,108:127,128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:2835,2924:2943,2944:2963,3052:3071 ' + fits_dir +'*.fits')
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('search_database.py -c rfifind -m p -b ' +str(bsd_row_num))
         commands.append("prepdata -ncpus $ncpus -dm 0 " "-numout " + str(numout) + " -o " +\
                         str(obsid) + "_DM0.00 " + fits_dir + "*incoh*.fits")
-        commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(obsid,work_dir))
+        commands.append('mv {0}_rfifind.* {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('mv {0}_DM0.00.dat {1}/rfi_masks/'.format(obsid,work_dir))
         commands.append('mv {0}_DM0.00.inf {1}/rfi_masks/'.format(obsid,work_dir))
     #commands.append("{0} -m p -r {1} -s {2}/{3}".format(relaunch_script, bsd_row_num, pointing, obsid))
 
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(work_dir,pointing,obsid),
-                 slurm_kwargs={"time": "2:00:00",
-                               "nice":"90"},#4 hours
+                 slurm_kwargs={"time": "2:00:00", "nice":"90"}, mem=mem,
                  submit=True, module_list=[comp_config['presto_module']])
 
     return
@@ -898,6 +914,12 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
         else:
             print("Can't find ACCEL cand file: {}. ACCEL_sift.py likely failed".format(file_loc))
         os.chdir(DIR + "/presto_profiles")
+    
+    #Uses the mask if it's available
+    if os.path.exists('{0}rfi_masks/{1}_rfifind.mask'.format(work_dir, obsid)):
+        mask_command = ' -mask {0}rfi_masks/{1}_rfifind.mask'.format(work_dir, obsid)
+    else:
+        mask_command = ''
 
     #cand_list = [accel_file_name, cand_num, SN, DM, period(ms)]
     print("Sending off jobs with fft sn greater than {}".format(sn_min))
@@ -918,7 +940,7 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
             #           c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(bsd_row_num)+'" "'+str(dm_i)+'"'
 
             #the fold options that uses .fits files which is slower but more accurate
-            commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5}{6}_*.fits'.format(accel_file_name, cand_num, pointing, float(period)/1000.,cand_DM, fits_dir, obsid))
+            commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} -nosearch {5} {6}{7}_*.fits'.format(accel_file_name, cand_num, pointing, float(period)/1000., cand_DM, mask_command, fits_dir, obsid))
     search_database.database_script_list(bsd_row_num, 'prepfold', commands_list,
                                                   n_omp_threads, expe_proc_time)
     if len(cand_list) > 0:
@@ -1395,7 +1417,7 @@ if __name__ == "__main__":
     elif args.mode == "r":
         rfifind(obsid, pointing, sub_dir, relaunch_script,
                 work_dir=work_dir, bsd_row_num=args.bsd_row_num,
-                pulsar=args.pulsar, n_omp_threads=n_omp_threads,
+                pulsar=args.pulsar, n_omp_threads=n_omp_threads, incoh=args.incoh,
                 search_ver=args.mwa_search_version)
     elif args.mode == "p":
         prepdata(obsid, pointing, relaunch_script,
