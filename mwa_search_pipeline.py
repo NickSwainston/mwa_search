@@ -1081,16 +1081,24 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
             commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift, sub_dir))
             #commands.append('module purge')
             commands.append('module use {}'.format(comp_config['module_dir']))
-            commands.append('module unload python')
+            #commands.append('module unload python')
             #commands.append('module load vcstools/master')
-            commands.append('module load mwa_search/{}'.format(search_ver))
             if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
                 # If on galaxy it sometimes needs the python version explictedly stated
-                commands.append('PYTHON_VERSION=3.6.3')
-                commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
+                #commands.append('PYTHON_VERSION=3.6.3')
+                #commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
                 #commands.append('module unload subprocess32')
                 #commands.append('module load subprocess32')
+                commands.append('module unload matplotlib')
+                commands.append('module unload numpy')
+                commands.append('module unload presto')
+                commands.append('module unload python/2.7.14')
                 commands.append('module show subprocess32')
+                commands.append('PYTHON_VERSION=3.6.3')
+                commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
+                commands.append('module load python/3.6.3')
+                commands.append('module load scipy')
+            commands.append('module load mwa_search/{}'.format(search_ver))
             commands.append("{0} -m {1}".format(relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(bsd_row_num), commands,
                          batch_dir="{0}{1}/batch".format(work_dir, sub_dir),
