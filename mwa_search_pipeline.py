@@ -1033,23 +1033,50 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
         if cur_mode == 'a':
             # changing to python 2 to use ACCELsift
             print('Sending off job to run to run ACCELsift')
+            
+            module_list = []
+            import socket
+            hostname = socket.gethostname()
+            if hostname.startswith('john') or hostname.startswith('farnarkle'):
+                # on ozstar so use their modules
+                module_list.append('mwa_search/{}'.format(search_ver))
+                module_list.append('module use /apps/users/pulsar/skylake/modulefiles\nmodule load presto/d6265c2')
+                module_list.append('matplotlib/2.2.2-python-2.7.14')
+            else:
+                # use galaxy modules
+                module_list.append('module unload vcstools')
+                module_list.append('matplotlib')
+                module_list.append('python/2.7.14')
+                module_list.append('numpy')
+                module_list.append('presto')
+            
+            #find ACCEL_sift path
+            import shutil
+            accel_sift = shutil.which("ACCEL_sift.py")
             commands = []
             commands.append(add_database_function())
             commands.append('cd {0}'.format(work_dir))
-            commands.append('srun --export=ALL -n 1 -c 1 ACCEL_sift.py {0}/'.format(sub_dir))
-            commands.append('module purge')
+            commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift, sub_dir))
+            #commands.append('module purge')
             commands.append('module use {}'.format(comp_config['module_dir']))
-            commands.append('module load vcstools/master')
+            commands.append('module unload python')
+            #commands.append('module load vcstools/master')
             commands.append('module load mwa_search/{}'.format(search_ver))
+            if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
+                # If on galaxy it sometimes needs the python version explictedly stated
+                commands.append('PYTHON_VERSION=3.6.3')
+                commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
+                #commands.append('module unload subprocess32')
+                #commands.append('module load subprocess32')
+                commands.append('module show subprocess32')
             commands.append("{0} -m {1}".format(relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(bsd_row_num), commands,
                          batch_dir="{0}{1}/batch".format(work_dir, sub_dir),
                          slurm_kwargs={"time": '59:00',
                                        "nice":"90"},
-                         module_list=['mwa_search/{}'.format(search_ver),
-                                      'module use /apps/users/pulsar/skylake/modulefiles\nmodule load presto/d6265c2',
-                                      'matplotlib/2.2.2-python-2.7.14'],
-                         cpu_threads=1, mem=mem, submit=True)
+                         module_list=module_list,
+                         cpu_threads=1, mem=mem, submit=True,
+                         vcstools_version="Error_on_purpose")
         else:
             print("{0} -m {1}".format(relaunch_script, next_mode))
             print(send_cmd("{0} -m {1}".format(relaunch_script, next_mode)))
