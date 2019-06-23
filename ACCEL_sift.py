@@ -90,11 +90,12 @@ if len(cands):
     cands = sifting.remove_harmonics(cands)
 print("Number of candidates remaining {}".format(len(cands)))
 # Write candidates to STDOUT
+cands_file_name = 'cand_files/cands_'+ d.replace("/","_") +'.txt'
 if len(cands):
     cands.sort(sifting.cmp_sigma)
-    cands_file_name = 'cand_files/cands_'+ d.replace("/","_") +'.txt'
     sifting.write_candlist(cands,cands_file_name)
     print(cands_file_name)
 else:
-    print("No candidates left, no file created")
+    print("No candidates left, created empty file")
+    open(cands_file_name, 'a').close()
 

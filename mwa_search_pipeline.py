@@ -583,7 +583,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
                                 pulsar_list_list=pulsar_list_list_to_beamform, cal_id=cal_id,
                                 search=search, bsd_row_num=bsd_row_num,
                                 search_ver=search_ver, code_comment=code_comment,
-                                pointing_id=pointing_id)
+                                pointing_id=pointing_id, channels=channels)
             pointings_to_beamform = []
     return
 
@@ -913,6 +913,8 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
                                               cand_line[2],cand_line[1],cand_line[7]])
         else:
             print("Can't find ACCEL cand file: {}. ACCEL_sift.py likely failed".format(file_loc))
+            print("Exiting here")
+            exit()
         os.chdir(DIR + "/presto_profiles")
     
     #Uses the mask if it's available
@@ -948,6 +950,9 @@ def fold(obsid, pointing, sub_dir, relaunch_script,
         error_check('Fold', 0, bsd_row_num, relaunch_script,
                     obsid, pointing, search_ver=search_ver,
                     work_dir=work_dir, sub_dir=sub_dir, n_omp_threads=n_omp_threads)
+    else:
+        wrap_up(obsid, pointing, sub_dir,
+                work_dir=work_dir, bsd_row_num=bsd_row_num, search_ver=search_ver)
 
 
 
@@ -1093,7 +1098,6 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                 commands.append('module unload numpy')
                 commands.append('module unload presto')
                 commands.append('module unload python/2.7.14')
-                commands.append('module show subprocess32')
                 commands.append('PYTHON_VERSION=3.6.3')
                 commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
                 commands.append('module load python/3.6.3')
