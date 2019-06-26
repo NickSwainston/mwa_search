@@ -371,6 +371,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
              fits_dir_base=None, pulsar_list_list=None, cal_id=None,
              vdif=False, cold_storage_check=False,
              channels=None):
+    channels = get_channels(obsid, channels=channels)
 
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
@@ -1368,7 +1369,8 @@ if __name__ == "__main__":
         else:
             fits_dir='{0}{1}/pointings/{1}/'.format(comp_config['base_product_dir'],
                                                     obsid,args.pointing)
-
+    #get channels
+    args.channels = get_channels(obsid, channels=args.channels)
     #core control
     n_omp_threads = 1
 

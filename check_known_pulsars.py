@@ -70,7 +70,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vdif_check = False
     search_pipe.beamform(pointing_list, obsid, psrbeg, psrend,
                          DI_dir, vdif=vdif_check,
-                         args=args, pulsar_check=jname_list, cal_id=cal_obs,
+                         args=args, pulsar_list_list=jname_list, cal_id=cal_obs,
                          channels=channels)
     os.remove(known_pulsar_file)
     return
