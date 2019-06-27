@@ -86,7 +86,7 @@ if len(cands):
 
 # Remove candidates that are harmonically related to each other
 # Note:  this includes only a small set of harmonics
-if len(cands):
+if len(cands) > 1:
     cands = sifting.remove_harmonics(cands)
 print("Number of candidates remaining {}".format(len(cands)))
 # Write candidates to STDOUT
