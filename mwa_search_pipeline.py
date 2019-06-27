@@ -298,11 +298,18 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('cd {0}'.format(pointing_dir))
         for pulsar in pulsar_list:
+            #Assign number of bins based on the period
+            period = get_pulsar_dm_p(pulsar)[1]
+            nbin = 2048*period**0.75
+            nbin = int(32 * round(nbin/32))
+            if nbin<32:
+                nbin=32
+
             #load presto module here because it uses python 2
             commands.append('echo "Folding on known pulsar"'.format(pulsar))
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
             commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
-            commands.append("prepfold -o {0} -noxwin -runavg -noclip -timing {1}.eph -nsub 256 {2}/1*fits".format(obsid, pulsar, pointing_dir))
+            commands.append("prepfold -o {0} -noxwin -runavg -noclip -timing {1}.eph -nsub 256 {2}/1*fits -n {3}".format(obsid, pulsar, pointing_dir, nbins))
             commands.append('errorcode=$?')
             commands.append('pulsar={}'.format(pulsar[1:]))
             pulsar_bash_string = '${pulsar}'
@@ -310,7 +317,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
             #causes an error with -timing but not -psr
             commands.append('if [ "$errorcode" != "0" ]; then')
             commands.append('   echo "Folding using the -psr option"')
-            commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256 {2}/1*fits'.format(obsid, pulsar, pointing_dir))
+            commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256 {2}/1*fits -n {3}'.format(obsid, pulsar, pointing_dir, nbins))
             commands.append('   pulsar={}'.format(pulsar))
             commands.append('fi')
             commands.append('rm {0}.eph'.format(pulsar))
