@@ -1403,7 +1403,9 @@ if __name__ == "__main__":
     if args.fits_dir:
         relaunch_script +=  " --fits_dir " + str(args.fits_dir)
     if args.channels:
-        relaunch_script +=  " --channels " + str(args.channels)
+        relaunch_script +=  " --channels"
+        for ch in args.channels:
+            relaunch_script +=  " {0}".format(ch)
     if args.cal_obs:
         relaunch_script +=  " -O " + str(args.cal_obs)
 

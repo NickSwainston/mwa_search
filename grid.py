@@ -365,8 +365,8 @@ if __name__ == "__main__":
         quit()
     if args.all_pointings:
         #calculating loop number
-        fudge_factor = 1.5
-        tile_fwhm = np.degrees(1.22 * (3*10**8/(centrefreq*10**6))/6.56 )
+        fudge_factor = 2.
+        tile_fwhm = np.degrees(fudge_factor * (3*10**8/(centrefreq*10**6))/6.56 )
         #account for the "increase" in tile beam size due to drifting
         tile_fwhm += duration/3600.*15.
         args.loop = int(tile_fwhm/2./(args.deg_fwhm*args.fraction))
