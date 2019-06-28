@@ -68,11 +68,13 @@ def get_channels(obsid, channels=None):
         channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
     return channels
 
-def your_slurm_queue_check(max_queue = 200, queue = 'gpuq', grep=None):
+def your_slurm_queue_check(max_queue = 200, queue=None, grep=None):
     """
     Checks if you have over 100 jobs on the queue, if so waits until your queue clears
     """
-    submit_line = 'squeue -u $USER --partition={0}'.format(queue)
+    submit_line = 'squeue -u $USER'
+    if queue is not None:
+        submit_line += ' --partition={0}'.format(queue)
     if grep is not None:
         submit_line += ' | grep "{0}"'.format(grep)
     submit_line += ' | wc -l'
@@ -206,7 +208,8 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
     """
     comp_config = config.load_config_file()
     #check queue
-    your_slurm_queue_check(queue = comp_config['gpuq_partition'])
+    #your_slurm_queue_check(queue = comp_config['gpuq_partition'])
+    your_slurm_queue_check()
 
     #check for incoh file which is used to predict if you have used rfifind
     incoh_check = False
@@ -999,6 +1002,11 @@ def wrap_up(obsid, pointing, sub_dir,
     commands.append('   over_sn=`ls ../over_3_png/*.png | wc -l`')
     commands.append('else')
     commands.append('   over_sn=`ls ../over_3_png/*.ps | wc -l`')
+    commands.append('fi')
+    commands.append('if [ $over_sn -eq 0 ]; then')
+    commands.append('   echo "No candidates so deleting pointing and dat files"')
+    commands.append('   rm {0}{1}/*dat'.format(work_dir, sub_dir))
+    commands.append('   rm -rf {0}{1}/{2}'.format(comp_config['base_product_dir'], obsid, pointing))
     commands.append('fi')
     commands.append('search_database.py -m w -b ' +str(bsd_row_num) +' --cand_val "$total $over_sn 0"')
     submit_slurm(wrap_batch, commands,
