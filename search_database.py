@@ -175,26 +175,6 @@ def database_search_done_check(obsid, pointing):
                 searched_check = True
     return searched_check
 
-def database_script_check(table, bs_id, attempt_num):
-    """
-    Searches for any jobs that didn't work and return the data needed to send
-    them off again
-    """
-    con = lite.connect(DB_FILE, timeout = TIMEOUT)
-    con.row_factory = lite.Row
-    with con:
-        cur = con.cursor()
-        #get script data
-        cur.execute("SELECT * FROM {0} WHERE AttemptNum=? AND BSID=?".format(table),
-                    (attempt_num, bs_id))
-        rows = cur.fetchall()
-        
-        error_data = []
-        for row in rows:
-            if row['Started'] == None or row['Ended'] == None or row['Exit'] != 0:
-                error_data.append([row['Command'], row['Arguments'], row['ExpProc']])
-    return error_data
-
 def database_mass_update(table,file_location):
     """
     Takes a csv from short period jobs and makes a large amount of updates
