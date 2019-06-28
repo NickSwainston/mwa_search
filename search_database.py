@@ -156,6 +156,44 @@ def database_script_check(table, bs_id, attempt_num):
                 error_data.append([row['Command'], row['Arguments'], row['ExpProc']])
     return error_data
 
+def database_search_done_check(obsid, pointing):
+    """
+    Checks if the pointing and obsid have already been sucessfully searched 
+    (end time not none)
+    """
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    con.row_factory = lite.Row
+    with con:
+        cur = con.cursor()
+        #get script data
+        cur.execute("SELECT Ended FROM PulsarSearch WHERE Obsid=? AND Pointing=?",
+                    (obsid, pointing))
+        endtime = cur.fetchall()
+        searched_check = False
+        for e in endtime:
+            if e[0] is not None:
+                searched_check = True
+    return searched_check
+
+def database_script_check(table, bs_id, attempt_num):
+    """
+    Searches for any jobs that didn't work and return the data needed to send
+    them off again
+    """
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    con.row_factory = lite.Row
+    with con:
+        cur = con.cursor()
+        #get script data
+        cur.execute("SELECT * FROM {0} WHERE AttemptNum=? AND BSID=?".format(table),
+                    (attempt_num, bs_id))
+        rows = cur.fetchall()
+        
+        error_data = []
+        for row in rows:
+            if row['Started'] == None or row['Ended'] == None or row['Exit'] != 0:
+                error_data.append([row['Command'], row['Arguments'], row['ExpProc']])
+    return error_data
 
 def database_mass_update(table,file_location):
     """

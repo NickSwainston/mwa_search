@@ -444,7 +444,9 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
         path_check = False
         missing_file_check = False
         unspliced_check = False
+        searched_check = False
         missing_chan_list = []
+        searched_check = search_database.database_search_done_check(obsid, pointing)
         if os.path.exists(fits_dir):
             #first check is there's already spliced files
             #does check if they have the same start time
@@ -475,7 +477,8 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             path_check = True
 
 
-        if (not path_check and not missing_file_check and not unspliced_check):
+        if (not path_check and not missing_file_check and not unspliced_check\
+            (not searched_check and relaunch) ):
             #everything is ok so start search database recording
             if search and bsd_row_num_input is None and\
                ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
@@ -492,7 +495,9 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
 
         #work out what needs to be done
-        if path_check or len(missing_chan_list) == 24:
+        if searched_check and not relaunch:
+            print("Already searched so not searching again")
+        elif path_check or len(missing_chan_list) == 24:
             # do beamforming
             print("No pointing directory or files for {0}, will beamform shortly".format(pointing))
             pointings_to_beamform.append(pointing)
@@ -546,7 +551,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
         else:
             #All files there so the check has succeded and going to start the pipeline
-            if search and ((relaunch and len(pointing_list) > 1) or len(pointing_list) == 1):
+            if search and ((not searched_check and relaunch) or len(pointing_list) == 1):
                 print("Fits files available, begining pipeline for {0}".format(pointing))
                 if len(pointing_list) > 1:
                     your_slurm_queue_check()
