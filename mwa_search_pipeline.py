@@ -477,7 +477,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             path_check = True
 
 
-        if (not path_check and not missing_file_check and not unspliced_check\
+        if (not path_check and not missing_file_check and not unspliced_check and\
             (not searched_check and relaunch) ):
             #everything is ok so start search database recording
             if search and bsd_row_num_input is None and\
