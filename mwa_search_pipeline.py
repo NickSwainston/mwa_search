@@ -200,7 +200,8 @@ def dm_i_to_file(dm_i):
 def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
                         pointing_dir,relaunch_script,
                         search=False, bsd_row_num=None, nice=100,
-                        pulsar_list_list=None, cal_id=None, vdif=False,
+                        pulsar_list_list=None, cal_id=None, 
+                        vdif=False, summed=False,
                         channels=None, search_ver='master',
                         code_comment=None, pointing_id=None):
     """
@@ -222,6 +223,8 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
         incoh_check = True
     if vdif:
         bf_formats += " -u"
+    if summed:
+        bf_formats += " -s"
     
     #set up and launch beamfroming
     comp_config = config.load_config_file()
@@ -375,7 +378,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
              search=False, bsd_row_num_input=None, incoh=False,
              args=None, search_ver='master',
              fits_dir_base=None, pulsar_list_list=None, cal_id=None,
-             vdif=False, cold_storage_check=False,
+             vdif=False, summed=False, cold_storage_check=False,
              channels=None):
     channels = get_channels(obsid, channels=channels)
 
@@ -598,7 +601,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
 
             print("Sending of {0} pointings for beamforming".format(len(pointings_to_beamform)))
             process_vcs_wrapper(obsid, begin, end, pointings_to_beamform, args, DI_dir,
-                                fits_base_dir, relaunch_script_in, vdif=vdif,
+                                fits_base_dir, relaunch_script_in, vdif=vdif, summed=summed,
                                 pulsar_list_list=pulsar_list_list_to_beamform, cal_id=cal_id,
                                 search=search, bsd_row_num=bsd_row_num,
                                 search_ver=search_ver, code_comment=code_comment,
@@ -1476,7 +1479,12 @@ if __name__ == "__main__":
             code_comment = None
         if args.pulsar_file and code_comment is not None:
             code_comment += " (using: {0}) ".format(args.pulsar_file)
-
+        
+        if args.search:
+            #if searching use summed polarisation mode to save on psrfits data size
+            summed=True
+        else:
+            summed=False
 
         #pulsar check parsing
         if args.pulsar is None:
@@ -1490,7 +1498,7 @@ if __name__ == "__main__":
                  search=args.search, bsd_row_num_input=args.bsd_row_num, incoh=args.incoh,
                  pulsar_list_list=pulsar_list_list, args=args, search_ver=args.mwa_search_version,
                  fits_dir_base=args.fits_dir, cold_storage_check=args.csc,
-                 channels=args.channels, cal_id=args.cal_obs)
+                 channels=args.channels, cal_id=args.cal_obs, summed=summed)
     elif args.mode == "c":
         error_check(args.table, args.attempt, args.bsd_row_num, relaunch_script,
                     obsid, pointing, search_ver=args.mwa_search_version,
