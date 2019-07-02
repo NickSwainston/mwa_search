@@ -8,6 +8,7 @@ import pipes
 import glob
 from time import sleep
 import datetime
+import socket
 
 #vcstools imports
 import search_database
@@ -50,6 +51,7 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         # Create an index range for l of n items:
         yield l[i:i+n]
+
 
 def exists_remote(host, path):
     """Test if a file exists at path on a host accessible with SSH."""
@@ -1032,19 +1034,19 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
     and reruns any errors before continuing to the next step
     """
     comp_config = config.load_config_file()
+    hostname = socket.gethostname()
     if sub_dir is None:
         sub_dir = '{0}/{1}'.format(pointing,obsid)
     sub_sub_dir = ''
     threads = True
     bash_job = False
+    temp_mem = None
     if table == 'Prepdata':
         total_job_time = 24000
         next_mode = 't'
         cur_mode = 'p'
     elif table == 'FFT':
         #n_omp_threads = 1 #fft is not parrelised
-        import socket
-        hostname = socket.gethostname()
         if hostname.startswith('john') or hostname.startswith('farnarkle'):
             #fft needs more memory, only need to change on ozstar
             mem=2048
@@ -1076,8 +1078,6 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
             print('Sending off job to run to run ACCELsift')
             
             module_list = []
-            import socket
-            hostname = socket.gethostname()
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
                 # on ozstar so use their modules
                 module_list.append('mwa_search/{}'.format(search_ver))
@@ -1157,6 +1157,12 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
             bash_commands.append('run "{0}" "{1}" "{2}" "{3}" "{4}"'.format(presto_command,
                                 er[1], bsd_row_num, ei, (attempt_num+1)))
             processing_time += float(er[2])
+            if table == 'Prepdata' and \
+               (hostname.startswith('john') or hostname.startswith('farnarkle')):
+                #prepdata is very I/O heavy so on ozstar write to the SSDs then move it off
+                bash_commands.append('mv $JOBFS/* {0}{1}/{2}/'.format(work_dir,
+                                                           sub_dir, sub_sub_dir))
+                temp_mem = 50 #GB
 
             # if next step will go over the expected time limit then create a new script
             if (processing_time + float(er[2])) > total_job_time:
@@ -1181,7 +1187,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                          slurm_kwargs={"time": total_job_time_str ,
                                        "nice":"90"},#4 hours
                          module_list=['mwa_search/{}'.format(search_ver)],
-                         submit=True, cpu_threads=n_omp_threads, mem=mem)
+                         submit=True, cpu_threads=n_omp_threads, mem=mem,
+                         temp_mem=temp_mem)
                 job_id_list.append(job_id)
 
                 check_job_num += 1
@@ -1218,7 +1225,8 @@ def error_check(table, attempt_num, bsd_row_num, relaunch_script,
                      slurm_kwargs={"time": total_job_time_str ,
                                    "nice":"90"},#4 hours
                      module_list=['mwa_search/{}'.format(search_ver)],
-                     cpu_threads=n_omp_threads, mem=mem, submit=True)
+                     cpu_threads=n_omp_threads, mem=mem, submit=True,
+                     temp_mem=temp_mem)
             job_id_list.append(job_id)
 
         #Dependancy job
