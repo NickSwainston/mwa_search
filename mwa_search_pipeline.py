@@ -254,7 +254,8 @@ def process_vcs_wrapper(obsid, begin, end, pointings, args, DI_dir,
             code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
         pointing_full_dir = '{0}{1}'.format(pointing_dir, pointing)
         
-        bsd_row_num = search_database.database_search_start(obsid,
+        if bsd_row_num is None:
+            bsd_row_num = search_database.database_search_start(obsid,
                                       pointing, "{0}".format(code_comment))
         dependant_splice_batch(obsid, pointing, product_dir, pointing_full_dir, job_id_list[0],
                                bsd_row_num=bsd_row_num, pulsar_list=pulsar_list,
@@ -479,7 +480,14 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             path_check = True
 
 
-        if (not path_check and not missing_file_check and not unspliced_check and\
+        if not (path_check or len(missing_chan_list) == 24) or \
+            (missing_file_check and not unspliced_check and search) or \
+            search and ((not searched_check and relaunch) or len(pointing_list) == 1):
+                bsd_row_num = search_database.database_search_start(obsid,
+                                      pointing, "{0} pn {1}".format(code_comment,n))
+        else:
+            bsd_row_num = bsd_row_num_input
+        """if (not path_check and not missing_file_check and not unspliced_check and\
             (not searched_check and relaunch) ):
             #everything is ok so start search database recording
             if search and bsd_row_num_input is None and\
@@ -493,7 +501,7 @@ def beamform(pointing_list, obsid, begin, end, DI_dir,
             #need to fix some files then search
             #if not (search and bsd_row_num_input is None):
             bsd_row_num = bsd_row_num_input
-
+        """
 
 
         #work out what needs to be done
@@ -623,7 +631,6 @@ def rfifind(obsid, pointing, sub_dir, relaunch_script,
     if not os.path.exists("{0}{1}/{2}/batch".format(work_dir, pointing, obsid)):
         os.mkdir("{0}{1}/{2}/batch".format(work_dir, pointing, obsid))
 
-    import socket
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
         #fft needs more memory, only need to change on ozstar
@@ -735,6 +742,13 @@ def prepdata(obsid, pointing, relaunch_script,
     dm_list.sort()
     print(dm_list)
 
+
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        #If on ozstar use their SSD to improve I/O
+        SSD_file_dir = '$JOBFS/'
+    else:
+        SSD_file_dir = ''
     #Create a list of all the commands needed
     if os.path.exists('{0}rfi_masks/{1}_rfifind.mask'.format(work_dir, obsid)):
         mask_command = ' -mask {0}rfi_masks/{1}_rfifind.mask'.format(work_dir, obsid)
@@ -749,13 +763,17 @@ def prepdata(obsid, pointing, relaunch_script,
         dm_end = dm_line[1] #float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
-            commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} -numdms {4} -numout {5} -zerodm -o {6} {7}{6}_*.fits'.format(dm_start, mask_command, nsub, dm_line[2],
-                                             dms_per_job, numout, obsid, fits_dir))
+            commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
+                '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
+                mask_command, nsub, dm_line[2], dms_per_job, numout, SSD_file_dir,
+                obsid, fits_dir))
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
-        commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} -numdms {4} -numout {5} -zerodm -o {6} {7}{6}_*.fits'.format(dm_start, mask_command, nsub, dm_line[2],
-                                         steps, numout, obsid, fits_dir))
+        commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
+                '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
+                mask_command, nsub, dm_line[2], steps, numout, SSD_file_dir,
+                obsid, fits_dir))
 
     #Puts all the expected jobs on the databse
     #search_database_script_id_list
