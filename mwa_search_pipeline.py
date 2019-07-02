@@ -241,7 +241,7 @@ def process_vcs_wrapper(search_opts, pointings,
                         code_comment=None, pointing_id=None):
     """
     Does some basic checks and formating before
-    if search_opts.args.pulsar_file:
+    if args.pulsar_file:
         code_comment += using beamforming from process_vcs.py
     """
     comp_config = config.load_config_file()
@@ -252,9 +252,9 @@ def process_vcs_wrapper(search_opts, pointings,
     #check for search_opts.incoh file which is used to predict if you have used rfifind
     search_opts.incoh_check = False
     bf_formats = " -p"
-    if not os.path.exists('{0}{1}/search_opts.incoh'.format(comp_config['base_product_dir'], search_opts.obsid)):
+    if not os.path.exists('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid)):
         bf_formats += " -i"
-        os.mkdir('{0}{1}/search_opts.incoh'.format(comp_config['base_product_dir'], search_opts.obsid))
+        os.mkdir('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid))
         search_opts.incoh_check = True
     if vdif:
         bf_formats += " -u"
@@ -289,7 +289,7 @@ def process_vcs_wrapper(search_opts, pointings,
             pulsar_list = pulsar_list_list[pn]
         if code_comment_in is not None:
             code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
-        search_opts.pointing_dir = '{0}/{1}'.format(product_dir, search_opts.pointing)
+        search_opts.pointing_dir = '{0}/pointings/{1}'.format(product_dir, search_opts.pointing)
         
         search_opts.bsd_row_num = search_database.database_search_start(search_opts.obsid,
                                       search_opts.pointing, "{0}".format(code_comment))
@@ -324,7 +324,7 @@ def dependant_splice_batch(search_opts, product_dir, job_id_list=None, pulsar_li
                      ' '.join(map(str, search_opts.channels)))
     commands.append('{0} -w {1}'.format(splice_command, search_opts.pointing_dir))
     if search_opts.incoh:
-        commands.append('{0} -i -w {1}{2}/search_opts.incoh/'.format(splice_command,
+        commands.append('{0} -i -w {1}{2}/incoh/'.format(splice_command,
                          comp_config['base_product_dir'], search_opts.obsid))
 
     if pulsar_list is not None:
@@ -407,7 +407,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
     for n, line in enumerate(pointing_list):
         if line.startswith("#"):
             continue
-        print("Checking search_opts.pointing {0} out of {1}".format(n+1, len(pointing_list)))
+        print("Checking pointing {0} out of {1}".format(n+1, len(pointing_list)))
         if search_opts.incoh:
             search_opts.pointing = "incoh"
         elif ':' not in line:
@@ -459,7 +459,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                         "/project/mwaops/nswainston/yogesh_low_DM_candiate/{0}_pointing.tar.gz".\
                         format(search_opts.pointing))
                 if exists_remote_check and len(pointing_list) > 1:
-                    print("The search_opts.pointing is in cold storage so assumed it is analysised so not reprocessing")
+                    print("The pointing is in cold storage so assumed it is analysised so not reprocessing")
                     continue
             except:
                 print("Connection to cold storage failed. Will only check for local files")
@@ -520,11 +520,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
 
         #work out what needs to be done
-        if searched_check and not search_opts.relaunch_script:
-            print("Already searched so not searching again")
-        elif path_check or len(missing_chan_list) == 24:
+        if path_check or len(missing_chan_list) == 24:
             # do beamforming
-            print("No search_opts.pointing directory or files for {0}, will beamform shortly".format(search_opts.pointing))
+            print("No pointing directory or files for {0}, will beamform shortly".format(search_opts.pointing))
             pointings_to_beamform.append(search_opts.pointing)
             #pulsars that will be checked after beamforming
             if pulsar_list is None:
@@ -538,7 +536,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         elif unspliced_check:
             #resubmit any search_opts.channels that are incomplete
-            print("Some search_opts.channels missing, resubmitting make beam scripts for {0}".format(search_opts.pointing))
+            print("Some channels missing, resubmitting make beam scripts for {0}".format(search_opts.pointing))
             if len(pointing_list) > 1:
                 your_slurm_queue_check(queue=comp_config['gpuq_partition'])
 
@@ -567,10 +565,12 @@ def beamform(search_opts, pointing_list, code_comment=None,
             dependant_splice_batch(search_opts, product_dir,
                                    job_id_list=job_id_list, pulsar_list=pulsar_list)
 
+        elif searched_check and not search_opts.relaunch_script:
+            print("Already searched so not searching again")
         else:
             #All files there so the check has succeded and going to start the pipeline
             if search and ((not searched_check and search_opts.relaunch_script) or len(pointing_list) == 1):
-                print("Fits files available, search_opts.begining pipeline for {0}".format(search_opts.pointing))
+                print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
                     your_slurm_queue_check()
                 prepdata(search_opts.obsid, search_opts.pointing, search_opts.relaunch_script,
@@ -591,17 +591,17 @@ def beamform(search_opts, pointing_list, code_comment=None,
         if ( n + 1 == len(pointing_list) and len(pointings_to_beamform) != 0 )\
             or len(pointings_to_beamform) == 15:
             #Ssearch_opts.end of beamforming job at the search_opts.end or the loop or when you have 15 search_opts.pointings
-            if 'search_opts.pointings' in fits_dir:
-                fits_base_dir = "{0}search_opts.pointings/".format(fits_dir.split('search_opts.pointings')[0])
+            if 'pointings' in fits_dir:
+                fits_base_dir = "{0}pointings/".format(fits_dir.split('pointings')[0])
             else:
-                fits_base_dir = "{0}search_opts.incoh/".format(fits_dir.split('search_opts.incoh')[0])
+                fits_base_dir = "{0}incoh/".format(fits_dir.split('incoh')[0])
             # list of search_opts.pointing ids, always 1 for single search_opts.pointings and 
             # will be relivant to the line number of search_opts.pointing files
             pointing_id = []
             for point in pointings_to_beamform:
                 pointing_id.append(pointing_list.index(point.replace("_", " ")) + 1)
 
-            print("Ssearch_opts.ending of {0} search_opts.pointings for beamforming".format(len(pointings_to_beamform)))
+            print("Sending of {0} pointings for beamforming".format(len(pointings_to_beamform)))
             process_vcs_wrapper(search_opts, pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform, vdif=vdif,
                                 code_comment=code_comment, pointing_id=pointing_id)
@@ -614,9 +614,9 @@ def rfifind(search_opts):
     comp_config = config.load_config_file()
     if fits_dir == None:
         if search_opts.incoh:
-            fits_dir='{0}{1}/search_opts.incoh/'.format(comp_config['base_product_dir'], search_opts.obsid)
+            fits_dir='{0}{1}/incoh/'.format(comp_config['base_product_dir'], search_opts.obsid)
         else:
-            fits_dir='{0}{1}/search_opts.pointings/{1}/'.format(comp_config['base_product_dir'], search_opts.obsid, search_opts.pointing)
+            fits_dir='{0}{1}/pointings/{1}/'.format(comp_config['base_product_dir'], search_opts.obsid, search_opts.pointing)
 
     #Calculates -numout for prepsubbands
     numout = numout_calc(fits_dir, search_opts.obsid)
@@ -649,7 +649,7 @@ def rfifind(search_opts):
         commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(search_opts.obsid,work_dir))
         commands.append('search_database.py -c rfifind -m p -b ' +str(search_opts.bsd_row_num))
         commands.append("prepdata -ncpus $ncpus -dm 0 " "-numout " + str(numout) + " -o " +\
-                        str(search_opts.obsid) + "_DM0.00 " + fits_dir + "*search_opts.incoh*.fits")
+                        str(search_opts.obsid) + "_DM0.00 " + fits_dir + "*incoh*.fits")
         commands.append('mv {0}_rfifind.* {1}/rfi_masks/'.format(search_opts.obsid,work_dir))
         commands.append('mv {0}_DM0.00.dat {1}/rfi_masks/'.format(search_opts.obsid,work_dir))
         commands.append('mv {0}_DM0.00.inf {1}/rfi_masks/'.format(search_opts.obsid,work_dir))
@@ -667,7 +667,7 @@ def rfifind(search_opts):
 def prepdata(search_opts):
     comp_config = config.load_config_file()
     if fits_dir == None:
-        fits_dir='{0}{1}/search_opts.pointings/{2}/'.format(comp_config['base_product_dir'], search_opts.obsid, search_opts.pointing)
+        fits_dir='{0}{1}/pointings/{2}/'.format(comp_config['base_product_dir'], search_opts.obsid, search_opts.pointing)
 
     #Set up some directories and move to it
     if not os.path.exists(work_dir + "/rfi_masks"):
@@ -777,8 +777,6 @@ def prepdata(search_opts):
 def sort_fft(search_opts):
 
     comp_config = config.load_config_file()
-    if fits_dir == None:
-        fits_dir='{0}{1}/search_opts.pointings/{2}/'.format(comp_config['base_product_dir'], search_opts.obsid,search_opts.pointing)
 
     #Makes 90 files to make this all a bit more managable and sorts the files.
     os.chdir(work_dir + "/" + sub_dir)
@@ -866,8 +864,6 @@ def fold(search_opts):
     from math import floor
 
     comp_config = config.load_config_file()
-    if fits_dir == None:
-        fits_dir='{0}{1}/search_opts.pointings/{2}/'.format(comp_config['base_product_dir'], search_opts.obsid, search_opts.pointing)
 
     DIR=work_dir + str(sub_dir)
     os.chdir(DIR)
