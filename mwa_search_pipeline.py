@@ -1034,6 +1034,7 @@ def wrap_up(obsid, pointing, sub_dir,
     commands.append('if [ $over_sn -eq 0 ]; then')
     commands.append('   echo "No candidates so deleting pointing and dat files"')
     commands.append('   rm {0}{1}/*dat'.format(work_dir, sub_dir))
+    commands.append('   rm {0}{1}/*fft'.format(work_dir, sub_dir))
     commands.append('   rm -rf {0}{1}/{2}'.format(comp_config['base_product_dir'], obsid, pointing))
     commands.append('fi')
     commands.append('search_database.py -m w -b ' +str(bsd_row_num) +' --cand_val "$total $over_sn 0"')
