@@ -49,7 +49,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 cmd = ['psrcat', '-c', 'p0', jname]
                 output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0]
                 period = output.split(b'\n')[4].split()[1] #in s
-                print(PSRJ, raj, decj, period, psrbeg, psrend)
+                print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
+                       PSRJ, raj, decj, float(period)*1000., psrbeg, psrend))
                 fits_dir = '{0}/{1}/pointings/{2}_{3}/'.format(product_dir, obsid, raj, decj)
                 if PSRJ[-1] == b'A' or PSRJ[-2:] == b'aa':
                     #Got to find all the pulsar J names with other letters
@@ -68,10 +69,10 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 pointing_list.append("{0} {1}".format(raj,decj)) 
     #Setting vdif to false since multi-pixel doesn't have vdif working yet
     vdif_check = False
-    search_pipe.beamform(pointing_list, obsid, psrbeg, psrend,
-                         DI_dir, vdif=vdif_check,
-                         args=args, pulsar_list_list=jname_list, cal_id=cal_obs,
-                         channels=channels)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels, 
+                              args=args, DI_dir=DI_dir)
+    search_pipe.beamform(search_opts, pointing_list, pulsar_list_list=jname_list)
     os.remove(known_pulsar_file)
     return
 

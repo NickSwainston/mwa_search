@@ -49,7 +49,7 @@ class search_options_class:
         
         #obs/beamforming options
         self.obsid    = obsid
-        self.pointing = pointing
+        self._pointing = pointing
         self.cal_id   = cal_id
         self.begin    = begin
         self.end      = end
@@ -126,6 +126,11 @@ class search_options_class:
         self._pointing_dir = value
     pointing_dir = property(getPdir, setPdir)
 
+    def getPoint(self):
+        return self._pointing
+    def setPoint(self, value):
+        self._pointing = value
+    pointing = property(getPoint, setPoint)
 
 def send_cmd_shell(cmd):
     output = subprocess.Popen(cmd, stdin=subprocess.PIPE,
@@ -324,7 +329,8 @@ def process_vcs_wrapper(search_opts, pointings,
 
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     code_comment_in = code_comment
-    for pn, search_opts.pointing in enumerate(pointings):
+    for pn, pointing in enumerate(pointings):
+        search_opts.setPoint(pointing)
         if pulsar_list_list is None:
             pulsar_list = None
         else:
@@ -335,8 +341,8 @@ def process_vcs_wrapper(search_opts, pointings,
                                                               search_opts.pointing))
         
         if search_opts.bsd_row_num is None:
-            search_opts.setBRN(search_database.database_search_start(obsid,
-                                      pointing, "{0}".format(code_comment)))
+            search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
+                                      search_opts.pointing, "{0}".format(code_comment)))
         dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
     return
 
@@ -541,8 +547,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
 
         if not (path_check or len(missing_chan_list) == 24) or \
-            (missing_file_check and not unspliced_check and search) or \
-            search and ((not searched_check and relaunch) or len(pointing_list) == 1):
+            (missing_file_check and not unspliced_check and search_opts.search) or \
+            search_opts.search and ((not searched_check and relaunch) or len(pointing_list) == 1):
                 search_opts.setBRN(search_database.database_search_start(obsid,
                                       pointing, "{0} pn {1}".format(code_comment,n)))
         else:
