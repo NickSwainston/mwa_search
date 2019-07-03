@@ -15,7 +15,6 @@ import search_database
 import mwa_metadb_utils as meta
 import process_vcs as pvcs
 from job_submit import submit_slurm
-import find_pulsar_in_obs as fpio
 import config
 
 import logging
@@ -75,14 +74,14 @@ class search_options_class:
             self.fits_dir_base = fits_dir_base
         if pointing_dir is None:
             if incoh:
-                self.pointing_dir = '{0}incoh/'.format(self.fits_dir_base)
+                self._pointing_dir = '{0}incoh/'.format(self.fits_dir_base)
             elif self.pointing is not None:
-                self.pointing_dir = '{0}pointings/{1}/'.format(self.fits_dir_base,
+                self._pointing_dir = '{0}pointings/{1}/'.format(self.fits_dir_base,
                                                                self.pointing)
             else:
-                self.pointing_dir = None
+                self._pointing_dir = None
         else:
-            self.pointing_dir = pointing_dir
+            self._pointing_dir = pointing_dir
 
         #search parameters
         self.dm_min           = dm_min
@@ -107,12 +106,20 @@ class search_options_class:
                 self.n_omp_threads = 8
         else:
             self.n_omp_threads = n_omp_threads
+    
+    #Set up variables that need to be editted
     def getTable(self):
         return self._table
     def setTable(self, value):
         self._table = value
     table = property(getTable, setTable)
-
+    
+    def getPdir(self):
+        return self._pointing_dir
+    def setPdir(self, value):
+        self._pointing_dir = value
+    pointing_dir = property(getPdir, setPdir)
+    
 
 def send_cmd_shell(cmd):
     output = subprocess.Popen(cmd, stdin=subprocess.PIPE,
@@ -314,8 +321,8 @@ def process_vcs_wrapper(search_opts, pointings,
             pulsar_list = pulsar_list_list[pn]
         if code_comment_in is not None:
             code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
-        search_opts.pointing_dir = '{0}/pointings/{1}'.format(search_opts.fits_dir_base,
-                                                              search_opts.pointing)
+        search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
+                                                              search_opts.pointing))
         
         search_opts.bsd_row_num = search_database.database_search_start(search_opts.obsid,
                                       search_opts.pointing, "{0}".format(code_comment))
@@ -458,20 +465,17 @@ def beamform(search_opts, pointing_list, code_comment=None,
             search_opts.sub_dir = '{0}/{1}'.format(search_opts.pointing, search_opts.obsid)
         else:
             search_opts.sub_dir = '{0}/{1}'.format(pulsar, search_opts.obsid)
-        search_opts.relaunch_script = "{0} -p {1} -s {2}".format(search_opts.relaunch_script_in, search_opts.pointing, search_opts.sub_dir)
+        search_opts.relaunch_script = "{0} -p {1} -s {2}".format(search_opts.relaunch_script_in,
+                                                      search_opts.pointing, search_opts.sub_dir)
 
         #fits dir parsing
         comp_config = config.load_config_file()
-        if search_opts.fits_dir_base is None:
-            search_opts.fits_dir_base = '{0}{1}/'.format(comp_config['base_product_dir'],
-                                                         search_opts.obsid)
         if search_opts.pointing_dir is None:
             if search_opts.incoh:
-                search_opts.pointing_dir = '{0}incoh/'.format(search_opts.fits_dir_base)
+                search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
             else:
-                search_opts.pointing_dir = '{0}pointings/{1}/'.format(search_opts.fits_dir_base,
-                                                                      search_opts.pointing)
-            product_dir = '{0}{1}'.format(comp_config['base_product_dir'], search_opts.obsid)
+                search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
+                                                                      search_opts.pointing))
         if search_opts.cold_storage_check:
             #Check if search_opts.pointing in cold storage
             try :
@@ -479,7 +483,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                         "/project/mwaops/nswainston/yogesh_low_DM_candiate/{0}_pointing.tar.gz".\
                         format(search_opts.pointing))
                 if exists_remote_check and len(pointing_list) > 1:
-                    print("The pointing is in cold storage so assumed it is analysised so not reprocessing")
+                    print("The pointing is in cold storage so assumed it is analysised "
+                          "so not reprocessing")
                     continue
             except:
                 print("Connection to cold storage failed. Will only check for local files")
@@ -491,7 +496,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
         unspliced_check = False
         searched_check = False
         missing_chan_list = []
-        searched_check = search_database.database_search_done_check(search_opts.obsid, search_opts.pointing)
+        searched_check = search_database.database_search_done_check(search_opts.obsid,
+                                                                    search_opts.pointing)
         if os.path.exists(search_opts.pointing_dir):
             #first check is there's already spliced files
             #does check if they have the same start time
@@ -1118,7 +1124,7 @@ def error_check(search_opts, bash_job=False,
                          vcstools_version="Error_on_purpose")
         else:
             print("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
-            print(ssearch_opts.end_cmd("{0} -m {1}".format(search_opts.relaunch_script, next_mode)))
+            print(send_cmd("{0} -m {1}".format(search_opts.relaunch_script, next_mode)))
     elif search_opts.attempt > 10:
         print("Still failing after 10 attempts. Exiting Here.")
     else:
@@ -1353,6 +1359,7 @@ if __name__ == "__main__":
 
     if args.pulsar and not args.pointing:
         #if no pointing given grab it from psrcat
+        import find_pulsar_in_obs as fpio
         temp = fpio.get_psrcat_ra_dec(pulsar_list=[args.pulsar])
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
