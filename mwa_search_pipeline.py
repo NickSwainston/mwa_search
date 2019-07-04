@@ -1183,6 +1183,10 @@ def presto_single_job(search_opts, dm_list_list):
                         'accelsearch_temp_database_file_{0}_{1}.csv\n'.format(
                              search_opts.attempt + 1, dmi))
 
+        #Remove accel files off ssd
+        commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
+                                                          search_opts.sub_dir)
+
         if processing_time > 43200:
             processing_time = 43200
         total_job_time_str = datetime.timedelta(seconds=processing_time) 
