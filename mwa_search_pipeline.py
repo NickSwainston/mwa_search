@@ -340,8 +340,7 @@ def process_vcs_wrapper(search_opts, pointings,
         search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
                                                               search_opts.pointing))
         
-        if search_opts.bsd_row_num is None:
-            search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
+        search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                       search_opts.pointing, "{0}".format(code_comment)))
         dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
     return
@@ -447,7 +446,8 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
 
 
 def beamform(search_opts, pointing_list, code_comment=None,
-             pulsar_list_list=None, vdif=False, summed=False):
+             pulsar_list_list=None, vdif=False, summed=False,
+             relaunch=False):
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     bsd_row_num_input = search_opts.bsd_row_num
 
@@ -1084,6 +1084,8 @@ def error_check(search_opts, bash_job=False,
         total_job_time = 24000
         next_mode = 't'
         cur_mode = 'p'
+        if hostname.startswith('john') or hostname.startswith('farnarkle'):
+            mem=2048
     elif search_opts.table == 'FFT':
         #n_omp_threads = 1 #fft is not parrelised
         if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -1199,6 +1201,16 @@ def error_check(search_opts, bash_job=False,
             commands.append(add_database_function())
         commands.append('cd {0}{1}/{2}'.format(search_opts.work_dir,
                                          search_opts.sub_dir, sub_sub_dir))
+
+        if hostname.startswith('john') or hostname.startswith('farnarkle'):
+            #If on Ozstar move tempo 2 files onto the SSD to make their frequent 
+            #reads and write faster
+            temp_mem = 1 #GB
+            commands.append('cp -r $TEMPO2 $JOBFS/tempo2')
+            commands.append('cp -r $TEMPO2_CLOCK_DIR $JOBFS/tempo2_clock_dir')
+            commands.append('export TEMPO2=$JOBFS/tempo2')
+            commands.append('export TEMPO2_CLOCK_DIR=$JOBFS/tempo2_clock_dir')
+
         for ei, er in enumerate(error_data):
             bash_commands.append('run "{0}" "{1}" "{2}" "{3}" "{4}"'.format(presto_command,
                                 er[1], search_opts.bsd_row_num, ei, (search_opts.attempt+1)))
@@ -1208,10 +1220,10 @@ def error_check(search_opts, bash_job=False,
                 #prepdata is very I/O heavy so on ozstar write to the SSDs then move it off
                 bash_commands.append('echo "Moving data off SSD onto {0}{1}/{2}"'.format(
                                      search_opts.work_dir, search_opts.sub_dir, sub_sub_dir))
-                bash_commands.append('time mv $JOBFS/* {0}{1}/{2}'.format(search_opts.work_dir,
+                bash_commands.append('time cp $JOBFS/* {0}{1}/{2}'.format(search_opts.work_dir,
                                                            search_opts.sub_dir, sub_sub_dir))
                 bash_commands.append('echo "Finished moving data off SSD"')
-                temp_mem = 50 #GB
+                temp_mem = 51 #GB
 
             # if next step will go over the expected time limit then create a new script
             if (processing_time + float(er[2])) > total_job_time:
@@ -1581,7 +1593,8 @@ if __name__ == "__main__":
         else:
             pulsar_list_list = [[args.pulsar]]
         beamform(search_opts, pointing_list, code_comment=code_comment,
-                 pulsar_list_list=pulsar_list_list, summed=summed)
+                 pulsar_list_list=pulsar_list_list, summed=summed,
+                 relaunch=args.relaunch)
     elif args.mode == "c":
         error_check(search_opts)
 
