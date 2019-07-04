@@ -35,8 +35,8 @@ DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
 
 class search_options_class:
     # Initializer / Instance Attributes
-    def __init__(self, obsid, 
-                 pointing=None, cal_id=None, begin=None, end=None, 
+    def __init__(self, obsid,
+                 pointing=None, cal_id=None, begin=None, end=None,
                  channels=None, incoh=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
                  dm_min=1, dm_max=250,
@@ -46,7 +46,7 @@ class search_options_class:
                  DI_dir=None, pointing_dir=None, n_omp_threads=None):
         hostname = socket.gethostname()
         comp_config = config.load_config_file()
-        
+
         #obs/beamforming options
         self.obsid    = obsid
         self._pointing = pointing
@@ -92,7 +92,7 @@ class search_options_class:
         self.search             = search
         self._bsd_row_num        = bsd_row_num
         self.cold_storage_check = cold_storage_check
-        self._table              = table 
+        self._table              = table
         self.attempt            = attempt
 
         #job options
@@ -106,20 +106,20 @@ class search_options_class:
                 self.n_omp_threads = 8
         else:
             self.n_omp_threads = n_omp_threads
-    
+
     #Set up variables that need to be editted
     def getTable(self):
         return self._table
     def setTable(self, value):
         self._table = value
     table = property(getTable, setTable)
-    
+
     def getBRN(self):
         return self._bsd_row_num
     def setBRN(self, value):
         self._bsd_row_num = value
     bsd_row_num = property(getBRN, setBRN)
-    
+
     def getPdir(self):
         return self._pointing_dir
     def setPdir(self, value):
@@ -281,7 +281,7 @@ def get_pulsar_dm_p(pulsar):
             p = columns[1]
     return [dm, p]
 
-def process_vcs_wrapper(search_opts, pointings, 
+def process_vcs_wrapper(search_opts, pointings,
                         nice=100, pulsar_list_list=None,
                         vdif=False, summed=False,
                         code_comment=None, pointing_id=None):
@@ -306,7 +306,7 @@ def process_vcs_wrapper(search_opts, pointings,
         bf_formats += " -u"
     if summed:
         bf_formats += " -s"
-    
+
     #set up and launch beamfroming
     comp_config = config.load_config_file()
     data_dir = '{0}{1}'.format(comp_config['base_data_dir'], search_opts.obsid)
@@ -339,10 +339,10 @@ def process_vcs_wrapper(search_opts, pointings,
             code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
         search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
                                                               search_opts.pointing))
-        
+
         search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                       search_opts.pointing, "{0}".format(code_comment)))
-        dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
+        dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
     return
 
 
@@ -382,7 +382,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
         commands.append('cd {0}'.format(search_opts.pointing_dir))
         for pulsar in pulsar_list:
             #load presto module here because it uses python 2
-            commands.append('echo "Folding on known pulsar"'.format(pulsar))
+            commands.append('echo "Folding on known pulsar {0}"'.format(pulsar))
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
             commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
             commands.append("prepfold -o {0} -noxwin -runavg -noclip -timing {1}.eph -nsub 256 "
@@ -453,7 +453,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
-    code_comment_in = code_comment
     search_opts.relaunch_script_in = search_opts.relaunch_script
     for n, line in enumerate(pointing_list):
         if line.startswith("#"):
@@ -504,9 +503,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                     print("The pointing is in cold storage so assumed it is analysised "
                           "so not reprocessing")
                     continue
-            except:
+            except Exception('SSH failed'):
                 print("Connection to cold storage failed. Will only check for local files")
-                pass
 
         #Go through some file checks (true is something is missing)
         path_check = False
@@ -627,11 +625,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
         if ( n + 1 == len(pointing_list) and len(pointings_to_beamform) != 0 )\
             or len(pointings_to_beamform) == 15:
             #Send of beamforming job at the end or the loop or when you have 15 pointings
-            if 'pointings' in search_opts.pointing_dir:
-                fits_base_dir = "{0}pointings/".format(search_opts.pointing_dir.split('pointings')[0])
-            else:
-                fits_base_dir = "{0}incoh/".format(search_opts.pointing_dir.split('incoh')[0])
-            # list of search_opts.pointing ids, always 1 for single search_opts.pointings and 
+            # list of search_opts.pointing ids, always 1 for single search_opts.pointings and
             # will be relivant to the line number of search_opts.pointing files
             pointing_id = []
             for point in pointings_to_beamform:
@@ -727,7 +721,7 @@ def prepdata(search_opts):
         os.mkdir("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
     if not os.path.exists("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir)):
         os.mkdir("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir))
-    
+
     os.chdir(search_opts.work_dir + search_opts.sub_dir)
 
     if not os.path.exists("{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir)):
@@ -839,8 +833,6 @@ def sort_fft(search_opts):
 
     DIR=search_opts.work_dir + search_opts.sub_dir
     os.chdir(DIR)
-    all_files = os.listdir(DIR+ "/")
-
 
     #Set up jobs on database
     expe_proc_time = 180. #giving it a generous 60 seconds as these jobs don't take long at all
@@ -848,17 +840,6 @@ def sort_fft(search_opts):
     dat_files = glob.glob(search_opts.work_dir + search_opts.sub_dir + "/*dat")
     dat_files.sort()
 
-    """
-    fft_command = ''
-    for fi, dat in enumerate(dat_files):
-        fft_command += ' ' + str(dat.split("/")[-1])
-        if fi%16 == 15:
-            #only 16 ffts can be done at once
-            commands_list.append(fft_command)
-            fft_command = ''
-    if fi%16 != 15:
-        commands_list.append(fft_command)
-    """
     for dat in dat_files:
         commands_list.append(dat.split("/")[-1])
     search_database.database_script_list(search_opts.bsd_row_num, 'realfft', commands_list,
@@ -911,17 +892,13 @@ def accel(search_opts):
 
 #-------------------------------------------------------------------------------------------------------------
 def fold(search_opts):
-    from math import floor
-
-    comp_config = config.load_config_file()
-
+    
     DIR=search_opts.work_dir + str(search_opts.sub_dir)
     os.chdir(DIR)
     if not os.path.exists("presto_profiles"):
         os.mkdir("presto_profiles")
 
     #run accel_sift.py to find candidates with DM structure
-    submit_line = 'ACCEL_sift.py {0}/'.format(search_opts.sub_dir)
     file_loc = '{0}cand_files/cands_{1}.txt'.format(search_opts.work_dir,
                                         search_opts.sub_dir.replace("/","_"))
 
@@ -948,6 +925,7 @@ def fold(search_opts):
                             cand_list.append([f,l[0],l[1],f[13:-8],l[5]])
     else:
         os.chdir(search_opts.work_dir)
+        #This is now done in it's own batch script
         #print("Removing Candidates without DM structure using ACCEL_sift.py")
         #print(submit_line)
         #submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
@@ -968,7 +946,7 @@ def fold(search_opts):
             print("Exiting here")
             exit()
         os.chdir(DIR + "/presto_profiles")
-    
+
     #Uses the mask if it's available
     if os.path.exists('{0}rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir, search_opts.obsid)):
         mask_command = ' -mask {0}rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir,
@@ -986,7 +964,7 @@ def fold(search_opts):
         cand_list.sort(key=itemgetter(3))
         print("Number of cands in this file: " + str(len(cand_list)))
 
-        for i,c in enumerate(cand_list):
+        for c in cand_list:
             accel_file_name, cand_num, SN, cand_DM, period = c
             #through some stuffing around sort the fold into 100 folds per job
             #the fold option using .dat files which is quicker but inaccurate
@@ -1075,7 +1053,7 @@ def error_check(search_opts, bash_job=False,
     """
     comp_config = config.load_config_file()
     hostname = socket.gethostname()
-    
+
     sub_sub_dir = ''
     threads = True
     bash_job = False
@@ -1120,7 +1098,7 @@ def error_check(search_opts, bash_job=False,
         if cur_mode == 'a':
             # changing to python 2 to use ACCELsift
             print('Ssearch_opts.ending off job to run to run ACCELsift')
-            
+
             module_list = []
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
                 # on ozstar so use their modules
@@ -1135,7 +1113,7 @@ def error_check(search_opts, bash_job=False,
                 module_list.append('python/2.7.14')
                 module_list.append('numpy')
                 module_list.append('presto')
-            
+
             #find ACCEL_sift path
             import shutil
             accel_sift = shutil.which("ACCEL_sift.py")
@@ -1203,7 +1181,7 @@ def error_check(search_opts, bash_job=False,
                                          search_opts.sub_dir, sub_sub_dir))
 
         if hostname.startswith('john') or hostname.startswith('farnarkle'):
-            #If on Ozstar move tempo 2 files onto the SSD to make their frequent 
+            #If on Ozstar move tempo 2 files onto the SSD to make their frequent
             #reads and write faster
             temp_mem = 1 #GB
             commands.append('cp -r $TEMPO2 $JOBFS/tempo2')
@@ -1293,7 +1271,7 @@ def error_check(search_opts, bash_job=False,
                      slurm_kwargs={"time": total_job_time_str ,
                                    "nice":"90"},#4 hours
                      module_list=['mwa_search/{}'.format(search_opts.search_ver)],
-                     cpu_threads=search_opts.n_omp_threads, submit=True, 
+                     cpu_threads=search_opts.n_omp_threads, submit=True,
                      mem=mem, temp_mem=temp_mem)
             job_id_list.append(job_id)
 
@@ -1326,7 +1304,7 @@ if __name__ == "__main__":
                      INFO=logging.INFO,
                      WARNING=logging.WARNING)
     parser = argparse.ArgumentParser(description="""
-    Used to automate mass beamforming of MWA data and pulsar searches using the 
+    Used to automate mass beamforming of MWA data and pulsar searches using the
     galaxy supercomputer (Ozstar coming soon).
     """, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-o', '--observation', type=str,
@@ -1357,7 +1335,7 @@ if __name__ == "__main__":
         help="Directory containing either Direction Independent Jones Matrices "
              "(as created by the RTS) or calibration_solution.bin as created by "
              "Andre Offringa's tools.[no default]")
-    beamform_options.add_argument('-O', '--cal_obs', type=int, 
+    beamform_options.add_argument('-O', '--cal_obs', type=int,
         help="Observation ID of calibrator you want to process. Used to work out "
              "default DI_dir directory.")
     beamform_options.add_argument("-b", "--begin", type=int,
@@ -1407,7 +1385,7 @@ if __name__ == "__main__":
 "c" Check script that runs after each step to make sure no jobs have failed.'''))
     search_options.add_argument("--table", type=str,
         help="The table name for the search database to check, similar to the commands used.")
-    search_options.add_argument("--csc", action="store_true", 
+    search_options.add_argument("--csc", action="store_true",
         help="If option used will check if the pointing is being stored in Galaxy's "
              "cold storage HSM.")
     args=parser.parse_args()
@@ -1541,12 +1519,12 @@ if __name__ == "__main__":
             relaunch_script +=  " {0}".format(ch)
     if args.cal_obs:
         relaunch_script +=  " -O " + str(args.cal_obs)
-                
+
 
     search_opts = search_options_class(obsid, pointing=pointing, cal_id=args.cal_obs,
                  begin=args.begin, end=args.end, channels=args.channels, incoh=args.incoh,
                  args=args, work_dir=work_dir, sub_dir=sub_dir, fits_dir_base=fits_dir_base,
-                 pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max, 
+                 pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max,
                  relaunch_script=relaunch_script, search=args.search,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
                  table=args.table, attempt=args.attempt, search_ver=args.mwa_search_version,
@@ -1557,7 +1535,7 @@ if __name__ == "__main__":
         if args.pulsar_file:
             with open(args.pulsar_file) as f:
                 pointing_list_raw = f.readlines()
-            #remove \n 
+            #remove \n
             pointing_list = []
             for point in pointing_list_raw:
                 pointing_list.append(point.strip())
@@ -1580,7 +1558,7 @@ if __name__ == "__main__":
             code_comment = None
         if args.pulsar_file and code_comment is not None:
             code_comment += " (using: {0}) ".format(args.pulsar_file)
-        
+
         if args.search:
             #if searching use summed polarisation mode to save on psrfits data size
             summed=True
