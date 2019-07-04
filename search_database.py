@@ -225,10 +225,12 @@ def database_mass_update(table,file_location):
                         tot_er = int(bs_columns['TotalErrors']) + 1
                         job_er = int(bs_columns[table+'Errors']) + 1
 
-                        cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (end_time, errorcode, rownum, attempt_num, bs_id))
+                        cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND "
+                                    "AttemptNum=? AND BSID=?".format(table),
+                                    (end_time, errorcode, rownum, attempt_num, bs_id))
                             
-                        cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
-                                    (tot_er,job_er, bs_id))
+                        cur.execute("UPDATE PulsarSearch SET TotalErrors=?, {0}Errors=? "
+                                    "WHERE Rownum=?".format(table), (tot_er,job_er, bs_id))
     return
 
 

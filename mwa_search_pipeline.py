@@ -805,9 +805,10 @@ def prepdata(search_opts):
             commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
                 mask_command, nsub, dm_line[2], dms_per_job, numout, SSD_file_dir,
-                earch_opts.bsid, search_opts.pointing_dir))
-            dm_list_list.append(np.around(np.arange(dm_start, dm_start + dms_per_job * dm_line[2], 
-                                          dm_line[2]), decimals=2))
+                search_opts.obsid, search_opts.pointing_dir))
+            dm_list_list.append(np.around(np.arange(float(dm_start),
+                                          float(dm_start) + float(dms_per_job) * float(dm_line[2]), 
+                                          float(dm_line[2])), decimals=2))
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
@@ -815,8 +816,9 @@ def prepdata(search_opts):
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
                 mask_command, nsub, dm_line[2], steps, numout, SSD_file_dir,
                 search_opts.obsid, search_opts.pointing_dir))
-        dm_list_list.append(np.around(np.arange(dm_start, dm_start + steps * dm_line[2], 
-                                      dm_line[2]), decimals=2))
+        dm_list_list.append(np.around(np.arange(float(dm_start),
+                                      float(dm_start) + float(steps) * float(dm_line[2]),
+                                      float(dm_line[2])), decimals=2))
             
     #Puts all the expected jobs on the databse
     #search_database_script_id_list
@@ -1140,9 +1142,9 @@ def presto_single_job(search_opts, dm_list_list):
         dat_range = range(dat_start, dat_start + dat_num)
             
         #make the fft bash file
-        with open('{0}{1}/{2}_fft_a{3}.bash'.format(search_opts.work_dir,
+        with open('{0}{1}/{2}_fft_a{3}_{4}.bash'.format(search_opts.work_dir,
                   search_opts.sub_dir, search_opts.bsd_row_num,
-                  search_opts.attempt+1), "w") as srun_bash:
+                  search_opts.attempt+1, dmi), "w") as srun_bash:
             srun_bash.write(add_temp_database_function(dmi,
                             search_opts.attempt + 1,
                             n_omp_threads=1))
@@ -1153,16 +1155,16 @@ def presto_single_job(search_opts, dm_list_list):
                                  ffti, search_opts.attempt+1))
                 processing_time += command_fft[2]
 
-        commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}.bash".\
-                        format(search_opts.bsd_row_num, search_opts.attempt+1))
+        commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}_{2}.bash".\
+                        format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
         commands.append('search_database.py -c realfft -m m --file_location '
                         'realfft_temp_database_file_{0}_{1}.csv\n'.format(
                              search_opts.attempt + 1, dmi))
 
         #make the accel bash file
-        with open('{0}{1}/{2}_accel_a{3}.bash'.format(search_opts.work_dir,
+        with open('{0}{1}/{2}_accel_a{3}_{4}.bash'.format(search_opts.work_dir,
                   search_opts.sub_dir, search_opts.bsd_row_num,
-                  search_opts.attempt+1), "w") as srun_bash:
+                  search_opts.attempt+1, dmi), "w") as srun_bash:
             srun_bash.write(add_temp_database_function(dmi,
                             search_opts.attempt + 1,
                             n_omp_threads=search_opts.n_omp_threads))
@@ -1174,9 +1176,9 @@ def presto_single_job(search_opts, dm_list_list):
                 processing_time += command_accel[2]
 
 
-        commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}.bash".\
+        commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
                         format(search_opts.n_omp_threads, search_opts.bsd_row_num,
-                               search_opts.attempt+1))
+                               search_opts.attempt+1, dmi))
         commands.append('search_database.py -c accelsearch -m m --file_location '
                         'accelsearch_temp_database_file_{0}_{1}.csv\n'.format(
                              search_opts.attempt + 1, dmi))
