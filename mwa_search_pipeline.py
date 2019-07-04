@@ -9,6 +9,7 @@ import glob
 from time import sleep
 import datetime
 import socket
+import numpy as np
 
 #vcstools imports
 import search_database
@@ -100,12 +101,12 @@ class search_options_class:
         if n_omp_threads is None:
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
                 #on ozstar use single core jobs
-                self.n_omp_threads = 1
+                self._n_omp_threads = 1
             else:
                 #on galaxy use all 8 cores because can't split them up
-                self.n_omp_threads = 8
+                self._n_omp_threads = 8
         else:
-            self.n_omp_threads = n_omp_threads
+            self._n_omp_threads = n_omp_threads
 
     #Set up variables that need to be editted
     def getTable(self):
@@ -131,6 +132,13 @@ class search_options_class:
     def setPoint(self, value):
         self._pointing = value
     pointing = property(getPoint, setPoint)
+    
+    def getNOT(self):
+        return self._n_omp_threads
+    def setNOT(self, value):
+        self._n_omp_threads = value
+    n_omp_threads = property(getNOT, setNOT)
+
 
 def send_cmd_shell(cmd):
     output = subprocess.Popen(cmd, stdin=subprocess.PIPE,
@@ -218,7 +226,7 @@ def add_database_function():
     return batch_line
 
 
-def add_temp_database_function(job_num, attempt_num, n_omp_threads=1, threads=True):
+def add_temp_database_function(job_num, attempt_num, n_omp_threads=1):
     #srun removed because all quick jobs are run with a single srun command within a bash script
 
     batch_line ='function run\n' +\
@@ -616,10 +624,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
             for fr in glob.glob(search_opts.pointing_dir+"*_"+search_opts.obsid+"_*.fits"):
                 os.remove(fr)
 
-            #Ssearch_opts.ending off the splice wrapper just for the folding
+            #Sending off the splice wrapper just for the folding
             #splice_wrapper should fail
-            if pulsar_list is not None:
-                dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
+            #if pulsar_list is not None:
+            #    dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
 
 
         if ( n + 1 == len(pointing_list) and len(pointings_to_beamform) != 0 )\
@@ -770,7 +778,7 @@ def prepdata(search_opts):
     expe_proc_time = 3.*10**11 / numout
     dm_list.sort()
     print(dm_list)
-
+    dm_list_list = [] # a range of DMs for each prepsubband command
 
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -798,6 +806,8 @@ def prepdata(search_opts):
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
                 mask_command, nsub, dm_line[2], dms_per_job, numout, SSD_file_dir,
                 earch_opts.bsid, search_opts.pointing_dir))
+            dm_list_list.append(np.around(np.arange(dm_start, dm_start + dms_per_job * dm_line[2], 
+                                          dm_line[2]), decimals=2))
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
@@ -805,7 +815,9 @@ def prepdata(search_opts):
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
                 mask_command, nsub, dm_line[2], steps, numout, SSD_file_dir,
                 search_opts.obsid, search_opts.pointing_dir))
-
+        dm_list_list.append(np.around(np.arange(dm_start, dm_start + steps * dm_line[2], 
+                                      dm_line[2]), decimals=2))
+            
     #Puts all the expected jobs on the databse
     #search_database_script_id_list
     search_database.database_script_list(search_opts.bsd_row_num, 'prepsubband', commands_list,
@@ -816,11 +828,18 @@ def prepdata(search_opts):
 
 
     search_opts.setTable('Prepdata')
-    error_check(search_opts, bash_job=True, total_job_time=7200)
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        #It is more efficient on ozstar to use their SSDs for the intermediate files
+        #such as .dat and fft files so the PRESTO commands must be run in series in a 
+        #single job
+        sort_fft(search_opts, dm_list_list=dm_list_list)
+    else:
+        error_check(search_opts, bash_job=True, total_job_time=7200)
     return
 
 #-------------------------------------------------------------------------------------------------------------
-def sort_fft(search_opts):
+def sort_fft(search_opts, dm_list_list=None):
 
     comp_config = config.load_config_file()
 
@@ -834,27 +853,44 @@ def sort_fft(search_opts):
     DIR=search_opts.work_dir + search_opts.sub_dir
     os.chdir(DIR)
 
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        #If on ozstar use their SSD to improve I/O
+        SSD_file_dir = '$JOBFS/'
+    else:
+        SSD_file_dir = ''
     #Set up jobs on database
     expe_proc_time = 180. #giving it a generous 60 seconds as these jobs don't take long at all
     commands_list = []
-    dat_files = glob.glob(search_opts.work_dir + search_opts.sub_dir + "/*dat")
-    dat_files.sort()
-
-    for dat in dat_files:
-        commands_list.append(dat.split("/")[-1])
+    if dm_list_list is None:
+        dat_files = glob.glob(search_opts.work_dir + search_opts.sub_dir + "/*dat")
+        dat_files.sort()
+        for dat in dat_files:
+            commands_list.append(dat.split("/")[-1])
+    else:
+        #no files yet in single job methog
+        dm_list = []
+        for dml in dm_list_list:
+            dm_list.extend(dml)
+        for dm in dm_list:
+            commands_list.append("{0}{1}_DM{2:.2f}.dat".format(SSD_file_dir, search_opts.obsid, dm))
     search_database.database_script_list(search_opts.bsd_row_num, 'realfft', commands_list,
                                  search_opts.n_omp_threads, expe_proc_time)
 
-    #Ssearch_opts.end off jobs
+    #Send off jobs
     search_opts.setTable('FFT')
-    error_check(search_opts, bash_job=True, total_job_time=3600)
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        accel(search_opts, dm_list_list=dm_list_list)
+    else:
+        error_check(search_opts, bash_job=True, total_job_time=3600)
 
     print("Sent off fft jobs")
     return
 
 
 #-------------------------------------------------------------------------------------------------------------
-def accel(search_opts):
+def accel(search_opts, dm_list_list=None):
 
     os.chdir(search_opts.work_dir + search_opts.sub_dir)
 
@@ -870,9 +906,25 @@ def accel(search_opts):
 
     #For initial search we will save processing by not doing an acceleration search
     max_search_accel = 0
-
-    dir_files = glob.glob("*fft")
+    
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        #If on ozstar use their SSD to improve I/O
+        SSD_file_dir = '$JOBFS/'
+    else:
+        SSD_file_dir = ''
+    
     commands_list = []
+    if dm_list_list is None:
+        dir_files = glob.glob("*fft")
+    else:
+        dm_list  = []
+        dir_files = []
+        for dml in dm_list_list:
+            dm_list.extend(dml)
+        for dm in dm_list:
+            dir_files.append("{0}{1}_DM{2:.2f}.fft".format(SSD_file_dir, search_opts.obsid, dm))
+
     for fft_file in dir_files:
         #calc processing time
         expe_proc_time = 300.
@@ -884,8 +936,11 @@ def accel(search_opts):
                                  search_opts.n_omp_threads, expe_proc_time)
 
     #Ssearch_opts.end off jobs
-    search_opts.setTable('Accel')
-    error_check(search_opts, bash_job=True)
+    if dm_list_list is None:
+        search_opts.setTable('Accel')
+        error_check(search_opts, bash_job=True)
+    else:
+        presto_single_job(search_opts, dm_list_list)
 
     print("Sent off accel jobs")
     return
@@ -1044,6 +1099,122 @@ def wrap_up(search_opts):
                  submit=True, module_list=['mwa_search/{}'.format(search_opts.search_ver)])
     return
 
+def presto_single_job(search_opts, dm_list_list):
+    """
+    A simpler version of error_check() that sends off prepsubband, fft and accelsearch
+    commands one after the other to take advantage of Ozstars SSDs 
+    """
+    job_id_list = []
+    #get job commands
+    prepsub_commands = search_database.database_script_check('Prepdata', search_opts.bsd_row_num, 1)
+    fft_commands     = search_database.database_script_check('FFT',      search_opts.bsd_row_num, 1)
+    accel_commands   = search_database.database_script_check('Accel',    search_opts.bsd_row_num, 1)
+
+    temp_mem = 60 #GB
+        
+    dat_start = 0 #id of the first file to use dat/fft
+    for dmi, command_data in enumerate(prepsub_commands):
+        processing_time = 0.0
+        check_batch = "{0}_presto_a{1}_{2}".format(search_opts.bsd_row_num,
+                                        search_opts.attempt+1, dmi)
+        commands = []
+        bash_commands = []
+
+        commands.append(add_database_function())
+        commands.append('cp -r $TEMPO2 $JOBFS/tempo2')
+        commands.append('cp -r $TEMPO2_CLOCK_DIR $JOBFS/tempo2_clock_dir')
+        commands.append('export TEMPO2=$JOBFS/tempo2')
+        commands.append('export TEMPO2_CLOCK_DIR=$JOBFS/tempo2_clock_dir')
+        commands.append('cd {0}{1}/'.format(search_opts.work_dir,
+                                               search_opts.sub_dir))
+        commands.append('')
+        
+        #add prepsubband command
+        commands.append('run "{0}" "{1}" "{2}" "{3}" "{4}"'.format(command_data[0],
+                             command_data[1], search_opts.bsd_row_num, dmi,
+                             search_opts.attempt+1))
+        processing_time += float(command_data[2])
+        
+        #work out the DMs of the commands to add
+        dat_num = len(dm_list_list[dmi])
+        dat_range = range(dat_start, dat_start + dat_num)
+            
+        #make the fft bash file
+        with open('{0}{1}/{2}_fft_a{3}.bash'.format(search_opts.work_dir,
+                  search_opts.sub_dir, search_opts.bsd_row_num,
+                  search_opts.attempt+1), "w") as srun_bash:
+            srun_bash.write(add_temp_database_function(dmi,
+                            search_opts.attempt + 1,
+                            n_omp_threads=1))
+            for ffti in dat_range:
+                command_fft = fft_commands[ffti]
+                srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
+                                 command_fft[0], command_fft[1], search_opts.bsd_row_num,
+                                 ffti, search_opts.attempt+1))
+                processing_time += command_fft[2]
+
+        commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}.bash".\
+                        format(search_opts.bsd_row_num, search_opts.attempt+1))
+        commands.append('search_database.py -c realfft -m m --file_location '
+                        'realfft_temp_database_file_{0}_{1}.csv\n'.format(
+                             search_opts.attempt + 1, dmi))
+
+        #make the accel bash file
+        with open('{0}{1}/{2}_accel_a{3}.bash'.format(search_opts.work_dir,
+                  search_opts.sub_dir, search_opts.bsd_row_num,
+                  search_opts.attempt+1), "w") as srun_bash:
+            srun_bash.write(add_temp_database_function(dmi,
+                            search_opts.attempt + 1,
+                            n_omp_threads=search_opts.n_omp_threads))
+            for ai in dat_range:
+                command_accel = accel_commands[ai]
+                srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
+                                 command_accel[0], command_accel[1], search_opts.bsd_row_num,
+                                 ai, search_opts.attempt+1))
+                processing_time += command_accel[2]
+
+
+        commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}.bash".\
+                        format(search_opts.n_omp_threads, search_opts.bsd_row_num,
+                               search_opts.attempt+1))
+        commands.append('search_database.py -c accelsearch -m m --file_location '
+                        'accelsearch_temp_database_file_{0}_{1}.csv\n'.format(
+                             search_opts.attempt + 1, dmi))
+
+        if processing_time > 43200:
+            processing_time = 43200
+        total_job_time_str = datetime.timedelta(seconds=processing_time) 
+        job_id = submit_slurm(check_batch, commands,
+                 batch_dir="{0}{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
+                 slurm_kwargs={"time": total_job_time_str},
+                 module_list=['mwa_search/{}'.format(search_opts.search_ver),
+                              'tempo2/278e129', 'tempo2_clock/2019-03-21'],
+                 submit=True, cpu_threads=search_opts.n_omp_threads,
+                 mem=2048, temp_mem=temp_mem)
+        job_id_list.append(job_id)
+
+        dat_start += dat_num
+
+
+    #Dependancy job
+    print("Waiting 5 sec to make sure to the dependancy script works")
+    sleep(5)
+
+    check_depend_batch = '{0}_dep_presto_a{1}'.format(search_opts.bsd_row_num,
+                                                      search_opts.attempt +1)
+    commands = []
+    commands.append("{0} --attempt {1} -m c --table Accel".format(search_opts.relaunch_script,
+                                                                  search_opts.attempt + 1))
+
+    submit_slurm(check_depend_batch, commands,
+                 batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
+                 slurm_kwargs={"time": "20:00",
+                               "nice":"90"},
+                 submit=True, depend=job_id_list, depend_type="afterany",
+                 module_list=['mwa_search/{}'.format(search_opts.search_ver)],
+                 cpu_threads=search_opts.n_omp_threads)
+
+    return
 
 def error_check(search_opts, bash_job=False,
                 mem=1024, total_job_time=18000.):
@@ -1055,7 +1226,6 @@ def error_check(search_opts, bash_job=False,
     hostname = socket.gethostname()
 
     sub_sub_dir = ''
-    threads = True
     bash_job = False
     temp_mem = None
     if search_opts.table == 'Prepdata':
@@ -1063,14 +1233,13 @@ def error_check(search_opts, bash_job=False,
         next_mode = 't'
         cur_mode = 'p'
         if hostname.startswith('john') or hostname.startswith('farnarkle'):
-            mem=2048
+            mem = 2048
     elif search_opts.table == 'FFT':
-        #n_omp_threads = 1 #fft is not parrelised
+        search_opts.setNOT(1) #fft is not parrelised
         if hostname.startswith('john') or hostname.startswith('farnarkle'):
             #fft needs more memory, only need to change on ozstar
-            mem=2048
+            mem = 2048
         total_job_time = 6000
-        threads = False
         bash_job = True
         next_mode = 'a'
         cur_mode = 't'
@@ -1097,7 +1266,7 @@ def error_check(search_opts, bash_job=False,
         print("No incomplete jobs, moving on to next part of the pipeline")
         if cur_mode == 'a':
             # changing to python 2 to use ACCELsift
-            print('Ssearch_opts.ending off job to run to run ACCELsift')
+            print('Sending off job to run to run ACCELsift')
 
             module_list = []
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -1122,16 +1291,9 @@ def error_check(search_opts, bash_job=False,
             commands.append('cd {0}'.format(search_opts.work_dir))
             commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
                                                                       search_opts.sub_dir))
-            #commands.append('module purge')
             commands.append('module use {}'.format(comp_config['module_dir']))
-            #commands.append('module unload python')
-            #commands.append('module load vcstools/master')
             if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
                 # If on galaxy it sometimes needs the python version explictedly stated
-                #commands.append('PYTHON_VERSION=3.6.3')
-                #commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
-                #commands.append('module unload subprocess32')
-                #commands.append('module load subprocess32')
                 commands.append('module unload matplotlib')
                 commands.append('module unload numpy')
                 commands.append('module unload presto')
@@ -1211,8 +1373,7 @@ def error_check(search_opts, bash_job=False,
                               search_opts.sub_dir, check_batch), "w") as srun_bash:
                         srun_bash.write(add_temp_database_function(check_job_num,
                                         search_opts.attempt + 1,
-                                        n_omp_threads=search_opts.n_omp_threads,
-                                        threads=threads))
+                                        n_omp_threads=search_opts.n_omp_threads))
                         for sc in bash_commands:
                             srun_bash.write("{}\n".format(sc))
 
@@ -1253,8 +1414,7 @@ def error_check(search_opts, bash_job=False,
                           search_opts.sub_dir, check_batch), "w") as srun_bash:
                     srun_bash.write(add_temp_database_function(check_job_num,
                                     search_opts.attempt + 1,
-                                    n_omp_threads=search_opts.n_omp_threads,
-                                    threads=threads))
+                                    n_omp_threads=search_opts.n_omp_threads))
                     for sc in bash_commands:
                         srun_bash.write("{}\n".format(sc))
 
