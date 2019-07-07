@@ -40,10 +40,10 @@ class search_options_class:
                  pointing=None, cal_id=None, begin=None, end=None,
                  channels=None, incoh=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
-                 dm_min=1, dm_max=250,
+                 dm_min=0, dm_max=250,
                  relaunch_script=None, search=False, bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
-                 search_ver='master',
+                 nice=None, search_ver='master',
                  DI_dir=None, pointing_dir=None, n_omp_threads=None):
         hostname = socket.gethostname()
         comp_config = config.load_config_file()
@@ -97,6 +97,13 @@ class search_options_class:
         self.attempt            = attempt
 
         #job options
+        if nice is None:
+             if hostname.startswith('john') or hostname.startswith('farnarkle'):
+                 self.nice = 0
+             else:
+                 self.nice = 100
+        else:
+            self.nice = nice
         self.search_ver = search_ver
         if n_omp_threads is None:
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -256,6 +263,9 @@ def numout_calc(fits_dir, obsid):
     Find the number of time samples of all fits files in the given directory
     """
     dirlist = glob.glob("{0}/{1}_*.fits".format(fits_dir, obsid))
+    if not dirlist:
+        print("ERROR. No files in {0}/{1}_*.fits".format(fits_dir, obsid))
+        exit()
     numout = 0
     for d in dirlist:
         submit_line = 'readfile ' + d
@@ -290,7 +300,7 @@ def get_pulsar_dm_p(pulsar):
     return [dm, p]
 
 def process_vcs_wrapper(search_opts, pointings,
-                        nice=100, pulsar_list_list=None,
+                        pulsar_list_list=None,
                         vdif=False, summed=False,
                         code_comment=None, pointing_id=None):
     """
@@ -322,35 +332,36 @@ def process_vcs_wrapper(search_opts, pointings,
     rts_flag_file = '{0}/cal/{1}/rts/flagged_tiles.txt'.\
                      format(search_opts.fits_dir_base, search_opts.cal_id)
     if not os.path.exists(rts_flag_file):
-        print('RTS flag file is not in the default location of: '+\
+        print('RTS flag file is not in the default location of: '
               '{} please move it there. Exiting'.format(rts_flag_file))
         exit()
     pvcs.ensure_metafits(data_dir, search_opts.obsid, metafits_dir)
-    job_id_list = pvcs.coherent_beam(search_opts.obsid, search_opts.begin, search_opts.end,
+    job_id_list_list = pvcs.coherent_beam(search_opts.obsid, search_opts.begin, search_opts.end,
                       data_dir, search_opts.fits_dir_base,
                       "{0}/batch".format(search_opts.fits_dir_base),
                       metafits_dir, 128, pointings, search_opts.args,
                       rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                       DI_dir=search_opts.DI_dir,
-                      calibration_type="rts", nice=nice,
+                      calibration_type="rts", nice=search_opts.nice,
                       vcstools_version="multi-pixel_beamform")
 
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     code_comment_in = code_comment
-    for pn, pointing in enumerate(pointings):
-        search_opts.setPoint(pointing)
-        if pulsar_list_list is None:
-            pulsar_list = None
-        else:
-            pulsar_list = pulsar_list_list[pn]
-        if code_comment_in is not None:
-            code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
-        search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
-                                                              search_opts.pointing))
+    for job_id_list in job_id_list_list:
+        for pn, pointing in enumerate(pointings):
+            search_opts.setPoint(pointing)
+            if pulsar_list_list is None:
+                pulsar_list = None
+            else:
+                pulsar_list = pulsar_list_list[pn]
+            if code_comment_in is not None:
+                code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
+            search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
+                                                                  search_opts.pointing))
 
-        search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
-                                      search_opts.pointing, "{0}".format(code_comment)))
-        dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
+            search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
+                                          search_opts.pointing, "{0}".format(code_comment)))
+            dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
     return
 
 
@@ -443,9 +454,8 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
         commands.append(search_opts.relaunch_script)
 
     submit_slurm(splice_wrapper_batch, commands,
-                 batch_dir=batch_dir,
-                 slurm_kwargs={"time": "5:00:00",
-                               "nice":"90"},
+                 batch_dir=batch_dir, nice=search_opts.nice,
+                 slurm_kwargs={"time": "5:00:00"},
                  module_list=['mwa_search/{}'.format(search_opts.search_ver),
                               'presto/no-python'],
                  submit=True, depend=job_id_list, depend_type='afterany',
@@ -459,6 +469,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     bsd_row_num_input = search_opts.bsd_row_num
 
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        max_pointing = 30
+    else:
+        max_pointing = 15
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
     search_opts.relaunch_script_in = search_opts.relaunch_script
@@ -467,15 +482,15 @@ def beamform(search_opts, pointing_list, code_comment=None,
             continue
         print("Checking pointing {0} out of {1}".format(n+1, len(pointing_list)))
         if search_opts.incoh:
-            search_opts.pointing = "incoh"
+            search_opts.setPoint("incoh")
         elif ':' not in line:
             #search_opts.pointing = search_opts.fits_dir_base.split("/")[-1]
-            search_opts.pointing = line
+            search_opts.setPoint(line)
         else:
             ra, dec = line.split(" ")
             if dec.endswith("\n"):
                 dec = dec[:-1]
-            search_opts.pointing = ra + "_" + dec
+            search_opts.setPoint(ra + "_" + dec)
 
         #pulsar check parsing
         if pulsar_list_list is None:
@@ -495,11 +510,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         #fits dir parsing
         comp_config = config.load_config_file()
-        if search_opts.pointing_dir is None:
-            if search_opts.incoh:
-                search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
-            else:
-                search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
+        if search_opts.incoh:
+            search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
+        else:
+            search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
                                                                search_opts.pointing))
         if search_opts.cold_storage_check:
             #Check if search_opts.pointing in cold storage
@@ -552,11 +566,12 @@ def beamform(search_opts, pointing_list, code_comment=None,
             path_check = True
 
 
-        if not (path_check or len(missing_chan_list) == 24) or \
+        if (not (path_check or len(missing_chan_list) == 24) or \
             (missing_file_check and not unspliced_check and search_opts.search) or \
-            search_opts.search and ((not searched_check and relaunch) or len(pointing_list) == 1):
+            search_opts.search and ((not searched_check and relaunch) or len(pointing_list) == 1) )\
+            and bsd_row_num_input is None:
                 search_opts.setBRN(search_database.database_search_start(obsid,
-                                      pointing, "{0} pn {1}".format(code_comment,n)))
+                                   search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
         else:
             search_opts.setBRN(bsd_row_num_input)
 
@@ -631,8 +646,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
 
         if ( n + 1 == len(pointing_list) and len(pointings_to_beamform) != 0 )\
-            or len(pointings_to_beamform) == 15:
-            #Send of beamforming job at the end or the loop or when you have 15 pointings
+            or len(pointings_to_beamform) == max_pointing:
+            #Send of beamforming job at the end or the loop or when you have 15 or 30 pointings
             # list of search_opts.pointing ids, always 1 for single search_opts.pointings and
             # will be relivant to the line number of search_opts.pointing files
             pointing_id = []
@@ -710,7 +725,8 @@ def rfifind(search_opts):
     submit_slurm(rfi_batch, commands,
                  batch_dir="{0}{1}/{2}/batch".format(search_opts.work_dir,
                                 search_opts.pointing, search_opts.obsid),
-                 slurm_kwargs={"time": "2:00:00", "nice":"90"}, mem=mem,
+                 slurm_kwargs={"time": "2:00:00"}, mem=mem,
+                 nice=search_opts.nice,
                  submit=True, module_list=[comp_config['presto_module']])
 
     return
@@ -804,7 +820,7 @@ def prepdata(search_opts):
             #dedisperse for only 1024 steps
             commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
-                mask_command, nsub, dm_line[2], dms_per_job, numout, SSD_file_dir,
+                mask_command, nsub, dm_line[2], dms_per_job+1, numout, SSD_file_dir,
                 search_opts.obsid, search_opts.pointing_dir))
             dm_list_list.append(np.around(np.arange(float(dm_start),
                                           float(dm_start) + float(dms_per_job) * float(dm_line[2]), 
@@ -814,7 +830,7 @@ def prepdata(search_opts):
         #last loop to get the <1024 steps
         commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
-                mask_command, nsub, dm_line[2], steps, numout, SSD_file_dir,
+                mask_command, nsub, dm_line[2], steps+1, numout, SSD_file_dir,
                 search_opts.obsid, search_opts.pointing_dir))
         dm_list_list.append(np.around(np.arange(float(dm_start),
                                       float(dm_start) + float(steps) * float(dm_line[2]),
@@ -959,7 +975,6 @@ def fold(search_opts):
     file_loc = '{0}cand_files/cands_{1}.txt'.format(search_opts.work_dir,
                                         search_opts.sub_dir.replace("/","_"))
 
-    print(search_opts.pointing_dir)
     #calcs sn_min for candidates
     numout = numout_calc(search_opts.pointing_dir, search_opts.obsid)
     from math import sqrt,log
@@ -1030,10 +1045,11 @@ def fold(search_opts):
             #           c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(search_opts.bsd_row_num)+'" "'+str(dm_i)+'"'
 
             #the fold options that uses .fits files which is slower but more accurate
-            commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} '
-                '-nosearch {5} {6}{7}_*.fits'.format(accel_file_name, cand_num,
-                search_opts.pointing, float(period)/1000., cand_DM, mask_command,
-                search_opts.pointing_dir, search_opts.obsid))
+            if float(cand_DM) > 1.:
+                commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} '
+                    '-nosearch {5} {6}{7}_*.fits'.format(accel_file_name, cand_num,
+                    search_opts.pointing, float(period)/1000., cand_DM, mask_command,
+                    search_opts.pointing_dir, search_opts.obsid))
     search_database.database_script_list(search_opts.bsd_row_num, 'prepfold', commands_list,
                                                   search_opts.n_omp_threads, expe_proc_time)
     if len(cand_list) > 0:
@@ -1096,8 +1112,7 @@ def wrap_up(search_opts):
                     format(search_opts.bsd_row_num))
     submit_slurm(wrap_batch, commands,
                  batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
-                 slurm_kwargs={"time": "2:50:00",
-                               "nice":"90"},#4 hours
+                 slurm_kwargs={"time": "2:50:00"}, nice=search_opts.nice,
                  submit=True, module_list=['mwa_search/{}'.format(search_opts.search_ver)])
     return
 
@@ -1112,7 +1127,7 @@ def presto_single_job(search_opts, dm_list_list):
     fft_commands     = search_database.database_script_check('FFT',      search_opts.bsd_row_num, 1)
     accel_commands   = search_database.database_script_check('Accel',    search_opts.bsd_row_num, 1)
 
-    temp_mem = 60 #GB
+    temp_mem = 100 #GB
         
     dat_start = 0 #id of the first file to use dat/fft
     for dmi, command_data in enumerate(prepsub_commands):
@@ -1154,7 +1169,6 @@ def presto_single_job(search_opts, dm_list_list):
                                  command_fft[0], command_fft[1], search_opts.bsd_row_num,
                                  ffti, search_opts.attempt+1))
                 processing_time += command_fft[2]
-
         commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}_{2}.bash".\
                         format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
         commands.append('search_database.py -c realfft -m m --file_location '
@@ -1185,11 +1199,13 @@ def presto_single_job(search_opts, dm_list_list):
 
         #Remove accel files off ssd
         commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
-                                                          search_opts.sub_dir)
+                                                          search_opts.sub_dir))
+        commands.append('cp $JOBFS/*inf {0}{1}'.format(search_opts.work_dir,
+                                                          search_opts.sub_dir))
 
         if processing_time > 43200:
             processing_time = 43200
-        total_job_time_str = datetime.timedelta(seconds=processing_time) 
+        total_job_time_str = datetime.timedelta(seconds=int(processing_time))
         job_id = submit_slurm(check_batch, commands,
                  batch_dir="{0}{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
                  slurm_kwargs={"time": total_job_time_str},
@@ -1214,8 +1230,7 @@ def presto_single_job(search_opts, dm_list_list):
 
     submit_slurm(check_depend_batch, commands,
                  batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
-                 slurm_kwargs={"time": "20:00",
-                               "nice":"90"},
+                 slurm_kwargs={"time": "20:00"}, nice=search_opts.nice,
                  submit=True, depend=job_id_list, depend_type="afterany",
                  module_list=['mwa_search/{}'.format(search_opts.search_ver)],
                  cpu_threads=search_opts.n_omp_threads)
@@ -1272,7 +1287,7 @@ def error_check(search_opts, bash_job=False,
         print("No incomplete jobs, moving on to next part of the pipeline")
         if cur_mode == 'a':
             # changing to python 2 to use ACCELsift
-            print('Sending off job to run to run ACCELsift')
+            print('Sending off job to run ACCELsift')
 
             module_list = []
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -1312,8 +1327,7 @@ def error_check(search_opts, bash_job=False,
             commands.append("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(search_opts.bsd_row_num), commands,
                          batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
-                         slurm_kwargs={"time": '59:00',
-                                       "nice":"90"},
+                         slurm_kwargs={"time": '59:00'}, nice=search_opts.nice,
                          module_list=module_list,
                          cpu_threads=1, mem=mem, submit=True,
                          vcstools_version="Error_on_purpose")
@@ -1393,8 +1407,8 @@ def error_check(search_opts, bash_job=False,
 
                 job_id = submit_slurm(check_batch, commands,
                          batch_dir="{0}{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
-                         slurm_kwargs={"time": total_job_time_str ,
-                                       "nice":"90"},#4 hours
+                         slurm_kwargs={"time": total_job_time_str},
+                         nice=search_opts.nice,
                          module_list=['mwa_search/{}'.format(search_opts.search_ver)],
                          submit=True, cpu_threads=search_opts.n_omp_threads,
                          mem=mem, temp_mem=temp_mem)
@@ -1434,8 +1448,8 @@ def error_check(search_opts, bash_job=False,
 
             job_id = submit_slurm(check_batch, commands,
                      batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
-                     slurm_kwargs={"time": total_job_time_str ,
-                                   "nice":"90"},#4 hours
+                     slurm_kwargs={"time": total_job_time_str},
+                     nice=search_opts.nice,
                      module_list=['mwa_search/{}'.format(search_opts.search_ver)],
                      cpu_threads=search_opts.n_omp_threads, submit=True,
                      mem=mem, temp_mem=temp_mem)
@@ -1453,8 +1467,8 @@ def error_check(search_opts, bash_job=False,
 
         submit_slurm(check_depend_batch, commands,
                      batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
-                     slurm_kwargs={"time": "20:00",
-                                   "nice":"90"},
+                     slurm_kwargs={"time": "20:00"},
+                     nice=search_opts.nice,
                      submit=True, depend=job_id_list, depend_type="afterany",
                      module_list=['mwa_search/{}'.format(search_opts.search_ver)],
                      cpu_threads=search_opts.n_omp_threads)
@@ -1514,7 +1528,7 @@ if __name__ == "__main__":
         help="The directory containing the fits files. Only required if the fits "
              "files aren't in the standard vcs location.")
 
-    search_options = parser.add_argument_group('Blindsearch Options')
+    search_options = parser.add_argument_group('Pulsar Search Options')
     search_options.add_argument("--search", action="store_true",
         help="Continue with the search pipeline after a successful beamforming "
              "check. Default False")
@@ -1532,7 +1546,7 @@ if __name__ == "__main__":
         help='Used by the program to keep track of the sub directory its using')
     search_options.add_argument('-r', '--bsd_row_num', type=int,
         help='Database row reference number for keeping track of the scripts.')
-    search_options.add_argument('--dm_min', type=float, default = 1.0,
+    search_options.add_argument('--dm_min', type=float, default = 0.0,
         help='DM max searched. Default 1')
     search_options.add_argument('--dm_max', type=float, default = 250.0,
         help='DM max searched. Default 250')
