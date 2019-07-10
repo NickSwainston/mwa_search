@@ -358,11 +358,22 @@ if __name__ == "__main__":
 
     #all_pointing parsing
     if (args.loop != 1) and args.all_pointings:
-        print("Can't use --loop and --all_poinitings as all_pointings calculates the loops required. Exiting.")
+        print("Can't use --loop and --all_poinitings as all_pointings calculates the "
+              "loops required. Exiting.")
         quit()
     if args.pointing and args.all_pointings:
-        print("Can't use --pointing and --all_poinntings as --all_pointings calculates the pointing. Exitting.")
+        print("Can't use --pointing and --all_poinntings as --all_pointings calculates "
+              "the pointing. Exiting.")
         quit()
+    if args.pointing and args.pulsar:
+        print("Can't use --pointing and --pulsar as --pulsar calculates the pointing. Exiting.")
+        quit()
+    if args.pulsar and args.all_pointings:
+        print("Can't use --pulsar and --all_poinntings as --all_pointings calculates "
+              "the pointing. Exiting.")
+        quit()
+    
+    #calculate pointing
     if args.all_pointings:
         #calculating loop number
         fudge_factor = 2.
@@ -374,11 +385,19 @@ if __name__ == "__main__":
         #calculating pointing from metadata
         ra = np.radians(ra + duration/3600.*15./2)
         dec = np.radians(dec)
-
-    if not args.all_pointings:
+    elif args.pulsar:
+        temp = fpio.get_psrcat_ra_dec(pulsar_list=args.pulsar)
+        _, raj, decj = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)[0]
+        coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
+        ra = coord.ra.radian #in radians
+        dec = coord.dec.radian
+    elif args.pointing:
         coord = SkyCoord(args.pointing[0],args.pointing[1],unit=(u.hourangle,u.deg))
         ra = coord.ra.radian #in radians
         dec = coord.dec.radian
+    else:
+        print("Please use either --pointing, --pulsar or --all_pointings. Exiting.")
+        quit()
     
     #calc grid positions
     if args.type == 'hex':
@@ -473,42 +492,33 @@ if __name__ == "__main__":
         theta.append(az)
         phi.append(za)
  
-    if (args.dec_range or args.ra_range):
-        #some ra and dec string for radec limited degreees
-        print("Recording the dec limited poisitons in grid_positions_dec_limited.txt")
-        with open('grid_positions_ra_dec_limited_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
-                  '_l'+str(args.loop) +'.txt','w') as out_file:
-            if args.verbose_file:
-                out_line = "#ra   dec    az     za\n" 
-                out_file.write(out_line)
-            for i in range(len(rads)):
-                if args.verbose_file:
-                    out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
-                                +str(phi[i])+" "+str(rads[i])+" "\
-                                +str(decds[i])+"\n" 
-                else:
-                    out_line = str(ras[i])+" "+str(decs[i])+"\n" 
-                out_file.write(out_line)
-          
+    if args.obsid:
+        out_file_name = str(args.obsid)
     else:
-        print("Recording the poisitons in grid_positions.txt")
-        with open('grid_positions_f'+str(args.fraction)+'_d'+str(args.deg_fwhm)+\
-                  '_l'+str(args.loop)+'.txt','w') as out_file:
+        out_file_name = ''
+    if args.pulsar:
+        out_file_name = '{0}_{1}'.format(out_file_name, args.pulsar[0])
+    out_file_name += '_grid_positions'
+    if args.dec_range != [-90,90] or args.ra_range != [0, 360]:
+        out_file_name += '_ra_dec_limited'
+    out_file_name = '{0}_f{1}_d{2}_l{3}'.format(out_file_name, args.fraction,
+                                                args.deg_fwhm, args.loop)
+
+    #Writing file
+    print("Recording the dec limited positons in {0}.txt".format(out_file_name))
+    with open('{0}.txt'.format(out_file_name),'w') as out_file:
+        if args.verbose_file:
+            out_line = "#ra   dec    az     za\n" 
+            out_file.write(out_line)
+        for i in range(len(rads)):
             if args.verbose_file:
-                out_line = "#ra   dec    az     za\n"
-                out_file.write(out_line)
-            for i in range(len(rads)):
-                if args.verbose_file:
-                    out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
-                                +str(phi[i])+" "+str(rads[i])+" "\
-                                +str(decds[i])+"\n"
-                else:
-                    out_line = str(ras[i])+" "+str(decs[i])+"\n"
-
-                out_file.write(out_line)
-               
-           
-
+                out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
+                            +str(phi[i])+" "+str(rads[i])+" "\
+                            +str(decds[i])+"\n" 
+            else:
+                out_line = str(ras[i])+" "+str(decs[i])+"\n" 
+            out_file.write(out_line)
+      
     #matplotlib.use('Agg')
     print("Plotting")
     fig = plt.figure(figsize=(7, 7))
@@ -557,9 +567,7 @@ if __name__ == "__main__":
             dec_PCAT.append(dec_temp)
         ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r', zorder=100)
 
-    plt.savefig('grid_positions_'+str(args.obsid)+'_n'+str(len(rads))+'_f'+str(args.fraction)+\
-                '_d'+str(args.deg_fwhm)+'_l'+str(args.loop)+'.png',bbox_inches='tight',\
-                    dpi =1000)
+    plt.savefig('{0}.png'.format(out_file_name), bbox_inches='tight', dpi =1000)
         
        
         
