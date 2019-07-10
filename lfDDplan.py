@@ -4,7 +4,7 @@ import argparse
 import math
 
 
-def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM):
+def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_step=0.02):
     
     DD_plan_array = []
     freqres = bandwidth / float(nfreqchan)
@@ -38,9 +38,10 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM):
 
         #round to nearest 0.01
         DM_step = round(DM_step, 2)
-        if DM_step < 0.02:
+        if DM_step < min_DM_step:
             #set DM to 0.01 as a zero DM doesn't make sense
-            DM_step = 0.02
+            DM_step = min_DM_step
+
 
         if D_DM > highDM:
             #last one so range from to max
@@ -76,6 +77,8 @@ if __name__ == "__main__":
                         help='Highest DM of the required range.')
     parser.add_argument('-o', '--obsid', type=int, 
                         help='The MWA observation ID of an observation. Using this command will get the require observation parameters.')
+    parser.add_argument('-m', '--min_DM_step', type=float, default=0.02,
+                        help='The  minimun DM step size, default 0.02')
     #parser.add_argument()
     args=parser.parse_args()
     
@@ -90,7 +93,7 @@ if __name__ == "__main__":
         args.centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2)
 
 
-    DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM)
+    DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM, min_DM_step=args.min_DM_step)
     print(" low DM | high DM | DeltaDM | Nsteps | Effective time resolution (ms)")
     total_steps = 0
     for d in DD_plan_array:
