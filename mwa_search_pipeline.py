@@ -455,7 +455,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
 
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir, nice=search_opts.nice,
-                 slurm_kwargs={"time": "5:00:00"},
+                 slurm_kwargs={"time": "8:00:00"},
                  module_list=['mwa_search/{}'.format(search_opts.search_ver),
                               'presto/no-python'],
                  submit=True, depend=job_id_list, depend_type='afterany',
@@ -625,11 +625,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
                     print("ERROR no batch file found")
             dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
 
-        elif searched_check and not search_opts.relaunch_script:
+        elif searched_check and not relaunch:
             print("Already searched so not searching again")
         else:
             #All files there so the check has succeded and going to start the pipeline
-            if search_opts.search and ((not searched_check and search_opts.relaunch_script)\
+            if search_opts.search and ((not searched_check and relaunch)\
                    or len(pointing_list) == 1):
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
@@ -1050,6 +1050,8 @@ def fold(search_opts):
                     '-nosearch {5} {6}{7}_*.fits'.format(accel_file_name, cand_num,
                     search_opts.pointing, float(period)/1000., cand_DM, mask_command,
                     search_opts.pointing_dir, search_opts.obsid))
+            else:
+                print("Skipping cand with DM {0} and period {1} ms".format(cand_DM, period))
     search_database.database_script_list(search_opts.bsd_row_num, 'prepfold', commands_list,
                                                   search_opts.n_omp_threads, expe_proc_time)
     if len(cand_list) > 0:
@@ -1171,10 +1173,7 @@ def presto_single_job(search_opts, dm_list_list):
                 processing_time += command_fft[2]
         commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}_{2}.bash".\
                         format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
-        commands.append('search_database.py -c realfft -m m --file_location '
-                        'realfft_temp_database_file_{0}_{1}.csv\n'.format(
-                             search_opts.attempt + 1, dmi))
-
+        
         #make the accel bash file
         with open('{0}{1}/{2}_accel_a{3}_{4}.bash'.format(search_opts.work_dir,
                   search_opts.sub_dir, search_opts.bsd_row_num,
@@ -1193,26 +1192,33 @@ def presto_single_job(search_opts, dm_list_list):
         commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
                         format(search_opts.n_omp_threads, search_opts.bsd_row_num,
                                search_opts.attempt+1, dmi))
-        commands.append('search_database.py -c accelsearch -m m --file_location '
-                        'accelsearch_temp_database_file_{0}_{1}.csv\n'.format(
-                             search_opts.attempt + 1, dmi))
-
+        
         #Remove accel files off ssd
         commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
                                                           search_opts.sub_dir))
         commands.append('cp $JOBFS/*inf {0}{1}'.format(search_opts.work_dir,
                                                           search_opts.sub_dir))
 
-        if processing_time > 43200:
-            processing_time = 43200
+        #load python modules and run database scripts
+        commands.append('module load mwa_search/{0}'.format(search_opts.search_ver))
+        commands.append('search_database.py -c realfft -m m --file_location '
+                        'realfft_temp_database_file_{0}_{1}.csv\n'.format(
+                             search_opts.attempt + 1, dmi))
+        commands.append('search_database.py -c accelsearch -m m --file_location '
+                        'accelsearch_temp_database_file_{0}_{1}.csv\n'.format(
+                             search_opts.attempt + 1, dmi))
+    
+        if processing_time > 10800:
+            processing_time = 10800 #max at 3 hours because that should be plenty of time
         total_job_time_str = datetime.timedelta(seconds=int(processing_time))
         job_id = submit_slurm(check_batch, commands,
                  batch_dir="{0}{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
                  slurm_kwargs={"time": total_job_time_str},
-                 module_list=['mwa_search/{}'.format(search_opts.search_ver),
+                 module_list=['presto/min_path', 'psrcat/1.49',
                               'tempo2/278e129', 'tempo2_clock/2019-03-21'],
                  submit=True, cpu_threads=search_opts.n_omp_threads,
-                 mem=2048, temp_mem=temp_mem)
+                 mem=2048, temp_mem=temp_mem,
+                 vcstools_version=None)
         job_id_list.append(job_id)
 
         dat_start += dat_num
