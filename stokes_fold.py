@@ -19,6 +19,7 @@ def ephem_to_file(pulsar, fname=None)
     subprocess.call(["psrcat", "-e", "{0}".format(pulsar)], stdout=f)
     f.close()
 
+
 def psrcat_RM(pulsar)
 
     sp = subprocess.Popen(["psrcat", "-e"," {0}".format(pulsar)], stdout=subprocess.PIPE)
@@ -37,51 +38,69 @@ def psrcat_RM(pulsar)
         return RM, RM_err
     else:
         logger.warn("Rotation measure not stored in psrcat ephemeris")
-        return None
+        RM = None
+        RM_err = None
+    
+    return RM, RM_err
+
 
 def find_RM_from_archive(archive_file)
     
     sp = subprocess.Popen(["rmfit", "{0}","-t".format(archive_file)], stdout=subprocess.PIPE)
     out = sp.stdout.read()
-    out = out.decode("utf-8")
-
-
-
+    out = out.decode("utf-8").split()
+  
+    if out:
+        #An RM was found 
+        RM = out[3]
+        RM_err = out[5]
+    else:
+        #RM not found 
+        RM = None
+        RM_err = None    
+        logger.warn("RM could not be generated from archive")
 
     return RM, RM_err
 
+#def submit_RM()
+    #This is not implemented in the pulsar databse yet
 
-
-def submit_dspsr(pointing_dir, nbins=None, subint=10.0, pulsar=None)
+def make_archive(pointing_dir, pulsar, nbins=None, subint=10.0)
     
-    if pulsar==None:
-        logger.warn("Pulsar name not supplied. attempting to determine pulsar name from pointing directory")
-        pulsar = binfinder.info_from_dir(pointing_dir)["pulsar"]
-        logger.info("Assiming pulsar name: {0}".format(pulsar)
-
     if nbins==None:
         logger.warn("Number of bins not provided. Attempting to find the best profile")
         try:
             prof_name = binfinder.get_best_profile(pointing_dir, 10.0) 
             nbins = bindinder.bestprof_info(filename=prof_name)["nbins"]
         except RuntimeError as err:
-            logger.error("Number of bins could not be found. Full error: {0}".format(err))
+            logger.error("Number of bins could not be found. Full error:\n{0}".format(err))
             logger.error("Exiting...")
             sys.exit(1)
             
     
-
-
     #print ephemeris to file
     ephem_to_file(pulsar)
     #make dspsr archive
-    subprocess.call(["dspsr", "-cont", "-U", "4000", "-A", "-L", "{0}", "-E", "{1}.eph", "-K", "-b", "{2}", "{1}_subint_{0}", "*fits".format(subint, pulsar, nbins)
+    subprocess.call(["dspsr", "-cont", "-U", "4000", "-A", "-L", "{0}".format(subint), "-E", "{1}.eph".format(pulsar), "-K", "-b", "{0}".format(nbins), "-O", "{0}_subint_{1}".format(pulsar, subint), "*.fits"
     #Attempt to find rotation measure from archive file
-    find_RM_from_archive("{0}_subint_{1}.ar".format(pulsar, subint)) 
+    RM, RM_err = find_RM_from_archive("{0}_subint_{1}.ar".format(pulsar, subint)) 
+    if RM==None:
+        RM, RM_err = psrcat_RM(pulsar)
+        if RM==None:
+            logger.info("RM for pulsar {0} not found on record. Cannot continue with polarimetry".format(pulsar))
+            sys.exit(0)
+    #else: 
+       # submit_RM
+    
+    #Correct for the RM:
+    subprocess.call(["pam", "-e", "ar2", "-R", "{0}".format(RM), "{0}_subint_{1}".format(pulsar, subint)])
+    #Turn the archive into a readable ascii file
+    fname="{0}_pol_prof.txt".format(pulsar)
+    f = open(fname, "w+")
+    subprocess.call(["pdv", "-FTt", "{0}_subint_{1}.ar2".format(pulsar, subint)   
+    f.close()
 
-
-
-
+    return fname
 
 if __name__ == '__main__':
     #dictionary for choosing log-levels
@@ -107,3 +126,7 @@ if __name__ == '__main__':
     logger.addHandler(ch)
 
     os.chdir(args.pointing_dir)
+
+    fname = make_archive(args.pointing_dir, args.pulsar, nbins=args.nbins)
+    if fname is not None:
+        plot_pol(fname) #TODO: implement this
