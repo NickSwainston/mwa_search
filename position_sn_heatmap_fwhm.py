@@ -16,12 +16,15 @@ import math
 from scipy.interpolate import UnivariateSpline
 import glob
 
+import config
 
 def find_fwhm_and_plot(obsid, pointing):
     pointing_list = []
     sn = []
-    for d in glob.glob("/group/mwaops/vcs/{0}/pointings/{1}*_{2}*/".format(obsid,pointing.split("_")[0][:4],pointing.split("_")[1][:2])):
-        bestprof_file = "{0}{1}_fwhm_test_{2}_PSR_J2145-0750.pfd.bestprof".format(d, obsid, d.split("/")[-2])
+    comp_config = config.load_config_file()
+    for d in glob.glob("{0}/{1}/pointings/{2}*_{3}*/".format(comp_config['base_product_dir'], 
+                                obsid,pointing.split("_")[0][:4],pointing.split("_")[1][:2])):
+        bestprof_file = "{0}{1}_PSR_J2145-0750.pfd.bestprof".format(d, obsid)#, d.split("/")[-2])
         if os.path.exists(bestprof_file):
             with open(bestprof_file) as bestfile:
                 for i in bestfile.readlines():
@@ -89,7 +92,6 @@ def find_fwhm_and_plot(obsid, pointing):
     print("raw dec FHWM: " + str(dec_FWHM))
     cor_dec_FWHM = float(dec_FWHM)*math.cos(np.radians(dec_centre) + np.radians(26.7))**2
     print("corrected dec FWHM: {0}".format(cor_dec_FWHM))
-
     
 
 

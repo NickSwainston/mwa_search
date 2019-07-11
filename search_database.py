@@ -8,7 +8,7 @@ import textwrap
 
 DB_FILE = os.environ['SEARCH_DB']
 #how many seconds the sqlite database conection takes until it times out
-TIMEOUT=120
+TIMEOUT=180
 
 def dict_factory(cursor, row):
     d = {}
@@ -156,6 +156,24 @@ def database_script_check(table, bs_id, attempt_num):
                 error_data.append([row['Command'], row['Arguments'], row['ExpProc']])
     return error_data
 
+def database_search_done_check(obsid, pointing):
+    """
+    Checks if the pointing and obsid have already been sucessfully searched 
+    (end time not none)
+    """
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    con.row_factory = lite.Row
+    with con:
+        cur = con.cursor()
+        #get script data
+        cur.execute("SELECT Ended FROM PulsarSearch WHERE Obsid=? AND Pointing=?",
+                    (obsid, pointing))
+        endtime = cur.fetchall()
+        searched_check = False
+        for e in endtime:
+            if e[0] is not None:
+                searched_check = True
+    return searched_check
 
 def database_mass_update(table,file_location):
     """
@@ -207,10 +225,12 @@ def database_mass_update(table,file_location):
                         tot_er = int(bs_columns['TotalErrors']) + 1
                         job_er = int(bs_columns[table+'Errors']) + 1
 
-                        cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (end_time, errorcode, rownum, attempt_num, bs_id))
+                        cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND "
+                                    "AttemptNum=? AND BSID=?".format(table),
+                                    (end_time, errorcode, rownum, attempt_num, bs_id))
                             
-                        cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
-                                    (tot_er,job_er, bs_id))
+                        cur.execute("UPDATE PulsarSearch SET TotalErrors=?, {0}Errors=? "
+                                    "WHERE Rownum=?".format(table), (tot_er,job_er, bs_id))
     return
 
 
