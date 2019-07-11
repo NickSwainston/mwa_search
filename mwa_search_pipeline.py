@@ -297,14 +297,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     if pulsar_list is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('cd {0}'.format(pointing_dir))
-        for pulsar in pulsar_list:
-            #find a good number of bins to use
-            period = get_pulsar_dm_p(pulsar)[1]
-            nbins = 2048*nbins**0.75
-            nbins = 32 * round(nbins/32)
-            if nbins == 0:
-                nbins=32
-
+            
             #load presto module here because it uses python 2
             commands.append('echo "Folding on known pulsar"'.format(pulsar))
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
