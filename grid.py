@@ -320,6 +320,46 @@ def square_grid(ra0,dec0,centre_fwhm, loop):
     return pointing_list
 
 
+def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
+    """
+    ra: Right Acension in radians
+    dec: Declination in radians
+    grid_sep: seperation between grid pointings in radians
+    loop: number of pointing loops
+    grid_type: Possible grid types from ['hex', 'cross', 'squaire']
+
+    return [rads, decds]
+    RAs and Decs in degrees
+    """
+    #calc grid positions
+    if grid_type == 'hex':
+        pointing_list = hex_grid(   ra, dec, grid_sep, loop)
+    elif grid_type == 'cross':
+        pointing_list = cross_grid( ra, dec, grid_sep, loop)
+    elif grid_type == 'square':
+        pointing_list = square_grid(ra, dec, grid_sep, loop)
+    else:
+        print("Unrecognised grid type. Exiting.")
+        quit()
+    #TODO add square
+
+    rads = []; decds = []
+    
+    print("Converting ra dec to degrees")
+    for loop in pointing_list:
+        for corner in loop:
+            for num in corner:
+                #format grid pointings
+                rad = np.degrees(num[0])
+                decd = np.degrees(num[1])
+                
+                if decd > 90.:
+                    decd = decd - 180.
+                rads.append(rad)
+                decds.append(decd)
+    return rads, decds
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     Makes a hexogonal grid pattern around a pointing for a MWA VCS observation.
@@ -351,7 +391,8 @@ if __name__ == "__main__":
                 opts_string = opts_string + ' --' + str(k) + ' ' + str(args.__dict__[k])
             
     if args.obsid:
-        obs, ra, dec, duration, xdelays, centrefreq, channels = meta.get_common_obs_metadata(args.obsid)
+        obs, ra, dec, duration, xdelays, centrefreq, channels = \
+                meta.get_common_obs_metadata(args.obsid)
         
     #get fwhm in radians
     centre_fwhm = np.radians(args.deg_fwhm)
@@ -399,40 +440,11 @@ if __name__ == "__main__":
         print("Please use either --pointing, --pulsar or --all_pointings. Exiting.")
         quit()
     
-    #calc grid positions
-    if args.type == 'hex':
-        pointing_list = hex_grid(ra, dec, centre_fwhm*args.fraction,
-                                 args.loop)
-    elif args.type == 'cross':
-        pointing_list = cross_grid(ra, dec, centre_fwhm*args.fraction,
-                                   args.loop)
-    elif args.type == 'square':
-        pointing_list = square_grid(ra, dec, centre_fwhm*args.fraction,
-                                   args.loop)
-    else:
-        print("Unrecognised grid type. Exiting.")
-        quit()
-    #TODO add square
-
-    time = Time(float(args.obsid),format='gps')
-    ra_decs = []
-    ras = []; decs = []; theta = []; phi = []; rads = []; decds = []
+    #calculate grid
+    rads, decds = get_grid(ra, dec, centre_fwhm*args.fraction, args.loop, grid_type=args.type)
     
-    print("Converting ra dec to degrees")
-    for loop in pointing_list:
-        for corner in loop:
-            for num in corner:
-                #format grid pointings
-                rad = np.degrees(num[0])
-                decd = np.degrees(num[1])
-                
-                if decd > 90.:
-                    decd = decd - 180.
-                rads.append(rad)
-                decds.append(decd)
-                #ra_decs.append([rag,decg,az,za,rad,decd])
-    
-    if (args.dec_range or args.ra_range):
+    #remove pointings outside of ra or dec range
+    if args.dec_range != [-90,90] or args.ra_range != [0, 360]:
         print("Removing pointings outside of ra dec ranges")
         radls = []
         decdls = []
@@ -472,6 +484,8 @@ if __name__ == "__main__":
     rags_uf = coord.ra.to_string(unit=u.hour, sep=':')
     decgs_uf = coord.dec.to_string(unit=u.degree, sep=':')
     
+    ras = []; decs = []; theta = []; phi = []
+    time = Time(float(args.obsid),format='gps')
     print("Formating the outputs")
     #format the ra dec strings
     for i in range(len(rags_uf)):

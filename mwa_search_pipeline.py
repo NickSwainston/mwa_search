@@ -28,7 +28,7 @@ else:
 if 'SEARCH_DB' in os.environ:
     DB_FILE_LOC = os.environ['SEARCH_DB']
 else:
-    print("#WARNING: No enviormental variable DB_FILE_LOC. Search tracking won't work")
+    print("#WARNING: No environment variable DB_FILE_LOC. Search tracking won't work")
 
 DB_FILE_LOC = os.environ['SEARCH_DB']
 DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
@@ -442,16 +442,16 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
 
     #add search_opts.relaunch script
     if search_opts.relaunch_script is not None:
-        search_opts.relaunch_script += " -p {0} -s {0}/{1}".format(search_opts.pointing,
-                                                                   search_opts.obsid)
+        relaunch_script = "{0} -p {1} -s {1}/{2}".format(search_opts.relaunch_script,
+                                            search_opts.pointing, search_opts.obsid)
         if search_opts.bsd_row_num is not None:
-            search_opts.relaunch_script += ' -r {0}'.format(search_opts.bsd_row_num)
+            relaunch_script += ' -r {0}'.format(search_opts.bsd_row_num)
         if search_opts.incoh:
             #run rfi job
-            search_opts.relaunch_script += ' -m r --search_opts.incoh'
+            relaunch_script += ' -m r --search_opts.incoh'
         else:
-            search_opts.relaunch_script += ' -m b'
-        commands.append(search_opts.relaunch_script)
+            relaunch_script += ' -m b'
+        commands.append(relaunch_script)
 
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir, nice=search_opts.nice,
@@ -470,10 +470,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
     bsd_row_num_input = search_opts.bsd_row_num
 
     hostname = socket.gethostname()
-    if hostname.startswith('john') or hostname.startswith('farnarkle'):
-        max_pointing = 30
-    else:
-        max_pointing = 15
+    #if hostname.startswith('john') or hostname.startswith('farnarkle'):
+    #    max_pointing = 30
+    #else:
+    #    max_pointing = 15
+    max_pointing = 15
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
     search_opts.relaunch_script_in = search_opts.relaunch_script
