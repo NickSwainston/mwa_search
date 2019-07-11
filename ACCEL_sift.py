@@ -32,7 +32,7 @@ min_num_DMs = 8
 # Lowest DM to consider as a "real" pulsar
 low_DM_cutoff = 1.0
 # Ignore candidates with a sigma (from incoherent power summation) less than this
-sifting.sigma_threshold = 7.0
+sifting.sigma_threshold = 5.0
 # Ignore candidates with a coherent power less than this
 sifting.c_pow_threshold = 100.0
 
@@ -56,7 +56,7 @@ sifting.short_period = 0.0005
 # Longest period candidates to consider (s)
 sifting.long_period = 15.0
 # Ignore any candidates where at least one harmonic does exceed this power
-sifting.harm_pow_cutoff = 8.0
+sifting.harm_pow_cutoff = 5.0
 
 #--------------------------------------------------------------
 

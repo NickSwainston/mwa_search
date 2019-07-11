@@ -571,7 +571,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             (missing_file_check and not unspliced_check and search_opts.search) or \
             search_opts.search and ((not searched_check and relaunch) or len(pointing_list) == 1) )\
             and bsd_row_num_input is None:
-                search_opts.setBRN(search_database.database_search_start(obsid,
+                search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                    search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
         else:
             search_opts.setBRN(bsd_row_num_input)
@@ -920,8 +920,8 @@ def accel(search_opts, dm_list_list=None):
     min_freq = 1. / max_period
     max_freq = 1. / min_period
     #adjust the freq to include the harmonics
-    min_f_harm = min_freq - min_freq / nharm
-    max_f_harm = max_freq + max_freq / nharm
+    min_f_harm = min_freq
+    max_f_harm = max_freq * nharm
 
     #For initial search we will save processing by not doing an acceleration search
     max_search_accel = 0
@@ -979,7 +979,8 @@ def fold(search_opts):
     #calcs sn_min for candidates
     numout = numout_calc(search_opts.pointing_dir, search_opts.obsid)
     from math import sqrt,log
-    sn_min = ( sqrt(log(numout)) - 0.88 ) / 0.47
+    #sn_min = ( sqrt(log(numout)) - 0.88 ) / 0.47
+    sn_min = 5.
 
     cand_list = []
     import shutil
