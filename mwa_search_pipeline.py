@@ -297,7 +297,8 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
     if pulsar_list is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('cd {0}'.format(pointing_dir))
-            
+           
+            for pulsar in pulsar_list 
             #load presto module here because it uses python 2
             commands.append('echo "Folding on known pulsar"'.format(pulsar))
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
@@ -310,7 +311,7 @@ def dependant_splice_batch(obsid, pointing, product_dir, pointing_dir, job_id_li
             #causes an error with -timing but not -psr
             commands.append('if [ "$errorcode" != "0" ]; then')
             commands.append('   echo "Folding using the -psr option"')
-            commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256 {2}/1*fits -n {3}'.format(obsid, pulsar, pointing_dir, nbins))
+            commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256 {2}/1*fits'.format(obsid, pulsar, pointing_dir, nbins))
             commands.append('   pulsar={}'.format(pulsar))
             commands.append('fi')
             commands.append('rm {0}.eph'.format(pulsar))
