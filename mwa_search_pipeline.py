@@ -571,7 +571,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             (missing_file_check and not unspliced_check and search_opts.search) or \
             search_opts.search and ((not searched_check and relaunch) or len(pointing_list) == 1) )\
             and bsd_row_num_input is None:
-                search_opts.setBRN(search_database.database_search_start(obsid,
+                search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                    search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
         else:
             search_opts.setBRN(bsd_row_num_input)
