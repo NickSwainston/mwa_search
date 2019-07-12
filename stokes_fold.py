@@ -12,7 +12,7 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 def ephem_to_file(pulsar, fname=None)
-    if fname==None:
+    if fname is None:
         fname="{0}.eph".format(pulsar)
     
     f = open(fname, "w+")
@@ -67,7 +67,7 @@ def find_RM_from_archive(archive_file)
 
 def make_archive(pointing_dir, pulsar, nbins=None, subint=10.0)
     
-    if nbins==None:
+    if nbins is None:
         logger.warn("Number of bins not provided. Attempting to find the best profile")
         try:
             prof_name = binfinder.get_best_profile(pointing_dir, 10.0) 
@@ -84,9 +84,9 @@ def make_archive(pointing_dir, pulsar, nbins=None, subint=10.0)
     subprocess.call(["dspsr", "-cont", "-U", "4000", "-A", "-L", "{0}".format(subint), "-E", "{1}.eph".format(pulsar), "-K", "-b", "{0}".format(nbins), "-O", "{0}_subint_{1}".format(pulsar, subint), "*.fits"
     #Attempt to find rotation measure from archive file
     RM, RM_err = find_RM_from_archive("{0}_subint_{1}.ar".format(pulsar, subint)) 
-    if RM==None:
+    if RM is None:
         RM, RM_err = psrcat_RM(pulsar)
-        if RM==None:
+        if RM is None:
             logger.info("RM for pulsar {0} not found on record. Cannot continue with polarimetry".format(pulsar))
             sys.exit(0)
     #else: 
@@ -105,9 +105,9 @@ def make_archive(pointing_dir, pulsar, nbins=None, subint=10.0)
 if __name__ == '__main__':
     #dictionary for choosing log-levels
     loglevels = dict(DEBUG=logging.DEBUG,
-                    INFO=logging.INFO,
-                    WARNING=logging.WARNING,
-                    ERROR = logging.ERROR)
+                     INFO=logging.INFO,
+                     WARNING=logging.WARNING,
+                     ERROR = logging.ERROR)
 
     #Arguments
     parser = argparse.ArgumentParser(description="""Folds across stokes IQUV and attempts to find the RM""")

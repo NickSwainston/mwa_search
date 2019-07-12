@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 
-import os
-import glob
 import logging
 import argparse
-import sys
-import logging
-import binfinder
 from job_submit import submit_slurm
 
 logger = logging.getLogger(__name__)
@@ -17,15 +12,17 @@ class run_params_class:
 
     def __init__(self, pointing_dir, cal_id,
                 obsid=None, pulsar=None, threshold=10.0,
-                stop=False, loglvl="INFO"):
+                stop=False, loglvl="INFO",
+                mode=None):
 
         self.pointing_dir   = pointing_dir
         self.cal_id         = cal_id
-        self.obsid          = obsid    
+        self.obsid          = obsid
         self.pulsar         = pulsar
         self.stop           = stop
         self.stop_stokes    = stop_stokes
         self.threshold      = threshold
+        self.mode           = mode
 
         if self.obsid==None:
             mydict=info_from_dir(self.pointing_dir)
@@ -47,12 +44,12 @@ def info_from_dir(pointing_dir):
 
     return mydict
 
-#---------------------------------------------------------------------- 
+#----------------------------------------------------------------------
 #def stokes_fold(pointing_dir, cal_id)
 
 
 
-#---------------------------------------------------------------------- 
+#----------------------------------------------------------------------
 def binfind(run_params):
 
     if run_params.stop==False:
@@ -70,7 +67,7 @@ def binfind(run_params):
         commands.append("binfinder.py -m c -d {0} -O {1} -t {2} -p {3} -o {4} {5}".format(run_params.pointing_dir, run_params.cal_id, run_params.threshold, run_params.pulsar, run_params.obsid, cont))
     elif run_params.mode=="m":
         commands.append("binfinder.py -m m -d {0} -O {1} -t {2} -p {3} -o {4} {5}".format(run_params.pointing_dir, run_params.cal_id, run_params.threshold, run_params.pulsar, run_params.obsid, cont))
- 
+
 
     name = "binfinder_{0}_startup".format(run_params.pulsar)
     batch_dir = batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
@@ -80,7 +77,7 @@ def binfind(run_params):
                 module_list=['mwa_search/k_smith',
                             'presto/no-python'],
                 submit=True, vcstools_version="multi-pixel_beamform")
-  
+
     logger.info("Job successfully submitted")
 
 #----------------------------------------------------------------------
@@ -102,7 +99,7 @@ if __name__ == '__main__':
     obsop.add_argument("-o", "--obsid", type=str, help="The obs ID of the data")
     obsop.add_argument("-O", "--cal_id", type=str, help="The ID of the calibrator used to calibrate the data")
     obsop.add_argument("-p", "--pulsar", type=str, help="The J name of the pulsar. e.g. J2241-5236")
-    
+
 
     binfindop = parser.add_argument_group("Binfinder Options")
     binfindop.add_argument("-t", "--threshold", type=float, default=10, help="The presto sigma value\
@@ -123,7 +120,7 @@ if __name__ == '__main__':
                         'b' - attempts to find an adequate number of bins to fold the pulsar with\n\
                          and outputs a bestprof file (runs the s mode after by default)\n\
                         's' - will fold across stokes IQUV and attempt to find the rotation measure")
-    
+
 
     args = parser.parse_args()
 
