@@ -569,7 +569,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         if (not (path_check or len(missing_chan_list) == 24) or \
             (missing_file_check and not unspliced_check and search_opts.search) or \
-            search_opts.search and ((not searched_check and relaunch) or len(pointing_list) == 1) )\
+            (search_opts.search and ((not searched_check or relaunch) \
+                or len(pointing_list) == 1) ) )\
             and bsd_row_num_input is None:
                 search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                    search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
@@ -630,7 +631,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             print("Already searched so not searching again")
         else:
             #All files there so the check has succeded and going to start the pipeline
-            if search_opts.search and ((not searched_check and relaunch)\
+            if search_opts.search and ((not searched_check or relaunch)\
                    or len(pointing_list) == 1):
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
@@ -1202,6 +1203,8 @@ def presto_single_job(search_opts, dm_list_list):
                                                           search_opts.sub_dir))
 
         #load python modules and run database scripts
+        #TODO Temporarily removed to avoid database timeout issues
+        '''
         commands.append('module load mwa_search/{0}'.format(search_opts.search_ver))
         commands.append('search_database.py -c realfft -m m --file_location '
                         'realfft_temp_database_file_{0}_{1}.csv\n'.format(
@@ -1209,7 +1212,7 @@ def presto_single_job(search_opts, dm_list_list):
         commands.append('search_database.py -c accelsearch -m m --file_location '
                         'accelsearch_temp_database_file_{0}_{1}.csv\n'.format(
                              search_opts.attempt + 1, dmi))
-    
+        '''
         if processing_time > 10800:
             processing_time = 10800 #max at 3 hours because that should be plenty of time
         total_job_time_str = datetime.timedelta(seconds=int(processing_time))
@@ -1233,14 +1236,36 @@ def presto_single_job(search_opts, dm_list_list):
     check_depend_batch = '{0}_dep_presto_a{1}'.format(search_opts.bsd_row_num,
                                                       search_opts.attempt +1)
     commands = []
-    commands.append("{0} --attempt {1} -m c --table Accel".format(search_opts.relaunch_script,
-                                                                  search_opts.attempt + 1))
+    #TODO temporarily moving right to fold to avoid database issues
+    #commands.append("{0} --attempt {1} -m c --table Accel".format(search_opts.relaunch_script,
+    #                                                              search_opts.attempt + 1))
+    #TODO ONLY NEED FOR database removal
+    module_list = []
+    # on ozstar so use their modules
+    module_list.append('mwa_search/{}'.format(search_opts.search_ver))
+    module_list.append('module use /apps/users/pulsar/skylake/modulefiles\n'
+                       'module load presto/d6265c2')
+    module_list.append('matplotlib/2.2.2-python-2.7.14')
+    #find ACCEL_sift path
+    import shutil
+    accel_sift = shutil.which("ACCEL_sift.py")
+    commands = []
+    commands.append(add_database_function())
+    commands.append('cd {0}'.format(search_opts.work_dir))
+    commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
+                                                              search_opts.sub_dir))
+    commands.append('module use {}'.format(comp_config['module_dir']))
+    commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
+    #TODO end temp sec
+        
+    commands.append("{0} -m f".format(search_opts.relaunch_script))
 
     submit_slurm(check_depend_batch, commands,
                  batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
                  slurm_kwargs={"time": "20:00"}, nice=search_opts.nice,
                  submit=True, depend=job_id_list, depend_type="afterany",
-                 module_list=['mwa_search/{}'.format(search_opts.search_ver)],
+                 #module_list=['mwa_search/{}'.format(search_opts.search_ver)],
+                 module_list=module_list,
                  cpu_threads=search_opts.n_omp_threads)
 
     return
@@ -1707,6 +1732,8 @@ if __name__ == "__main__":
             relaunch_script +=  " {0}".format(ch)
     if args.cal_obs:
         relaunch_script +=  " -O " + str(args.cal_obs)
+    if args.relaunch:
+        relaunch_script +=  " --relaunch"
 
 
     search_opts = search_options_class(obsid, pointing=pointing, cal_id=args.cal_obs,
