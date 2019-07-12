@@ -6,7 +6,6 @@ import argparse
 import time
 import mwa_metadb_utils as meta
 import glob
-import csv
 
 parser = argparse.ArgumentParser(description="""
 Wraps the splice_psrfits.sh script to automate it. Should be run from the foulder containing the files.
@@ -18,9 +17,9 @@ parser.add_argument('-w','--work_dir',type=str,help='Working directory of the vc
 parser.add_argument('-c', '--channels', type=int, nargs=24, help='A list of the observations channel IDs for example "-c 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132". If this option is not used a metadata call will be used to find the channel IDs.')
 args=parser.parse_args()
 
-    
+
 obsid = args.observation
-chan_st = range(24) 
+chan_st = range(24)
 
 if args.channels:
     channels = args.channels
@@ -39,13 +38,13 @@ if glob.glob('{0}*fits'.format(args.observation)) and \
    not glob.glob('*_{0}*fits'.format(args.observation)):
     print('All files are already spliced so exiting')
     exit()
-    
+
 
 #getting number of files list
 if args.incoh:
     n_fits_file = glob.glob('*{0}_incoh_ch{1}_*fits'.format(args.observation, channels[-1]))
 else:
-    n_fits_file = glob.glob('*{0}*_ch{1}*fits'.format(args.observation, channels[-1]))    
+    n_fits_file = glob.glob('*{0}*_ch{1}*fits'.format(args.observation, channels[-1]))
 n_fits = []
 for file_name in n_fits_file:
     n_fits.append(int(file_name[-9:-5]))
@@ -60,7 +59,7 @@ for n in n_fits:
         else:
             submit_line += '*{}*_ch{:03d}_{:04d}.fits '.format(obsid, ch, n)
     submit_line += 'temp_'+str(n)
-    
+
     print(submit_line)
     submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
     out_lines = submit_cmd.stdout
@@ -70,11 +69,11 @@ for n in n_fits:
     print('temp_'+str(n)+'_0001.fits', '{}_{:04d}.fits'.format(obsid, n))
     os.rename('temp_'+str(n)+'_0001.fits',
               '{}_{:04d}.fits'.format(obsid, n))
-    
+
     #wait to get error code
-    (output, err) = submit_cmd.communicate()  
+    (output, err) = submit_cmd.communicate()
     p_status = submit_cmd.wait()
-    
+
     print("exit code: " + str(submit_cmd.returncode))
     if args.delete and int(submit_cmd.returncode) == 0:
         for fd in submit_line[15:].split(" ")[:-1]:

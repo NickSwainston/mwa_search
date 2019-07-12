@@ -9,7 +9,7 @@ args=parser.parse_args()
 
 # Note:  You will almost certainly want to adjust
 #        the following variables for your particular search
- 
+
 d=args.dir
 print(d)
 if d.endswith("/"):
@@ -48,7 +48,7 @@ sifting.known_birds_f = []
 # But if we want to override them, uncomment and do it here.
 # You shouldn't need to adjust them for most searches, though.
 
-# How close a candidate has to be to another candidate to                
+# How close a candidate has to be to another candidate to
 # consider it the same candidate (in Fourier bins)
 sifting.r_err = 1.1
 # Shortest period candidates to consider (s)

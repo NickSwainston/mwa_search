@@ -139,7 +139,7 @@ class search_options_class:
     def setPoint(self, value):
         self._pointing = value
     pointing = property(getPoint, setPoint)
-    
+
     def getNOT(self):
         return self._n_omp_threads
     def setNOT(self, value):
@@ -825,7 +825,7 @@ def prepdata(search_opts):
                 mask_command, nsub, dm_line[2], dms_per_job+1, numout, SSD_file_dir,
                 search_opts.obsid, search_opts.pointing_dir))
             dm_list_list.append(np.around(np.arange(float(dm_start),
-                                          float(dm_start) + float(dms_per_job) * float(dm_line[2]), 
+                                          float(dm_start) + float(dms_per_job) * float(dm_line[2]),
                                           float(dm_line[2])), decimals=2))
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
@@ -837,7 +837,7 @@ def prepdata(search_opts):
         dm_list_list.append(np.around(np.arange(float(dm_start),
                                       float(dm_start) + float(steps) * float(dm_line[2]),
                                       float(dm_line[2])), decimals=2))
-            
+
     #Puts all the expected jobs on the databse
     #search_database_script_id_list
     search_database.database_script_list(search_opts.bsd_row_num, 'prepsubband', commands_list,
@@ -851,7 +851,7 @@ def prepdata(search_opts):
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
         #It is more efficient on ozstar to use their SSDs for the intermediate files
-        #such as .dat and fft files so the PRESTO commands must be run in series in a 
+        #such as .dat and fft files so the PRESTO commands must be run in series in a
         #single job
         sort_fft(search_opts, dm_list_list=dm_list_list)
     else:
@@ -860,8 +860,6 @@ def prepdata(search_opts):
 
 #-------------------------------------------------------------------------------------------------------------
 def sort_fft(search_opts, dm_list_list=None):
-
-    comp_config = config.load_config_file()
 
     #Makes 90 files to make this all a bit more managable and sorts the files.
     os.chdir(search_opts.work_dir + "/" + search_opts.sub_dir)
@@ -926,14 +924,14 @@ def accel(search_opts, dm_list_list=None):
 
     #For initial search we will save processing by not doing an acceleration search
     max_search_accel = 0
-    
+
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
         #If on ozstar use their SSD to improve I/O
         SSD_file_dir = '$JOBFS/'
     else:
         SSD_file_dir = ''
-    
+
     commands_list = []
     if dm_list_list is None:
         dir_files = glob.glob("*fft")
@@ -967,7 +965,7 @@ def accel(search_opts, dm_list_list=None):
 
 #-------------------------------------------------------------------------------------------------------------
 def fold(search_opts):
-    
+
     DIR=search_opts.work_dir + str(search_opts.sub_dir)
     os.chdir(DIR)
     if not os.path.exists("presto_profiles"):
@@ -1040,7 +1038,7 @@ def fold(search_opts):
         print("Number of cands in this file: " + str(len(cand_list)))
 
         for c in cand_list:
-            accel_file_name, cand_num, SN, cand_DM, period = c
+            accel_file_name, cand_num, _, cand_DM, period = c
             #through some stuffing around sort the fold into 100 folds per job
             #the fold option using .dat files which is quicker but inaccurate
             #fold_command = 'run "prepfold" "-ncpus $ncpus -n 128 -nsub 128 '+\
@@ -1124,7 +1122,7 @@ def wrap_up(search_opts):
 def presto_single_job(search_opts, dm_list_list):
     """
     A simpler version of error_check() that sends off prepsubband, fft and accelsearch
-    commands one after the other to take advantage of Ozstars SSDs 
+    commands one after the other to take advantage of Ozstars SSDs
     """
     job_id_list = []
     #get job commands
@@ -1133,15 +1131,13 @@ def presto_single_job(search_opts, dm_list_list):
     accel_commands   = search_database.database_script_check('Accel',    search_opts.bsd_row_num, 1)
 
     temp_mem = 100 #GB
-        
+
     dat_start = 0 #id of the first file to use dat/fft
     for dmi, command_data in enumerate(prepsub_commands):
         processing_time = 0.0
         check_batch = "{0}_presto_a{1}_{2}".format(search_opts.bsd_row_num,
                                         search_opts.attempt+1, dmi)
         commands = []
-        bash_commands = []
-
         commands.append(add_database_function())
         commands.append('cp -r $TEMPO2 $JOBFS/tempo2')
         commands.append('cp -r $TEMPO2_CLOCK_DIR $JOBFS/tempo2_clock_dir')
@@ -1150,17 +1146,17 @@ def presto_single_job(search_opts, dm_list_list):
         commands.append('cd {0}{1}/'.format(search_opts.work_dir,
                                                search_opts.sub_dir))
         commands.append('')
-        
+
         #add prepsubband command
         commands.append('run "{0}" "{1}" "{2}" "{3}" "{4}"'.format(command_data[0],
                              command_data[1], search_opts.bsd_row_num, dmi,
                              search_opts.attempt+1))
         processing_time += float(command_data[2])
-        
+
         #work out the DMs of the commands to add
         dat_num = len(dm_list_list[dmi])
         dat_range = range(dat_start, dat_start + dat_num)
-            
+
         #make the fft bash file
         with open('{0}{1}/{2}_fft_a{3}_{4}.bash'.format(search_opts.work_dir,
                   search_opts.sub_dir, search_opts.bsd_row_num,
@@ -1176,7 +1172,7 @@ def presto_single_job(search_opts, dm_list_list):
                 processing_time += command_fft[2]
         commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}_{2}.bash".\
                         format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
-        
+
         #make the accel bash file
         with open('{0}{1}/{2}_accel_a{3}_{4}.bash'.format(search_opts.work_dir,
                   search_opts.sub_dir, search_opts.bsd_row_num,
@@ -1195,7 +1191,7 @@ def presto_single_job(search_opts, dm_list_list):
         commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
                         format(search_opts.n_omp_threads, search_opts.bsd_row_num,
                                search_opts.attempt+1, dmi))
-        
+
         #Remove accel files off ssd
         commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
                                                           search_opts.sub_dir))
@@ -1257,7 +1253,7 @@ def presto_single_job(search_opts, dm_list_list):
     commands.append('module use {}'.format(comp_config['module_dir']))
     commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
     #TODO end temp sec
-        
+
     commands.append("{0} -m f".format(search_opts.relaunch_script))
 
     submit_slurm(check_depend_batch, commands,
