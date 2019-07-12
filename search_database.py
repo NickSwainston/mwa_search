@@ -8,7 +8,7 @@ import textwrap
 
 DB_FILE = os.environ['SEARCH_DB']
 #how many seconds the sqlite database conection takes until it times out
-TIMEOUT=180
+TIMEOUT=600
 
 def dict_factory(cursor, row):
     d = {}
