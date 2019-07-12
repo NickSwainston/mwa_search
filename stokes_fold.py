@@ -11,7 +11,7 @@ import binfinder
 import subprocess
 logger = logging.getLogger(__name__)
 
-def ephem_to_file(pulsar, fname=None)
+def ephem_to_file(pulsar, fname=None):
     if fname is None:
         fname="{0}.eph".format(pulsar)
     
@@ -20,7 +20,7 @@ def ephem_to_file(pulsar, fname=None)
     f.close()
 
 
-def psrcat_RM(pulsar)
+def psrcat_RM(pulsar):
 
     sp = subprocess.Popen(["psrcat", "-e"," {0}".format(pulsar)], stdout=subprocess.PIPE)
     out = sp.stdout.read()
@@ -44,7 +44,7 @@ def psrcat_RM(pulsar)
     return RM, RM_err
 
 
-def find_RM_from_archive(archive_file)
+def find_RM_from_archive(archive_file):
     
     sp = subprocess.Popen(["rmfit", "{0}","-t".format(archive_file)], stdout=subprocess.PIPE)
     out = sp.stdout.read()
@@ -65,7 +65,7 @@ def find_RM_from_archive(archive_file)
 #def submit_RM()
     #This is not implemented in the pulsar databse yet
 
-def make_archive(pointing_dir, pulsar, nbins=None, subint=10.0)
+def make_archive(pointing_dir, pulsar, nbins=None, subint=10.0):
     
     if nbins is None:
         logger.warn("Number of bins not provided. Attempting to find the best profile")

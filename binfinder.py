@@ -169,7 +169,7 @@ def get_best_profile(pointing_dir, threshold):
     #now find the one with the most bins that meet the sn and chi conditions
     best_i = None
     prof_name = None
-    for i in range(len((bin_order)):
+    for i in range(len(bin_order)):
         if float(sn_order[i])>=threshold and float(chi_order[i])>=4.0:
             best_i = i
             break
@@ -429,14 +429,14 @@ if __name__ == '__main__':
     elif args.mode == None:
         logger.error("Mode not supplied. Please input a mode from the list of modes and rerun")
 
-    
+
     run_params = run_params_class(args.pointing_dir, args.cal_id,
                     prevbins=args.prevbins, pulsar=args.pulsar,
                     obsid=args.obsid, threshold=args.threshold,
                     launch_next=args.launch_next,
                     force_initial=args.force_initial, mode=args.mode,
                     loglvl=args.loglvl)
-    
+
     """
     NOTE: for some reason, you need to run prepfold from the directory it outputs to if you want it to properly make an image. The script will make this work regardless by using os.chdir
     """
