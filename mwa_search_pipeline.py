@@ -567,8 +567,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             path_check = True
 
 
-        if (not (path_check or len(missing_chan_list) == 24) or \
-            (missing_file_check and not unspliced_check and search_opts.search) or \
+        if ((missing_file_check and not unspliced_check and search_opts.search) or \
             (search_opts.search and ((not searched_check or relaunch) \
                 or len(pointing_list) == 1) ) )\
             and bsd_row_num_input is None:
@@ -1254,7 +1253,7 @@ def presto_single_job(search_opts, dm_list_list):
     commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
     #TODO end temp sec
 
-    commands.append("{0} -m f".format(search_opts.relaunch_script))
+    commands.append("{0} -m f -r {1}".format(search_opts.relaunch_script, search_opts.bsd_row_num))
 
     submit_slurm(check_depend_batch, commands,
                  batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),

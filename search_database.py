@@ -410,11 +410,12 @@ Default mode is vc'''.format(mode_options)))
             cur = con.cursor()
             cur.execute(query)
             rows = cur.fetchall()
-
+        
+        start_at = 6000 #because i deleted the first 6000 rows
         if args.startrow and args.endrow is None:
-            rows = rows[args.startrow:]
+            rows = rows[(args.startrow-start_at):]
         elif args.endrow is not None:
-            rows = rows[args.startrow:args.endrow+1]
+            rows = rows[(args.startrow-start_at):args.endrow+1-start_at]
         elif not (args.all or args.recent):
             rows = rows[-args.number:]
 
@@ -432,30 +433,17 @@ Default mode is vc'''.format(mode_options)))
 
 
         if args.mode == "vs":
-            print('BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments')
+            print(    '{:4s} | {:4s} | {:4s} | {:19s} | {:19s} | {:4s} | '
+                      '{:10s} | {:10s} | {:4s} | {}'.format('BDIS',
+                  'Row#','Atm#','Started','Ended','ExtC','ProcTime ',
+                  'ExpecTime ', 'CPU#', 'Arguments'))
             print('--------------------------------------------------------------------------------------------------')
             for row in rows:
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
-                print('%-5s' % (row['BSID']),)
-                print('%-5s' % (str(row['Rownum']).rjust(4)),)
-                print('%-5s' % (row['AttemptNum']),)
-                if row['Started'] is None:
-                    print('%-22s' % (row['Started']),)
-                else:
-                    print('%-22s' % (row['Started'][:19]),)
-                if row['Ended'] is None:
-                    print('%-22s' % (row['Ended']),)
-                else:
-                    print('%-22s' % (row['Ended'][:19]),)
-                print('%-7s' % (row['Proc']),)
-                print('%-7s' % (row['ExpProc']),)
-                if str(row['Exit']).endswith('\n'):
-                    print('%-5s' % str(row['Exit'])[:-1],)
-                else:
-                    print('%-5s' % (row['Exit']),)
-                print('%-5s' % (row['CPUs']),)
-                print(row['Arguments'])
-
+                print('{:4d} | {:4d} | {:4d} | {:19s} | {:19s} | {:4s} | {:10s} | {:10s} | {:4s} | {}'.format(row['BSID'],
+                      row['Rownum'], row['AttemptNum'], str(row['Started']), str(row['Ended']),
+                      str(row['Exit']), str(row['Proc']), str(row['ExpProc']), str(row['CPUs']), row['Arguments']))
+        
         if args.mode == "vp":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
