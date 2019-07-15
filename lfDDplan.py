@@ -15,7 +15,7 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
 
     #Loop until you've made a hit your range max
     D_DM = 0.
-    while D_DM < highDM:
+    while D_DM < round(highDM, 2):
         #calculate the DM where the current time resolution equals the
         #dispersion in a frequency channel (a bit of an overkill)
 
