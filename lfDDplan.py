@@ -49,8 +49,9 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         #range from last to new
         D_DM = round(D_DM, 2)
         nDM_step = int((D_DM - previous_DM) / DM_step)
-        DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres ])
-        previous_DM = D_DM
+        if D_DM > lowDM:
+            DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres ])
+            previous_DM = D_DM
 
         #Double time res to account for incoherent dedispersion
         timeres *= 2.
