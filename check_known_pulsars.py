@@ -15,13 +15,12 @@ import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min
 import config
-import file_maxmin
 from grid import get_grid
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       vdif_check=False, product_dir='/group/mwaops/vcs'):
-    
-    
+
+
     #obsbeg, obsend, obsdur = file_maxmin.print_minmax(obsid)
 
     #wrapping for find_pulsar_in_obs.py
@@ -32,13 +31,13 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print("Get channels from metadata")
     meta_data = get_meta(obsid)
     channels = meta_data[-1]
-            
+
     #looping through each puslar
     with open(known_pulsar_file, 'r') as kpf:
         pulsar_lines = []
         for pulsar_line in kpf:
             pulsar_lines.append(pulsar_line)
-    
+
     pointing_list = []
     jname_list = []
     for pulsar_line in pulsar_lines:
@@ -54,8 +53,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 period = output.split('\n')[4].split()[1] #in s
                 print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
                        PSRJ, raj, decj, float(period)*1000., psrbeg, psrend))
-                fits_dir = '{0}/{1}/pointings/{2}_{3}/'.format(product_dir, obsid, raj, decj)
-                
+
                 jname_temp_list = []
                 if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
                     #Got to find all the pulsar J names with other letters
@@ -89,14 +87,14 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
                 for prd in pointing_list_list:
                     jname_list.append(jname_temp_list)
-                    pointing_list.append("{0} {1}".format(prd[0], prd[1])) 
+                    pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     #Setting vdif to false since multi-pixel doesn't have vdif working yet
     vdif_check = False
     relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} --search --channels".format(obsid, cal_obs, DI_dir)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
-                              begin=psrbeg, end=psrend, channels=channels, 
+                              begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script)
     search_pipe.beamform(search_opts, pointing_list, pulsar_list_list=jname_list)
     os.remove(known_pulsar_file)
@@ -118,12 +116,12 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
     parser.add_argument("-a", "--all", action="store_true", default=False, help="Perform on entire observation span. Use instead of -b & -e")
     args=parser.parse_args()
-    
+
     #option parsing
     if not args.obsid:
         print("Please input observation id by setting -o or --obsid. Exiting")
         quit()
-    
+
     if not args.cal_obs:
         print("Please input calibration observation id by setting -O or --cal_obs. Exiting")
         quit()
@@ -133,7 +131,7 @@ if __name__ == "__main__":
         args.DI_dir = "{0}/{1}/cal/{2}/rts/".format(comp_config['base_product_dir'],
                                                     args.obsid, args.cal_obs)
         print("No DI_dir given so assuming {0} is the directory".format(args.DI_dir))
-   
+
     if args.begin and args.end:
         beg = args.begin
         end = args.end
