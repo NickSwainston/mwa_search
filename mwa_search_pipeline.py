@@ -511,11 +511,12 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         #fits dir parsing
         comp_config = config.load_config_file()
-        if search_opts.incoh:
-            search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
-        else:
-            search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
-                                                               search_opts.pointing))
+        if search_opts.pointing_dir is None:
+            if search_opts.incoh:
+                search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
+            else:
+                search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
+                                                                   search_opts.pointing))
         if search_opts.cold_storage_check:
             #Check if search_opts.pointing in cold storage
             try :
@@ -1361,7 +1362,7 @@ def error_check(search_opts, bash_job=False,
                          vcstools_version="Error_on_purpose")
         else:
             print("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
-            print(send_cmd("{0} -m {1}".format(search_opts.relaunch_script, next_mode)))
+            print(send_cmd_shell("{0} -m {1}".format(search_opts.relaunch_script, next_mode)))
     elif search_opts.attempt > 10:
         print("Still failing after 10 attempts. Exiting Here.")
     else:
@@ -1636,9 +1637,12 @@ if __name__ == "__main__":
         if args.dm_min < 1.0:
             args.dm_min = 1.0
         args.dm_max = float(dm) + 2.0
+        print("Searching DMs from {0} to {1}".format(args.dm_min, args.dm_max))
 
     if args.mode == "b":
-        if not args.DI_dir:
+        if args.incoh:
+            args.cal_obs = None
+        elif not args.DI_dir:
             if args.cal_obs:
                 args.DI_dir = "{0}{1}/cal/{2}/rts/".format(comp_config['base_product_dir'],
                                                           args.observation,
@@ -1684,7 +1688,9 @@ if __name__ == "__main__":
 
     fits_dir_base = '{0}{1}/'.format(comp_config['base_product_dir'], obsid)
 
-    if args.pointing:
+    if args.fits_dir:
+        pointing_dir = args.fits_dir
+    elif args.pointing:
         if args.incoh:
             pointing_dir = '{0}/incoh/'.format(fits_dir_base)
         else:
@@ -1719,8 +1725,8 @@ if __name__ == "__main__":
         relaunch_script +=  " --incoh "
     if args.mwa_search_version:
         relaunch_script +=  " -v " + str(args.mwa_search_version)
-    #if args.fits_dir:
-    #    relaunch_script +=  " --fits_dir " + str(args.fits_dir)
+    if args.fits_dir:
+        relaunch_script +=  " --fits_dir " + str(args.fits_dir)
     if args.channels:
         relaunch_script +=  " --channels"
         for ch in args.channels:
@@ -1751,12 +1757,14 @@ if __name__ == "__main__":
                 pointing_list.append(point.strip())
         elif args.pointing:
             pointing_list = [args.pointing.replace("_"," ")]
+        """
         elif args.fits_dir:
             #gives it a pointing name based on the last dir in the fits
             #directory as that's normaly a pulsar id or pointing
             if args.fits_dir.endswith("/"):
                 args.fits_dir = args.fits_dir[:-1]
             pointing_list = [args.fits_dir.split("/")[-1]]
+        """
 
         #If in search mode start up the database entry
         if args.code_comment:
