@@ -13,10 +13,11 @@ logger = logging.getLogger(__name__)
 
 class run_params_class:
 
-    def __init__(self, pointing_dir, cal_id,
-                prevbins=None, pulsar=None, obsid=None,
-                threshold=10.0, launch_next=False, best_bins=None,
-                force_initial=False, loglvl="INFO", mode=None):
+    def __init__(self, pointing_dir=None, cal_id=None,\
+                prevbins=None, pulsar=None, obsid=None,\
+                threshold=10.0, launch_next=False, best_bins=None,\
+                force_initial=False, loglvl="INFO", mode=None,\
+                mwa_search="master", vcs_tools="multi-pixel_beamform"):
 
         self.pointing_dir       = pointing_dir
         self.cal_id             = cal_id
@@ -29,14 +30,11 @@ class run_params_class:
         self.loglvl             = loglvl
         self.best_bins          = best_bins
         self.mode               = mode
+        self.mwa_search         = mwa_search
+        self.vcs_tools          = vcs_tools
 
-
-        if self.obsid is None or self.pulsar is None:
-            mydict = data_process_pipeline.info_from_dir(self.pointing_dir)
         if self.obsid is None:
-            self.obsid = mydict["obsid"]
-        if self.pulsar is None:
-            self.pulsar = mydict["pulsar"]
+            self.obsid = data_process_pipeline.info_from_dir(self.pointing_dir)["obsid"]
 
 
     def set_prevbins(self, prevbins):
@@ -45,7 +43,7 @@ class run_params_class:
         self.best_bins = bins
     def single_pointing(self):
         #This allows us to handle a single pointing directory easily
-        self.pointind_dir=pointing_dir[0]
+        self.pointing_dir=self.pointing_dir[0]
 
 
 #----------------------------------------------------------------------
@@ -85,9 +83,12 @@ def bestprof_info(prevbins=None, filename=None):
 #----------------------------------------------------------------------
 def submit_to_db(run_params, prof_name):
 
+    logger.info("submitting profile to database: {0}".format(prof_name))
 
     mydict = bestprof_info(filename = prof_name)
-    ppps = glob.glob("*{0}*.pfd.ps".format(mydict["nbins"]))[0]
+    #Add path to filenamse for submit script
+    ppps = os.getcwd() + "/" + glob.glob("*{0}*.pfd.ps".format(mydict["nbins"]))[0]
+    prof_name = os.getcwd() + "/" + prof_name
 
     commands = []
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'.format(run_params.obsid, run_params.cal_id, run_params.pulsar, prof_name, ppps))
@@ -103,12 +104,12 @@ def submit_to_db(run_params, prof_name):
     name = "Submit_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
 
-    submit_slurm(name, commands,
-                 batch_dir=batch_dir,
-                 slurm_kwargs={"time": "5:00:00",
-                               "nice":"90"},
-                 module_list=['mwa_search/{0}'.format("master")],
-                 submit=True, vcstools_version="multi-pixel_beamform")
+    submit_slurm(name, commands,\
+                 batch_dir=batch_dir,\
+                 slurm_kwargs={"time": "5:00:00",\
+                               "nice":"90"},\
+                 module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
+                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 #----------------------------------------------------------------------
 def check_conditions(threshold, prevbins):
@@ -147,7 +148,7 @@ def check_conditions(threshold, prevbins):
 def get_best_profile(pointing_dir, threshold):
 
     #find all of the bestprof profiles in the pointing directory
-    bestprof_names = glob.glob("*.bestprof")
+    bestprof_names = glob.glob("*bins**.bestprof")
     if len(bestprof_names)==0:
         logger.error("No bestprofs found in directory! Exiting")
         sys.exit(1)
@@ -158,9 +159,9 @@ def get_best_profile(pointing_dir, threshold):
     chi_order = []
     for prof in bestprof_names:
         prof_info = bestprof_info(filename=prof)
-        bin_order.append(prof_info["nbins"])
-        sn_order.append(prof_info["sn"])
-        chi_order.append(prof_info["chi"])
+        bin_order.append(int(prof_info["nbins"]))
+        sn_order.append(float(prof_info["sn"]))
+        chi_order.append(float(prof_info["chi"]))
     bin_order, sn_order, chi_order = zip(*sorted(zip(bin_order, sn_order, chi_order)))
     bin_order = bin_order[::-1]
     sn_order = sn_order[::-1]
@@ -185,14 +186,16 @@ def get_best_profile(pointing_dir, threshold):
 def submit_multifold(run_params, nbins=64):
 
     job_ids = []
-    for pointing in run_params.pointing_dir:
+    for i, pointing in enumerate(run_params.pointing_dir):
+        logger.info("submitting pointing:{0}".format(pointing))
+        os.chdir(pointing)
         #create slurm job:
         commands = []
         #load presto module here because it uses python 2
-        commands.append('echo "Folding on known pulsar"'.format(run_params.pulsar))
+        commands.append('echo "Folding on known pulsar {0}"'.format(run_params.pulsar))
         commands.append('psrcat -e {0} > {0}.eph'.format(run_params.pulsar))
         commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(run_params.pulsar))
-        commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph -nsub 256 1*fits -n {2}".format(run_params.obsid, run_params.pulsar, nbins))
+        commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph -nsub 256 1*.fits -n {2}".format(run_params.obsid, run_params.pulsar, nbins))
         commands.append('errorcode=$?')
         commands.append('pulsar={}'.format(run_params.pulsar[1:]))
         pulsar_bash_string = '${pulsar}'
@@ -200,7 +203,7 @@ def submit_multifold(run_params, nbins=64):
         #causes an error with -timing but not -psr
         commands.append('if [ "$errorcode" != "0" ]; then')
         commands.append('   echo "Folding using the -psr option"')
-        commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1} -nsub 256 1*fits -n {2}'.format(run_params.obsid, run_params.pulsar, nbins))
+        commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1} -nsub 256 1*.fits -n {2}'.format(run_params.obsid, run_params.pulsar, nbins))
         commands.append('   pulsar={}'.format(run_params.pulsar))
         commands.append('fi')
         commands.append('rm {0}.eph'.format(run_params.pulsar))
@@ -208,12 +211,12 @@ def submit_multifold(run_params, nbins=64):
 
         name = "multifold_{0}_{1}".format(run_params.pulsar, i)
         batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
-        myid = submit_slurm(name, commands,
-                    batch_dir=batch_dir,
-                    slurm_kwargs={"time": "1:00:00"},
-                    module_list=['mwa_search/k_smith',
-                                'presto/no-python'],
-                    submit=True, vcstools_version="multi-pixel_beamform")
+        myid = submit_slurm(name, commands,\
+                    batch_dir=batch_dir,\
+                    slurm_kwargs={"time": "1:00:00"},\
+                    module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
+                                'presto/no-python'],\
+                    submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 
         job_ids.append(myid)
@@ -224,8 +227,15 @@ def submit_multifold(run_params, nbins=64):
     else:
         launch=""
 
+    p = ""
+    for pointing in run_params.pointing_dir:
+        p = p + pointing + " "
+
     commands=[]
-    commands.append("binfinder.py -m 'b' -d {0} -O {1} -p {2} -o {3} -L {4} {5} --force_initial".format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar, run_params.obsid, run_params.loglvl, launch))
+    commands.append("binfinder.py -m b -d {0} -O {1} -p {2} -o {3} -L {4} {5} --vcs_tools {6} --mwa_search {7}\
+     --force_initial -p {8}"\
+    .format(p, run_params.cal_id, run_params.pulsar, run_params.obsid, run_params.loglvl, launch,\
+    run_params.vcs_tools, run_params.mwa_search, run_params.pulsar))
 
     name="best_fold_{0}".format(run_params.pulsar)
     batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
@@ -252,7 +262,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     commands.append('echo "Folding on known pulsar {0}"'.format(run_params.pulsar))
     commands.append('psrcat -e {0} > {0}.eph'.format(run_params.pulsar))
     commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(run_params.pulsar))
-    commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph -nsub 256 1*fits -n {2}".format(run_params.obsid, run_params.pulsar, nbins))
+    commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph -nsub 256 1*.fits -n {2}".format(run_params.obsid, run_params.pulsar, nbins))
     commands.append('errorcode=$?')
     commands.append('pulsar={}'.format(run_params.pulsar[1:]))
     pulsar_bash_string = '${pulsar}'
@@ -260,7 +270,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     #causes an error with -timing but not -psr
     commands.append('if [ "$errorcode" != "0" ]; then')
     commands.append('   echo "Folding using the -psr option"')
-    commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1} -nsub 256 1*fits -n {2}'.format(run_params.obsid, run_params.pulsar, nbins))
+    commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1} -nsub 256 1*.fits -n {2}'.format(run_params.obsid, run_params.pulsar, nbins))
     commands.append('   pulsar={}'.format(run_params.pulsar))
     commands.append('fi')
     commands.append('rm {0}.eph'.format(run_params.pulsar))
@@ -268,41 +278,48 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     if finish==False:
         #Rerun this script
         commands.append('echo "Running script again. Passing prevbins = {0}"'.format(nbins))
-        commands.append('binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} --prevbins {5} {6} -m f'.format(run_params.pointing_dir, run_params.threshold, run_params.cal_id, run_params.obsid, run_params.loglvl, nbins, launch))
+        commands.append('binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} --prevbins {5} {6} --vcs_tools {7}\
+         --mwa_search {8} -p {9} -m f'\
+        .format(run_params.pointing_dir, run_params.threshold, run_params.cal_id, run_params.obsid,\
+        run_params.loglvl, nbins, launch, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar))
     else:
         #Run again only once and without prepfold
         commands.append('echo "Running script again without folding. Passing prevbins = {0}"'.format(nbins))
-        commands.append('binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} --prevbins {5} {6} -m e'.format(run_params.pointing_dir, run_params.threshold, run_params.obsid, run_params.cal_id, run_params.loglvl, nbins, launch))
+        commands.append('binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} --prevbins {5} {6} --vcs_tools\
+         {7} --mwa_search {8} -p {9} -m e'\
+        .format(run_params.pointing_dir, run_params.threshold, run_params.obsid, run_params.cal_id,\
+        run_params.loglvl, nbins, launch, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar))
 
 
 
     name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
     batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
-    submit_slurm(name, commands,
-                batch_dir=batch_dir,
-                slurm_kwargs={"time": "2:00:00"},
-                module_list=['mwa_search/k_smith',
-                            'presto/no-python'],
-                submit=True, vcstools_version="multi-pixel_beamform")
+    submit_slurm(name, commands,\
+                batch_dir=batch_dir,\
+                slurm_kwargs={"time": "2:00:00"},\
+                module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
+                            'presto/no-python'],\
+                submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
     logger.info("Job successfully submitted")
 
 
 
 #----------------------------------------------------------------------
-def find_best_pointing(run_params):
+def find_best_pointing(run_params, nbins=64):
 
     bestprof_info_list = []
     for pointing in run_params.pointing_dir:
         os.chdir(pointing)
-        prof_name = glob.glob("*{0}*bestprof".format(prevbins))[0]
-        bestprof_info_list.append(bestprof_info(prof_name))
+        logger.info("searching directory: {0}".format(pointing))
+        prof_name = glob.glob("*{0}*.bestprof".format(nbins))[0]
+        bestprof_info_list.append(bestprof_info(filename=prof_name))
 
     #now we loop through all the info and find the best one\
     best_sn = 0.0
     best_i = -1
     for i, info_dict in enumerate(bestprof_info_list):
-        if info_dict["chi"]>=4.0 and info_dict["sn"]>best_sn:
-            best_sn = info_dict["sn"]
+        if float(info_dict["chi"])>=4.0 and float(info_dict["sn"])>best_sn:
+            best_sn = float(info_dict["sn"])
             best_i = i
 
     if best_i<0 and best_sn<5.0:
@@ -312,7 +329,23 @@ def find_best_pointing(run_params):
 
         launch = relaunch(run_params.launch_next)
         commands = []
-        commands.append("binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} {5} -m f".format(run_params.pointing_dir[best_i], run_params.threshold, run_params.cal_id, run_params.obsid, run_params.loglvl, launch))
+        commands.append("binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} {5} --vcs_tools {6} --mwa_search {7}\
+        -p {8} -m f"\
+        .format(run_params.pointing_dir[best_i], run_params.threshold, run_params.cal_id, run_params.obsid,\
+        run_params.loglvl, launch, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar))
+
+    name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
+    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    submit_slurm(name, commands,\
+                batch_dir=batch_dir,\
+                slurm_kwargs={"time": "2:00:00"},\
+                module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
+                            'presto/no-python'],\
+                submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+    logger.info("Job successfully submitted")
+
+
+
 
 #----------------------------------------------------------------------
 def iterate_bins(run_params):
@@ -403,6 +436,8 @@ if __name__ == '__main__':
     other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     other.add_argument("--force_initial", action="store_true", help="Use this tag to force the script to treat this as the first run.")
     other.add_argument("--launch_next", action="store_false", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
+    other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
+    other.add_argument("--vcs_tools", type=str, default="multi-pixel_beamform", help="The version of vcs_tools to use. Default: multi-pixel_beamform")
 
     non_user = parser.add_argument_group("Non-User input Options:")
     non_user.add_argument("--prevbins", type=int, default=None, help="The number of bins used in prepfold on the previous run. Not necessary for initial runs")
@@ -430,12 +465,13 @@ if __name__ == '__main__':
         logger.error("Mode not supplied. Please input a mode from the list of modes and rerun")
 
 
-    run_params = run_params_class(args.pointing_dir, args.cal_id,
-                    prevbins=args.prevbins, pulsar=args.pulsar,
-                    obsid=args.obsid, threshold=args.threshold,
-                    launch_next=args.launch_next,
-                    force_initial=args.force_initial, mode=args.mode,
-                    loglvl=args.loglvl)
+    run_params = run_params_class(args.pointing_dir, args.cal_id,\
+                    prevbins=args.prevbins, pulsar=args.pulsar,\
+                    obsid=args.obsid, threshold=args.threshold,\
+                    launch_next=args.launch_next,\
+                    force_initial=args.force_initial, mode=args.mode,\
+                    loglvl=args.loglvl, mwa_search=args.mwa_search,\
+                    vcs_tools=args.vcs_tools)
 
     """
     NOTE: for some reason, you need to run prepfold from the directory it outputs to if you want it to properly make an image. The script will make this work regardless by using os.chdir
@@ -443,7 +479,7 @@ if __name__ == '__main__':
     if run_params.mode is not "m" and run_params.mode is not "b":
         #convert array to str
         run_params.single_pointing()
-        os.chdir(args.pointing_dir)
+        os.chdir(run_params.pointing_dir)
 
 
     if run_params.mode=="e":
@@ -459,8 +495,10 @@ if __name__ == '__main__':
         run_params.set_best_bins(int(float(mydict["nbins"])))
         submit_to_db(run_params, prof_name)
         exit(0)
-    if run_params.mode=="b":
-        find_best_pointing(run_params)
+    elif run_params.mode=="m":
+        submit_multifold(run_params)
+    elif run_params.mode=="b":
+        find_best_pointing(run_params, nbins=64)
     elif run_params.mode=="f":
         iterate_bins(run_params)
     else:
