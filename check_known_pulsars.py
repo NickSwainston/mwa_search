@@ -14,6 +14,7 @@ import astropy.units as u
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min
+import data_processing_pipeline as process_pipe
 import config
 from grid import get_grid
 
@@ -98,6 +99,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script)
     search_pipe.beamform(search_opts, pointing_list, pulsar_list_list=jname_list)
     os.remove(known_pulsar_file)
+
+
+
     return
 
 
