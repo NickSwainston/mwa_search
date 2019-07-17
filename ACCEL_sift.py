@@ -9,7 +9,7 @@ args=parser.parse_args()
 
 # Note:  You will almost certainly want to adjust
 #        the following variables for your particular search
- 
+
 d=args.dir
 print(d)
 if d.endswith("/"):
@@ -32,7 +32,7 @@ min_num_DMs = 8
 # Lowest DM to consider as a "real" pulsar
 low_DM_cutoff = 1.0
 # Ignore candidates with a sigma (from incoherent power summation) less than this
-sifting.sigma_threshold = 7.0
+sifting.sigma_threshold = 5.0
 # Ignore candidates with a coherent power less than this
 sifting.c_pow_threshold = 100.0
 
@@ -48,7 +48,7 @@ sifting.known_birds_f = []
 # But if we want to override them, uncomment and do it here.
 # You shouldn't need to adjust them for most searches, though.
 
-# How close a candidate has to be to another candidate to                
+# How close a candidate has to be to another candidate to
 # consider it the same candidate (in Fourier bins)
 sifting.r_err = 1.1
 # Shortest period candidates to consider (s)
@@ -56,7 +56,7 @@ sifting.short_period = 0.0005
 # Longest period candidates to consider (s)
 sifting.long_period = 15.0
 # Ignore any candidates where at least one harmonic does exceed this power
-sifting.harm_pow_cutoff = 8.0
+sifting.harm_pow_cutoff = 5.0
 
 #--------------------------------------------------------------
 
@@ -86,7 +86,7 @@ if len(cands):
 
 # Remove candidates that are harmonically related to each other
 # Note:  this includes only a small set of harmonics
-if len(cands):
+if len(cands) > 1:
     cands = sifting.remove_harmonics(cands)
 print("Number of candidates remaining {}".format(len(cands)))
 # Write candidates to STDOUT

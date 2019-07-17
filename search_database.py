@@ -8,21 +8,21 @@ import textwrap
 
 DB_FILE = os.environ['SEARCH_DB']
 #how many seconds the sqlite database conection takes until it times out
-TIMEOUT=120
+TIMEOUT=600
 
 def dict_factory(cursor, row):
     d = {}
     for idx, col in enumerate(cursor.description):
         d[col[0]] = row[idx]
     return d
-    
+
 def database_search_start(obsid, pointing, comment):
     import version
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
         cur.execute("""INSERT INTO PulsarSearch(Started, Obsid, Pointing,
-                UserID, Version, Comment, 
+                UserID, Version, Comment,
                 TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
                 BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
                 PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
@@ -37,7 +37,7 @@ def database_search_start(obsid, pointing, comment):
                        ?,?,?,?,?,
                        ?,?,?,?,?,
                        ?,?,?)""",
-                  (datetime.datetime.now(), obsid, pointing, 
+                  (datetime.datetime.now(), obsid, pointing,
                   os.environ['USER'], version.__version__, comment,
                   0.0, 0, 0, 0, 0,
                   0.0, 0, 0, 0, 0,
@@ -84,11 +84,11 @@ def database_script_list(bs_id, command, arguments_list, threads, expe_proc_time
             search_job_exp = 0
         cur.execute("UPDATE PulsarSearch SET TotalJobExp=? WHERE Rownum=?", (len(arguments_list) + search_job_exp, bs_id))
 
-    return 
+    return
 
 
 def database_script_start(table, bs_id, rownum, attempt_num, time=datetime.datetime.now()):
-    
+
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
@@ -126,12 +126,12 @@ def database_script_stop(table, bs_id, rownum, attempt_num, errorcode,
             job_jc = int(bs_columns[table+'JobComp']) + 1
 
             cur.execute("UPDATE PulsarSearch SET TotalProc=?, {0}Proc=?, TotalJobComp=?, {0}JobComp=? WHERE Rownum=?".format(table), (str(tot_proc)[:9], str(job_proc)[:9], str(tot_jc)[:9], str(job_jc)[:9], bs_id))
-        else:    
+        else:
             tot_er = int(bs_columns['TotalErrors']) + 1
             job_er = int(bs_columns[table+'Errors']) + 1
 
             cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (end_time, errorcode, rownum, attempt_num, bs_id))
-                
+
             cur.execute("UPDATE PulsarSearch SET TotalErrors=?, {0}Errors=? WHERE Rownum=?".format(table), (tot_er, job_er, bs_id))
     return
 
@@ -149,13 +149,31 @@ def database_script_check(table, bs_id, attempt_num):
         cur.execute("SELECT * FROM {0} WHERE AttemptNum=? AND BSID=?".format(table),
                     (attempt_num, bs_id))
         rows = cur.fetchall()
-        
+
         error_data = []
         for row in rows:
             if row['Started'] == None or row['Ended'] == None or row['Exit'] != 0:
                 error_data.append([row['Command'], row['Arguments'], row['ExpProc']])
     return error_data
 
+def database_search_done_check(obsid, pointing):
+    """
+    Checks if the pointing and obsid have already been sucessfully searched
+    (end time not none)
+    """
+    con = lite.connect(DB_FILE, timeout = TIMEOUT)
+    con.row_factory = lite.Row
+    with con:
+        cur = con.cursor()
+        #get script data
+        cur.execute("SELECT Ended FROM PulsarSearch WHERE Obsid=? AND Pointing=?",
+                    (obsid, pointing))
+        endtime = cur.fetchall()
+        searched_check = False
+        for e in endtime:
+            if e[0] is not None:
+                searched_check = True
+    return searched_check
 
 def database_mass_update(table,file_location):
     """
@@ -174,7 +192,7 @@ def database_mass_update(table,file_location):
                     rownum = l[2]
                     attempt_num = l[3]
                     bs_id = l[1]
-                
+
                 else:
                     end_time = l[0]
                     errorcode = l[1]
@@ -207,10 +225,12 @@ def database_mass_update(table,file_location):
                         tot_er = int(bs_columns['TotalErrors']) + 1
                         job_er = int(bs_columns[table+'Errors']) + 1
 
-                        cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND AttemptNum=? AND BSID=?".format(table), (end_time, errorcode, rownum, attempt_num, bs_id))
-                            
-                        cur.execute("UPDATE PulsarSearch SET TotalErrors=?, ?Errors=? WHERE Rownum=?",
-                                    (tot_er,job_er, bs_id))
+                        cur.execute("UPDATE {0} SET Ended=?, Exit=? WHERE Rownum=? AND "
+                                    "AttemptNum=? AND BSID=?".format(table),
+                                    (end_time, errorcode, rownum, attempt_num, bs_id))
+
+                        cur.execute("UPDATE PulsarSearch SET TotalErrors=?, {0}Errors=? "
+                                    "WHERE Rownum=?".format(table), (tot_er,job_er, bs_id))
     return
 
 
@@ -247,7 +267,7 @@ def database_beamform_find(file_location, bs_id):
                     arguments_list.append(l.split(command)[1])
     #set up the beamform database
     database_script_list(bs_id, 'make_beam', arguments_list, nodes, expe_proc_time)
-    
+
     #go through the output files for start stop times
     out_file_list = glob.glob('{0}*.out'.format(file_location))
     for rownum, out_file in enumerate(out_file_list):
@@ -258,7 +278,7 @@ def database_beamform_find(file_location, bs_id):
                 if "**FINISHED BEAMFORMING**" in l:
                     find_check = True
                     time_seconds = float(l[1:10])
-                    #So this may be inaccurate because now isn't when the job 
+                    #So this may be inaccurate because now isn't when the job
                     #finished but should get the right delta
                     time_then = datetime.datetime.now() - datetime.timedelta(seconds=time_seconds)
                     #TODO add attemp number options
@@ -269,7 +289,7 @@ def database_beamform_find(file_location, bs_id):
                 #TODO make this more robust to work out how long it ran before it died
                 database_script_start('Beamform', bs_id, rownum, 1, time=time_now)
                 database_script_stop('Beamform', bs_id, rownum, 1, 1, end_time=time_now)
-    return 
+    return
 
 def date_to_sec(string):
     #just an approximation (doesn't even use year and month
@@ -281,7 +301,7 @@ def date_to_sec(string):
     #print "Minutes " + str((float(d)*24. + float(h))*60. + float(mi))
     #print "secounds " + str(s_out)
     return s_out
-    
+
 
 if __name__ == '__main__':
     mode_options = ['vc', 'vs', 'vp', 'vprog', 's', 'e', 'm', 'b', 'w']
@@ -295,10 +315,10 @@ if __name__ == '__main__':
 "s" used to record the start time of a script.
 "e" used to record the end time, error code and processing time of a script.
 "m" used to record the start and stop time using an csv file. Used for quick commands.
-"b" is a special mode for receiving the total time of beamforming jobs. 
+"b" is a special mode for receiving the total time of beamforming jobs.
 "w" is a wrap up for the pipeline that records candidate statistics and the end time.
 Default mode is vc'''.format(mode_options)))
-    
+
     view_options = parser.add_argument_group('View Options')
     view_options.add_argument("--recent", default=None, type=float, help="Print only jobs started in the last N hours")
     view_options.add_argument("--number", default=20, type=int, help="Number of jobs to print. Default is 20")
@@ -306,13 +326,13 @@ Default mode is vc'''.format(mode_options)))
     view_options.add_argument("-s", "--startrow", default=0, type=int, help="Ignore any row earlier than this one")
     view_options.add_argument("-e", "--endrow", default=None, type=int, help="Ignore any row later than this one")
     view_options.add_argument("-o", "--obsid", default=None, type=str, help="Only prints one obsid's jobs.")
-    
+
     start_options = parser.add_argument_group('Script Start Options')
     start_options.add_argument("-b", "--bs_id", default=None, type=str, help="The row number of the pulsar search command of the databse")
     start_options.add_argument("-c", "--command", default=None, type=str, help="The script name being run. eg volt_download.py.")
     start_options.add_argument("-a", "--attempt_num", default=None, type=str, help="The attempt number of a script.")
     start_options.add_argument("-n", "--nodes", default=1, type=int, help="The number of cpu nodes used.")
-    
+
     end_options = parser.add_argument_group('Script End Options')
     end_options.add_argument("--errorcode", dest="errorcode", default=None, type=int, help="Error code of scripts.")
     end_options.add_argument("-r", "--rownum", dest="rownum", default=None, type=str, help="The row number of the script.")
@@ -340,8 +360,8 @@ Default mode is vc'''.format(mode_options)))
         table = 'PulsarSearch'
     elif args.mode == 'b' or args.command == 'make_beam':
         table = 'Beamform'
-        
-    
+
+
     if args.mode == "s":
         vcs_row = database_script_start(table, args.bs_id, args.rownum, args.attempt_num)
     elif args.mode == "e":
@@ -359,7 +379,7 @@ Default mode is vc'''.format(mode_options)))
     elif args.mode.startswith("v"):
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory
-    
+
         query = "SELECT * FROM {0}".format(table)
 
         if args.obsid:
@@ -372,13 +392,13 @@ Default mode is vc'''.format(mode_options)))
             query += " WHERE BSID=" + str(args.bs_id)
         elif args.bs_id and not args.mode == 'vs':
             query += " WHERE Rownum=" + str(args.bs_id)
-            
+
         if args.attempt_num:
             if "WHERE" in query:
                 query += " AND AttemptNum='" + str(args.attempt_num) + "'"
             else:
                 query += " WHERE AttemptNum='" + str(args.attempt_num) + "'"
-        
+
         if args.errorcode:
             if "WHERE" in query:
                 query += " AND Exit='" + str(args.errorcode) + "'"
@@ -390,15 +410,16 @@ Default mode is vc'''.format(mode_options)))
             cur = con.cursor()
             cur.execute(query)
             rows = cur.fetchall()
-
+        
+        start_at = 6000 #because i deleted the first 6000 rows
         if args.startrow and args.endrow is None:
-            rows = rows[args.startrow:]
+            rows = rows[(args.startrow-start_at):]
         elif args.endrow is not None:
-            rows = rows[args.startrow:args.endrow+1]
+            rows = rows[(args.startrow-start_at):args.endrow+1-start_at]
         elif not (args.all or args.recent):
             rows = rows[-args.number:]
-        
-        
+
+
         if args.mode == "vc":
             print('{:4s} | {:10s} | {:26s} | {:19s} | {:19s} | {}'.format('Row',
                   'Obsid', 'Pointing', 'Started', 'Ended', 'Comments'))
@@ -409,33 +430,20 @@ Default mode is vc'''.format(mode_options)))
                 else:
                     temp_ended = '{:.19}'.format(row['Ended'])
                 print('{:4d} | {:10d} | {:26s} | {:19s} | {:19s} | {}'.format(row['Rownum'], row['Obsid'], row['Pointing'], row['Started'][:19], temp_ended, row['Comment']))
-                
-                
+
+
         if args.mode == "vs":
-            print('BDIS ','Row# ','Atm#','Started               ','Ended                 ','Exit_Code','ProcTime ','ExpecTime ','Arguments')
+            print(    '{:4s} | {:4s} | {:4s} | {:19s} | {:19s} | {:4s} | '
+                      '{:10s} | {:10s} | {:4s} | {}'.format('BDIS',
+                  'Row#','Atm#','Started','Ended','ExtC','ProcTime ',
+                  'ExpecTime ', 'CPU#', 'Arguments'))
             print('--------------------------------------------------------------------------------------------------')
             for row in rows:
                 #BSID INT, Command TEXT, Arguments TEXT, Started date, Ended date, Exit
-                print('%-5s' % (row['BSID']),)
-                print('%-5s' % (str(row['Rownum']).rjust(4)),)
-                print('%-5s' % (row['AttemptNum']),)
-                if row['Started'] is None:
-                    print('%-22s' % (row['Started']),)
-                else:
-                    print('%-22s' % (row['Started'][:19]),)
-                if row['Ended'] is None:
-                    print('%-22s' % (row['Ended']),)
-                else:
-                    print('%-22s' % (row['Ended'][:19]),)
-                print('%-7s' % (row['Proc']),)
-                print('%-7s' % (row['ExpProc']),)
-                if str(row['Exit']).endswith('\n'):
-                    print('%-5s' % str(row['Exit'])[:-1],)
-                else:
-                    print('%-5s' % (row['Exit']),)
-                print('%-5s' % (row['CPUs']),)
-                print(row['Arguments'])
-                
+                print('{:4d} | {:4d} | {:4d} | {:19s} | {:19s} | {:4s} | {:10s} | {:10s} | {:4s} | {}'.format(row['BSID'],
+                      row['Rownum'], row['AttemptNum'], str(row['Started']), str(row['Ended']),
+                      str(row['Exit']), str(row['Proc']), str(row['ExpProc']), str(row['CPUs']), row['Arguments']))
+        
         if args.mode == "vp":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
@@ -444,7 +452,7 @@ Default mode is vc'''.format(mode_options)))
 
                 #TotalProc FLOAT, TotalErrors INT, RFIProc FLOAT, RFIErrors INT, PrepdataProc FLOAT, PrepdataErrors INT, FFTProc FLOAT, FFTErrors INT, AccelProc FLOAT, AccelErrors INT, FoldProc FLOAT, FoldErrors INT,
                 print('{:4s} |{:11.2f} |{:5d} | {:13.2f} |{:5d} | {:9.2f} |{:5d} | {:8.2f} |{:5d} | {:10.2f} |{:5d} | {:9.2f} |{:5d} |'.format(str(row['Rownum']).rjust(4),row['TotalProc']/3600.,row['TotalErrors'],row['BeamformProc']/3600.,row['BeamformErrors'],row['PrepdataProc']/3600.,row['PrepdataErrors'],row['FFTProc']/3600.,row['FFTErrors'],row['AccelProc']/3600.,row['AccelErrors'],row['FoldProc']/3600.,row['FoldErrors']))
-        
+
         if args.mode == "vprog":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:

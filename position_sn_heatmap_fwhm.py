@@ -6,22 +6,22 @@ import os
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
-from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
-from matplotlib import cm as CM
-from matplotlib import mlab as ML
 
 import numpy as np
 import math
 from scipy.interpolate import UnivariateSpline
 import glob
 
+import config
 
 def find_fwhm_and_plot(obsid, pointing):
     pointing_list = []
     sn = []
-    for d in glob.glob("/group/mwaops/vcs/{0}/pointings/{1}*_{2}*/".format(obsid,pointing.split("_")[0][:4],pointing.split("_")[1][:2])):
-        bestprof_file = "{0}{1}_fwhm_test_{2}_PSR_J2145-0750.pfd.bestprof".format(d, obsid, d.split("/")[-2])
+    comp_config = config.load_config_file()
+    for d in glob.glob("{0}/{1}/pointings/{2}*_{3}*/".format(comp_config['base_product_dir'],
+                                obsid,pointing.split("_")[0][:4],pointing.split("_")[1][:2])):
+        bestprof_file = "{0}{1}_PSR_J2145-0750.pfd.bestprof".format(d, obsid)#, d.split("/")[-2])
         if os.path.exists(bestprof_file):
             with open(bestprof_file) as bestfile:
                 for i in bestfile.readlines():
@@ -33,7 +33,7 @@ def find_fwhm_and_plot(obsid, pointing):
     #max_index = sn.index(max(sn))
     ra_hex = pointing.split("_")[0]
     dec_hex = pointing.split("_")[1]
-    
+
     print(ra_hex, dec_hex)
     coord = SkyCoord(ra_hex,dec_hex,unit=(u.hourangle,u.deg))
     dec_centre = coord.dec.degree
@@ -63,7 +63,7 @@ def find_fwhm_and_plot(obsid, pointing):
     print("sn max coord: {0}_{1}".format(ra_max_hex, dec_max_hex))
 
 
-    
+
     #sort and calc FWHM
     ra_sn_line = [x for _,x in sorted(zip(ra_line,ra_sn_line))]
     ra_line = sorted(ra_line)
@@ -90,7 +90,6 @@ def find_fwhm_and_plot(obsid, pointing):
     cor_dec_FWHM = float(dec_FWHM)*math.cos(np.radians(dec_centre) + np.radians(26.7))**2
     print("corrected dec FWHM: {0}".format(cor_dec_FWHM))
 
-    
 
 
     ras = np.array(ras); decs = np.array(decs)
@@ -106,7 +105,7 @@ def find_fwhm_and_plot(obsid, pointing):
     plt.colorbar(sp)
     plt.savefig("{0}_position_heatmap.png".format(obsid))
     plt.show()
-    
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""
@@ -116,4 +115,4 @@ if __name__ == '__main__':
     parser.add_argument('-o','--obsid',type=str,help='The observation ID to be searched')
     parser.add_argument('-p','--pointing',type=str,help='The centre pointing. eg 21:45:50.46_-07:50:18.48.')
     args=parser.parse_args()
-    find_fwhm_and_plot(args.obsid, args.pointing) 
+    find_fwhm_and_plot(args.obsid, args.pointing)
