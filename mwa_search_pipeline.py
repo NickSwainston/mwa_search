@@ -364,6 +364,30 @@ def process_vcs_wrapper(search_opts, pointings,
             dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
     return
 
+def multibeam_binfind(run_params, job_id_list)
+    """
+    Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
+    """
+    pointing_str = ""
+    for pointing in run_params.pointing_dir:
+        pointing_str = pointing_str + pointing + " "
+
+    commands = []
+    commands.append("echo 'Folding on multiple pointings'")
+    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -t {4} -L {5}"\
+                    .format(pointing_str, run_params.obsid, run_params.cal_id, run_params.pulsar,\
+                    run_params.threshold, run_params.loglvl))
+    
+    name="multibeam_fold_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+    batch_dir("/group/mwaops/vcs/{0}/batch".format(run_params.obsid))
+    submit_slurm(name, commands,\
+                batch_dir=batch_dir,\
+                slurm_kwargs={"time": "00:05:00"},\
+                module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
+                              'presto/no-python'],\
+                submit=True, vcstools_version=run_params.vcs_tools,\
+                depend=lob_id_list)
+     
 
 def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
     """
