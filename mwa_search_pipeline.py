@@ -386,7 +386,7 @@ def multibeam_binfind(run_params, job_id_list)
                 module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                               'presto/no-python'],\
                 submit=True, vcstools_version=run_params.vcs_tools,\
-                depend=lob_id_list)
+                depend=job_id_list)
      
 
 def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
