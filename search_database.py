@@ -411,7 +411,13 @@ Default mode is vc'''.format(mode_options)))
             cur.execute(query)
             rows = cur.fetchall()
         
-        start_at = 6000 #because i deleted the first 6000 rows
+        import socket
+        hostname = socket.gethostname()
+        if hostname.startswith('john') or hostname.startswith('farnarkle'):
+            start_at = 6000 #because i deleted the first 6000 rows
+        else:
+            start_at = 0
+
         if args.startrow and args.endrow is None:
             rows = rows[(args.startrow-start_at):]
         elif args.endrow is not None:

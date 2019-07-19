@@ -89,7 +89,7 @@ class search_options_class:
         self.dm_max           = dm_max
 
         #search database
-        self.relaunch_script    = relaunch_script
+        self._relaunch_script    = relaunch_script
         self.search             = search
         self._bsd_row_num        = bsd_row_num
         self.cold_storage_check = cold_storage_check
@@ -145,6 +145,13 @@ class search_options_class:
     def setNOT(self, value):
         self._n_omp_threads = value
     n_omp_threads = property(getNOT, setNOT)
+    
+    def getRLS(self):
+        return self._relaunch_script
+    def setRLS(self, value):
+        self._relaunch_script = value
+    relaunch_script = property(getRLS, setRLS)
+
 
 
 def send_cmd_shell(cmd):
@@ -448,7 +455,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             relaunch_script += ' -r {0}'.format(search_opts.bsd_row_num)
         if search_opts.incoh:
             #run rfi job
-            relaunch_script += ' -m r --search_opts.incoh'
+            relaunch_script += ' -m r --incoh'
         else:
             relaunch_script += ' -m b'
         commands.append(relaunch_script)
@@ -574,6 +581,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
             and bsd_row_num_input is None:
                 search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                    search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
+                search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script,
+                                                       search_opts.bsd_row_num))
         else:
             search_opts.setBRN(bsd_row_num_input)
 
@@ -844,7 +853,7 @@ def prepdata(search_opts):
                          search_opts.n_omp_threads, expe_proc_time)
 
     if "-r" not in search_opts.relaunch_script:
-        search_opts.relaunch_script += " -r {}".format(search_opts.bsd_row_num)
+        search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script, search_opts.bsd_row_num))
 
 
     search_opts.setTable('Prepdata')
