@@ -94,7 +94,7 @@ def submit_to_db(run_params, prof_name):
     commands.append('echo "submitted profile to database: {0}"'.format(prof_name))
 
     if run_params.launch_next==True:
-        commands.append("data_processing_pipeline.py -d {0} -O {1} -p {2} -o {3} -b {4} -L {5} -m stokes_fold".format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar, run_params.obsid, run_params.best_bins, run_params.loglvl))
+        commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -b {4} -L {5} -m stokes_fold".format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar, run_params.obsid, run_params.best_bins, run_params.loglvl))
 
     commands.append('echo "Searching for pulsar using the pipeline to test the pipelines effectivness"')
     commands.append('mwa_search_pipeline.py -o {0} -a --search --pulsar {1} -O {2} --code_comment "Known pulsar auto test"'.format(run_params.obsid, run_params.pulsar, run_params.cal_id))
@@ -402,7 +402,7 @@ if __name__ == '__main__':
     other.add_argument("-o", "--obsid", type=str, default=None, help="The observation ID")
     other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     other.add_argument("--force_initial", action="store_true", help="Use this tag to force the script to treat this as the first run.")
-    other.add_argument("--launch_next", action="store_false", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
+    other.add_argument("--launch_next", action="store_false", help="Use this tag to tell binfinder to launch the next step in the data process pipleline when finished")
 
     non_user = parser.add_argument_group("Non-User input Options:")
     non_user.add_argument("--prevbins", type=int, default=None, help="The number of bins used in prepfold on the previous run. Not necessary for initial runs")

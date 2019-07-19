@@ -347,6 +347,7 @@ def process_vcs_wrapper(search_opts, pointings,
 
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     code_comment_in = code_comment
+    dep_job_id_list = []
     for job_id_list in job_id_list_list:
         for pn, pointing in enumerate(pointings):
             search_opts.setPoint(pointing)
@@ -361,30 +362,29 @@ def process_vcs_wrapper(search_opts, pointings,
 
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                           search_opts.pointing, "{0}".format(code_comment)))
-            dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
-    return
+            dep_job_id_list.append(dependant_splice_batch(search_opts, job_id_list=job_id_list,
+                                                                       pulsar_list=pulsar_list))
+    return dep_job_id_list
 
-def multibeam_binfind(search_opts, job_id_list, threshold, pulsar, loglvl="INFO", vcs_tools="master"):
+def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO", vcs_tools="multi-pixel_beamform"):
     """
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
-    pointing_str = ""
-    for pointing in search_opts.pointing_dir:
-        pointing_str = pointing_str + pointing + " "
+    pointing_str = " ".join(pointing_dir_list)
 
     commands = []
     commands.append("echo 'Folding on multiple pointings'")
-    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -t {4} -L {5} --mwa_search {6}\
-                    --vcs_tools {7}"\
+    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} --mwa_search {5}\
+                    --vcs_tools {6}"\
                     .format(pointing_str, search_opts.obsid, search_opts.cal_id, pulsar,\
-                    threshold, loglvl, search_opts.search_ver, vcs_tools))
+                    loglvl, search_opts.search_ver, vcs_tools))
     
     name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
-    batch_dir("/group/mwaops/vcs/{0}/batch".format(search_opts.obsid))
+    batch_dir = "{0}/batch/".format(search_opts.fits_dir_base) 
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "00:05:00"},\
-                module_list=['mwa_search/{0}'.format(search_opts.mwa_search),\
+                module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
                               'presto/no-python'],\
                 submit=True, vcstools_version=vcs_tools,\
                 depend=job_id_list)
@@ -483,14 +483,14 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             relaunch_script += ' -m b'
         commands.append(relaunch_script)
 
-    submit_slurm(splice_wrapper_batch, commands,
+    job_id = submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir, nice=search_opts.nice,
                  slurm_kwargs={"time": "8:00:00"},
                  module_list=['mwa_search/{}'.format(search_opts.search_ver),
                               'presto/no-python'],
                  submit=True, depend=job_id_list, depend_type='afterany',
                  vcstools_version="multi-pixel_beamform")
-    return
+    return job_id 
 
 
 def beamform(search_opts, pointing_list, code_comment=None,
@@ -498,6 +498,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
              relaunch=False):
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     bsd_row_num_input = search_opts.bsd_row_num
+
+    #create a dictionary for recording pointdirs and pulsars to make a depdant fold job
+    pulsar_fold_dict = {}
+    for pulsar_list in pulsar_list_list:
+        pulsar_fold_dict[" ".join(pulsar_list)] = []
 
     hostname = socket.gethostname()
     #if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -622,7 +627,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
         elif missing_file_check and not unspliced_check:
             #splice files
             print("Splicing the files in {0}".format(search_opts.pointing))
-            dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
+            dep_job_id = dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
+            pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
 
         elif unspliced_check:
             #resubmit any search_opts.channels that are incomplete
@@ -655,7 +661,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
                 else:
                     print("ERROR no batch file found")
-            dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
+            dep_job_id = dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
+            pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
 
         elif searched_check and not relaunch:
             print("Already searched so not searching again")
@@ -687,11 +694,33 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pointing_id.append(pointing_list.index(point.replace("_", " ")) + 1)
 
             print("Sending of {0} pointings for beamforming".format(len(pointings_to_beamform)))
-            process_vcs_wrapper(search_opts, pointings_to_beamform,
+            dep_job_id_list = process_vcs_wrapper(search_opts, pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
                                 vdif=vdif, summed=summed,
                                 code_comment=code_comment, pointing_id=pointing_id)
+            for pulsar_list, pointing, dep_job_id in zip(pulsar_list_list_to_beamform,
+                                                         pointings_to_beamform, dep_job_id_list):
+                pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base, pointing)
+                pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp, dep_job_id])
             pointings_to_beamform = []
+
+    #send off pulsar fold jobs
+    if pulsar_list_list is not None :
+        for pulsar_list in pulsar_fold_dict:
+            pulsar_list = pulsar_list.split()
+            pointing_dir_list = []
+            dep_job_id_list = []
+            dict_list = pulsar_fold_dict[" ".join(pulsar_list)]
+            for pointing_dir, dep_job_id in dict_list:
+                pointing_dir_list.append(pointing_dir)
+                if dep_job_id is not None:
+                    dep_job_id_list.append(dep_job_id)
+                
+            if len(dep_job_id_list) == 0:
+                dep_job_id_list = None
+            for pulsar in pulsar_list:
+                #send of a fold job for each pulsar
+                multibeam_binfind(search_opts, pointing_dir_list, dep_job_id_list, pulsar)
     return
 
 

@@ -14,7 +14,6 @@ import astropy.units as u
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min
-import data_processing_pipeline as process_pipe
 import config
 from grid import get_grid
 
@@ -144,7 +143,7 @@ if __name__ == "__main__":
     else:
         #looks through the comined files to use the max and min
         #TODO have some sort of check to look for gaps
-        if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], obsid)):
+        if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], args.obsid)):
             combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], obsid))
         else:
             combined_files = glob.glob("{0}/{1}/combined/{1}*_ch{2}.dat".\
