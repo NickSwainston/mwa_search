@@ -11,45 +11,10 @@ from job_submit import submit_slurm
 logger = logging.getLogger(__name__)
 
 
-class run_params_class:
-
-    def __init__(self, pointing_dir=None, cal_id=None,\
-                prevbins=None, pulsar=None, obsid=None,\
-                threshold=10.0, launch_next=False, best_bins=None,\
-                force_initial=False, loglvl="INFO", mode=None,\
-                mwa_search="master", vcs_tools="multi-pixel_beamform"):
-
-        self.pointing_dir       = pointing_dir
-        self.cal_id             = cal_id
-        self.prevbins           = prevbins
-        self.pulsar             = pulsar
-        self.obsid              = obsid
-        self.threshold          = threshold
-        self.launch_next        = launch_next
-        self.force_initial      = force_initial
-        self.loglvl             = loglvl
-        self.best_bins          = best_bins
-        self.mode               = mode
-        self.mwa_search         = mwa_search
-        self.vcs_tools          = vcs_tools
-
-        if self.obsid is None:
-            self.obsid = data_process_pipeline.info_from_dir(self.pointing_dir)["obsid"]
-
-
-    def set_prevbins(self, prevbins):
-        self.prevbins = prevbins
-    def set_best_bins(self, bins):
-        self.best_bins = bins
-    def single_pointing(self):
-        #This allows us to handle a single pointing directory easily
-        self.pointing_dir=self.pointing_dir[0]
-
-
 #----------------------------------------------------------------------
-def relaunch(launch_next):
-    if launch_next is True:
-        return "--launch_next"
+def relaunch(next_mode):
+    if next_mode is True:
+        return "--next_mode"
     else:
         return ""
 
@@ -94,7 +59,7 @@ def submit_to_db(run_params, prof_name):
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'.format(run_params.obsid, run_params.cal_id, run_params.pulsar, prof_name, ppps))
     commands.append('echo "submitted profile to database: {0}"'.format(prof_name))
 
-    if run_params.launch_next==True:
+    if run_params.next_mode==True:
         commands.append("data_processing_pipeline.py -d {0} -O {1} -p {2} -o {3} -b {4} -L {5} -m stokes_fold".format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar, run_params.obsid, run_params.best_bins, run_params.loglvl))
 
     commands.append('echo "Searching for pulsar using the pipeline to test the pipelines effectivness"')
@@ -222,8 +187,8 @@ def submit_multifold(run_params, nbins=64):
         job_ids.append(myid)
 
     #Now submit the check script
-    if run_params.launch_next==True:
-        launch="--launch_next"
+    if run_params.next_mode==True:
+        launch="--next_mode"
     else:
         launch=""
 
@@ -253,7 +218,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
 
     if nbins is not int:
         nbins = int(float(nbins))
-    launch = relaunch(run_params.launch_next)
+    launch = relaunch(run_params.next_mode)
 
     logger.info("Submitting job for {0} bins".format(nbins))
     #create slurm job:
@@ -327,7 +292,7 @@ def find_best_pointing(run_params, nbins=64):
     else:
         logger.info("Pulsar found in pointings. Running binfinder script on pointing: {0}".format(run_params.pointing_dir[best_i]))
 
-        launch = relaunch(run_params.launch_next)
+        launch = relaunch(run_params.next_mode)
         commands = []
         commands.append("binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} {5} --vcs_tools {6} --mwa_search {7}\
         -p {8} -m f"\
@@ -435,7 +400,7 @@ if __name__ == '__main__':
     other.add_argument("-o", "--obsid", type=str, default=None, help="The observation ID")
     other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     other.add_argument("--force_initial", action="store_true", help="Use this tag to force the script to treat this as the first run.")
-    other.add_argument("--launch_next", action="store_false", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
+    other.add_argument("--next_mode", action="store_false", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
     other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
     other.add_argument("--vcs_tools", type=str, default="multi-pixel_beamform", help="The version of vcs_tools to use. Default: multi-pixel_beamform")
 
@@ -465,10 +430,11 @@ if __name__ == '__main__':
         logger.error("Mode not supplied. Please input a mode from the list of modes and rerun")
 
 
-    run_params = run_params_class(args.pointing_dir, args.cal_id,\
+    run_params = data_process_pipeline.run_params_class\
+                    (args.pointing_dir, args.cal_id,\
                     prevbins=args.prevbins, pulsar=args.pulsar,\
                     obsid=args.obsid, threshold=args.threshold,\
-                    launch_next=args.launch_next,\
+                    next_mode=args.next_mode,\
                     force_initial=args.force_initial, mode=args.mode,\
                     loglvl=args.loglvl, mwa_search=args.mwa_search,\
                     vcs_tools=args.vcs_tools)

@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 #----------------------------------------------------------------------
 class run_params_class:
 
-    def __init__(self, pointing_dir=None, cal_id=None,\
-                obsid=None, pulsar=None, threshold=10.0,\
-                stop=False, loglvl="INFO", mode=None,\
-                mwa_search="master", vcs_tools="multi-pixel_beamform",\
-                nbins=128, subint=10.0):
+    def __init__(self, pointing_dir=None, cal_id=None,obsid=None, pulsar=None,\
+                threshold=10.0, stop=False, next_mode=True, loglvl="INFO",\
+                mode=None, mwa_search="master", vcs_tools="multi-pixel_beamform",\
+                nbins=None, subint=10.0, RM=None, RM_err=None, prevbins=None,\
+                best_bins=None, force_initial=False):
 
         self.pointing_dir   = pointing_dir
         self.cal_id         = cal_id
@@ -28,14 +28,30 @@ class run_params_class:
         self.vcs_tools      = vcs_tools
         self.nbins          = nbins
         self.subint         = subint
+        self.next_mode      = next_mode
+        self.RM             = RM
+        self.RM_err         = RM_err
+        self.prevbins       = prevbins
+        self.best_bins      = best_bins
+        self.force_initial  = force_initial
 
         if self.obsid==None:
-            mydict=info_from_dir(self.pointing_dir)
-            if self.obsid==None:
-                self.obsid=mydict["obsid"]
+            self.obsid=info_from_dir(self.pointing_dir)["obsid"]
+
+
+    def set_prevbins(self, prevbins):
+        self.prevbins = prevbins
+
+    def set_best_bins(self, bins):
+        self.best_bins = bins
 
     def single_pointing(self):
         self.pointing_dir=self.pointing_dir[0]
+
+    def set_RM_and_err(self, RM, RM_err):
+        self.RM=RM
+        self.RM_err=RM_err    
+
 #----------------------------------------------------------------------
 def info_from_dir(pointing_dir):
 
@@ -54,7 +70,7 @@ def stokes_fold(run_params):
 
     logger.info("Initilizing stokes fold")
     commands=[]
-    commands.append("stokes_fold.py -d {0} -p {1} -b {2} -s {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
+    commands.append("stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
             .format(run_params.pointing_dir, run_params.pulsar, run_params.nbins, run_params.subint,\
             run_params.loglvl, run_params.vcs_tools, run_params.mwa_search))
     
@@ -63,8 +79,9 @@ def stokes_fold(run_params):
 
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
-                slurm_kwargs={"time": "2:00:00"},\
-                module_list=["mwa_search/{0}".format(run_params.mwa_search)],\
+                slurm_kwargs={"time": "00:02:00"},\
+                module_list=["mwa_search/{0}".format(run_params.mwa_search),\
+                            "dspsr/master", "psrchive/master"],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 
@@ -134,7 +151,6 @@ if __name__ == '__main__':
     obsop.add_argument("-O", "--cal_id", type=str, help="The ID of the calibrator used to calibrate the data")
     obsop.add_argument("-p", "--pulsar", type=str, help="The J name of the pulsar. e.g. J2241-5236")
 
-
     binfindop = parser.add_argument_group("Binfinder Options")
     binfindop.add_argument("-t", "--threshold", type=float, default=10.0, help="The presto sigma value\
                              above which is deemed a detection. If this value is not exceeded in any\
@@ -151,6 +167,7 @@ if __name__ == '__main__':
     otherop.add_argument("-S", "--stop", action="store_true", help="Use this mode to tell the pipeline not to continue processing data after finishing the desired task")
     otherop.add_argument("--mwa_search", type=str, default="master",  help="The version of mwa_search to use. Default: master")
     otherop.add_argument("--vcs_tools", type=str, default="multi-pixel_beamform", help="The version of vcs_tools to use. Default: master")
+    modeop = parser.add_argument_group("Mode Options")
     otherop.add_argument("-m", "--mode", type=str, help="The mode in which to run this script:\n\
                         'p' - Folds on a small number of bins in order to check if a pulsar is\n\
                          detected in the given pointing directory (runs the b mode after by default)\n\
