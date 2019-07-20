@@ -366,7 +366,7 @@ def process_vcs_wrapper(search_opts, pointings,
                                                                        pulsar_list=pulsar_list))
     return dep_job_id_list
 
-def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO", vcs_tools="multi-pixel_beamform"):
+def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO"):
     """
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
@@ -374,10 +374,9 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
 
     commands = []
     commands.append("echo 'Folding on multiple pointings'")
-    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} --mwa_search {5}\
-                    --vcs_tools {6}"\
-                    .format(pointing_str, search_opts.obsid, search_opts.cal_id, pulsar,\
-                    loglvl, search_opts.search_ver, vcs_tools))
+    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
+                    "--mwa_search {5}".format(pointing_str, search_opts.obsid,
+                    search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
     
     name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
     batch_dir = "{0}/batch/".format(search_opts.fits_dir_base) 
@@ -386,7 +385,7 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
                 slurm_kwargs={"time": "00:05:00"},\
                 module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
                               'presto/no-python'],\
-                submit=True, vcstools_version=vcs_tools,\
+                submit=True, vcstools_version='multi-pixel_beamform',\
                 depend=job_id_list)
      
 
@@ -674,6 +673,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 if len(pointing_list) > 1:
                     your_slurm_queue_check()
                 prepdata(search_opts)
+            else:
+                print("Fits files available, not beamforming or searching")
+                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, None])
+
             #remove any extra unspliced files
             for fr in glob.glob(search_opts.pointing_dir+"*_"+search_opts.obsid+"_*.fits"):
                 os.remove(fr)
