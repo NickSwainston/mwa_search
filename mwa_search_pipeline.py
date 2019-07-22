@@ -192,6 +192,8 @@ def your_slurm_queue_check(max_queue = 200, queue=None, grep=None):
     submit_line = 'squeue -u $USER'
     if queue is not None:
         submit_line += ' --partition={0}'.format(queue)
+    else:
+        queue = ""
     if grep is not None:
         submit_line += ' | grep "{0}"'.format(grep)
     submit_line += ' | wc -l'
@@ -199,14 +201,18 @@ def your_slurm_queue_check(max_queue = 200, queue=None, grep=None):
     q_num = ""
     for line in submit_cmd.stdout:
         q_num += line.decode()
-    print("q: " + str(int(q_num)))
-    while (int(q_num) > max_queue ):
-        print("waiting 5 mins for queue to clear")
+    #remove header line
+    q_num = int(q_num) - 1
+    while (q_num > max_queue ):
+        print("{}/{} jobs on the {} queue. Waiting 5 mins for queue to clear".format(q_num,
+              max_queue, queue))
         sleep(300)
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
         q_num = ""
         for line in submit_cmd.stdout:
-                q_num += line.decode()
+            q_num += line.decode()
+        q_num = int(q_num) - 1
+    print("{}/{} jobs on the {} queue. Continuing".format(q_num, max_queue, queue))
     return
 
 
@@ -310,8 +316,8 @@ def process_vcs_wrapper(search_opts, pointings,
     """
     comp_config = config.load_config_file()
     #check queue
-    #your_slurm_queue_check(queue = comp_config['gpuq_partition'])
-    your_slurm_queue_check()
+    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=80)
+    your_slurm_queue_check(max_queue=500)
 
     #check for search_opts.incoh file which is used to predict if you have used rfifind
     search_opts.incoh_check = False
@@ -453,12 +459,21 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             relaunch_script += ' -m b'
         commands.append(relaunch_script)
 
+    hostname = socket.gethostname()
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        mem = 2048
+        temp_mem = 6
+    else:
+        mem = 1024
+        temp_mem = None
+    
     submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir, nice=search_opts.nice,
                  slurm_kwargs={"time": "8:00:00"},
                  module_list=['mwa_search/{}'.format(search_opts.search_ver),
                               'presto/no-python'],
                  submit=True, depend=job_id_list, depend_type='afterany',
+                 mem=mem, temp_mem=temp_mem,
                  vcstools_version="multi-pixel_beamform")
     return
 
@@ -474,7 +489,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
     #    max_pointing = 30
     #else:
     #    max_pointing = 15
-    max_pointing = 15
+    max_pointing = 14
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
     search_opts.relaunch_script_in = search_opts.relaunch_script
@@ -599,7 +614,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             print("Some channels missing, resubmitting make beam scripts for {0}".\
                     format(search_opts.pointing))
             if len(pointing_list) > 1:
-                your_slurm_queue_check(queue=comp_config['gpuq_partition'])
+                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=80)
 
             job_id_list = []
             for ch in missing_chan_list:
@@ -635,7 +650,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                    or len(pointing_list) == 1):
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
-                    your_slurm_queue_check()
+                    your_slurm_queue_check(max_queue=500)
                 prepdata(search_opts)
             #remove any extra unspliced files
             for fr in glob.glob(search_opts.pointing_dir+"*_"+search_opts.obsid+"_*.fits"):
