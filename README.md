@@ -34,16 +34,15 @@ export SEARCH_DB=<where_you_would_like_you_database>.db
 where \<your\_install_directory\> is the directory where you ran the git clone command and \<search\_directory\> is where you would like your search pipeline products (make sure this directory exists).
 
 then run
-```
+```bash
 touch <where_you_would_like_you_database>.db
 python init_search_database.py
 ```
 You will also need to edit _config.py_ in _vcstools_ to comply with the modules and directory structure of your supercomputer
 
-
 ## Developing
 If you create a new branch of the git repo then when you use the _build.sh_ script it will make a directory based on your branch name which can be used to test changes to the code without disrupting currently running versions. _mwa\search\pipeline.py_ has an option -v which can use a different module version (which you will have to create) and used to test it, You can then submit a pull request to the GitHub.
 
-### Common Use Cases
+## Common Use Cases
 
 #TODO

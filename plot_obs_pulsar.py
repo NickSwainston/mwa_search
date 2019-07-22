@@ -20,7 +20,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
     """
     Work out how many observations are required to cover the southern sky
     """
-    
+
     #setting up the dec ranges
     dec_range = [-72., -55., -40.5, -26.7, -13., +1.6, +18.3] #Gleam pointings
     delays_range = [[0,0,0,0,6,6,6,6,12,12,12,12,18,18,18,18],\
@@ -30,7 +30,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
                     [6,6,6,6,4,4,4,4,2,2,2,2,0,0,0,0],\
                     [12,12,12,12,8,8,8,8,4,4,4,4,0,0,0,0],\
                     [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0]]
-    
+
     print("Using GLEAM dec range: {}".format(dec_range))
     """
     sweet_dec_range = [-82.8,-71.4,-63.1,-55.,-47.5,-40.4,-33.5,-26.7,-19.9,-13.,-5.9,1.6,9.7,18.6,29.4,44.8]
@@ -50,7 +50,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
                          [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0],\
                          [21,21,21,21,14,14,14,14,7,7,7,7,0,0,0,0],\
                          [24,24,24,24,16,16,16,16,8,8,8,8,0,0,0,0]]
-    
+
     dec_range = []
     delays_range =[]
     sweet_spots_range = [0,2,4,7,10,12,14]
@@ -59,7 +59,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
       delays_range.append(sweet_delays_range[i])
     print dec_range
     """
-    
+
     #Going to work out how many pointings are needed
     #setting up some metadata requirements
     time = 4800 #one hour 20 min
@@ -76,7 +76,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
         for j in range(0,361,1):
             Dec_FWHM_calc.append(i)
             RA_FWHM_calc.append(j)
-            
+
     observations = []
     ra_list =[]
     dec_list =[]
@@ -103,7 +103,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
             if int (RA_FWHM_calc[p]) == int(start_ra):
                 powout_Dec_line.append(float(powout[p]))
                 Dec_line.append(float(Dec_FWHM_calc[p]))
-        
+
         print("\nValues for Dec " + str(dec_range[i]))
         #work out RA FWHM (not including the drift scan, 0sec observation)
         if args.fwhm:
@@ -119,14 +119,14 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
         else:
             FWHM.append(float(r2-r1))
             print("FWHM along RA at dec "+ str(dec_range[i]) + ": " + str(FWHM[i]))
-        
+
         #work out Dec FWHM
         if args.fwhm:
             spline = UnivariateSpline(Dec_line, powout_Dec_line-np.max(powout_Dec_line)/2., s=0)
             r1, r2 = spline.roots()
             FWHM_Dec.append(float(r2-r1))
             print("FWHM along Dec at dec "+ str(dec_range[i]) + ": " + str(FWHM_Dec[i]))
-        
+
         deg_move = total_angle = FWHM[i] - degree_overlap*math.cos(math.radians(dec_range[i])) + \
                     float(time)/3600.*15.*math.cos(math.radians(dec_range[i]))
         if manual_overlap is not None:
@@ -138,7 +138,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
         overlap_true = FWHM[i] + float(time)/3600.*15.*math.cos(math.radians(dec_range[i])) -\
                        360./point_num_this_deg
         print("True overlap this dec: " + str(overlap_true))
-        
+
         # offset every second dec range by half a FWHM in RA
         for x in range(point_num_this_deg):
             if i % 2 == 0:
@@ -156,7 +156,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
             delays_list.append(delays_range[i])
             total_angle += deg_move
             pointing_count+=1
-        
+
     #Sort by ra
     dec_list =     [x for _,x in sorted(zip(ra_list,dec_list))]
     delays_list =  [x for _,x in sorted(zip(ra_list,delays_list))]
@@ -170,7 +170,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     A ploting script tha can be used to plot MWA tile beams, pulsars and used to work out the SMART observations to best cover the southern sky.
-    
+
     #SMART survey update example
     plot_obs_pulsar.py -m 6 9 11 11 11 11 11 --smart -f --contour --pulsar J2241-5236 J2145-0750 J2222-0137 J2248-0101 J2330-2005 J0034-0721 J0133-6957 J2324-6054 J0206-4028 J0051+0423
     #SMART sensitivity example
@@ -189,7 +189,7 @@ if __name__ == "__main__":
                            help='Used with the --smart option to manually decide the obs at each declination, input them as 1 2 3 4 5 6 7')
     obs_group.add_argument('-d', '--degree_overlap', type=float, default=10.,
                            help='Used with the --smart option to manually set degrees overlap in RA of the observations')
-    
+
     obs_plot_group = parser.add_argument_group('Observation Plot Types Options')
     obs_plot_group.add_argument('-s', '--sens', action='store_true',
                                 help='Plots sensitivity of each observation')
@@ -199,7 +199,7 @@ if __name__ == "__main__":
                                 help='Plots the contour of each observations power')
     obs_plot_group.add_argument('-l', '--lines', action='store_true',
                                 help='Includes the min decs of other telescopes in plots')
-    
+
     add_group = parser.add_argument_group('Extra Plot Layers Options')
     add_group.add_argument('--pulsar', type=str, nargs='+',
                            help='A list of pulsar to mark on the plot.')
@@ -209,7 +209,7 @@ if __name__ == "__main__":
                            help='Shades the area the MWA can view.')
     add_group.add_argument('--shade', type=str, choices=['red','green','purple','darkorange','blue'],
                            help='Shades the chosen colour observations group')
-    
+
     plot_group = parser.add_argument_group('Plotting Options')
     plot_group.add_argument('-f', '--fwhm', action='store_true',
                             help='if this options is used the FWHM of each pointing is used. If it is not chosen the FWHM of a zenith pointing is used.')
@@ -238,15 +238,15 @@ if __name__ == "__main__":
     linewidths= [0.4 for _ in range(50)] ; linewidths[0]= 1.0
     alpha = 0.5
 
-    
+
     #setting up some default metadata requirements
     time = 4800 #one hour 20 min
     channels = range(107,131)
     minfreq = float(min(channels))
     maxfreq = float(max(channels))
     centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2) #in MHz
- 
-    
+
+
     #setting up RA Dec ranges for power calculations
     res = args.resolution
     map_dec_range = range(-90,91,res)
@@ -271,7 +271,7 @@ if __name__ == "__main__":
         observations = []
     pointing_count = len(observations)
 
-    
+
     nz_sens_overlap = np.zeros(len(RA))
     nz_shade_colour = np.zeros(len(RA))
     nz_sens = np.empty(len(RA))
@@ -286,7 +286,7 @@ if __name__ == "__main__":
             f = open(str(colour_groups[c]) + '_group_file.txt','w')
             f.write('RA\tDec\n')
             f.close()
-        
+
 
     # a little hack to save metadata to speed up repeated calls
     if args.obsid_list or args.all_obsids:
@@ -317,7 +317,7 @@ if __name__ == "__main__":
                 print("Getting metadata for {}".format(ob))
                 ob, ra, dec, time, delays,centrefreq, channels =\
                     meta.get_common_obs_metadata(ob)
-                
+
                 with open('obs_meta.csv', 'a') as csvfile:
                     spamwriter = csv.writer(csvfile)
                     spamwriter.writerow([ob, ra, dec, time, delays,centrefreq, channels])
@@ -325,13 +325,13 @@ if __name__ == "__main__":
             ra_list.append(ra)
             dec_list.append(dec)
             delays_list.append(delays)
-        
+
     #Loop over observations and calc beam power
     for i, ob in enumerate(observations):
         ra = ra_list[i]
         dec = dec_list[i]
         delays = delays_list[i]
-        
+
         cord = [ob, ra, dec, time, delays, centrefreq, channels]
         z=[] ; z_sens =[] ; x=[] ; y=[]
 
@@ -361,9 +361,9 @@ if __name__ == "__main__":
             else:
                 x.append(-RA[c]/180.*np.pi +np.pi)
             y.append(Dec[c]/180.*np.pi)
-        
+
         nx=np.array(x) ; ny=np.array(y); nz=np.array(z)
-        
+
         #calculates sensitiviy and removes zeros -------------------------
         nz_sense_obs = []
         for zsi in range(len(z_sens)):
@@ -371,11 +371,11 @@ if __name__ == "__main__":
                 nz_sense_obs.append(np.nan)
             else:
                 nz_sense_obs.append(4.96/np.sqrt(z_sens[zsi]))
-                
+
         for zi, zs in enumerate(nz_sense_obs):
             if math.isnan(nz_sens[zi]):
                 nz_sens[zi] = zs
-            elif nz_sens[zi] > zs: 
+            elif nz_sens[zi] > zs:
                 #append if larger
                 nz_sens[zi] = zs
 
@@ -383,7 +383,7 @@ if __name__ == "__main__":
             levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
         else:
             levels = np.arange(0.5, 1., 0.05)
-        
+
         # Fill group files ------------------------------------------
         if args.smart:
             #find middle ra for each pointing
@@ -402,7 +402,7 @@ if __name__ == "__main__":
                     if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
                         powout_RA_line.append(float(nz[p]))
                         RA_line.append(180. - float(nx[p])*180/np.pi)
-            
+
             #if ra_offset it needs to be restarted because it'll start at 180 not 0
             if args.ra_offset:
                 powout_RA_line = [x for _,x in sorted(zip(RA_line,powout_RA_line))]
@@ -410,7 +410,7 @@ if __name__ == "__main__":
                 #janky fix because there's two 360 values at the end
                 RA_line = [0.] + RA_line[:-1]
                 powout_RA_line = [powout_RA_line[-1]] + powout_RA_line[:-1]
-            
+
             spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
             if len(spline.roots()) != 2:
                 #print(spline.roots())
@@ -420,7 +420,7 @@ if __name__ == "__main__":
             else:
                 r1 = spline.roots()[0]
                 r2 = spline.roots()[1]
-        
+
             diff = r2 - r1
             if diff > 180. and dec != -72.0:
                 diff = r1 - (r2 -360)
@@ -436,7 +436,7 @@ if __name__ == "__main__":
 
             if abs(max_ra - ra) > 120.:
                 max_ra += 180.
-            
+
             for c in range(len(colour_groups)):
                 fudge_factor = 35.
                 min_lim = 72.*c + fudge_factor
@@ -446,7 +446,7 @@ if __name__ == "__main__":
                     max_check = True
                 else:
                     max_check = False
-                
+
                 if  c == (len(colour_groups)-1) and \
                        ( (min_lim <= max_ra and max_ra < 360.) or \
                          (0.      <= max_ra and max_ra < max_lim) ) \
@@ -459,23 +459,23 @@ if __name__ == "__main__":
                         f.close()
                         #plt.scatter(-max_ra/180*np.pi + np.pi, dec/180*np.pi, 1.5,\
                         #            lw=0, marker='o', color=colour_groups[c])
-                        
+
                         if args.shade == colour_groups[c] and args.smart:
                             #sum powers for this colour to be shaded when plotting
                             for zi in range(len(nz)):
                                 if nz[zi] >= levels[0]:
                                     nz_shade_colour[zi] = nz[zi]
 
-                        
+
         # plot contours ---------------------------------------
         if args.contour:
-            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6, 
+            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6,
                            colors=colors,
                            linewidths=linewidths)
-        
-       
+
+
     # plot sens -------------------------------------------------------
-    if args.sens: 
+    if args.sens:
         if args.overlap:
             for zi in range(len(nz)):
                 if nz_sens_overlap[zi] < 1.:
@@ -493,10 +493,10 @@ if __name__ == "__main__":
         import matplotlib.colors as colors
         plt.pcolor(nx, ny, nz, cmap=colour_map)#, norm=colors.LogNorm(vmin=nz.min(), vmax=nz.max()))
         plt.colorbar(spacing='uniform', shrink = 0.65, label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
-          
+
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
-        
+
     #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
     if args.ra_offset:
         xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
@@ -506,11 +506,11 @@ if __name__ == "__main__":
     ax.set_xticklabels(xtick_labels, zorder=150)
     print("plotting grid")
     plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
-    
+
 
 
     #Add extra plot layers ---------------------------------------
-    
+
     #shades only the selected colout
     if args.shade and args.smart:
         #choose lighter equivalent colour
@@ -526,8 +526,8 @@ if __name__ == "__main__":
         spch_0 = patches.PathPatch(cspaths[0], facecolor=args.shade,
                                    edgecolor='gray',lw=0.5, alpha=0.35)
         ax.add_patch(spch_0)
-    
-    
+
+
     #add lines of other surveys
     if args.lines:
       """
@@ -569,7 +569,7 @@ if __name__ == "__main__":
         plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
                    ncol=1, mode="expand", borderaxespad=0., fontsize=6)
 
-    
+
     if args.pulsar_all:
         #add some pulsars
         ra_PCAT = []
@@ -587,7 +587,7 @@ if __name__ == "__main__":
             dec_PCAT.append(dec_temp/180.*np.pi)
         ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color ='b', zorder=90)
 
-    
+
     if args.pulsar:
         #add some pulsars
         ra_PCAT = []
@@ -604,21 +604,21 @@ if __name__ == "__main__":
                 ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
             dec_PCAT.append(dec_temp/180.*np.pi)
         ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
-    
-     
+
+
     # Creates a plot name --------------------------
     plot_name = 'tile_beam_t'+str(time)+'s_res' + str(res) + '_n'+str(pointing_count)
-    
+
     if args.sens:
         plot_name += '_sens'
-    
+
     if args.overlap:
         plot_name += '_overlap'
     if args.contour:
         plot_name += '_contour'
     if args.lines:
         plot_name += '_minlines'
-    
+
     if args.obsid_list:
         plot_name += '_obslist'
     if args.manual:
@@ -626,7 +626,7 @@ if __name__ == "__main__":
         for m in args.manual:
             plot_name += str(m) + '-'
         plot_name = plot_name[:-1]
-    
+
     if args.fwhm:
       plot_name += '_ownFWHM'
     else:
@@ -636,9 +636,8 @@ if __name__ == "__main__":
     print("saving {}.{}".format(plot_name, plot_type))
     fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000)
     #plt.show()
-    plt.close
-    
-    
+
+
     if args.smart:
         #sort the output into the right order
         import glob

@@ -4,7 +4,6 @@ import argparse
 import os
 from mwa_search_pipeline import your_slurm_queue_check
 from job_submit import submit_slurm
-import subprocess
 
 def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
     print(file_list)
@@ -49,8 +48,8 @@ if __name__ == "__main__":
     full_options = parser.add_argument_group('Full Path Options', 'If you do not have the defualt directory structure please use these options.')
     full_options.add_argument('-d', '--dir_file', type=str, help='The text file that contains full path to a foulder full of fits files on each line. For example /group/mwaops/xuemy/pol_census/1118509648/ which contains fits files')
 
-    args=parser.parse_args() 
-    
+    args=parser.parse_args()
+
     #parseing the options
     if not args.work_dir:
         print("No --work_dir option given, please add one. Exiting")
@@ -77,7 +76,7 @@ if __name__ == "__main__":
     else:
         print("Please us either --pointing_dir or --dir_file. Exiting")
         exit()
-    
+
     #TODO add a step that checks if you have an sshkey (that actually works)
     """
     try:
@@ -87,5 +86,5 @@ if __name__ == "__main__":
         print("Full error: " + error.output)
         exit()
     """
-    
+
     tar_job_wrapper(args.work_dir, fits_foulder_list, remove=(not args.no_remove))

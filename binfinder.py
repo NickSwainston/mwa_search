@@ -61,7 +61,6 @@ def submit_to_db(run_params, prof_name):
                         run_params.obsid, run_params.best_bins, run_params.loglvl, run_params.mwa_search,\
                         run_params.vcs_tools))
 
-
     commands.append('echo "Searching for pulsar using the pipeline to test the pipelines effectivness"')
     commands.append('mwa_search_pipeline.py -o {0} -a --search --pulsar {1} -O {2}\
                     --code_comment "Known pulsar auto test"'.format(run_params.obsid, run_params.pulsar,\
@@ -419,6 +418,7 @@ if __name__ == '__main__':
                         'm' - Use this mode if this is part of a multi-beam observation. This will\
                         find the best detection, if any, out of many pointings\n\
                         'b' - Finds the best detection out of a set of pointing directories""")
+
 
     non_user = parser.add_argument_group("Non-User input Options:")
     non_user.add_argument("--prevbins", type=int, default=None, help="The number of bins used in prepfold on the previous run. Not necessary for initial runs")

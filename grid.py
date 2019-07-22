@@ -8,8 +8,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord,EarthLocation,AltAz
 from astropy.time import Time
 import astropy.units as u
-from astropy.constants import c
-from math import cos,sin,asin
+from math import cos,sin
 
 #from mpi4py import MPI
 import argparse
@@ -25,7 +24,7 @@ import find_pulsar_in_obs as fpio
 def getTargetAZZA(ra,dec,time,lat=-26.7033,lon=116.671,height=377.827):
     """
     Function to get the target position in alt/az at a given EarthLocation and Time.
-    
+
     Default lat,lon,height is the centre of  MWA.
 
     Input:
@@ -44,34 +43,34 @@ def getTargetAZZA(ra,dec,time,lat=-26.7033,lon=116.671,height=377.827):
     """
     #print "Creating EarthLocation for: lat = {0} deg, lon = {1} deg".format(lat,lon)
     location = EarthLocation(lat=lat*u.deg, lon=lon*u.deg, height=height*u.m)
-    
+
     #print "Creating SkyCoord for target at (RA,DEC) = ({0},{1})".format(ra,dec)
     coord = SkyCoord(ra,dec,unit=(u.hourangle,u.deg))
     #print "Target at: ({0},{1}) deg".format(coord.ra.deg,coord.dec.deg)
-    
+
     obstime = Time(time)
     #print "Observation time: {0}".format(obstime.iso)
-    
+
     #print "Converting to Alt,Az for given time and observatory location..."
     altaz = coord.transform_to(AltAz(obstime=obstime,location=location))
     #print "Target (Alt,Az) = ({0},{1}) deg".format(altaz.alt.deg,altaz.az.deg)
-    
+
     #print "Converting to (Az,ZA)"
-    az = altaz.az.rad 
+    az = altaz.az.rad
     azdeg = altaz.az.deg
-    
+
     za = np.pi/2 - altaz.alt.rad
     zadeg = 90 - altaz.alt.deg
-    
+
     #print "Target (Az,ZA) = ({0},{1}) deg".format(azdeg,zadeg)
 
     return [az,za,azdeg,zadeg]
-    
-    
+
+
 def getTargetradec(az,za,time,lst,lat=-26.7033,lon=116.671,height=377.827):
     """
     Function to get the target position in ra dec at a given EarthLocation and Time.
-    
+
     Default lat,lon,height is the centre of  MWA.
 
     Input:
@@ -86,21 +85,21 @@ def getTargetradec(az,za,time,lst,lat=-26.7033,lon=116.671,height=377.827):
         list[0] = target ra in degrees
         list[1] = target dec in degrees
     """
-    
+
     ha,dec = h2e(az,za,lat) #hour angle and dec in degrees
     ra = lst-ha
-    
+
 
     return [ra,dec]
-    
-    
+
+
 def two_floats(value):
     values = value.split()
     if len(values) != 2:
         raise argparse.ArgumentError
     return values
-    
-    
+
+
 #gird movements all in rad
 def left(ra_in, dec_in, fwhm):
     dec_out = dec_in
@@ -111,46 +110,46 @@ def right(ra_in, dec_in, fwhm):
     dec_out = dec_in
     ra_out = ra_in + fwhm/cos(dec_in)
     return [ra_out,dec_out]
-    
+
 def up(ra_in, dec_in, fwhm):
     dec_out = dec_in + fwhm / cos(dec_in + np.radians(26.7))**2
-    ra_out = ra_in 
+    ra_out = ra_in
     return [ra_out,dec_out]
 
 def down(ra_in, dec_in, fwhm):
     dec_out = dec_in - fwhm / cos(dec_in + np.radians(26.7))**2
     ra_out = ra_in
     return [ra_out,dec_out]
-  
+
 def up_left(ra_in, dec_in, fwhm):
     half_fwhm_approx = fwhm/2.#/cos(dec_in)
     dec_out = dec_in + sin(np.radians(60.))*sin(half_fwhm_approx) / sin(np.radians(30.)) \
               / cos(dec_in + np.radians(26.7))**2
     ra_out = ra_in - fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
-    
+
 def up_right(ra_in, dec_in, fwhm):
     half_fwhm_approx = fwhm/2.#/cos(dec_in)
     dec_out = dec_in + sin(np.radians(60.))*sin(half_fwhm_approx) / sin(np.radians(30.)) \
               / cos(dec_in + np.radians(26.7))**2
     ra_out = ra_in + fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
-    
+
 def down_left(ra_in, dec_in, fwhm):
     half_fwhm_approx = fwhm/2.#/cos(dec_in)
     dec_out = dec_in - sin(np.radians(60.))*sin(half_fwhm_approx) / sin(np.radians(30.)) \
               / cos(dec_in + np.radians(26.7))**2
     ra_out = ra_in - fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
-    
+
 def down_right(ra_in, dec_in, fwhm):
     half_fwhm_approx = fwhm/2.#/cos(dec_in)
     dec_out = dec_in - sin(np.radians(60.))*sin(half_fwhm_approx) / sin(np.radians(30.)) \
               / cos(dec_in + np.radians(26.7))**2
     ra_out = ra_in + fwhm/2./cos(dec_out)
     return [ra_out,dec_out]
-    
-    
+
+
 def cross_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
@@ -200,7 +199,7 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
                         ra,dec =left(pointing_list[l][0][n][0],
                                      pointing_list[l][0][n][1],centre_fwhm)
                     elif c == 1:
-                        
+
                         ra,dec =up_left(pointing_list[l][0][n][0],
                                         pointing_list[l][0][n][1],centre_fwhm)
                     elif c == 2:
@@ -212,7 +211,7 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
                     elif c == 4:
                         ra,dec =down_right(pointing_list[l][0][n][0],
                                            pointing_list[l][0][n][1],centre_fwhm)
-                    elif c == 5:  
+                    elif c == 5:
                         ra,dec =down_left(pointing_list[l][0][n][0],
                                           pointing_list[l][0][n][1],centre_fwhm)
 
@@ -237,13 +236,13 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
                     elif c == 5:
                         ra,dec =down_left(pointing_list[l][0][0][0],
                                  pointing_list[l][0][0][1],centre_fwhm)
-                
+
                 else:
                     if c == 0:
                         ra,dec =left(pointing_list[l][c][n][0],
                                      pointing_list[l][c][n][1],centre_fwhm)
                     elif c == 1:
-                        
+
                         ra,dec =up_left(pointing_list[l][c][n][0],
                                         pointing_list[l][c][n][1],centre_fwhm)
                     elif c == 2:
@@ -297,7 +296,7 @@ def square_grid(ra0,dec0,centre_fwhm, loop):
                     elif c == 3:
                         ra,dec = down(pointing_list[l][cfrom][nfrom][0],
                                       pointing_list[l][cfrom][nfrom][1],centre_fwhm)
-                    
+
                 else:
                     #moves to the edges
                     if c == 0:
@@ -312,8 +311,8 @@ def square_grid(ra0,dec0,centre_fwhm, loop):
                     elif c == 3:
                         ra,dec = left(corner_temp[n-1][0],
                                       corner_temp[n-1][1],centre_fwhm)
-                    
-                                
+
+
                 corner_temp.append([ra,dec])
             loop_temp.append(corner_temp)
         pointing_list.append(loop_temp)
@@ -344,7 +343,7 @@ def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
     #TODO add square
 
     rads = []; decds = []
-    
+
     print("Converting ra dec to degrees")
     for loop in pointing_list:
         for corner in loop:
@@ -352,7 +351,7 @@ def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
                 #format grid pointings
                 rad = np.degrees(num[0])
                 decd = np.degrees(num[1])
-                
+
                 if decd > 90.:
                     decd = decd - 180.
                 rads.append(rad)
@@ -389,11 +388,11 @@ if __name__ == "__main__":
                          ' ' + str(args.__dict__[k][1]) + '"'
             else:
                 opts_string = opts_string + ' --' + str(k) + ' ' + str(args.__dict__[k])
-            
+
     if args.obsid:
         obs, ra, dec, duration, xdelays, centrefreq, channels = \
                 meta.get_common_obs_metadata(args.obsid)
-        
+
     #get fwhm in radians
     centre_fwhm = np.radians(args.deg_fwhm)
 
@@ -413,7 +412,7 @@ if __name__ == "__main__":
         print("Can't use --pulsar and --all_poinntings as --all_pointings calculates "
               "the pointing. Exiting.")
         quit()
-    
+
     #calculate pointing
     if args.all_pointings:
         #calculating loop number
@@ -422,7 +421,7 @@ if __name__ == "__main__":
         #account for the "increase" in tile beam size due to drifting
         tile_fwhm += duration/3600.*15.
         args.loop = int(tile_fwhm/2./(args.deg_fwhm*args.fraction))
-        
+
         #calculating pointing from metadata
         ra = np.radians(ra + duration/3600.*15./2)
         dec = np.radians(dec)
@@ -439,10 +438,10 @@ if __name__ == "__main__":
     else:
         print("Please use either --pointing, --pulsar or --all_pointings. Exiting.")
         quit()
-    
+
     #calculate grid
     rads, decds = get_grid(ra, dec, centre_fwhm*args.fraction, args.loop, grid_type=args.type)
-    
+
     #remove pointings outside of ra or dec range
     if args.dec_range != [-90,90] or args.ra_range != [0, 360]:
         print("Removing pointings outside of ra dec ranges")
@@ -476,14 +475,14 @@ if __name__ == "__main__":
                 decdls.append(decds[ni])
         rads = radls
         decds = decdls
-    
+
     print("Using skycord to convert ra dec")
     #Use skycoord to get asci
     coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
     #unformated
     rags_uf = coord.ra.to_string(unit=u.hour, sep=':')
     decgs_uf = coord.dec.to_string(unit=u.degree, sep=':')
-    
+
     ras = []; decs = []; theta = []; phi = []
     time = Time(float(args.obsid),format='gps')
     print("Formating the outputs")
@@ -500,12 +499,12 @@ if __name__ == "__main__":
             az,za,azd,zad = getTargetAZZA(rag,decg,time)
         else:
             az,za,azd,zad = [0,0,0,0]
-        
+
         ras.append(rag)
         decs.append(decg)
         theta.append(az)
         phi.append(za)
- 
+
     if args.obsid:
         out_file_name = str(args.obsid)
     else:
@@ -522,17 +521,17 @@ if __name__ == "__main__":
     print("Recording the dec limited positons in {0}.txt".format(out_file_name))
     with open('{0}.txt'.format(out_file_name),'w') as out_file:
         if args.verbose_file:
-            out_line = "#ra   dec    az     za\n" 
+            out_line = "#ra   dec    az     za\n"
             out_file.write(out_line)
         for i in range(len(rads)):
             if args.verbose_file:
                 out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
                             +str(phi[i])+" "+str(rads[i])+" "\
-                            +str(decds[i])+"\n" 
+                            +str(decds[i])+"\n"
             else:
-                out_line = str(ras[i])+" "+str(decs[i])+"\n" 
+                out_line = str(ras[i])+" "+str(decs[i])+"\n"
             out_file.write(out_line)
-      
+
     #matplotlib.use('Agg')
     print("Plotting")
     fig = plt.figure(figsize=(7, 7))
@@ -549,7 +548,7 @@ if __name__ == "__main__":
 
     plt.xlabel("ra (degrees)")
     plt.ylabel("dec (degrees)")
-    
+
     for i in range(len(ras)):
         if args.aitoff:
             fwhm_circle = centre_fwhm/cos(decds[i]) / 2.
@@ -559,7 +558,7 @@ if __name__ == "__main__":
         else:
             fwhm_vert = np.degrees(centre_fwhm/cos(np.radians(decds[i] + 26.7))**2)
             fwhm_horiz = np.degrees(centre_fwhm/cos(np.radians(decds[i])) )
-            
+
             ellipse = patches.Ellipse((rads[i],decds[i]), fwhm_horiz, fwhm_vert,
                                           linewidth=0.3, fill=False, edgecolor='green')
             ax.add_patch(ellipse)
@@ -567,7 +566,7 @@ if __name__ == "__main__":
             #circle = plt.Circle((rads[i],decds[i]),np.degrees(fwhm_circle),
             #                     color='r', lw=0.1,fill=False)
     plt.scatter(rads,decds,s=0.1,c='black')
-    
+
     #add pulsars
     from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
     #add some pulsars
@@ -582,10 +581,10 @@ if __name__ == "__main__":
         ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r', zorder=100)
 
     plt.savefig('{0}.png'.format(out_file_name), bbox_inches='tight', dpi =1000)
-        
-       
-        
-    
+
+
+
+
     print("Number of pointings: " + str(len(rads)))
     #times out and segfaults after this so I'm going to exit here
     exit()

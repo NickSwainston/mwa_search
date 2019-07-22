@@ -5,7 +5,7 @@ import math
 
 
 def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_step=0.02):
-    
+
     DD_plan_array = []
     freqres = bandwidth / float(nfreqchan)
     previous_DM = lowDM
@@ -15,25 +15,25 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
 
     #Loop until you've made a hit your range max
     D_DM = 0.
-    while D_DM < highDM:
-        #calculate the DM where the current time resolution equals the 
+    while D_DM < round(highDM, 2):
+        #calculate the DM where the current time resolution equals the
         #dispersion in a frequency channel (a bit of an overkill)
-        
+
         #Dm smear over a frequency channel
-        dm_smear = previous_DM * freqres * 8.3 * 10.**6 / centrefreq**3 
+        dm_smear = previous_DM * freqres * 8.3 * 10.**6 / centrefreq**3
         total_smear = math.sqrt(timeres**2 +
                                 dm_smear**2)
-                                
-        
+
+
         D_DM = smear_fact * timeres * centrefreq**3 /\
                (8.3 * 10.**6 * freqres)
-        
+
         #difference in DM that will double the effective width (eq 6.4 of pulsar handbook)
         #TODO make this more robust
         #DM_step = math.sqrt( (2.*timeres)**2 - timeres**2 )/\
         #          (8.3 * 10**6 * bandwidth / centrefreq**3)
         DM_step = smear_fact * total_smear * centrefreq**3 /\
-                  (8.3 * 10.**6 * 0.5 * bandwidth) 
+                  (8.3 * 10.**6 * 0.5 * bandwidth)
 
 
         #round to nearest 0.01
@@ -49,8 +49,9 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         #range from last to new
         D_DM = round(D_DM, 2)
         nDM_step = int((D_DM - previous_DM) / DM_step)
-        DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres ])
-        previous_DM = D_DM
+        if D_DM > lowDM:
+            DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres ])
+            previous_DM = D_DM
 
         #Double time res to account for incoherent dedispersion
         timeres *= 2.
@@ -75,17 +76,17 @@ if __name__ == "__main__":
                         help='Lowest DM of the required range.')
     parser.add_argument('-hd', '--highDM', type=float, default=250.,
                         help='Highest DM of the required range.')
-    parser.add_argument('-o', '--obsid', type=int, 
+    parser.add_argument('-o', '--obsid', type=int,
                         help='The MWA observation ID of an observation. Using this command will get the require observation parameters.')
     parser.add_argument('-m', '--min_DM_step', type=float, default=0.02,
                         help='The  minimun DM step size, default 0.02')
     #parser.add_argument()
     args=parser.parse_args()
-    
+
     if args.obsid:
         #get the centrefreq from the obsid metadata
         beam_meta_data = getmeta(service='obs', params={'obs_id':args.obsid})
-        
+
         #work out centrefreq
         minfreq = float(min(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
         maxfreq = float(max(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
