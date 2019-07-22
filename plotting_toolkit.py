@@ -134,8 +134,6 @@ def split_list(alist):
 
 #--------------------------------------------------------------------------
 def calc_lin_pa(stokes_Q, stokes_U):
-    #reminder: stokes_Q[1] = [Q_y]
-    #stokes_Q[1][i] = a number
     lin_pol = []
     pa = []
     for q, u in zip(stokes_Q, stokes_U):
@@ -202,7 +200,7 @@ def plot_bestprof(bestprof, out_dir="./"):
     plt.text(1, y_len-1,    "Presto Chi Sq:         {0}".format(info_dict["chi"]), fontsize=18)
     plt.text(1, y_len-1.5,  "Presto DM:             {0}".format(info_dict["dm"]), fontsize=18)
     plt.text(1, y_len-2,    "Presto Period (ms):    {0} +/- {1}".format(info_dict["period"], info_dict["period_error"]), fontsize=18)
-    plt.savefig("{0}presto_pulse_profile_{1}_{2}.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"]))
+    plt.savefig("{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"]))
 
      
 

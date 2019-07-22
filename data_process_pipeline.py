@@ -16,27 +16,36 @@ class run_params_class:
                 nbins=None, subint=10.0, RM=None, RM_err=None, prevbins=None,\
                 best_bins=None, force_initial=False):
 
+        #Obs inormation
         self.pointing_dir   = pointing_dir
         self.cal_id         = cal_id
         self.obsid          = obsid
         self.pulsar         = pulsar
-        self.stop           = stop
-        self.loglvl         = loglvl
-        self.threshold      = threshold
-        self.mode           = mode
+      
+        #Versions 
         self.mwa_search     = mwa_search
         self.vcs_tools      = vcs_tools
+        
+        #Run Options
+        self.stop           = stop
+        self.loglvl         = loglvl
+        self.force_initial  = force_initial
+        self.mode           = mode
+        
+        #Other Parameters
+        self.threshold      = threshold
         self.nbins          = nbins
         self.subint         = subint
-        self.next_mode      = next_mode
         self.RM             = RM
         self.RM_err         = RM_err
         self.prevbins       = prevbins
         self.best_bins      = best_bins
-        self.force_initial  = force_initial
+
 
         if self.obsid==None:
             self.obsid=info_from_dir(self.pointing_dir)["obsid"]
+        if len(self.pointing_dir)==1:
+            self.pointing_dir=self.pointing_dir[0]
 
 
     def set_prevbins(self, prevbins):
@@ -44,14 +53,13 @@ class run_params_class:
 
     def set_best_bins(self, bins):
         self.best_bins = bins
-
-    def single_pointing(self):
-        self.pointing_dir=self.pointing_dir[0]
-
+    
     def set_RM_and_err(self, RM, RM_err):
         self.RM=RM
         self.RM_err=RM_err    
 
+    def stop_now(self):
+        self.stop=True
 #----------------------------------------------------------------------
 def info_from_dir(pointing_dir):
 
@@ -68,12 +76,15 @@ def info_from_dir(pointing_dir):
 #----------------------------------------------------------------------
 def stokes_fold(run_params):
 
-    logger.info("Initilizing stokes fold")
+    launch_line = "stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
+                .format(run_params.pointing_dir, run_params.pulsar, run_params.nbins, run_params.subint,\
+                run_params.loglvl, run_params.vcs_tools, run_params.mwa_search)
+    if run_params.stop==True:
+        launch_line += " -S"
+
     commands=[]
-    commands.append("stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
-            .format(run_params.pointing_dir, run_params.pulsar, run_params.nbins, run_params.subint,\
-            run_params.loglvl, run_params.vcs_tools, run_params.mwa_search))
-    
+    commands.append(launch_line)   
+ 
     name="Stokes_Fold_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
 
@@ -88,39 +99,35 @@ def stokes_fold(run_params):
 #----------------------------------------------------------------------
 def binfind(run_params):
 
-    if run_params.stop==False:
-        cont = "--launch_next"
-    else:
-        cont = ""
+    launch_line = "binfinder.py -O {0} -t {1} -p {2} -o {3} -L {4} --mwa_search {5}\
+                --vcs_tools {6}"\
+                .format(run_params.cal_id, run_params.threshold, run_params.pulsar,\
+                run_params.obsid, run_params.loglvl, run_params.mwa_search,\
+                run_params.vcs_tools)
 
-    logger.info("pulsar and obsid: {0}, {1}".format(run_params.pulsar, run_params.obsid))
+    if run_params.stop==True:
+        launch_line += " -S"
 
     #Run binfinder.py
-    commands = []
     if run_params.mode=='f':
-        commands.append("binfinder.py -m f -d {0} -O {1} -t {2} -p {3} -o {4} -L {5} --mwa_search {6}\
-        --vcs_tools {7} {8}"\
-        .format(run_params.pointing_dir, run_params.cal_id, run_params.threshold, run_params.pulsar,\
-        run_params.obsid, run_params.loglvl, run_params.mwa_search, run_params.vcs_tools, cont))
-
+        launch_line += " -d {0}".format(run_params.pointing_dir)
+        launch_line += " -m f"
     elif run_params.mode=='p':
-        commands.append("binfinder.py -m c -d {0} -O {1} -t {2} -p {3} -o {4} -L {5} --mwa_search {6}\
-        --vcs_tools {7} {8}"\
-        .format(run_params.pointing_dir, run_params.cal_id, run_params.threshold, run_params.pulsar,\
-        run_params.obsid, run_params.loglvl, run_params.mwa_search, run_params.vcs_tools, cont))
-
+        launch_line += " -d {0}".format(run_params.pointing_dir)
+        launch_line += " -m c"
     elif run_params.mode=="m":
         pointing_string=""
         for p in run_params.pointing_dir:
             logger.info("folding on: {0}".format(p))
             pointing_string = pointing_string + p + " "
-        commands.append("binfinder.py -m m -d {0} -O {1} -t {2} -p {3} -o {4} -L {5} --mwa_search {6}\
-        --vcs_tools {7} {8}"\
-        .format(pointing_string, run_params.cal_id, run_params.threshold, run_params.pulsar,\
-        run_params.obsid, run_params.loglvl, run_params.mwa_search, run_params.vcs_tools, cont))
+        launch_line += " -d {0}".format(pointing_string)
+        launch_line += " -m m"
 
+    commands = []
+    commands.append("echo 'Submitting binfinder in mode {0}'".format(run_params.mode))
+    commands.append(launch_line)
 
-    name = "binfinder_{0}_startup".format(run_params.pulsar)
+    name = "bf_start_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     batch_dir = batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
@@ -143,7 +150,6 @@ if __name__ == '__main__':
     #Arguments
 
     parser = argparse.ArgumentParser(description="""A pipeline for processing calibrated VCS data""")
-
 
     obsop = parser.add_argument_group("Observation Options")
     obsop.add_argument("-d", "--pointing_dir", nargs='+', help="The location of the pointing directory/s")
@@ -169,12 +175,14 @@ if __name__ == '__main__':
     otherop.add_argument("--vcs_tools", type=str, default="multi-pixel_beamform", help="The version of vcs_tools to use. Default: master")
     modeop = parser.add_argument_group("Mode Options")
     otherop.add_argument("-m", "--mode", type=str, help="The mode in which to run this script:\n\
+                        Binfinder Options:\n\
                         'p' - Folds on a small number of bins in order to check if a pulsar is\n\
                          detected in the given pointing directory (runs the b mode after by default)\n\
                         'm' - Folds on  any numer of pointings and finds the one with the best detection\
-                        (runs the b mode after by defualt)\n\
+                        (runs the b mode after by default)\n\
                         'b' - attempts to find an adequate number of bins to fold the pulsar with\n\
                          and outputs a bestprof file (runs the s mode after by default)\n\
+                        Stokes Fold Options:\n\
                         's' - will fold across stokes IQUV and attempt to find the rotation measure")
 
 
@@ -194,9 +202,6 @@ if __name__ == '__main__':
                                 vcs_tools=args.vcs_tools, loglvl=args.loglvl,\
                                 threshold=args.threshold, nbins=args.nbins,\
                                 subint=args.subint)
-
-    if run_params.mode is not 'm':
-        run_params.single_pointing()
 
     if run_params.mode=="b" or run_params.mode=="p" or run_params.mode=="m":
         binfind(run_params)
