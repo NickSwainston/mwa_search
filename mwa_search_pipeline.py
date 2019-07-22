@@ -858,11 +858,6 @@ def prepdata(search_opts):
                                       float(dm_start) + float(steps) * float(dm_line[2]),
                                       float(dm_line[2])), decimals=2))
 
-    #Puts all the expected jobs on the databse
-    #search_database_script_id_list
-    search_database.database_script_list(search_opts.bsd_row_num, 'prepsubband', commands_list,
-                         search_opts.n_omp_threads, expe_proc_time)
-
     if "-r" not in search_opts.relaunch_script:
         search_opts.relaunch_script += " -r {}".format(search_opts.bsd_row_num)
 
@@ -873,13 +868,19 @@ def prepdata(search_opts):
         #It is more efficient on ozstar to use their SSDs for the intermediate files
         #such as .dat and fft files so the PRESTO commands must be run in series in a
         #single job
-        sort_fft(search_opts, dm_list_list=dm_list_list)
+        sort_fft(search_opts, dm_list_list=dm_list_list, prepsub_commands=commands_list)
     else:
+        #Puts all the expected jobs on the databse
+        #search_database_script_id_list
+        search_database.database_script_list(search_opts.bsd_row_num, 'prepsubband', commands_list,
+                             search_opts.n_omp_threads, expe_proc_time)
+
+
         error_check(search_opts, bash_job=True, total_job_time=7200)
     return
 
 #-------------------------------------------------------------------------------------------------------------
-def sort_fft(search_opts, dm_list_list=None):
+def sort_fft(search_opts, dm_list_list=None, prepsub_commands=None):
 
     #Makes 90 files to make this all a bit more managable and sorts the files.
     os.chdir(search_opts.work_dir + "/" + search_opts.sub_dir)
@@ -912,15 +913,17 @@ def sort_fft(search_opts, dm_list_list=None):
             dm_list.extend(dml)
         for dm in dm_list:
             commands_list.append("{0}{1}_DM{2:.2f}.dat".format(SSD_file_dir, search_opts.obsid, dm))
-    search_database.database_script_list(search_opts.bsd_row_num, 'realfft', commands_list,
-                                 search_opts.n_omp_threads, expe_proc_time)
-
+    
     #Send off jobs
     search_opts.setTable('FFT')
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
-        accel(search_opts, dm_list_list=dm_list_list)
+        accel(search_opts, dm_list_list=dm_list_list,
+              prepsub_commands=prepsub_commands, fft_commands=commands_list)
     else:
+        search_database.database_script_list(search_opts.bsd_row_num, 'realfft', commands_list,
+                                             search_opts.n_omp_threads, expe_proc_time)
+
         error_check(search_opts, bash_job=True, total_job_time=3600)
 
     print("Sent off fft jobs")
@@ -928,7 +931,7 @@ def sort_fft(search_opts, dm_list_list=None):
 
 
 #-------------------------------------------------------------------------------------------------------------
-def accel(search_opts, dm_list_list=None):
+def accel(search_opts, dm_list_list=None, prepsub_commands=None, fft_commands=None):
 
     os.chdir(search_opts.work_dir + search_opts.sub_dir)
 
@@ -970,15 +973,20 @@ def accel(search_opts, dm_list_list=None):
                              format(int(max_search_accel), min_f_harm, max_f_harm,
                                     int(nharm), fft_file))
 
-    search_database.database_script_list(search_opts.bsd_row_num, 'accelsearch', commands_list,
-                                 search_opts.n_omp_threads, expe_proc_time)
-
-    #Ssearch_opts.end off jobs
+    
+    #Send off jobs
     if dm_list_list is None:
         search_opts.setTable('Accel')
         error_check(search_opts, bash_job=True)
     else:
-        presto_single_job(search_opts, dm_list_list)
+        search_database.database_script_list(search_opts.bsd_row_num, 'accelsearch',
+                                             commands_list, search_opts.n_omp_threads,
+                                             expe_proc_time)
+
+        presto_single_job(search_opts, dm_list_list,
+                          prepsub_commands=prepsub_commands,
+                          fft_commands=fft_commands,
+                          accel_commands=commands_list)
 
     print("Sent off accel jobs")
     return
@@ -1139,16 +1147,24 @@ def wrap_up(search_opts):
                  submit=True, module_list=['mwa_search/{}'.format(search_opts.search_ver)])
     return
 
-def presto_single_job(search_opts, dm_list_list):
+def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
+                      fft_commands=None, accel_commands=None):
     """
     A simpler version of error_check() that sends off prepsubband, fft and accelsearch
     commands one after the other to take advantage of Ozstars SSDs
     """
     job_id_list = []
-    #get job commands
-    prepsub_commands = search_database.database_script_check('Prepdata', search_opts.bsd_row_num, 1)
-    fft_commands     = search_database.database_script_check('FFT',      search_opts.bsd_row_num, 1)
-    accel_commands   = search_database.database_script_check('Accel',    search_opts.bsd_row_num, 1)
+    # Get prepsubband commands
+    if prepsub_commands is None:
+        prepsub_commands = search_database.database_script_check('Prepdata',
+                                                search_opts.bsd_row_num, 1)
+    # Get fft commands
+    if fft_commands is None:
+        fft_commands = search_database.database_script_check('FFT', search_opts.bsd_row_num, 1)
+   
+    # Get accel commands
+    if accel_commands is None:
+        accel_commands = search_database.database_script_check('Accel', search_opts.bsd_row_num, 1)
 
     temp_mem = 100 #GB
 
@@ -1168,10 +1184,13 @@ def presto_single_job(search_opts, dm_list_list):
         commands.append('')
 
         #add prepsubband command
-        commands.append('run "{0}" "{1}" "{2}" "{3}" "{4}"'.format(command_data[0],
-                             command_data[1], search_opts.bsd_row_num, dmi,
-                             search_opts.attempt+1))
-        processing_time += float(command_data[2])
+        if isinstance(command_data, list):
+            commands.append('run "{0}" "{1}" "{2}" "{3}" "{4}"'.format(command_data[0],
+                                 command_data[1], search_opts.bsd_row_num, dmi,
+                                 search_opts.attempt+1))
+            processing_time += float(command_data[2])
+        else:
+            commands.append("prepsubband {}".format(command_data))
 
         #work out the DMs of the commands to add
         dat_num = len(dm_list_list[dmi])
@@ -1186,10 +1205,13 @@ def presto_single_job(search_opts, dm_list_list):
                             n_omp_threads=1))
             for ffti in dat_range:
                 command_fft = fft_commands[ffti]
-                srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
-                                 command_fft[0], command_fft[1], search_opts.bsd_row_num,
-                                 ffti, search_opts.attempt+1))
-                processing_time += command_fft[2]
+                if isinstance(command_fft, list):
+                    srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
+                                     command_fft[0], command_fft[1], search_opts.bsd_row_num,
+                                     ffti, search_opts.attempt+1))
+                    processing_time += command_fft[2]
+                else:
+                    srun_bash.write("realfft {}\n".format(command_fft))
         commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}_{2}.bash".\
                         format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
 
@@ -1202,10 +1224,13 @@ def presto_single_job(search_opts, dm_list_list):
                             n_omp_threads=search_opts.n_omp_threads))
             for ai in dat_range:
                 command_accel = accel_commands[ai]
-                srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
-                                 command_accel[0], command_accel[1], search_opts.bsd_row_num,
-                                 ai, search_opts.attempt+1))
-                processing_time += command_accel[2]
+                if isinstance(command_accel, list):
+                    srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
+                                     command_accel[0], command_accel[1], search_opts.bsd_row_num,
+                                     ai, search_opts.attempt+1))
+                    processing_time += command_accel[2]
+                else:
+                    srun_bash.write("accelsearch {}\n".format(command_accel))
 
 
         commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
@@ -1229,6 +1254,8 @@ def presto_single_job(search_opts, dm_list_list):
                         'accelsearch_temp_database_file_{0}_{1}.csv\n'.format(
                              search_opts.attempt + 1, dmi))
         '''
+        if processing_time == 0:
+            processing_time = 10800
         if processing_time > 10800:
             processing_time = 10800 #max at 3 hours because that should be plenty of time
         total_job_time_str = datetime.timedelta(seconds=int(processing_time))
