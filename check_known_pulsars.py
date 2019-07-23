@@ -52,8 +52,14 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 cmd = ['psrcat', '-c', 'p0', jname]
                 output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
                 period = output.split('\n')[4].split()[1] #in s
+                
+                if '*' in period:
+                    print("WARNING: Period not found in ephermeris for {0}".format(jname))
+                    period=0
+                else:
+                    period = float(period)*1000.
                 print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
-                       PSRJ, raj, decj, float(period)*1000., psrbeg, psrend))
+                       PSRJ, raj, decj, period, psrbeg, psrend))
 
                 jname_temp_list = []
                 if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
@@ -161,4 +167,6 @@ if __name__ == "__main__":
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       vdif_check=args.vdif, product_dir=comp_config['base_product_dir'],
                       mwa_search_version=args.mwa_search_version)
+
+
 

@@ -371,7 +371,7 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
     pointing_str = " ".join(pointing_dir_list)
-
+    logger.info("pointing string: {0}".format(pointing_str))
     commands = []
     commands.append("echo 'Folding on multiple pointings'")
     commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
@@ -420,23 +420,19 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
         commands.append('{0} -i -w {1}{2}/incoh/'.format(splice_command,
                          comp_config['base_product_dir'], search_opts.obsid))
 
+    """
     if pulsar_list is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('cd {0}'.format(search_opts.pointing_dir))
         for pulsar in pulsar_list:
             #Assign number of bins based on the period
-            period = get_pulsar_dm_p(pulsar)[1]
-            nbin = 2048*period**0.75
-            nbin = int(32 * round(nbin/32))
-            if nbin<32:
-                nbin=32
 
             #load presto module here because it uses python 2
             commands.append('echo "Folding on known pulsar {0}"'.format(pulsar))
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
             commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
             commands.append("prepfold -o {0} -noxwin -runavg -noclip -timing {1}.eph -nsub 256\
-                            {2}/1*fits -n {3}".format(obsid, pulsar, pointing_dir, nbins))
+                            {2}/1*fits".format(obsid, pulsar, pointing_dir))
             commands.append('errorcode=$?')
             commands.append('pulsar={}'.format(pulsar[1:]))
             pulsar_bash_string = '${pulsar}'
@@ -445,7 +441,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             commands.append('if [ "$errorcode" != "0" ]; then')
             commands.append('   echo "Folding using the -psr option"')
             commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256\
-                            {2}/1*fits -n {3}'.format(obsid, pulsar, pointing_dir, nbins))
+                            {2}/1*fits'.format(obsid, pulsar, pointing_dir))
             commands.append('   pulsar={}'.format(pulsar))
             commands.append('fi')
             commands.append('rm {0}.eph'.format(pulsar))
@@ -468,6 +464,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
                                 'test {3}"'.format(search_opts.obsid, search_opts.begin,
                                             search_opts.end, pulsar, search_opts.cal_id))
             commands.append("fi")
+    """
 
     #add search_opts.relaunch script
     if search_opts.relaunch_script is not None:
@@ -686,7 +683,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #if pulsar_list is not None:
             #    dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
 
-
         if ( n + 1 == len(pointing_list) and len(pointings_to_beamform) != 0 )\
             or len(pointings_to_beamform) == max_pointing:
             #Send of beamforming job at the end or the loop or when you have 15 or 30 pointings
@@ -706,7 +702,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base, pointing)
                 pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp, dep_job_id])
             pointings_to_beamform = []
-
     #send off pulsar fold jobs
     if pulsar_list_list is not None :
         for pulsar_list in pulsar_fold_dict:
@@ -722,6 +717,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             if len(dep_job_id_list) == 0:
                 dep_job_id_list = None
             for pulsar in pulsar_list:
+                logger.info("pointing list: {0}".format(pointing_dir_list))
                 #send of a fold job for each pulsar
                 multibeam_binfind(search_opts, pointing_dir_list, dep_job_id_list, pulsar)
     return
