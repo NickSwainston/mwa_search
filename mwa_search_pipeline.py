@@ -542,12 +542,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         #fits dir parsing
         comp_config = config.load_config_file()
-        if search_opts.pointing_dir is None:
-            if search_opts.incoh:
-                search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
-            else:
-                search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
-                                                                   search_opts.pointing))
+        if search_opts.incoh:
+            search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
+        else:
+            search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
+                                                               search_opts.pointing))
         if search_opts.cold_storage_check:
             #Check if search_opts.pointing in cold storage
             try :
@@ -706,9 +705,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
     if pulsar_list_list is not None :
         for pulsar_list in pulsar_fold_dict:
             pulsar_list = pulsar_list.split()
+            logger.debug("pulsar_list: {}".format(pulsar_list))
             pointing_dir_list = []
             dep_job_id_list = []
             dict_list = pulsar_fold_dict[" ".join(pulsar_list)]
+            logger.debug("dict_list: {}".format(dict_list))
             for pointing_dir, dep_job_id in dict_list:
                 pointing_dir_list.append(pointing_dir)
                 if dep_job_id is not None:
@@ -717,7 +718,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
             if len(dep_job_id_list) == 0:
                 dep_job_id_list = None
             for pulsar in pulsar_list:
-                logger.info("pointing list: {0}".format(pointing_dir_list))
+                print("Sending off data processing for {0}.")
+                logger.debug("Pointing list: {1}".format(pulsar, pointing_dir_list))
                 #send of a fold job for each pulsar
                 multibeam_binfind(search_opts, pointing_dir_list, dep_job_id_list, pulsar)
     return
