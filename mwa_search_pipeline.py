@@ -408,7 +408,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
         for pulsar in pulsar_list:
             #Assign number of bins based on the period
             period = get_pulsar_dm_p(pulsar)[1]
-            nbin = 2048*period**0.75
+            nbin = 2048*float(period)**0.75
             nbin = int(32 * round(nbin/32))
             if nbin<32:
                 nbin=32
@@ -418,7 +418,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
             commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
             commands.append("prepfold -o {0} -noxwin -runavg -noclip -timing {1}.eph -nsub 256\
-                            {2}/1*fits -n {3}".format(obsid, pulsar, pointing_dir, nbins))
+                            {2}/1*fits -n {3}".format(obsid, pulsar, pointing_dir, nbin))
             commands.append('errorcode=$?')
             commands.append('pulsar={}'.format(pulsar[1:]))
             pulsar_bash_string = '${pulsar}'
@@ -427,7 +427,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             commands.append('if [ "$errorcode" != "0" ]; then')
             commands.append('   echo "Folding using the -psr option"')
             commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256\
-                            {2}/1*fits -n {3}'.format(obsid, pulsar, pointing_dir, nbins))
+                            {2}/1*fits -n {3}'.format(obsid, pulsar, pointing_dir, nbin))
             commands.append('   pulsar={}'.format(pulsar))
             commands.append('fi')
             commands.append('rm {0}.eph'.format(pulsar))
@@ -488,13 +488,25 @@ def beamform(search_opts, pointing_list, code_comment=None,
              relaunch=False):
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     bsd_row_num_input = search_opts.bsd_row_num
+    pointing_dir_input = search_opts.pointing_dir
 
+    #work out maximum number of pointings
     hostname = socket.gethostname()
-    #if hostname.startswith('john') or hostname.startswith('farnarkle'):
-    #    max_pointing = 30
-    #else:
-    #    max_pointing = 15
-    max_pointing = 14
+    if ( hostname.startswith('john') or hostname.startswith('farnarkle') ) and summed:
+        #temp_mem = int(5. * (float(stop) - float(start) + 1.) * \
+        #           float(len(pointing_list)) / 1000.) + 1
+        temp_mem_max = 300. #GB
+        # Use the maximum number of pointings that the SSD memory can handle
+        max_pointing = int(( temp_mem_max - 1 ) * 1000. / \
+                           (5. * (float(search_opts.end) - float(search_opts.begin) + 1.)))
+        if max_pointing > 30:
+            # More than 30 won't fit on the GPU mem
+            max_pointing = 30
+    else:
+        max_pointing = 15
+
+    print("Maximum of pointings per beamforming job: {}".format(max_pointing))
+    
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
     search_opts.relaunch_script_in = search_opts.relaunch_script
@@ -531,12 +543,15 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         #fits dir parsing
         comp_config = config.load_config_file()
-        if search_opts.pointing_dir is None:
+        if pointing_dir_input is None:
             if search_opts.incoh:
                 search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
             else:
                 search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
                                                                    search_opts.pointing))
+        else:
+            search_opts.setPdir(pointing_dir_input)
+
         if search_opts.cold_storage_check:
             #Check if search_opts.pointing in cold storage
             try :
@@ -978,11 +993,12 @@ def accel(search_opts, dm_list_list=None, prepsub_commands=None, fft_commands=No
     if dm_list_list is None:
         search_opts.setTable('Accel')
         error_check(search_opts, bash_job=True)
-    else:
         search_database.database_script_list(search_opts.bsd_row_num, 'accelsearch',
                                              commands_list, search_opts.n_omp_threads,
                                              expe_proc_time)
 
+        
+    else:
         presto_single_job(search_opts, dm_list_list,
                           prepsub_commands=prepsub_commands,
                           fft_commands=fft_commands,
@@ -1124,6 +1140,7 @@ def wrap_up(search_opts):
     commands.append('           mv ${i} ../over_3_png/${i}')
     commands.append('           echo "${i} is over 3"')
     commands.append('       fi')
+    commands.append('       mv "${i%.ps}" ../over_3_png/"${i%.ps}"')
     commands.append('   fi')
     commands.append('   count=$(($count+1))')
     commands.append('done')
@@ -1136,6 +1153,7 @@ def wrap_up(search_opts):
     commands.append('   echo "No candidates so deleting pointing, dat and fft files"')
     commands.append('   rm {0}{1}/*dat'.format(search_opts.work_dir, search_opts.sub_dir))
     commands.append('   rm {0}{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('   rm {0}{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
     commands.append('   rm -rf {0}{1}/{2}'.format(comp_config['base_product_dir'],
                                                   search_opts.obsid, search_opts.pointing))
     commands.append('fi')
@@ -1237,6 +1255,13 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
                         format(search_opts.n_omp_threads, search_opts.bsd_row_num,
                                search_opts.attempt+1, dmi))
 
+        # load python modules required to do the single pulse python script
+        commands.append('ml numpy/1.14.1-python-2.7.14')
+        commands.append('ml scipy/1.0.0-python-2.7.14')
+        commands.append('single_pulse_search.py $JOBFS/*.dat')
+        commands.append('cp $JOBFS/{0}_singlepulse.ps {1}{2}'.format(search_opts.obsid,
+                        search_opts.work_dir, search_opts.sub_dir))
+        
         #Remove accel files off ssd
         commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
                                                           search_opts.sub_dir))
@@ -1273,8 +1298,8 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
 
 
     #Dependancy job
-    print("Waiting 5 sec to make sure to the dependancy script works")
-    sleep(5)
+    print("Waiting 1 sec to make sure to the dependancy script works")
+    sleep(1)
 
     check_depend_batch = '{0}_dep_presto_a{1}'.format(search_opts.bsd_row_num,
                                                       search_opts.attempt +1)
