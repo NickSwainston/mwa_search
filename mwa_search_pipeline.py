@@ -531,6 +531,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
         else:
             pulsar_list = pulsar_list_list[n]
             pulsar = pulsar_list_list[n][0]
+        logger.debug("pulsar_list: {}".format(pulsar_list))
 
         #set up search_opts.relaunch scripts
         if pulsar is None:
@@ -696,11 +697,14 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
                                 vdif=vdif, summed=summed,
                                 code_comment=code_comment, pointing_id=pointing_id)
+            logger.debug("pulsar_list_list_to_beamform: {}".format(pulsar_list_list_to_beamform))
             for pulsar_list, pointing, dep_job_id in zip(pulsar_list_list_to_beamform,
                                                          pointings_to_beamform, dep_job_id_list):
+                logger.debug(pulsar_list, pointing, dep_job_id)
                 pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base, pointing)
                 pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp, dep_job_id])
             pointings_to_beamform = []
+            pulsar_list_list_to_beamform = []
     #send off pulsar fold jobs
     if pulsar_list_list is not None :
         for pulsar_list in pulsar_fold_dict:
@@ -718,7 +722,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             if len(dep_job_id_list) == 0:
                 dep_job_id_list = None
             for pulsar in pulsar_list:
-                print("Sending off data processing for {0}.")
+                print("Sending off data processing for {0}".format(pulsar))
                 logger.debug("Pointing list: {1}".format(pulsar, pointing_dir_list))
                 #send of a fold job for each pulsar
                 multibeam_binfind(search_opts, pointing_dir_list, dep_job_id_list, pulsar)
