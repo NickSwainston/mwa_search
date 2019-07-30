@@ -75,27 +75,27 @@ for n in n_fits:
                 unspliced_files = glob.glob('{}/*{}*_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, n))
             copy(unspliced_files[0], SSD_file_dir)
 
-
     submit_line = 'splice_psrfits '
     for ch in channels:
         if args.incoh:
             submit_line += '{}*{}_incoh_ch{:03d}_{:04d}.fits '.format(SSD_file_dir, obsid, ch, n)
         else:
             submit_line += '{}*{}*_ch{:03d}_{:04d}.fits '.format(SSD_file_dir, obsid, ch, n)
-    submit_line += 'temp_{}'.format(n)
+    submit_line += '{}temp_{}'.format(SSD_file_dir, n)
 
     print(submit_line)
     submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
     out_lines = submit_cmd.stdout
     for l in out_lines:
-        print(l.decode())
+        print(l.decode()[:-1])
     time.sleep(1)
 
 
     print('Finished {}_{:04d}.fits'.format(obsid, n))
     if hostname.startswith('john') or hostname.startswith('bryan'):
         #Use copy because it's faster than mv
-        copy(     'temp_{}_0001.fits'.format(n), '{}/{}_{:04d}.fits'.format(args.work_dir, obsid, n))
+        copy('{}temp_{}_0001.fits'.format(SSD_file_dir, n),
+             '{}/{}_{:04d}.fits'.format(args.work_dir, obsid, n))
         ssd_files = glob.glob('{}/*'.format(SSD_file_dir))
         for sf in ssd_files:
             os.remove(sf)
