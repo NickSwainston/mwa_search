@@ -497,8 +497,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
     #create a dictionary for recording pointdirs and pulsars to make a depdant fold job
     pulsar_fold_dict = {}
-    for pulsar_list in pulsar_list_list:
-        pulsar_fold_dict[" ".join(pulsar_list)] = []
+    if pulsar_list_list is None:
+        pulsar_fold_dict[None] = []
+    else:
+        for pulsar_list in pulsar_list_list:
+            pulsar_fold_dict[" ".join(pulsar_list)] = []
 
     hostname = socket.gethostname()
     #if hostname.startswith('john') or hostname.startswith('farnarkle'):
