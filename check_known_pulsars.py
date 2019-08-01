@@ -97,7 +97,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                     pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     #Setting vdif to false since multi-pixel doesn't have vdif working yet
     vdif_check = False
-    relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} --search -b {3} -e {4} --channels".format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels".format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
