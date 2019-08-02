@@ -627,7 +627,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #splice files
             print("Splicing the files in {0}".format(search_opts.pointing))
             dep_job_id = dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
-            pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
+            if pulsar_list is None:
+                pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, dep_job_id])
+            else:
+                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
 
         elif unspliced_check:
             #resubmit any search_opts.channels that are incomplete
@@ -661,7 +664,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 else:
                     print("ERROR no batch file found")
             dep_job_id = dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
-            pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
+            if pulsar_list is None:
+                pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, dep_job_id])
+            else:
+                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
 
         elif searched_check and not relaunch:
             print("Already searched so not searching again")
@@ -675,7 +681,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 prepdata(search_opts)
             else:
                 print("Fits files available, not beamforming or searching")
-                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, None])
+                if pulsar_list is None:
+                    pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, None])
+                else:
+                    pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, None])
 
             #remove any extra unspliced files
             for fr in glob.glob(search_opts.pointing_dir+"*_"+search_opts.obsid+"_*.fits"):
@@ -705,7 +714,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                                          pointings_to_beamform, dep_job_id_list):
                 logger.debug(pulsar_list, pointing, dep_job_id)
                 pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base, pointing)
-                pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp, dep_job_id])
+                if pulsar_list is None:
+                    pulsar_fold_dict[pulsar_list].append([pointing_dir_temp, dep_job_id])
+                else:
+                    pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp, dep_job_id])
             pointings_to_beamform = []
             pulsar_list_list_to_beamform = []
     #send off pulsar fold jobs
