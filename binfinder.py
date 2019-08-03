@@ -41,7 +41,6 @@ def bestprof_info(prevbins=None, filename=None):
 def submit_to_db(run_params, prof_name):
 
     logger.info("submitting profile to database: {0}".format(prof_name))
-
     #Add path to filenames for submit script
     mydict = bestprof_info(filename = prof_name)
     ppps = os.getcwd() + "/" + glob.glob("*{0}*{1}*.pfd.ps".format(mydict["nbins"], run_params.pulsar[1:]))[0]
@@ -151,17 +150,26 @@ def get_best_profile(pointing_dir, threshold):
 def submit_multifold(run_params, nbins=64):
 
     job_ids = []
+    #see if mask is there
+    
+    check_mask = glob.glob("/group/mwaops/vcs/{0}/incoh/*.mask".format(run_params.obsid))
+    if check_mask:
+        mask = "-mask " + check_mask[0]
+    else:
+        mask = ""
+
     for i, pointing in enumerate(run_params.pointing_dir):
         logger.info("submitting pointing:{0}".format(pointing))
-        os.chdir(pointing)
+        #os.chdir(pointing)
         #create slurm job:
         commands = []
         #load presto module here because it uses python 2
+        commands.append('cd {0}'.format(pointing))
         commands.append('echo "Folding on known pulsar {0}"'.format(run_params.pulsar))
         commands.append('psrcat -e {0} > {0}.eph'.format(run_params.pulsar))
         commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(run_params.pulsar))
-        commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph\
-                        -nsub 256 1*.fits -n {2}".format(run_params.obsid, run_params.pulsar, nbins))
+        commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph"\
+                        " -nsub 256 -n {2} {3} 1*.fits".format(run_params.obsid, run_params.pulsar, nbins, mask))
         commands.append('errorcode=$?')
         commands.append('pulsar={}'.format(run_params.pulsar[1:]))
         pulsar_bash_string = '${pulsar}'
@@ -169,11 +177,11 @@ def submit_multifold(run_params, nbins=64):
         #causes an error with -timing but not -psr
         commands.append('if [ "$errorcode" != "0" ]; then')
         commands.append('   echo "Folding using the -psr option"')
-        commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}\
-                        -nsub 256 1*.fits -n {2}'.format(run_params.obsid, run_params.pulsar, nbins))
+        commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}'\
+                        ' -nsub 256 -n {2} {3} 1*.fits'.format(run_params.obsid, run_params.pulsar, nbins, mask))
         commands.append('   pulsar={}'.format(run_params.pulsar))
         commands.append('fi')
-        commands.append('rm {0}.eph'.format(run_params.pulsar))
+        #commands.append('rm {0}.eph'.format(run_params.pulsar))
 
 
         name = "multifold_{0}_{1}".format(run_params.pulsar, i)
@@ -196,7 +204,7 @@ def submit_multifold(run_params, nbins=64):
 
     p = ""
     for pointing in run_params.pointing_dir:
-        p = p + pointing + " "
+        p += " " + pointing
 
     commands=[]
     commands.append("binfinder.py -m b -d {0} -O {1} -p {2} -o {3} -L {4} {5} --vcs_tools {6}\
@@ -211,7 +219,7 @@ def submit_multifold(run_params, nbins=64):
             slurm_kwargs={"time": "00:10:00"},\
             module_list=["mwa_search/k_smith",\
                         "presto/no-python"],\
-            submit=True, depend=job_ids,\
+            submit=True, depend=job_ids, depend_type="afterany",\
             vcstools_version="multi-pixel_beamform")
 
 
@@ -230,17 +238,22 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     if run_params.stop==True:
         launch_line += " -S"
     
-    
+    check_mask = glob.glob("/group/mwaops/vcs/{0}/incoh/*.mask".format(run_params.obsid))
+    if check_mask:
+        mask = "-mask " + check_mask[0]
+    else:
+        mask = ""   
 
     logger.info("Submitting job for {0} bins".format(nbins))
     #create slurm job:
     commands = []
+    commands.append('cd {0}'.format(run_params.pointing_dir))
     #load presto module here because it uses python 2
     commands.append('echo "Folding on known pulsar {0}"'.format(run_params.pulsar))
     commands.append('psrcat -e {0} > {0}.eph'.format(run_params.pulsar))
     commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(run_params.pulsar))
-    commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph\
-                    -nsub 256 1*.fits -n {2}".format(run_params.obsid, run_params.pulsar, nbins))
+    commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph"\
+                    " -nsub 256 -n {2} {3} 1*.fits".format(run_params.obsid, run_params.pulsar, nbins, mask))
     commands.append('errorcode=$?')
     commands.append('pulsar={}'.format(run_params.pulsar[1:]))
     pulsar_bash_string = '${pulsar}'
@@ -248,8 +261,8 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     #causes an error with -timing but not -psr
     commands.append('if [ "$errorcode" != "0" ]; then')
     commands.append('   echo "Folding using the -psr option"')
-    commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}\
-                    -nsub 256 1*.fits -n {2}'.format(run_params.obsid, run_params.pulsar, nbins))
+    commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}'\
+                    ' -nsub 256 -n {2} {3} 1*.fits'.format(run_params.obsid, run_params.pulsar, nbins, mask))
     commands.append('   pulsar={}'.format(run_params.pulsar))
     commands.append('fi')
     commands.append('rm {0}.eph'.format(run_params.pulsar))
@@ -312,15 +325,15 @@ def find_best_pointing(run_params, nbins=64):
                         run_params.obsid, run_params.loglvl, stop, run_params.vcs_tools,\
                         run_params.mwa_search, run_params.pulsar))
 
-    name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
-    submit_slurm(name, commands,\
-                batch_dir=batch_dir,\
-                slurm_kwargs={"time": "2:00:00"},\
-                module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
-                            'presto/no-python'],\
-                submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
-    logger.info("Job successfully submitted")
+        name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
+        batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+        submit_slurm(name, commands,\
+                    batch_dir=batch_dir,\
+                    slurm_kwargs={"time": "2:00:00"},\
+                    module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
+                                'presto/no-python'],\
+                    submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+        logger.info("Job successfully submitted")
 
 
 
@@ -376,7 +389,11 @@ def iterate_bins(run_params):
                     sys.exit(0)
 
             run_params.set_best_bins(int(float(info_dict["nbins"])))
+            #Plot the bestprof nicely
+            plotting_toolkit.plot_bestprof(prof_name, out_dir=run_params.pointing_dir)
+            #submit
             submit_to_db(run_params, bestprof)
+
 
     else:
         #This is the first run
@@ -479,6 +496,9 @@ if __name__ == '__main__':
                                         out_dir=run_params.pointing_dir)
         mydict = bestprof_info(filename=prof_name)
         run_params.set_best_bins(int(float(mydict["nbins"])))
+        #Plot the bestprof nicely
+        plotting_toolkit.plot_bestprof(prof_name, out_dir=run_params.pointing_dir)
+        #submit
         submit_to_db(run_params, prof_name)
 
     elif run_params.mode=="m":
