@@ -66,21 +66,30 @@ n_fits.sort()
 print('Fits number order: {}'.format(n_fits))
 
 for n in n_fits:
-    if hostname.startswith('john') or hostname.startswith('bryan'):
-        print("Moving each channel onto $JOBFS")
-        for ch in channels:
-            if args.incoh:
-                unspliced_files = glob.glob('{}/*{}_incoh_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, n))
-            else:
-                unspliced_files = glob.glob('{}/*{}*_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, n))
-            copy(unspliced_files[0], SSD_file_dir)
-
-    submit_line = 'splice_psrfits '
+    # List unspliced files
+    unspliced_files = []
     for ch in channels:
         if args.incoh:
-            submit_line += '{}*{}_incoh_ch{:03d}_{:04d}.fits '.format(SSD_file_dir, obsid, ch, n)
+            unspliced_files.append(glob.glob('{}/*{}_incoh_ch{:03d}_{:04d}.fits'.format(args.work_dir,
+                                                   obsid, ch, n))[0])
         else:
-            submit_line += '{}*{}*_ch{:03d}_{:04d}.fits '.format(SSD_file_dir, obsid, ch, n)
+            unspliced_files.append(glob.glob('{}/*{}*_ch{:03d}_{:04d}.fits'.format(args.work_dir,
+                                                  obsid, ch, n))[0])
+
+    
+    if hostname.startswith('john') or hostname.startswith('bryan'):
+        print("Moving each channel onto $JOBFS")
+        for us_file in unspliced_files:
+            copy(us_file, SSD_file_dir)
+
+    # Create splice command and submit 
+    submit_line = 'splice_psrfits '
+    for us_file in unspliced_files:
+        if hostname.startswith('john') or hostname.startswith('bryan'):
+            file_on_SSD = "{}{}".format(SSD_file_dir, us_file.replace(args.work_dir, ''))
+            submit_line += '{} '.format(file_on_SSD)
+        else:
+            submit_line += '{} '.format(us_file)
     submit_line += '{}temp_{}'.format(SSD_file_dir, n)
 
     print(submit_line)
@@ -108,8 +117,7 @@ for n in n_fits:
 
     print("exit code: " + str(submit_cmd.returncode))
     if args.delete and int(submit_cmd.returncode) == 0:
-        for fd in submit_line[15:].split(" ")[:-1]:
-            fd = glob.glob(fd)[0]
-            print("Deleting: " + str(fd))
-            if os.path.isfile(fd):
-                 os.remove(fd)
+        for us_file in unspliced_files:
+            print("Deleting: " + str(us_file))
+            if os.path.isfile(us_file):
+                 os.remove(us_file)
