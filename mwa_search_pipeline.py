@@ -204,9 +204,9 @@ def your_slurm_queue_check(max_queue = 200, queue=None, grep=None):
     #remove header line
     q_num = int(q_num) - 1
     while (q_num > max_queue ):
-        print("{}/{} jobs on the {} queue. Waiting 5 mins for queue to clear".format(q_num,
+        print("{}/{} jobs on the {} queue. Waiting 2 mins for queue to clear".format(q_num,
               max_queue, queue))
-        sleep(300)
+        sleep(120)
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
         q_num = ""
         for line in submit_cmd.stdout:
@@ -276,7 +276,6 @@ def numout_calc(fits_dir, obsid):
     for d in dirlist:
         submit_line = 'readfile ' + d
         submit_cmd = subprocess.Popen(submit_line,shell=True,stdout=subprocess.PIPE)
-        print(submit_cmd.stdout)
         for line in submit_cmd.stdout:
             if b'Time per file (sec) =' in line:
                 subint = int(line.split(b'=')[-1])
@@ -316,7 +315,7 @@ def process_vcs_wrapper(search_opts, pointings,
     """
     comp_config = config.load_config_file()
     #check queue
-    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=80)
+    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
     your_slurm_queue_check(max_queue=500)
 
     #check for search_opts.incoh file which is used to predict if you have used rfifind
@@ -418,7 +417,8 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
             commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
             commands.append("prepfold -o {0} -noxwin -runavg -noclip -timing {1}.eph -nsub 256\
-                            {2}/1*fits -n {3}".format(obsid, pulsar, pointing_dir, nbin))
+                            {2}/1*fits -n {3}".format(search_opts.obsid, pulsar,
+                                                      search_opts.pointing_dir, nbin))
             commands.append('errorcode=$?')
             commands.append('pulsar={}'.format(pulsar[1:]))
             pulsar_bash_string = '${pulsar}'
@@ -427,7 +427,8 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             commands.append('if [ "$errorcode" != "0" ]; then')
             commands.append('   echo "Folding using the -psr option"')
             commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256\
-                            {2}/1*fits -n {3}'.format(obsid, pulsar, pointing_dir, nbin))
+                            {2}/1*fits -n {3}'.format(search_opts.obsid, pulsar,
+                                                      search_opts.pointing_dir, nbin))
             commands.append('   pulsar={}'.format(pulsar))
             commands.append('fi')
             commands.append('rm {0}.eph'.format(pulsar))
@@ -459,7 +460,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
             relaunch_script += ' -r {0}'.format(search_opts.bsd_row_num)
         if search_opts.incoh:
             #run rfi job
-            relaunch_script += ' -m r --search_opts.incoh'
+            relaunch_script += ' -m r --incoh'
         else:
             relaunch_script += ' -m b'
         commands.append(relaunch_script)
@@ -467,7 +468,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
         mem = 2048
-        temp_mem = 6
+        temp_mem = 12
     else:
         mem = 1024
         temp_mem = None
@@ -499,9 +500,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
         # Use the maximum number of pointings that the SSD memory can handle
         max_pointing = int(( temp_mem_max - 1 ) * 1000. / \
                            (5. * (float(search_opts.end) - float(search_opts.begin) + 1.)))
-        if max_pointing > 30:
+        if max_pointing > 29:
             # More than 30 won't fit on the GPU mem
-            max_pointing = 30
+            max_pointing = 29
     else:
         max_pointing = 15
 
@@ -581,11 +582,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 logger.debug(search_opts.pointing_dir+search_opts.obsid+"_*"+str(fnc)+".fits")
                 if not glob.glob(search_opts.pointing_dir+search_opts.obsid+"_*"+str(fnc)+".fits"):
                     missing_file_check = True
-            if search_opts.fits_dir_base is not None:
-                #assumes that maybe they didn't use the whole obs and that's ok
-                if len(glob.glob(search_opts.pointing_dir+search_opts.obsid+"_*.fits")) > 0:
-                    missing_file_check = False
-
+            #if search_opts.fits_dir_base is not None:
+            #    #assumes that maybe they didn't use the whole obs and that's ok
+            #    if len(glob.glob(search_opts.pointing_dir+search_opts.obsid+"_*.fits")) > 0:
+            #        missing_file_check = False
+            
             if missing_file_check:
                 #check if we have any unspliced files
                 #there are some so going to resubmit jobs
@@ -599,6 +600,17 @@ def beamform(search_opts, pointing_list, code_comment=None,
                             unspliced_check = True
                             if ch not in missing_chan_list:
                                 missing_chan_list.append(ch)
+            else:
+                # Replacing the above with a check of the number of samples
+                expected_nsamples = (search_opts.end-search_opts.begin) * 10000
+                nsamples = numout_calc(search_opts.pointing_dir, search_opts.obsid)
+                if expected_nsamples > nsamples:
+                    print("Not enough fits files so deleteing fits files and beamforming")
+                    path_check = True
+                    for rm_file in glob.glob("{}/{}*fits".format(search_opts.pointing_dir,
+                                                                 search_opts.obsid)):
+                        os.remove(rm_file)
+
         else:
             path_check = True
 
@@ -614,7 +626,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
 
         #work out what needs to be done
-        if path_check or len(missing_chan_list) == 24:
+        if search_opts.search and searched_check and not relaunch:
+            print("Already searched so not searching again")
+        elif path_check or len(missing_chan_list) == 24:
             # do beamforming
             print("No pointing directory or files for {0}, will beamform shortly".\
                     format(search_opts.pointing))
@@ -634,7 +648,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             print("Some channels missing, resubmitting make beam scripts for {0}".\
                     format(search_opts.pointing))
             if len(pointing_list) > 1:
-                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=80)
+                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
 
             job_id_list = []
             for ch in missing_chan_list:
@@ -662,8 +676,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
                     print("ERROR no batch file found")
             dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
 
-        elif searched_check and not relaunch:
-            print("Already searched so not searching again")
         else:
             #All files there so the check has succeded and going to start the pipeline
             if search_opts.search and ((not searched_check or relaunch)\
