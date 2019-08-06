@@ -23,8 +23,8 @@ args=parser.parse_args()
 obsid = args.observation
 
 # Check if already spliced
-if glob.glob('{0}*fits'.format(args.observation)) and \
-   not glob.glob('*_{0}*fits'.format(args.observation)):
+if glob.glob('{0}/{1}*fits'.format(args.work_dir, args.observation)) and \
+   not glob.glob('{0}/*_{1}*fits'.format(args.work_dir, args.observation)):
     print('All files are already spliced so exiting')
     exit()
 

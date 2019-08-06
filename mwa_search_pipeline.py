@@ -468,7 +468,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
         mem = 2048
-        temp_mem = 12
+        temp_mem = 48
     else:
         mem = 1024
         temp_mem = None
@@ -595,8 +595,12 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 unspliced_check = False
                 for ch in search_opts.channels:
                     for ne in range(1,expected_file_num):
-                        if not glob.glob("{0}*_{1}_ch*{2}_00*{3}.fits".format(
-                                         search_opts.pointing_dir, search_opts.obsid, ch, ne)):
+                        logger.debug("{0}*_{1}_{2}_ch*{3}_00*{4}.fits".format(
+                                     search_opts.pointing_dir, search_opts.pointing,
+                                     search_opts.obsid, ch, ne))
+                        if not glob.glob("{0}*_{1}_{2}_ch*{3}_00*{4}.fits".format(
+                                         search_opts.pointing_dir, search_opts.obsid,
+                                         search_opts.pointing, ch, ne)):
                             unspliced_check = True
                             if ch not in missing_chan_list:
                                 missing_chan_list.append(ch)
@@ -628,7 +632,13 @@ def beamform(search_opts, pointing_list, code_comment=None,
         #work out what needs to be done
         if search_opts.search and searched_check and not relaunch:
             print("Already searched so not searching again")
+        elif missing_file_check and not unspliced_check and not path_check:
+            #splice files
+            print("Splicing the files in {0}".format(search_opts.pointing))
+            dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
+
         elif path_check or len(missing_chan_list) == 24:
+            logger.debug(missing_file_check, unspliced_check, path_check, len(missing_chan_list))
             # do beamforming
             print("No pointing directory or files for {0}, will beamform shortly".\
                     format(search_opts.pointing))
@@ -638,11 +648,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pulsar_list_list_to_beamform = None
             else:
                 pulsar_list_list_to_beamform.append(pulsar_list)
-        elif missing_file_check and not unspliced_check:
-            #splice files
-            print("Splicing the files in {0}".format(search_opts.pointing))
-            dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
-
         elif unspliced_check:
             #resubmit any search_opts.channels that are incomplete
             print("Some channels missing, resubmitting make beam scripts for {0}".\
