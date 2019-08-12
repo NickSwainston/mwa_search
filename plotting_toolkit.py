@@ -322,7 +322,7 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
     #Plot MWA profile if requested
     if prof_path is not None:
         logger.info("Plotting MWA single profile")
-        mwa_x, _ = plot_MWA_profile(out_dir, pulsar_name, prof_path)
+        #mwa_x, mwa_y = plot_MWA_profile(out_dir, pulsar_name, prof_path)
 
     #Grab the dictionary of epn puslars
     epn_dict = search_epndb.get_epn_paths(pulsar_name, epndb_dir)
@@ -393,7 +393,7 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
     #Meaning Stokes_I[i][0] = [I_x]
     #Stokes_I[i][1] = [I_y]
     #which corresponds to the freqeuncy at frequencies[i]
-    
+ 
     #order the datasets based on frequency if there are more than one:
     if len(frequencies)>1:
         f = []

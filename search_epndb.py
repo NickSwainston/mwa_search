@@ -4,6 +4,7 @@ import logging
 import argparse
 import sys
 from job_submit import submit_slurm
+import ast
 logger = logging.getLogger(__name__)
 
 def dload_dbase(cores = 8, path = "/group/mwaops/k_smith/"):
@@ -44,7 +45,8 @@ def get_epn_paths(pulsar_name, path_to_database):
     f = open(path_to_database + "/epn_database_dictionary.dat", "r")
     line = f.read()
     #epn_dict = {}
-    epn_dict = eval(line)
+    #epn_dict = eval(line)
+    pn_dict = ast.literal_eval(line)
     f.close()
     return epn_dict
 
