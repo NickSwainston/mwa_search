@@ -127,8 +127,8 @@ def binfind(run_params):
     commands.append("echo 'Submitting binfinder in mode {0}'".format(run_params.mode))
     commands.append(launch_line)
 
-    name = "bf_start_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    batch_dir = batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    name = "binfind_initiate_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "00:05:00"},\
