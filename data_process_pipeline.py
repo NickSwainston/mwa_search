@@ -21,17 +21,17 @@ class run_params_class:
         self.cal_id         = cal_id
         self.obsid          = obsid
         self.pulsar         = pulsar
-      
-        #Versions 
+
+        #Versions
         self.mwa_search     = mwa_search
         self.vcs_tools      = vcs_tools
-        
+
         #Run Options
         self.stop           = stop
         self.loglvl         = loglvl
         self.force_initial  = force_initial
         self.mode           = mode
-        
+
         #Other Parameters
         self.threshold      = threshold
         self.nbins          = nbins
@@ -53,10 +53,10 @@ class run_params_class:
 
     def set_best_bins(self, bins):
         self.best_bins = bins
-    
+
     def set_RM_and_err(self, RM, RM_err):
         self.RM=RM
-        self.RM_err=RM_err    
+        self.RM_err=RM_err
 
     def stop_now(self):
         self.stop=True
@@ -83,8 +83,8 @@ def stokes_fold(run_params):
         launch_line += " -S"
 
     commands=[]
-    commands.append(launch_line)   
- 
+    commands.append(launch_line)
+
     name="Stokes_Fold_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
 

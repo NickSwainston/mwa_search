@@ -6,7 +6,6 @@ import logging
 import argparse
 import sys
 import logging
-import subprocess
 
 from job_submit import submit_slurm
 import binfinder
@@ -17,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 def find_RM_from_cat(pulsar):
     #Tries to get RM from psrcat
-   
+
     RM=None
-    RM_err=None 
+    RM_err=None
     f = open("{0}/{1}.eph".format(run_params.pointing_dir, run_params.pulsar))
     lines=f.readlines()
     for line in lines:
@@ -28,10 +27,10 @@ def find_RM_from_cat(pulsar):
             RM=float(line[1])
             RM_err=float(line[2])
             break
- 
+
     if not RM or not RM_err:
         logger.warn("Rotation measure not stored in psrcat ephemeris")
-   
+
     return RM, RM_err
 
 
@@ -57,7 +56,7 @@ def find_RM_from_file(fname):
     #This is not implemented in the pulsar databse yet
 
 def submit_dspsr(run_params):
-    #run dspsr   
+    #run dspsr
 
     launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -L {4} --mwa_search {5}\
                     --vcs_tools {6}"\
@@ -67,17 +66,17 @@ def submit_dspsr(run_params):
     if run_params.stop==True:
         launch_line += " -S"
 
- 
+
     commands=[]
     commands.append("psrcat -e {0} > {1}/{0}.eph".format(run_params.pulsar, run_params.pointing_dir))
-    commands.append("echo 'Running DSPSR folding...\n'")  
+    commands.append("echo 'Running DSPSR folding...\n'")
     commands.append("dspsr -cont -U 4000 -A -L {0} -E {3}/{1}.eph -K -b {2} -O {3}/{1}_subint_{0} {3}/*.fits"\
                     .format(run_params.subint, run_params.pulsar, run_params.nbins, run_params.pointing_dir))
     commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt\n'"\
                     .format(run_params.pointing_dir, run_params.pulsar))
     commands.append("rmfit {0}/{1}_subint_{2}.ar -t > {0}/{1}_rmfit.txt"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.subint))
-    
+
     #rerun the script
     commands.append(launch_line)
 
@@ -88,7 +87,7 @@ def submit_dspsr(run_params):
                 slurm_kwargs={"time": "08:00:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),\
                             "dspsr/master", "psrchive/master"],\
-                submit=True, vcstools_version=run_params.vcs_tools)    
+                submit=True, vcstools_version=run_params.vcs_tools)
 
     logger.info("Job submitted for dspsr using\n\
                 pointing directory:         {0}\n\
@@ -97,13 +96,13 @@ def submit_dspsr(run_params):
 
 def submit_RM_correct(run_params):
     #correct for RM and submit plot
-    
+
 
     launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -L {4} --mwa_search {5}\
                     --vcs_tools {6}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.nbins,\
                     run_params.subint, run_params.loglvl, run_params.mwa_search,\
-                    run_params.vcs_tools, run_params.stop)
+                    run_params.vcs_tools)#, run_params.stop)
 
     if run_params.stop==True:
         launch_line += " -S"
@@ -116,7 +115,7 @@ def submit_RM_correct(run_params):
     #Turn the archive into a readable ascii file
     commands.append("echo 'Wiritng result to text file\n'")
     commands.append("pdv -FTt {0}/{1}_subint_{2}.ar2 > {0}/{1}_archive.txt".\
-    format(run_params.pointing_dir, run_params.pulsar, run_params.subint))   
+    format(run_params.pointing_dir, run_params.pulsar, run_params.subint))
 
     #launch plotting
     commands.append(launch_line)
@@ -128,9 +127,9 @@ def submit_RM_correct(run_params):
                 slurm_kwargs={"time": "02:00:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),
                             "psrchive/master"],\
-                submit=True, vcstools_version=run_params.vcs_tools)    
+                submit=True, vcstools_version=run_params.vcs_tools)
 
-   
+
 if __name__ == '__main__':
     #dictionary for choosing log-levels
     loglevels = dict(DEBUG=logging.DEBUG,
@@ -146,8 +145,8 @@ if __name__ == '__main__':
     foldop.add_argument("-p", "--pulsar", type=str, default=None, help="The name of the pulsar. If not provided, the script will try to get the pulsar from the pointing directory")
     foldop.add_argument("-b", "--nbins", type=int, default=128, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
-    foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")   
- 
+    foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
+
 
     otherop = parser.add_argument_group("Other Options:")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
@@ -176,7 +175,7 @@ if __name__ == '__main__':
                 pulsar=args.pulsar, nbins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
                 mode=args.mode, vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
                 obsid=args.obsid, stop=args.stop)
-    
+
 
     if run_params.pulsar is None:
         logger.error("Pulsar name not supplied. Please run again and specify puslar name")
@@ -187,7 +186,7 @@ if __name__ == '__main__':
     if run_params.obsid is None:
         logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
         sys.exit(1)
-            
+
 
     if run_params.mode == "i":
         submit_dspsr(run_params)
@@ -197,14 +196,14 @@ if __name__ == '__main__':
         run_params.pulsar))
         if RM is None:
             RM, RM_err = find_RM_from_cat(run_params.pulsar)
-    
+
         if RM is not None:
             logger.info("Submitting RM correction and plot script for RM: {0}".format(RM))
-            run_params.set_RM_and_err(RM, RM_err) 
+            run_params.set_RM_and_err(RM, RM_err)
             submit_RM_correct(run_params)
         else:
-            logger.info("RM could not be generated and is not found on record. Cannot proceed")   
- 
+            logger.info("RM could not be generated and is not found on record. Cannot proceed")
+
     elif run_params.mode == "p":
         fname="{0}/{1}_archive.txt".format(run_params.pointing_dir, run_params.pulsar)
         plotting_toolkit.plot_archive(obsid=run_params.obsid, archive=fname, pulsar=run_params.pulsar,\

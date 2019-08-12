@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import logging
 import argparse
-import glob
-import os
 import json
 import time
 
@@ -20,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class run_params_class:
-    
+
     def __init__(self, pulsar="", obsid="", cal_id="",\
                 bestprof=None, archive=None, out_dir=".",\
                 epndb_dir=None, loglvl="INFO", mode=None):
@@ -53,7 +51,7 @@ def get_obs_info(prof_path=None, obsid=None):
             logger.error("No obsid or profile path supplied. Cannot get metadata")
             system.exit(1)
 
-    for i in range(10):
+    for _ in range(10):
         try:
             return get_common_obs_metadata(obsid)
         except RuntimeError as err:
@@ -84,8 +82,8 @@ def align_data_with_peak(stokes_I, stokes_Q=None, stokes_U=None, stokes_V=None):
     if stokes_U is not None:
         stokes_U = np.roll(stokes_U, roll_n)
     if stokes_V is not None:
-        stokes_v = np.roll(stokes_V, roll_n)
-    
+        stokes_V = np.roll(stokes_V, roll_n)
+
     if stokes_Q is not None:
         return stokes_I, stokes_Q, stokes_U, stokes_V
     else:
@@ -94,14 +92,14 @@ def align_data_with_peak(stokes_I, stokes_Q=None, stokes_U=None, stokes_V=None):
 #--------------------------------------------------------------------------
 def normalize(stokes_I, stokes_Q=None, stokes_U=None, stokes_V=None, maxval=None):
 
-    #allows for normalization wrt a custom max value    
+    #allows for normalization wrt a custom max value
     if maxval==None:
         maxval = 0
         for i in stokes_I:
             if abs(i)>maxval:
                 maxval = abs(i)
 
-    for i in range(len(stokes_I)):
+    for i, _ in enumerate(stokes_I):
         if maxval <= 0:
             logger.warn("Division by zero or a negative number")
         stokes_I[i] = stokes_I[i]/maxval
@@ -111,15 +109,15 @@ def normalize(stokes_I, stokes_Q=None, stokes_U=None, stokes_V=None, maxval=None
             stokes_U[i] = stokes_U[i]/maxval
         if stokes_V:
             stokes_V[i] = stokes_V[i]/maxval
-    
+
     if stokes_Q:
-        return stokes_I, stokes_Q, stokes_U, stokes_V 
+        return stokes_I, stokes_Q, stokes_U, stokes_V
     else:
         return stokes_I
 
 #--------------------------------------------------------------------------
 def add_buffer(data, mybuffer):
-    for i in range(len(data)):
+    for i, _ in enumerate(data):
         data[i] = data[i] + mybuffer
     return data
 
@@ -143,13 +141,13 @@ def calc_lin_pa(stokes_Q, stokes_U):
 
 #--------------------------------------------------------------------------
 def pulsar_db_search(pulsar=None, obsid=None):
-    from mwa_pulsar_client import client
-    address = "https://mwa-pawsey-volt01.pawsey.org.au"
-    auth = ('mwapulsar','veovys9OUTY=')
+    #from mwa_pulsar_client import client
+    #address = "https://mwa-pawsey-volt01.pawsey.org.au"
+    #auth = ('mwapulsar','veovys9OUTY=')
     #pul_list_dict = client.pulsar_list(address, auth)
     #detection_list = client.detection_list(address, auth)
     #return_stuff = client.detection_get(address, auth, observationid=obsid)
-    #print(client.pulsar_get(address, auth, name="J2241-5236"))    
+    #print(client.pulsar_get(address, auth, name="J2241-5236"))
 
     """
     Pulsar list is a list of dictionaries. Each dictionary has the following keys:
@@ -157,13 +155,13 @@ def pulsar_db_search(pulsar=None, obsid=None):
 
     Detection list is a list of dictionaries. Each dictionary is a detection with the following keys:
     {'observationid', 'subband', 'observation_type', 'observation_type_str', 'startcchan', 'stopcchan', 'coherent', 'flux', 'flux_error', 'width', 'width_error', 'scattering', 'scattering_error', 'dm', 'dm_error', 'pulsar', 'calibrator', 'version'}
-   
+
     Detection get is a list of dictionaries. The list contains a dictionary for each detection in the OBSID. Each of these dictionaries has the folloing keys:
     'observationid', 'subband', 'observation_type', 'observation_type_str', 'startcchan', 'stopcchan', 'coherent', 'flux', 'flux_error', 'width', 'width_error', 'scattering', 'scattering_error', 'dm', 'dm_error', 'pulsar', 'calibrator', 'detection_files'
 
     Pulsar get returns a dict including pulsar's name, ra, dec and a list of detections. This includes all parameters listed above ^
      """
-    
+
 
     return frequency, stokes_I, stokes_Q, stokes_U, stokes_V
 
@@ -185,9 +183,9 @@ def plot_bestprof(bestprof, out_dir="./"):
 
 
     y = normalize(y)
-    y = align_data_with_peak(y) 
+    y = align_data_with_peak(y)
     x = normalize(x)
-   
+
     info_dict = binfinder.bestprof_info(filename=bestprof)
 
     x_len=20
@@ -202,7 +200,7 @@ def plot_bestprof(bestprof, out_dir="./"):
     plt.text(1, y_len-2,    "Presto Period (ms):    {0} +/- {1}".format(info_dict["period"], info_dict["period_error"]), fontsize=18)
     plt.savefig("{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"]))
 
-     
+
 
 
 #--------------------------------------------------------------------------
@@ -223,7 +221,7 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     else:
         logger.info("Obtaining observation metadata")
         metadata = get_obs_info(obsid=obsid)
-        freq=metadata[5]    
+        freq=metadata[5]
 
 
     #Read the archive
@@ -249,7 +247,7 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     sI, sQ, sU, sV = align_data_with_peak(sI, stokes_Q=sQ, stokes_U=sU, stokes_V=sV)
     lin_pol, pa = calc_lin_pa(sQ, sU)
 
-    #plot - 
+    #plot -
     fig = plt.figure(figsize=(20, 12))
     fig.subplots_adjust(hspace=0)
 
@@ -266,15 +264,15 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     ax_2.set_yticks([-1.5,-1.0,-0.5,0,0.5,1.0,1.5])
     ax_2.set_xlabel("Pulse Phase", fontsize=20)
     ax_2.set_ylabel("Position Angle", fontsize=20)
-    
+
     ax_1.plot(x, sI, color="k", label="Stokes I")
     if lin_pol:
         ax_1.plot(x, lin_pol, color="r", label="Linear Polarization")
     if sV:
         ax_1.plot(x, sV, color="b", label="Circular Polarization")
     if pa:
-        ax_2.scatter(x, pa, color="k", label="Position Angle") 
-    
+        ax_2.scatter(x, pa, color="k", label="Position Angle")
+
     ax_1.legend(loc="upper right", fontsize=18)
     plt.savefig("{0}/{1}_polarimetry_profile.png".format(out_dir, pulsar))
 
@@ -286,21 +284,21 @@ def plot_stack(frequencies, stokes_I, lin_pol, stokes_V, pulsar_name, out_dir, m
     plt.figure(figsize=(24, 20 + 4*len(data_dict)))
     #Loop over all frequencies
     for i, freq in enumerate(frequencies):
-        roll_n = 0 #safety valve
-        maxval = 0
-        
+        #roll_n = 0 #safety valve
+        #maxval = 0
+
         #Stokes I:
         I_x = stokes_I[i][0]
         I_y = add_buffer(stokes_I[i][1], mybuffer*i)
         plt.plot(I_x, I_y, ["k"])
         plt.text(0.35, 0.2+buffer*i, freq+" MHz", fontsize = 40, color = "red")
-        
+
         #linear Polarization:
         if lin_pol[i][0]:
             lin_pol_x = lin_pol[i][0]
             lin_pol_y = add_buffer(lin_pol[i][1], mybuffer*i)
             plt.plot(lin_pol_x, lin_pol_y, ["b"])
-        
+
         #Circular Polarization:
         if stokes_V[i][0]:
             V_x = stokes_V[i][0]
@@ -324,7 +322,7 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
     #Plot MWA profile if requested
     if prof_path is not None:
         logger.info("Plotting MWA single profile")
-        mwa_x, mwa_y = plot_MWA_profile(out_dir, pulsar_name, prof_path)
+        mwa_x, _ = plot_MWA_profile(out_dir, pulsar_name, prof_path)
 
     #Grab the dictionary of epn puslars
     epn_dict = search_epndb.get_epn_paths(pulsar_name, epndb_dir)
@@ -336,7 +334,7 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
         json_files.append(json.load(f))
         f.close()
     logger.info("Found {0} different profiles on the EPN database for this pulsar".format(len(paths)))
-   
+
      #Each json file is a dictionary that points to 3 dictionaries described as follows:
     #The high level dictionary has keys {"hdr", "files", "series"} - each of these keys point to a dictionary
     #"hdr" contains all of the relevant header information as follows:
@@ -364,10 +362,10 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
     stokes_U = []
     stokes_V = []
     #Now put everything in a less complex (stupid) format
-    for i, data_dict in enumerate(json_files): 
+    for i, data_dict in enumerate(json_files):
         f = (data_dict["hdr"]["freq"])
         I_x, I_y = split_list(data_dict["series"]["I"])
-   
+
         if data_dict["series"]["Q"]:
             Q_x, Q_y = split_list(data_dict["series"]["Q"])
         else:
@@ -383,19 +381,19 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
         else:
             V_x = []
             V_y = []
-        
-        frequencies.append(f)       
+
+        frequencies.append(f)
         stokes_I.append([I_x, I_y])
         stokes_Q.append([Q_x, Q_y])
         stokes_U.append([U_x, U_y])
         stokes_V.append([V_x, V_y])
-    """  
-    Stokes_I looks like:[[I_x_1, I_y_1][I_x_2, I_y_2]]
-    where [I_x, I_y] looks like: [[x_1, x_2, etc][y_1, y_2, etc]]
-    Meaning Stokes_I[i][0] = [I_x]
-    Stokes_I[i][1] = [I_y]
-    which corresponds to the freqeuncy at frequencies[i]
-    """    
+    
+    #Stokes_I looks like:[[I_x_1, I_y_1][I_x_2, I_y_2]]
+    #where [I_x, I_y] looks like: [[x_1, x_2, etc][y_1, y_2, etc]]
+    #Meaning Stokes_I[i][0] = [I_x]
+    #Stokes_I[i][1] = [I_y]
+    #which corresponds to the freqeuncy at frequencies[i]
+    
     #order the datasets based on frequency if there are more than one:
     if len(frequencies)>1:
         f = []
@@ -404,21 +402,21 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
         frequencies, stokes_I, stokes_Q, stokes_U, stokes_V = zip(sorted*(zip(frequencies, stokes_I, stokes_Q, stokes_U, stokes_V)))
 
 
-    #Align the data with the peak value in stokes I        
+    #Align the data with the peak value in stokes I
     lin_pol = []
     pa = []
     for i in range(len(frequencies)):
-        stokes_I[i][1], stokes_Q[i][1], stokes_U[i][1], stokes_V[i][1] = align_data_with_peak(stokes_I[i][1], stokes_Q[i][1], stokes_U[i][1], stokes_V[i][1]) 
+        stokes_I[i][1], stokes_Q[i][1], stokes_U[i][1], stokes_V[i][1] = align_data_with_peak(stokes_I[i][1], stokes_Q[i][1], stokes_U[i][1], stokes_V[i][1])
         #Normalize:
         stokes_I, stokes_Q, stokes_U, stokes_V = normalize(stokes_I[i][1], stokes_Q[i][1], stokes_U[i][1], stokes_V[i][1])
         #Now get linear Pol and Position Angle
         if stokes_Q[i] and stokes_U[i]:
-            lin_pol[i], pa[i] = calc_lin_pa()
+            lin_pol[i], pa[i] = calc_lin_pa(stokes_Q[i], stokes_U[i])
         else:
             lin_pol[i] = [[],[]]
             pa[i] = [[],[]]
-    
- 
+
+
     #find the mwa data and plot it
     for i, freq in frequencies:
         if mwa_freq == freq:
@@ -430,7 +428,7 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
             lin_pol[i][0] = stokes_I[i][0]
             pa[i][0] = stokes_I[i][0]
             stokes_V[i][0] = stokes_I[i][0]
-            
+
             #Now it's ready to plot
             plot_mwa_profile(stokes_I[i], lin_pol[i], pa[i], stokes_V[i], freq, pulsar_name, out_dir)
             break
@@ -450,7 +448,7 @@ if __name__ == '__main__':
 
     #Arguments
     parser = argparse.ArgumentParser(description="""Plots pulse profiles for a given pulsar""")
-    
+
     obsop = parser.add_argument_group("Observation Options")
     obsop.add_argument("-p ", "--pulsar", type=str, help="J name of the pulsar. eg. J2241-5326. Default: ''")
     obsop.add_argument("-o", "--obsid", type=str, default="", help="The observation ID. Default: ''")
@@ -459,9 +457,9 @@ if __name__ == '__main__':
     ioop = parser.add_argument_group("Input and Output Opttions")
     ioop.add_argument("-b", "--bestprof", type=str, help="Location of the MWA bestprof file.")
     ioop.add_argument("-a", "--archive", type=str, help="location of the dspsr RM fixed archive file in ascii format.")
-    ioop.add_argument("-d", "--out_dir", default=".", type=str, help="Directory for output figure(s). Default: '.'")    
+    ioop.add_argument("-d", "--out_dir", default=".", type=str, help="Directory for output figure(s). Default: '.'")
     ioop.add_argument("--epndb_dir", type=str, default="/group/mwaops/k_smith/www.epta.eu.org/epndb/json", help="location of the epn database json folder. Default: /group/mwaops/k_smith/www.epta.eu.org/epndb/json")
-    
+
     otherop = parser.add_argument_group("Other Options")
     otherop.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO", choices=loglevels.keys(), default="INFO")
 

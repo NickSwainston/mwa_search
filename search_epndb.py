@@ -1,4 +1,3 @@
-import numpy as np
 import os
 import glob
 import logging
@@ -21,13 +20,13 @@ def dload_dbase(cores = 8, path = "/group/mwaops/k_smith/"):
     commands.append('echo "Downloading epn database to {0}"'.format(path))
     commands.append("srun --export=all -N 1 -n 1 {0}".format(wget_cmd))
 
-    
+
     slurm_kwargs = {"partition": "gpuq",
                     "time": "12:00:00",
                     "nodes": "1",
                     "ntasks-per-node": "{0}".format(cores),
                     "gres": "gpu:1"}
-    
+
     name = "epn_dload"
     batch_dir = path + "/wget_batch"
     submit_slurm(name, commands,
@@ -56,8 +55,8 @@ def update_epn_dict(path_to_database):
 
     #begin looking through the databse:
     author_dirs = []
-    for dir in glob.glob(path_to_database + "/*/"):
-        author_dirs.append(dir)
+    for adir in glob.glob(path_to_database + "/*/"):
+        author_dirs.append(adir)
 
     #Now check all of the directories we just found for pulsar directories
     pulsar_dirs = []

@@ -52,7 +52,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 cmd = ['psrcat', '-c', 'p0', jname]
                 output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
                 period = output.split('\n')[4].split()[1] #in s
-                
+
                 if '*' in period:
                     print("WARNING: Period not found in ephermeris for {0}".format(jname))
                     period=0

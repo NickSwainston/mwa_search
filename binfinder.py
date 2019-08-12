@@ -151,7 +151,7 @@ def submit_multifold(run_params, nbins=64):
 
     job_ids = []
     #see if mask is there
-    
+
     check_mask = glob.glob("/group/mwaops/vcs/{0}/incoh/*.mask".format(run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
@@ -234,15 +234,15 @@ def submit_prepfold(run_params, nbins=32, finish=False):
                     .format(run_params.pointing_dir, run_params.threshold, run_params.cal_id,\
                     run_params.obsid, run_params.loglvl, nbins, run_params.vcs_tools,\
                     run_params.mwa_search, run_params.pulsar)
- 
+
     if run_params.stop==True:
         launch_line += " -S"
-    
+
     check_mask = glob.glob("/group/mwaops/vcs/{0}/incoh/*.mask".format(run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
     else:
-        mask = ""   
+        mask = ""
 
     logger.info("Submitting job for {0} bins".format(nbins))
     #create slurm job:
@@ -313,7 +313,7 @@ def find_best_pointing(run_params, nbins=64):
     else:
         logger.info("Pulsar found in pointings. Running binfinder script on pointing: {0}"\
                     .format(run_params.pointing_dir[best_i]))
-    
+
         if run_params.stop==True:
             stop = "-S"
         else:
