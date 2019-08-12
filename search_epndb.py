@@ -46,7 +46,7 @@ def get_epn_paths(pulsar_name, path_to_database):
     line = f.read()
     #epn_dict = {}
     #epn_dict = eval(line)
-    pn_dict = ast.literal_eval(line)
+    epn_dict = ast.literal_eval(line)
     f.close()
     return epn_dict
 
