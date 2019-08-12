@@ -387,7 +387,7 @@ def sort_data(pulsar_name, epndb_dir, out_dir, prof_path=None, full_stokes=False
         stokes_Q.append([Q_x, Q_y])
         stokes_U.append([U_x, U_y])
         stokes_V.append([V_x, V_y])
-    
+
     #Stokes_I looks like:[[I_x_1, I_y_1][I_x_2, I_y_2]]
     #where [I_x, I_y] looks like: [[x_1, x_2, etc][y_1, y_2, etc]]
     #Meaning Stokes_I[i][0] = [I_x]
