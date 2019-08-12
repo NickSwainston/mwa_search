@@ -184,7 +184,7 @@ def submit_multifold(run_params, nbins=64):
         #commands.append('rm {0}.eph'.format(run_params.pulsar))
 
 
-        name = "multifold_{0}_{1}".format(run_params.pulsar, i)
+        name = "multifold_binfind_{0}_{1}".format(run_params.pulsar, i)
         batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
         myid = submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
