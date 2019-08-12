@@ -89,7 +89,7 @@ class search_options_class:
         self.dm_max           = dm_max
 
         #search database
-        self.relaunch_script    = relaunch_script
+        self._relaunch_script    = relaunch_script
         self.search             = search
         self._bsd_row_num        = bsd_row_num
         self.cold_storage_check = cold_storage_check
@@ -145,6 +145,13 @@ class search_options_class:
     def setNOT(self, value):
         self._n_omp_threads = value
     n_omp_threads = property(getNOT, setNOT)
+
+    def getRLS(self):
+        return self._relaunch_script
+    def setRLS(self, value):
+        self._relaunch_script = value
+    relaunch_script = property(getRLS, setRLS)
+
 
 
 def send_cmd_shell(cmd):
@@ -352,6 +359,7 @@ def process_vcs_wrapper(search_opts, pointings,
 
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     code_comment_in = code_comment
+    dep_job_id_list = []
     for job_id_list in job_id_list_list:
         for pn, pointing in enumerate(pointings):
             search_opts.setPoint(pointing)
@@ -366,8 +374,31 @@ def process_vcs_wrapper(search_opts, pointings,
 
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                           search_opts.pointing, "{0}".format(code_comment)))
-            dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
-    return
+            dep_job_id_list.append(dependant_splice_batch(search_opts, job_id_list=job_id_list,
+                                                                       pulsar_list=pulsar_list))
+    return dep_job_id_list
+
+def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO"):
+    """
+    Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
+    """
+    pointing_str = " ".join(pointing_dir_list)
+    logger.info("pointing string: {0}".format(pointing_str))
+    commands = []
+    commands.append("echo 'Folding on multiple pointings'")
+    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
+                    "--mwa_search {5}".format(pointing_str, search_opts.obsid,
+                    search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
+
+    name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
+    batch_dir = "{0}/batch/".format(search_opts.fits_dir_base)
+    submit_slurm(name, commands,\
+                batch_dir=batch_dir,\
+                slurm_kwargs={"time": "00:05:00"},\
+                module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
+                              'presto/no-python'],\
+                submit=True, vcstools_version='multi-pixel_beamform',\
+                depend=job_id_list)
 
 
 def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
@@ -401,6 +432,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
         commands.append('{0} -i -w {1}{2}/incoh/'.format(splice_command,
                          comp_config['base_product_dir'], search_opts.obsid))
 
+    """
     if pulsar_list is not None:
         #check_known_pulsars.py uses this to check if it was detected and if so upload it
         commands.append('cd {0}'.format(search_opts.pointing_dir))
@@ -451,6 +483,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
                                 'test {3}"'.format(search_opts.obsid, search_opts.begin,
                                             search_opts.end, pulsar, search_opts.cal_id))
             commands.append("fi")
+    """
 
     #add search_opts.relaunch script
     if search_opts.relaunch_script is not None:
@@ -472,8 +505,8 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
     else:
         mem = 1024
         temp_mem = None
-    
-    submit_slurm(splice_wrapper_batch, commands,
+
+    job_id = submit_slurm(splice_wrapper_batch, commands,
                  batch_dir=batch_dir, nice=search_opts.nice,
                  slurm_kwargs={"time": "8:00:00"},
                  module_list=['mwa_search/{}'.format(search_opts.search_ver),
@@ -481,7 +514,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
                  submit=True, depend=job_id_list, depend_type='afterany',
                  mem=mem, temp_mem=temp_mem,
                  vcstools_version="multi-pixel_beamform")
-    return
+    return job_id
 
 
 def beamform(search_opts, pointing_list, code_comment=None,
@@ -490,6 +523,14 @@ def beamform(search_opts, pointing_list, code_comment=None,
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     bsd_row_num_input = search_opts.bsd_row_num
     pointing_dir_input = search_opts.pointing_dir
+
+    #create a dictionary for recording pointdirs and pulsars to make a depdant fold job
+    pulsar_fold_dict = {}
+    if pulsar_list_list is None:
+        pulsar_fold_dict[None] = []
+    else:
+        for pulsar_list in pulsar_list_list:
+            pulsar_fold_dict[" ".join(pulsar_list)] = []
 
     #work out maximum number of pointings
     hostname = socket.gethostname()
@@ -507,7 +548,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
         max_pointing = 15
 
     print("Maximum of pointings per beamforming job: {}".format(max_pointing))
-    
+
     pointings_to_beamform = []
     pulsar_list_list_to_beamform = []
     search_opts.relaunch_script_in = search_opts.relaunch_script
@@ -533,6 +574,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
         else:
             pulsar_list = pulsar_list_list[n]
             pulsar = pulsar_list_list[n][0]
+        logger.debug("pulsar_list: {}".format(pulsar_list))
 
         #set up search_opts.relaunch scripts
         if pulsar is None:
@@ -586,7 +628,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #    #assumes that maybe they didn't use the whole obs and that's ok
             #    if len(glob.glob(search_opts.pointing_dir+search_opts.obsid+"_*.fits")) > 0:
             #        missing_file_check = False
-            
+
             if missing_file_check:
                 #check if we have any unspliced files
                 #there are some so going to resubmit jobs
@@ -625,6 +667,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
             and bsd_row_num_input is None:
                 search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                    search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
+                search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script,
+                                                       search_opts.bsd_row_num))
         else:
             search_opts.setBRN(bsd_row_num_input)
 
@@ -635,8 +679,12 @@ def beamform(search_opts, pointing_list, code_comment=None,
         elif missing_file_check and not unspliced_check and not path_check:
             #splice files
             print("Splicing the files in {0}".format(search_opts.pointing))
-            dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
-
+            dep_job_id = dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
+            if pulsar_list is None:
+                pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, dep_job_id])
+            else:
+                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir,
+                                                                dep_job_id])
         elif path_check or len(missing_chan_list) == 24:
             logger.debug(missing_file_check, unspliced_check, path_check, len(missing_chan_list))
             # do beamforming
@@ -679,7 +727,11 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
                 else:
                     print("ERROR no batch file found")
-            dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
+            dep_job_id = dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
+            if pulsar_list is None:
+                pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, dep_job_id])
+            else:
+                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
 
         else:
             #All files there so the check has succeded and going to start the pipeline
@@ -689,6 +741,13 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 if len(pointing_list) > 1:
                     your_slurm_queue_check(max_queue=500)
                 prepdata(search_opts)
+            else:
+                print("Fits files available, not beamforming or searching")
+                if pulsar_list is None:
+                    pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, None])
+                else:
+                    pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, None])
+
             #remove any extra unspliced files
             for fr in glob.glob(search_opts.pointing_dir+"*_"+search_opts.obsid+"_*.fits"):
                 os.remove(fr)
@@ -697,7 +756,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #splice_wrapper should fail
             #if pulsar_list is not None:
             #    dependant_splice_batch(search_opts, pulsar_list=pulsar_list)
-
 
         if ( n + 1 == len(pointing_list) and len(pointings_to_beamform) != 0 )\
             or len(pointings_to_beamform) == max_pointing:
@@ -709,11 +767,42 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pointing_id.append(pointing_list.index(point.replace("_", " ")) + 1)
 
             print("Sending of {0} pointings for beamforming".format(len(pointings_to_beamform)))
-            process_vcs_wrapper(search_opts, pointings_to_beamform,
+            dep_job_id_list = process_vcs_wrapper(search_opts, pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
                                 vdif=vdif, summed=summed,
                                 code_comment=code_comment, pointing_id=pointing_id)
+            logger.debug("pulsar_list_list_to_beamform: {}".format(pulsar_list_list_to_beamform))
+            for pulsar_list, pointing, dep_job_id in zip(pulsar_list_list_to_beamform,
+                                                         pointings_to_beamform, dep_job_id_list):
+                logger.debug(pulsar_list, pointing, dep_job_id)
+                pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base, pointing)
+                if pulsar_list is None:
+                    pulsar_fold_dict[pulsar_list].append([pointing_dir_temp, dep_job_id])
+                else:
+                    pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp, dep_job_id])
             pointings_to_beamform = []
+            pulsar_list_list_to_beamform = []
+    #send off pulsar fold jobs
+    if pulsar_list_list is not None :
+        for pulsar_list in pulsar_fold_dict:
+            pulsar_list = pulsar_list.split()
+            logger.debug("pulsar_list: {}".format(pulsar_list))
+            pointing_dir_list = []
+            dep_job_id_list = []
+            dict_list = pulsar_fold_dict[" ".join(pulsar_list)]
+            logger.debug("dict_list: {}".format(dict_list))
+            for pointing_dir, dep_job_id in dict_list:
+                pointing_dir_list.append(pointing_dir)
+                if dep_job_id is not None:
+                    dep_job_id_list.append(dep_job_id)
+
+            if len(dep_job_id_list) == 0:
+                dep_job_id_list = None
+            for pulsar in pulsar_list:
+                print("Sending off data processing for {0}".format(pulsar))
+                logger.debug("{0} Pointing list: {1}".format(pulsar, pointing_dir_list))
+                #send of a fold job for each pulsar
+                multibeam_binfind(search_opts, pointing_dir_list, dep_job_id_list, pulsar)
     return
 
 
@@ -891,7 +980,7 @@ def prepdata(search_opts):
                                       float(dm_line[2])), decimals=2))
 
     if "-r" not in search_opts.relaunch_script:
-        search_opts.relaunch_script += " -r {}".format(search_opts.bsd_row_num)
+        search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script, search_opts.bsd_row_num))
 
 
     search_opts.setTable('Prepdata')
@@ -945,7 +1034,7 @@ def sort_fft(search_opts, dm_list_list=None, prepsub_commands=None):
             dm_list.extend(dml)
         for dm in dm_list:
             commands_list.append("{0}{1}_DM{2:.2f}.dat".format(SSD_file_dir, search_opts.obsid, dm))
-    
+
     #Send off jobs
     search_opts.setTable('FFT')
     hostname = socket.gethostname()
@@ -1005,7 +1094,7 @@ def accel(search_opts, dm_list_list=None, prepsub_commands=None, fft_commands=No
                              format(int(max_search_accel), min_f_harm, max_f_harm,
                                     int(nharm), fft_file))
 
-    
+
     #Send off jobs
     if dm_list_list is None:
         search_opts.setTable('Accel')
@@ -1014,7 +1103,7 @@ def accel(search_opts, dm_list_list=None, prepsub_commands=None, fft_commands=No
                                              commands_list, search_opts.n_omp_threads,
                                              expe_proc_time)
 
-        
+
     else:
         presto_single_job(search_opts, dm_list_list,
                           prepsub_commands=prepsub_commands,
@@ -1196,7 +1285,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     # Get fft commands
     if fft_commands is None:
         fft_commands = search_database.database_script_check('FFT', search_opts.bsd_row_num, 1)
-   
+
     # Get accel commands
     if accel_commands is None:
         accel_commands = search_database.database_script_check('Accel', search_opts.bsd_row_num, 1)
@@ -1278,7 +1367,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         commands.append('single_pulse_search.py $JOBFS/*.dat')
         commands.append('cp $JOBFS/{0}_singlepulse.ps {1}{2}'.format(search_opts.obsid,
                         search_opts.work_dir, search_opts.sub_dir))
-        
+
         #Remove accel files off ssd
         commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
                                                           search_opts.sub_dir))

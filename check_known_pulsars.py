@@ -18,7 +18,8 @@ import config
 from grid import get_grid
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
-                      vdif_check=False, product_dir='/group/mwaops/vcs'):
+                      vdif_check=False, product_dir='/group/mwaops/vcs',
+                      mwa_search_version='master'):
 
 
     #obsbeg, obsend, obsdur = file_maxmin.print_minmax(obsid)
@@ -51,8 +52,14 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 cmd = ['psrcat', '-c', 'p0', jname]
                 output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
                 period = output.split('\n')[4].split()[1] #in s
+
+                if '*' in period:
+                    print("WARNING: Period not found in ephermeris for {0}".format(jname))
+                    period=0
+                else:
+                    period = float(period)*1000.
                 print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
-                       PSRJ, raj, decj, float(period)*1000., psrbeg, psrend))
+                       PSRJ, raj, decj, period, psrbeg, psrend))
 
                 jname_temp_list = []
                 if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
@@ -90,14 +97,18 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                     pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     #Setting vdif to false since multi-pixel doesn't have vdif working yet
     vdif_check = False
-    relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} --search --channels".format(obsid, cal_obs, DI_dir)
+    relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels".format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
-                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script)
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version)
     search_pipe.beamform(search_opts, pointing_list, pulsar_list_list=jname_list)
     os.remove(known_pulsar_file)
+
+
+
     return
 
 
@@ -115,6 +126,8 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
     parser.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
     parser.add_argument("-a", "--all", action="store_true", default=False, help="Perform on entire observation span. Use instead of -b & -e")
+    parser.add_argument('--mwa_search_version', type=str, default='master',
+                    help="The module version of mwa_search to use. Default: master")
     args=parser.parse_args()
 
     #option parsing
@@ -140,7 +153,7 @@ if __name__ == "__main__":
     else:
         #looks through the comined files to use the max and min
         #TODO have some sort of check to look for gaps
-        if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], obsid)):
+        if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], args.obsid)):
             combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], obsid))
         else:
             combined_files = glob.glob("{0}/{1}/combined/{1}*_ch{2}.dat".\
@@ -152,5 +165,8 @@ if __name__ == "__main__":
         end = max(comb_times)
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
-                      vdif_check=args.vdif, product_dir=comp_config['base_product_dir'])
+                      vdif_check=args.vdif, product_dir=comp_config['base_product_dir'],
+                      mwa_search_version=args.mwa_search_version)
+
+
 
