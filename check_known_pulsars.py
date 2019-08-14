@@ -26,7 +26,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
     #wrapping for find_pulsar_in_obs.py
     names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
-    fpio.find_sources_in_obs([obsid], names_ra_dec, dt=100)
+    fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     known_pulsar_file = "{0}_analytic_beam.txt".format(obsid)
 
     print("Get channels from metadata")
