@@ -390,7 +390,7 @@ def iterate_bins(run_params):
 
             run_params.set_best_bins(int(float(info_dict["nbins"])))
             #Plot the bestprof nicely
-            plotting_toolkit.plot_bestprof(prof_name, out_dir=run_params.pointing_dir)
+            plotting_toolkit.plot_bestprof(bestprof, out_dir=run_params.pointing_dir)
             #submit
             submit_to_db(run_params, bestprof)
 
