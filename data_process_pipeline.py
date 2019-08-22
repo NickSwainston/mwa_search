@@ -14,7 +14,8 @@ class run_params_class:
                 threshold=10.0, stop=False, next_mode=True, loglvl="INFO",\
                 mode=None, mwa_search="master", vcs_tools="multi-pixel_beamform",\
                 nbins=None, subint=10.0, RM=None, RM_err=None, prevbins=None,\
-                best_bins=None, force_initial=False):
+                best_bins=None, force_initial=False, nocrop=False, bestprof=None,\
+                archive=None, out_dir=None, epndb_dir=None):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -32,6 +33,13 @@ class run_params_class:
         self.force_initial  = force_initial
         self.mode           = mode
 
+        #Plotting Options
+        self.nocrop         = nocrop
+        self.bestprof       = bestprof
+        self.archive        = archive
+        self.out_dir        = out_dir
+        self.epndb_dir      = epndb_dir        
+
         #Other Parameters
         self.threshold      = threshold
         self.nbins          = nbins
@@ -44,8 +52,9 @@ class run_params_class:
 
         if self.obsid==None:
             self.obsid=info_from_dir(self.pointing_dir)["obsid"]
-        if len(self.pointing_dir)==1:
-            self.pointing_dir=self.pointing_dir[0]
+        if self.pointing_dir is not None:
+            if len(self.pointing_dir)==1:
+                self.pointing_dir=self.pointing_dir[0]
 
 
     def set_prevbins(self, prevbins):

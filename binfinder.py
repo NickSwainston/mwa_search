@@ -60,10 +60,10 @@ def submit_to_db(run_params, prof_name):
                         run_params.obsid, run_params.best_bins, run_params.loglvl, run_params.mwa_search,\
                         run_params.vcs_tools))
 
-    commands.append('echo "Searching for pulsar using the pipeline to test the pipelines effectivness"')
-    commands.append('mwa_search_pipeline.py -o {0} -a --search --pulsar {1} -O {2}\
-                    --code_comment "Known pulsar auto test"'.format(run_params.obsid, run_params.pulsar,\
-                    run_params.cal_id))
+    #commands.append('echo "Searching for pulsar using the pipeline to test the pipelines effectivness"')
+    #commands.append('mwa_search_pipeline.py -o {0} -a --search --pulsar {1} -O {2}\
+    #                --code_comment "Known pulsar auto test"'.format(run_params.obsid, run_params.pulsar,\
+    #                run_params.cal_id))
 
 
     name = "Submit_{0}_{1}".format(run_params.pulsar, run_params.obsid)
@@ -390,7 +390,8 @@ def iterate_bins(run_params):
 
             run_params.set_best_bins(int(float(info_dict["nbins"])))
             #Plot the bestprof nicely
-            plotting_toolkit.plot_bestprof(bestprof, out_dir=run_params.pointing_dir)
+            prof_path = run_params.pointing_dir + bestprof
+            plotting_toolkit.plot_bestprof(prof_path, out_dir=run_params.pointing_dir)
             #submit
             submit_to_db(run_params, bestprof)
 
