@@ -717,7 +717,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                     #resubmit missing search_opts.channels
                     submit_line = "sbatch {0}/batch/mb_{1}_ch{2}.batch".\
                                   format(search_opts.fits_dir_base, search_opts.pointing, ch)
-                    submit_output = ssearch_opts.end_cmd_shell(submit_line)
+                    submit_output = search_opts.end_cmd_shell(submit_line)
                     print(submit_line)
                     for line in submit_output:
                         print(line)

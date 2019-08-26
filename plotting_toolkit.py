@@ -13,25 +13,9 @@ import time
 import search_epndb
 import binfinder
 from mwa_metadb_utils import get_common_obs_metadata
+from data_process_pipeline import run_params_class
 
 logger = logging.getLogger(__name__)
-
-
-class run_params_class:
-
-    def __init__(self, pulsar="", obsid="", cal_id="",\
-                bestprof=None, archive=None, out_dir=".",\
-                epndb_dir=None, loglvl="INFO", mode=None):
-
-        self.pulsar         = pulsar
-        self.obsid          = obsid
-        self.cal_id         = cal_id
-        self.bestprof       = bestprof
-        self.archive        = archive
-        self.out_dir        = out_dir
-        self.epndb_dir      = epndb_dir
-        self.loglvl         = loglvl
-        self.mode           = mode
 
 
 def get_obs_info(prof_path=None, obsid=None):
@@ -167,16 +151,17 @@ def pulsar_db_search(pulsar=None, obsid=None):
 
 
 #--------------------------------------------------------------------------
-def plot_bestprof(bestprof, out_dir="./"):
+def plot_bestprof(bestprof, out_dir, nocrop):
 
     #retrieve data from bestprof
     x = []
     y = []
+    print("Plotting profile from file: {0}".format(bestprof))
     f = open(bestprof)
     lines = f.readlines()
     for line in lines:
-        line=lines.split()
-        if line[0] is not "#":
+        line=line.split()
+        if "#" not in line[0]:
             x.append(float(line[0]))
             y.append(float(line[1]))
     f.close()
@@ -188,23 +173,30 @@ def plot_bestprof(bestprof, out_dir="./"):
 
     info_dict = binfinder.bestprof_info(filename=bestprof)
 
-    x_len=20
-    y_len=12
-    plt.figure(figsize=(x_len,y_len))
-    plt.plot(x, y, color="k")
+    x_len=12
+    y_len=8
+    fig, ax = plt.subplots(figsize=(x_len, y_len))
+    #Crop the image
+    if nocrop==False:
+        ax.set_xlim(0.25, 0.75)
+    else:
+        ax.set_xlim(0., 1.)
 
     plt.title("{0}_{1}_Profile".format(info_dict["obsid"], info_dict["pulsar"]))
-    plt.text(1, y_len-0.5,  "Presto S/N:            {0}".format(info_dict["sn"]), fontsize=18)
-    plt.text(1, y_len-1,    "Presto Chi Sq:         {0}".format(info_dict["chi"]), fontsize=18)
-    plt.text(1, y_len-1.5,  "Presto DM:             {0}".format(info_dict["dm"]), fontsize=18)
-    plt.text(1, y_len-2,    "Presto Period (ms):    {0} +/- {1}".format(info_dict["period"], info_dict["period_error"]), fontsize=18)
+    plt.text(0.05, 0.95,    "S/N:             {0}".format(info_dict["sn"]), fontsize=9, color="black", transform=ax.transAxes)
+    plt.text(0.05, 0.925,     "Chi Sq:          {0}".format(info_dict["chi"]), fontsize=9, color="black", transform=ax.transAxes)
+    plt.text(0.05, 0.9,    "DM:              {0}".format(info_dict["dm"]), fontsize=9, color="black", transform=ax.transAxes)
+    plt.text(0.05, 0.875,     "Period (ms):     {0}+/-{1}".format(info_dict["period"], info_dict["period_error"]), fontsize=9, color="black", transform=ax.transAxes)
+    
+    ax.plot(x, y, color="black")
+    print("Saving figure:   {0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"]))
     plt.savefig("{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"]))
 
 
 
 
 #--------------------------------------------------------------------------
-def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir="./"):
+def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir="./", nocrop=False):
     #Must supply either a run_params class or all other inputs
     if run_params is not None:
         obsid=run_params.obsid
@@ -250,27 +242,35 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     #plot -
     fig = plt.figure(figsize=(20, 12))
     fig.subplots_adjust(hspace=0)
+   
+    if run_params is not None: 
+        nocrop = run_params.nocrop
+    
+    if nocrop==False:
+        crop=(0.25, 0.75)
+    else:
+        crop=(0,1)
 
     ax_1 = plt.subplot2grid((4,1),(0,0), colspan=1, rowspan=3)
     ax_1.tick_params(labelsize=14)
     ax_1.set_xticks([])#empty
     ax_1.set_title("{0} Pulse Profile - {1} MHz".format(pulsar, freq), fontsize=36)
     ax_1.set_ylabel("Amplitude", fontsize=20)
-    ax_1.set_xlim(0, 1)
+    ax_1.set_xlim(crop)
 
     ax_2 = plt.subplot2grid((4,1),(3,0), colspan=1, rowspan=1)
     ax_2.tick_params(labelsize=14)
-    ax_2.set_xlim(0, 1)
+    ax_2.set_xlim(crop)
     ax_2.set_yticks([-1.5,-1.0,-0.5,0,0.5,1.0,1.5])
     ax_2.set_xlabel("Pulse Phase", fontsize=20)
     ax_2.set_ylabel("Position Angle", fontsize=20)
 
     ax_1.plot(x, sI, color="k", label="Stokes I")
-    if lin_pol:
+    if lin_pol is not None:
         ax_1.plot(x, lin_pol, color="r", label="Linear Polarization")
-    if sV:
+    if sV is not None:
         ax_1.plot(x, sV, color="b", label="Circular Polarization")
-    if pa:
+    if pa is not None:
         ax_2.scatter(x, pa, color="k", label="Position Angle")
 
     ax_1.legend(loc="upper right", fontsize=18)
@@ -457,12 +457,12 @@ if __name__ == '__main__':
     ioop = parser.add_argument_group("Input and Output Opttions")
     ioop.add_argument("-b", "--bestprof", type=str, help="Location of the MWA bestprof file.")
     ioop.add_argument("-a", "--archive", type=str, help="location of the dspsr RM fixed archive file in ascii format.")
-    ioop.add_argument("-d", "--out_dir", default=".", type=str, help="Directory for output figure(s). Default: '.'")
+    ioop.add_argument("-d", "--out_dir", type=str, help="Directory for output figure(s)")
     ioop.add_argument("--epndb_dir", type=str, default="/group/mwaops/k_smith/www.epta.eu.org/epndb/json", help="location of the epn database json folder. Default: /group/mwaops/k_smith/www.epta.eu.org/epndb/json")
 
     otherop = parser.add_argument_group("Other Options")
     otherop.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO", choices=loglevels.keys(), default="INFO")
-
+    otherop.add_argument("--nocrop", action="store_true", help="Use this tag to plot the full pulse profile, otherwise the image will be cropped by 25% on each side")
 
     modeop = parser.add_argument_group("Modes")
     parser.add_argument("-m", "--mode", type=str, help="The desired plotting mode. Options:\n\
@@ -479,14 +479,17 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
+    if args.out_dir is None:
+        logger.error("Please supply an output directory and rerun.")
+        sys.exit(1)
 
     run_params = run_params_class(pulsar=args.pulsar, obsid=args.obsid, cal_id=args.cal_id,\
                     bestprof=args.bestprof, archive=args.archive, out_dir=args.out_dir,\
-                    epndb_dir=args.epndb_dir, loglvl=args.loglvl, mode=args.mode)
+                    epndb_dir=args.epndb_dir, loglvl=args.loglvl, mode=args.mode, nocrop=args.nocrop)
 
 
     #sort_data(args.pulsar_name, args.epndb_dir, args.out_dir, args.bestprof, args.full_stokes)
     if run_params.mode=="b":
-        plot_bestprof(run_params)
+        plot_bestprof(args.bestprof, args.out_dir, args.nocrop)
     elif run_params.mode=="s":
         plot_archive(run_params=run_params)
