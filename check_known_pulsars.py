@@ -38,6 +38,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         pulsar_lines = []
         for pulsar_line in kpf:
             pulsar_lines.append(pulsar_line)
+    #pulsar_lines = ["J0034-0721"]
 
     pointing_list = []
     jname_list = []

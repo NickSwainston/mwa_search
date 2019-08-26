@@ -2,7 +2,9 @@
 
 import logging
 import argparse
+import socket
 from job_submit import submit_slurm
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +109,8 @@ def stokes_fold(run_params):
     commands.append(launch_line)
 
     name="Stokes_Fold_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    comp_config = config.load_config_file()
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
 
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
@@ -149,7 +152,8 @@ def binfind(run_params):
     commands.append(launch_line)
 
     name = "binfind_initiate_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    comp_config = config.load_config_file()
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "00:05:00"},\

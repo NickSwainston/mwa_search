@@ -8,6 +8,7 @@ import sys
 import logging
 
 from job_submit import submit_slurm
+import config
 import binfinder
 import data_process_pipeline
 import plotting_toolkit
@@ -81,7 +82,8 @@ def submit_dspsr(run_params):
     commands.append(launch_line)
 
     name = "dspsr_RM_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    comp_config = config.load_config_file()
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "08:00:00"},\
@@ -121,7 +123,9 @@ def submit_RM_correct(run_params):
     commands.append(launch_line)
 
     name = "RMcor_plt_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    comp_config = config.load_config_file()
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'],
+                                       run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "02:00:00"},\

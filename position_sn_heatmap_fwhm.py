@@ -19,14 +19,14 @@ def find_fwhm_and_plot(obsid, pointing):
     pointing_list = []
     sn = []
     comp_config = config.load_config_file()
-    for d in glob.glob("{0}/{1}/pointings/{2}*_{3}*/".format(comp_config['base_product_dir'],
-                                obsid,pointing.split("_")[0][:4],pointing.split("_")[1][:2])):
-        bestprof_file = "{0}{1}_PSR_J2145-0750.pfd.bestprof".format(d, obsid)#, d.split("/")[-2])
-        if os.path.exists(bestprof_file):
-            with open(bestprof_file) as bestfile:
+    for d in glob.glob("{0}/{1}/pointings/*".format(comp_config['base_product_dir'],
+                                obsid)):
+        bestprof_file = glob.glob("{0}/{1}*_PSR_2330-2005.pfd.bestprof".format(d, obsid))
+        if len(bestprof_file) == 1:
+            with open(bestprof_file[0]) as bestfile:
                 for i in bestfile.readlines():
                     if i.startswith("# Prob(Noise)"):
-                        pointing_list.append(d.split("/")[-2])
+                        pointing_list.append(d.split("/")[-1])
                         sn.append(float(i.split("(")[-1][1:-7]))
 
     #find max for a FWHM test
@@ -42,6 +42,7 @@ def find_fwhm_and_plot(obsid, pointing):
     ras = []; decs = []
     ra_line = []; ra_sn_line = []
     dec_line = []; dec_sn_line = []
+    print(sn)
     for i in range(len(sn)):
         rah, dech = pointing_list[i].split("_")
         coord = SkyCoord(rah,dech,unit=(u.hourangle,u.deg))
@@ -77,30 +78,58 @@ def find_fwhm_and_plot(obsid, pointing):
 
     spline = UnivariateSpline(ra_line, ra_sn_line-np.max(ra_sn_line)/2., s=0)
     print(spline.roots())
-    r1, r2 = spline.roots()
-    ra_FWHM = abs(r1-r2)
-    print("raw ra FHWM: " + str(ra_FWHM))
-    cor_ra_FWHM = float(ra_FWHM)*math.cos(np.radians(dec_centre))
-    print("corrected ra FWHM: {0}".format(cor_ra_FWHM))
+    if len(spline.roots()) == 2:
+        r1, r2 = spline.roots()
+        ra_FWHM = abs(r1-r2)
+        print("raw ra FHWM: " + str(ra_FWHM))
+        cor_ra_FWHM = float(ra_FWHM)*math.cos(np.radians(dec_centre))
+        print("corrected ra FWHM: {0}".format(cor_ra_FWHM))
+    else:
+        print("No detectable ra FWHM (too many roots)")
 
     spline = UnivariateSpline(dec_line, dec_sn_line-np.max(dec_sn_line)/2., s=0)
-    r1, r2 = spline.roots()
-    dec_FWHM = abs(r1-r2)
-    print("raw dec FHWM: " + str(dec_FWHM))
-    cor_dec_FWHM = float(dec_FWHM)*math.cos(np.radians(dec_centre) + np.radians(26.7))**2
-    print("corrected dec FWHM: {0}".format(cor_dec_FWHM))
+    if len(spline.roots()) == 2:
+        r1, r2 = spline.roots()
+        dec_FWHM = abs(r1-r2)
+        print("raw dec FHWM: " + str(dec_FWHM))
+        cor_dec_FWHM = float(dec_FWHM)*math.cos(np.radians(dec_centre) + np.radians(26.7))**2
+        print("corrected dec FWHM: {0}".format(cor_dec_FWHM))
+    else:
+        print("No detectable dec FWHM (too many roots)")
 
 
 
+    diff = 10**20
+      
+    # Find the min diff by comparing difference 
+    # of all possible pairs in given array 
+    n = len(dec_line)
+    for i in range(n-1): 
+        for j in range(i+1,n): 
+            if abs(dec_line[i]-dec_line[j]) < diff: 
+                diff = abs(dec_line[i] - dec_line[j])  
+    n = len(ra_line)
+    for i in range(n-1): 
+        for j in range(i+1,n): 
+            if abs(ra_line[i]-ra_line[j]) < diff: 
+                diff = abs(ra_line[i] - ra_line[j])  
+    diff = 0.01
+    print("Diff: {}".format(diff))
+    
     ras = np.array(ras); decs = np.array(decs)
     fig = plt.figure(figsize=(7, 7))
     ax = fig.add_subplot(111)
 
     plt.grid(True)
+    
+    #sort by sn
+    ras = [x for _,x in sorted(zip(sn,ras))]
+    decs = [x for _,x in sorted(zip(sn,decs))]
+    sn = sorted(sn)
 
-    cm = plt.cm.get_cmap('cubehelix',20)
+    cm = plt.cm.get_cmap('plasma',20)
     ax.grid(color='r', linestyle='-', linewidth=2)
-    sp = plt.scatter(ras, decs, c=sn, s=500, edgecolors='b',cmap = cm)
+    sp = plt.scatter(ras, decs, c=sn, s=(1000*diff)**2, cmap = cm)
     #plt.gray()
     plt.colorbar(sp)
     plt.savefig("{0}_position_heatmap.png".format(obsid))
