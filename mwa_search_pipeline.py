@@ -727,11 +727,13 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
                 else:
                     print("ERROR no batch file found")
-            dep_job_id = dependant_splice_batch(search_opts, job_id_list=job_id_list, pulsar_list=pulsar_list)
+            dep_job_id = dependant_splice_batch(search_opts, job_id_list=job_id_list,
+                                                pulsar_list=pulsar_list)
             if pulsar_list is None:
                 pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, dep_job_id])
             else:
-                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir, dep_job_id])
+                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir,
+                                                                dep_job_id])
 
         else:
             #All files there so the check has succeded and going to start the pipeline
@@ -772,18 +774,22 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                 vdif=vdif, summed=summed,
                                 code_comment=code_comment, pointing_id=pointing_id)
             logger.debug("pulsar_list_list_to_beamform: {}".format(pulsar_list_list_to_beamform))
-            for pulsar_list, pointing, dep_job_id in zip(pulsar_list_list_to_beamform,
-                                                         pointings_to_beamform, dep_job_id_list):
-                logger.debug(pulsar_list, pointing, dep_job_id)
-                pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base, pointing)
-                if pulsar_list is None:
-                    pulsar_fold_dict[pulsar_list].append([pointing_dir_temp, dep_job_id])
-                else:
-                    pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp, dep_job_id])
+            if pulsar_list_list is not None:
+                for pulsar_list, pointing, dep_job_id in zip(pulsar_list_list_to_beamform,
+                                                             pointings_to_beamform,
+                                                             dep_job_id_list):
+                    logger.debug(pulsar_list, pointing, dep_job_id)
+                    pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base,
+                                                                   pointing)
+                    if pulsar_list is None:
+                        pulsar_fold_dict[pulsar_list].append([pointing_dir_temp, dep_job_id])
+                    else:
+                        pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp,
+                                                                        dep_job_id])
             pointings_to_beamform = []
             pulsar_list_list_to_beamform = []
     #send off pulsar fold jobs
-    if pulsar_list_list is not None :
+    if pulsar_list_list is not None:
         for pulsar_list in pulsar_fold_dict:
             pulsar_list = pulsar_list.split()
             logger.debug("pulsar_list: {}".format(pulsar_list))

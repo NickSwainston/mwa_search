@@ -8,6 +8,7 @@ import sys
 import data_process_pipeline
 from job_submit import submit_slurm
 import plotting_toolkit
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,8 @@ def submit_to_db(run_params, prof_name):
 
 
     name = "Submit_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    comp_config = config.load_config_file()
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
 
     submit_slurm(name, commands,\
                  batch_dir=batch_dir,\
@@ -152,7 +154,9 @@ def submit_multifold(run_params, nbins=64):
     job_ids = []
     #see if mask is there
 
-    check_mask = glob.glob("/group/mwaops/vcs/{0}/incoh/*.mask".format(run_params.obsid))
+    comp_config = config.load_config_file()
+    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_data_dir'], 
+                                                        run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
     else:
@@ -185,7 +189,7 @@ def submit_multifold(run_params, nbins=64):
 
 
         name = "multifold_binfind_{0}_{1}".format(run_params.pulsar, i)
-        batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+        batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
         myid = submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
                     slurm_kwargs={"time": "1:00:00"},\
@@ -213,11 +217,11 @@ def submit_multifold(run_params, nbins=64):
                     stop, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar))
 
     name="best_fold_{0}".format(run_params.pulsar)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
     myid = submit_slurm(name, commands,\
             batch_dir=batch_dir,\
             slurm_kwargs={"time": "00:10:00"},\
-            module_list=["mwa_search/k_smith",\
+            module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                         "presto/no-python"],\
             submit=True, depend=job_ids, depend_type="afterany",\
             vcstools_version="multi-pixel_beamform")
@@ -237,8 +241,10 @@ def submit_prepfold(run_params, nbins=32, finish=False):
 
     if run_params.stop==True:
         launch_line += " -S"
-
-    check_mask = glob.glob("/group/mwaops/vcs/{0}/incoh/*.mask".format(run_params.obsid))
+    
+    comp_config = config.load_config_file()
+    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_data_dir'],
+                                                        run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
     else:
@@ -279,7 +285,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     commands.append(launch_line)
 
     name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
-    batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "2:00:00"},\
@@ -326,7 +332,9 @@ def find_best_pointing(run_params, nbins=64):
                         run_params.mwa_search, run_params.pulsar))
 
         name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
-        batch_dir = "/group/mwaops/vcs/{0}/batch/".format(run_params.obsid)
+        comp_config = config.load_config_file()
+        batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'],
+                                           run_params.obsid)
         submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
                     slurm_kwargs={"time": "2:00:00"},\
