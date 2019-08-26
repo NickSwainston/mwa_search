@@ -69,6 +69,18 @@ class run_params_class:
 
     def stop_now(self):
         self.stop=True
+
+#----------------------------------------------------------------------
+def copy_data(data_path, target_directory):
+    #copies the data_path file to target_directory
+    #Make the target directory if needed
+    os.makedirs(target_directory, exist_ok=True)
+    try:
+        os.popen("cp {0} {1}".format(data_path, target_dircetory))
+    except RuntimeError as error:
+        logger.warning("File:{0} could not be copied to {1}".format(data_path, target_directory))
+        logger.warning("Error message: {0}".format(error)) 
+
 #----------------------------------------------------------------------
 def info_from_dir(pointing_dir):
 

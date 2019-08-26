@@ -205,9 +205,14 @@ if __name__ == '__main__':
             logger.info("RM could not be generated and is not found on record. Cannot proceed")
 
     elif run_params.mode == "p":
+        #make polarisation plot and copy data products to different directory
         fname="{0}/{1}_archive.txt".format(run_params.pointing_dir, run_params.pulsar)
-        plotting_toolkit.plot_archive(obsid=run_params.obsid, archive=fname, pulsar=run_params.pulsar,\
-                                    out_dir=run_params.pointing_dir)
+        fig_name = plotting_toolkit.plot_archive(obsid=run_params.obsid, archive=fname, pulsar=run_params.pulsar, out_dir=run_params.pointing_dir)
+        data_products_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
+        data_process_pipeline.data_copy(fig_name, data_products_dir)
+        data_process_pipeline.data_copy("{0}/{1}_rmfit.txt".format(run_params.pointing_dir, run_params.pulsar), data_products_dir)
+        data_process_pipeline.data_copy("{0}/{1}_subint_{2}.ar2".format(run_params.pointing_dir, run_params.pulsar, run_params.subint), data_products_dir)
+        data_process_pipeline.data_copy("{0}/{1}_archive.txt".format(run_params.pointing_dir, run_params.pulsar), data_products_dir)
 
     else:
         logger.error("Unrecognised mode. Pleasre rerun with a suitable mode selscted")

@@ -189,8 +189,11 @@ def plot_bestprof(bestprof, out_dir, nocrop):
     plt.text(0.05, 0.875,     "Period (ms):     {0}+/-{1}".format(info_dict["period"], info_dict["period_error"]), fontsize=9, color="black", transform=ax.transAxes)
     
     ax.plot(x, y, color="black")
-    print("Saving figure:   {0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"]))
-    plt.savefig("{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"]))
+    fig_path = "{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"])
+    print("Saving figure:   {0}".format(fig_path))
+    plt.savefig("{0}".format(fig_path))
+
+    return fig_path
 
 
 
@@ -276,6 +279,7 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     ax_1.legend(loc="upper right", fontsize=18)
     plt.savefig("{0}/{1}_polarimetry_profile.png".format(out_dir, pulsar))
 
+    return "{0}/{1}_polarimetry_profile.png".format(out_dir, pulsar)
 
 #--------------------------------------------------------------------------
 def plot_stack(frequencies, stokes_I, lin_pol, stokes_V, pulsar_name, out_dir, mybuffer=0.75):
