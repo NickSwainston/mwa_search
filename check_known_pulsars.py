@@ -17,6 +17,25 @@ from mwa_metadb_utils import obs_max_min
 import config
 from grid import get_grid
 
+def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
+
+    #looks through the comined files of the input obsid and returns the max and min in gps time
+    #TODO have some sort of check to look for gaps
+    if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid)):
+        combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid))
+    else:
+        meta_data = get_meta(obsid)
+        channels = meta_data[-1]
+        combined_files = glob.glob("{0}/{1}/combined/{1}*_ch{2}.dat".\
+                                   format(base_path, obsid, channels[-1]))
+    comb_times = []
+    for comb in combined_files:
+        comb_times.append(int(comb.split("_")[1]))
+    beg = min(comb_times)
+    end = max(comb_times)
+
+    return beg, end
+
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       vdif_check=False, product_dir='/group/mwaops/vcs',
                       mwa_search_version='master'):
@@ -152,18 +171,8 @@ if __name__ == "__main__":
     elif args.all:
         beg, end = obs_max_min(args.obsid)
     else:
-        #looks through the comined files to use the max and min
-        #TODO have some sort of check to look for gaps
-        if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], args.obsid)):
-            combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(comp_config['base_product_dir'], obsid))
-        else:
-            combined_files = glob.glob("{0}/{1}/combined/{1}*_ch{2}.dat".\
-                                       format(product_dir, obsid, channels[-1]))
-        comb_times = []
-        for comb in combined_files:
-            comb_times.append(int(comb.split("_")[1]))
-        beg = min(comb_times)
-        end = max(comb_times)
+        find_beg_end(args.obsid, base_path=comp_config['base_product_dir'])
+
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       vdif_check=args.vdif, product_dir=comp_config['base_product_dir'],
