@@ -45,76 +45,64 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
     #wrapping for find_pulsar_in_obs.py
     names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
-    fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    known_pulsar_file = "{0}_analytic_beam.txt".format(obsid)
-
-    print("Get channels from metadata")
-    meta_data = get_meta(obsid)
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     channels = meta_data[-1]
-
-    #looping through each puslar
-    with open(known_pulsar_file, 'r') as kpf:
-        pulsar_lines = []
-        for pulsar_line in kpf:
-            pulsar_lines.append(pulsar_line)
-    #pulsar_lines = ["J0034-0721"]
 
     pointing_list = []
     jname_list = []
-    for pulsar_line in pulsar_lines:
-        if pulsar_line.startswith("J"):
-            PSRJ = pulsar_line.split()[0]
-            if len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
-                temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
-                temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
-                jname, raj, decj = temp[0]
-                #get pulsar period
-                cmd = ['psrcat', '-c', 'p0', jname]
-                output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
-                period = output.split('\n')[4].split()[1] #in s
+    for pulsar_line in obs_data[obsid]:
+        PSRJ = pulsar_line[0]
+        if len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
+            temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
+            temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
+            jname, raj, decj = temp[0]
+            #get pulsar period
+            cmd = ['psrcat', '-c', 'p0', jname]
+            output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
+            period = output.split('\n')[4].split()[1] #in s
 
-                if '*' in period:
-                    print("WARNING: Period not found in ephermeris for {0}".format(jname))
-                    period=0
-                else:
-                    period = float(period)*1000.
-                print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
-                       PSRJ, raj, decj, period, psrbeg, psrend))
+            if '*' in period:
+                print("WARNING: Period not found in ephermeris for {0}".format(jname))
+                period=0
+            else:
+                period = float(period)*1000.
+            print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
+                   PSRJ, raj, decj, period, psrbeg, psrend))
 
-                jname_temp_list = []
-                if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
-                    #Got to find all the pulsar J names with other letters
-                    vdif_check = True
-                    for pulsar_l in pulsar_lines:
-                        if pulsar_l.startswith(PSRJ[:-2]):
-                            jname_temp_list.append(pulsar_l.split()[0])
-                else:
-                    jname_temp_list.append(jname)
-                    #if b'*' in period:
-                    #    continue
-                    #if float(period) < .05 :
-                    #    vdif_check = True
+            jname_temp_list = []
+            if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
+                #Got to find all the pulsar J names with other letters
+                vdif_check = True
+                for pulsar_l in pulsar_lines:
+                    if pulsar_l.startswith(PSRJ[:-2]):
+                        jname_temp_list.append(pulsar_l.split()[0])
+            else:
+                jname_temp_list.append(jname)
+                #if b'*' in period:
+                #    continue
+                #if float(period) < .05 :
+                #    vdif_check = True
 
-                #convert to radians
-                coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
-                rar = coord.ra.radian #in radians
-                decr = coord.dec.radian
+            #convert to radians
+            coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
+            rar = coord.ra.radian #in radians
+            decr = coord.dec.radian
 
-                #make a grid around each pulsar
-                grid_sep = np.radians(0.3 * 0.6) #TODO work this out for each obs
-                rads, decds = get_grid(rar, decr, grid_sep, 2)
+            #make a grid around each pulsar
+            grid_sep = np.radians(0.3 * 0.6) #TODO work this out for each obs
+            rads, decds = get_grid(rar, decr, grid_sep, 2)
 
-                #convert back to sexidecimals
-                coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
-                rajs = coord.ra.to_string(unit=u.hour, sep=':')
-                decjs = coord.dec.to_string(unit=u.degree, sep=':')
-                temp = []
-                for raj, decj in zip(rajs, decjs):
-                    temp.append([raj, decj])
-                pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
-                for prd in pointing_list_list:
-                    jname_list.append(jname_temp_list)
-                    pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+            #convert back to sexidecimals
+            coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
+            rajs = coord.ra.to_string(unit=u.hour, sep=':')
+            decjs = coord.dec.to_string(unit=u.degree, sep=':')
+            temp = []
+            for raj, decj in zip(rajs, decjs):
+                temp.append([raj, decj])
+            pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+            for prd in pointing_list_list:
+                jname_list.append(jname_temp_list)
+                pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     #Setting vdif to false since multi-pixel doesn't have vdif working yet
     vdif_check = False
     relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels".format(obsid, cal_obs, DI_dir, psrbeg, psrend)
@@ -125,7 +113,6 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
                               search_ver=mwa_search_version)
     search_pipe.beamform(search_opts, pointing_list, pulsar_list_list=jname_list)
-    os.remove(known_pulsar_file)
 
 
 
