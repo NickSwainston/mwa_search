@@ -10,12 +10,15 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
-
+# vcstools and mwa_search imports
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min
 import config
 from grid import get_grid
+
+import logging
+logger = logging.getLogger(__name__)
 
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
 
@@ -46,7 +49,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     #wrapping for find_pulsar_in_obs.py
     names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    channels = meta_data[-1]
+    channels = meta_data[-1][-1]
 
     pointing_list = []
     jname_list = []
@@ -121,6 +124,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
 
 if __name__ == "__main__":
+    loglevels = dict(DEBUG=logging.DEBUG,
+                     INFO=logging.INFO,
+                     WARNING=logging.WARNING)
     parser = argparse.ArgumentParser(description="""
     Beamforms, folds on all known pulsars for an observation. If a pulsar is detected it's uploaded to the MWA Pulsar Database.
 
@@ -135,8 +141,19 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--all", action="store_true", default=False, help="Perform on entire observation span. Use instead of -b & -e")
     parser.add_argument('--mwa_search_version', type=str, default='master',
                     help="The module version of mwa_search to use. Default: master")
+    parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
+                        default="INFO")
     args=parser.parse_args()
-
+    
+    # set up the logger for stand-alone execution
+    logger.setLevel(loglevels[args.loglvl])
+    ch = logging.StreamHandler()
+    ch.setLevel(loglevels[args.loglvl])
+    formatter = logging.Formatter('%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.propagate = False
+    
     #option parsing
     if not args.obsid:
         print("Please input observation id by setting -o or --obsid. Exiting")
