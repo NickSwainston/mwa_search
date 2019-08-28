@@ -14,6 +14,7 @@ import numpy as np
 #vcstools imports
 import search_database
 import mwa_metadb_utils as meta
+from mwa_metadb_utils import get_channels
 import process_vcs as pvcs
 from job_submit import submit_slurm
 import config
@@ -184,13 +185,6 @@ def exists_remote(host, path):
         return False
     raise Exception('SSH failed')
 
-def get_channels(obsid, channels=None):
-    if channels is None:
-        print("Obtaining frequency channel data from http://mwa-metadata01.pawsey.org.au/metadata/"
-              "for OBS ID: {}".format(obsid))
-        beam_meta_data = meta.getmeta(service='obs', params={'obs_id':obsid})
-        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
-    return channels
 
 def your_slurm_queue_check(max_queue = 200, queue=None, grep=None):
     """
