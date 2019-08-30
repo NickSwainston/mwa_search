@@ -5,12 +5,52 @@ import glob
 import logging
 import argparse
 import sys
+import config
+
+
 import data_process_pipeline
 from job_submit import submit_slurm
 import plotting_toolkit
-import config
-
+import find_pulsar_in_obs as fpio
+import check_known_pulsars as checks
+import file_maxmin
 logger = logging.getLogger(__name__)
+
+
+#----------------------------------------------------------------------
+def pulsar_beam_coverage(obsid, pulsar):
+    #returns the beginning and end time as a fraction that a pulsar is in the primary beam for the obsid files
+
+    #find the enter and exit times of pulsar normalized with the observing time
+    names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
+
+    beam_source_data = fpio.find_sources_in_obs([obsid], names_ra_dec)
+
+    enter_obs_norm = beam_source_data[pulsar][1]
+    exit_obs_norm = beam_source_data[pulsar][2]
+
+    #find the beginning and end time of the observation FILES you have
+    files_beg, files_end = checks.find_beg_end(obsid)
+    files_duration = files_end, files_beg
+    
+    #find how long the total observation is (because that's what enter and exit uses)
+    obs_beg, obs_end, obs_dur = file_maxmin.print_minmax(obsid)
+    
+    #gps times the source enters and exits beam
+    time_enter = obs_dur*enter_obs_norm
+    time_exit = obs_dur*exit_obs_norm
+
+    #normalised time the source enters/exits the beam in the files
+    enter_files = (time_enter-files_beg)/files_duration    
+    exit_files = (time_exit-files_beg)/files_duration
+
+    if enter_files<0.:
+        enter_files=0.
+    if exit_files>1.:
+        exit_files=1.
+
+    return enter_files, exit_files
+    
 
 #----------------------------------------------------------------------
 def bestprof_info(prevbins=None, filename=None):
