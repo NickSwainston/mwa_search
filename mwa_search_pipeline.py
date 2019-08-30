@@ -352,7 +352,7 @@ def process_vcs_wrapper(search_opts, pointings,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
                       vcstools_version="multi-pixel_beamform",
-                      channels=channels)
+                      channels_to_beamform=channels)
 
     code_comment_in = code_comment
     dep_job_id_list = []
@@ -700,7 +700,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             if len(pointing_list) > 1:
                 your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
             
-            temp_pointing_id = pointing_list.index(search_opts.pointing.replace("_", " ")) + 1
+            temp_pointing_id = [pointing_list.index(search_opts.pointing.replace("_", " ")) + 1]
             dep_job_id = process_vcs_wrapper(search_opts, [search_opts.pointing],
                                 pulsar_list_list=[pulsar_list],
                                 vdif=vdif, summed=summed,
