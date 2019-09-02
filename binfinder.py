@@ -45,7 +45,7 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, nbins, use_mask=
     commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
     commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph"\
                     " -nsub 256 -n {2} {3} -start {4} -end {5} 1*.fits"\
-                    .format(obsid, uplsar, nbins, mask, start, end))
+                    .format(obsid, pulsar, nbins, mask, start, end))
     commands.append('errorcode=$?')
     commands.append('pulsar={}'.format(pulsar[1:]))
     pulsar_bash_string = '${pulsar}'
@@ -75,7 +75,7 @@ def pulsar_beam_coverage(obsid, pulsar):
 
     #find the beginning and end time of the observation FILES you have on disk
     files_beg, files_end = checks.find_beg_end(obsid)
-    files_duration = files_end - files_beg
+    files_duration = files_end - files_beg + 1
 
     #find how long the total observation is (because that's what enter and exit uses)
     obs_beg, obs_end, obs_dur = file_maxmin.print_minmax(obsid)
@@ -162,7 +162,7 @@ def submit_to_db(run_params, prof_name):
 
     name = "Submit_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     comp_config = config.load_config_file()
-    batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
 
     submit_slurm(name, commands,\
                  batch_dir=batch_dir,\
@@ -248,7 +248,7 @@ def submit_multifold(run_params, nbins=64):
     #see if mask is there
 
     comp_config = config.load_config_file()
-    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_data_dir'], 
+    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'], 
                                                         run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
@@ -263,7 +263,7 @@ def submit_multifold(run_params, nbins=64):
         commands = add_prepfold_to_commands(commands, pointing, run_params.pulsar, run_params.obsid, nbins)
         
         name = "multifold_binfind_{0}_{1}".format(run_params.pulsar, i)
-        batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
+        batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
         myid = submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
                     slurm_kwargs={"time": "1:00:00"},\
@@ -291,7 +291,7 @@ def submit_multifold(run_params, nbins=64):
                     stop, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar))
 
     name="best_fold_{0}".format(run_params.pulsar)
-    batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     myid = submit_slurm(name, commands,\
             batch_dir=batch_dir,\
             slurm_kwargs={"time": "00:10:00"},\
@@ -317,7 +317,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
         launch_line += " -S"
     
     comp_config = config.load_config_file()
-    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_data_dir'],
+    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'],
                                                         run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
@@ -341,7 +341,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     commands.append(launch_line)
 
     name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
-    batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'], run_params.obsid)
+    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "2:00:00"},\
@@ -389,7 +389,7 @@ def find_best_pointing(run_params, nbins=64):
 
         name = "binfinder_{0}_{1}".format(run_params.pulsar, nbins)
         comp_config = config.load_config_file()
-        batch_dir = "{0}{1}/batch/".format(comp_config['base_data_dir'],
+        batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'],
                                            run_params.obsid)
         submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
