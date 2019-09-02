@@ -5,12 +5,100 @@ import glob
 import logging
 import argparse
 import sys
+import config
+
+
 import data_process_pipeline
 from job_submit import submit_slurm
 import plotting_toolkit
-import config
-
+import find_pulsar_in_obs as fpio
+import check_known_pulsars as checks
+import file_maxmin
 logger = logging.getLogger(__name__)
+
+
+#----------------------------------------------------------------------
+def add_prepfold_to_commands(commands, pointing, pulsar, obsid, nbins, use_mask=True):
+
+    comp_config = config.load_config_file()
+    #Figure out whether or not to input a mask
+    if use_mask == True:
+        check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'], obsid))
+        if check_mask:
+            mask = "-mask " + check_mask[0]
+        else:
+            mask = ""
+    else:
+        mask=""
+
+    #find the beginning and end of the pulsar's beam coverage for this obs
+    start, end = pulsar_beam_coverage(obsid, pulsar)
+    logger.info("start and end of pulsar beam coverage for on-disk files:{0}, {1}".format(start, end))
+    if start>=1. or end<0.:
+        logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
+        sys.exit(1)
+
+    #load presto module here because it uses python 2
+    commands.append('cd {0}'.format(pointing))
+    commands.append('echo "Folding on known pulsar {0}"'.format(pulsar))
+    commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
+    commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
+    commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph"\
+                    " -nsub 256 -n {2} {3} -start {4} -end {5} 1*.fits"\
+                    .format(obsid, pulsar, nbins, mask, start, end))
+    commands.append('errorcode=$?')
+    commands.append('pulsar={}'.format(pulsar[1:]))
+    pulsar_bash_string = '${pulsar}'
+    #Some old ephems don't have the correct ra and dec formating and
+    #causes an error with -timing but not -psr
+    commands.append('if [ "$errorcode" != "0" ]; then')
+    commands.append('   echo "Folding using the -psr option"')
+    commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}'\
+                    ' -nsub 256 -n {2} {3} -start {4} -end {5} 1*.fits'\
+                    .format(obsid, pulsar, nbins, mask, start, end))
+    commands.append('   pulsar={}'.format(pulsar))
+    commands.append('fi')
+    commands.append('rm {0}.eph'.format(pulsar))
+
+    return commands
+
+#----------------------------------------------------------------------
+def pulsar_beam_coverage(obsid, pulsar):
+    #returns the beginning and end time as a fraction that a pulsar is in the primary beam for the obsid files
+
+    #find the enter and exit times of pulsar normalized with the observing time
+    names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
+    beam_source_data, _ = fpio.find_sources_in_obs([obsid], names_ra_dec)
+
+    enter_obs_norm = beam_source_data[obsid][0][1]
+    exit_obs_norm = beam_source_data[obsid][0][2]
+
+    #find the beginning and end time of the observation FILES you have on disk
+    files_beg, files_end = checks.find_beg_end(obsid)
+    files_duration = files_end - files_beg + 1
+
+    #find how long the total observation is (because that's what enter and exit uses)
+    obs_beg, obs_end, obs_dur = file_maxmin.print_minmax(obsid)
+    obs_dur = obs_end-obs_beg
+
+    #times the source enters and exits beam
+    time_enter = obs_beg + obs_dur*enter_obs_norm
+    time_exit = obs_beg + obs_dur*exit_obs_norm
+
+    #normalised time the source enters/exits the beam in the files
+    enter_files = (time_enter-files_beg)/files_duration
+    exit_files = (time_exit-files_beg)/files_duration
+
+    if enter_files<0.:
+        enter_files=0.
+    if exit_files>1.:
+        exit_files=1.
+    if enter_files>1.:
+        logger.warn("source {0} is not in the beam for the files on disk".format(pulsar))
+    if exit_files<0.:
+        logger.warn("source {0} is not in the beam for the files on the disk".format(pulsar))
+
+    return enter_files, exit_files
 
 #----------------------------------------------------------------------
 def bestprof_info(prevbins=None, filename=None):
@@ -46,13 +134,13 @@ def submit_to_db(run_params, prof_name):
     ppps = os.getcwd() + "/" + glob.glob("*{0}*{1}*.pfd.ps".format(mydict["nbins"], run_params.pulsar[1:]))[0]
     prof_name = os.getcwd() + "/" + prof_name
     png_output = oc.getcwd() +  "/" + glob.glob("*{0}*{1}*.png".format(mydict["nbins"], run_params.pulsar[1:]))[0]
-    
+
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
     data_process_pipeline.copy_data(pps, data_dir)
     data_process_pipeline.copy_data(prof_name, data_dir)
     data_process_pipeline.copy_data(png_output, data_dir)
-    
+
 
     commands = []
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
@@ -162,7 +250,7 @@ def submit_multifold(run_params, nbins=64):
     #see if mask is there
 
     comp_config = config.load_config_file()
-    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'], 
+    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'],\
                                                         run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
@@ -174,26 +262,7 @@ def submit_multifold(run_params, nbins=64):
         #os.chdir(pointing)
         #create slurm job:
         commands = []
-        #load presto module here because it uses python 2
-        commands.append('cd {0}'.format(pointing))
-        commands.append('echo "Folding on known pulsar {0}"'.format(run_params.pulsar))
-        commands.append('psrcat -e {0} > {0}.eph'.format(run_params.pulsar))
-        commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(run_params.pulsar))
-        commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph"\
-                        " -nsub 256 -n {2} {3} 1*.fits".format(run_params.obsid, run_params.pulsar, nbins, mask))
-        commands.append('errorcode=$?')
-        commands.append('pulsar={}'.format(run_params.pulsar[1:]))
-        pulsar_bash_string = '${pulsar}'
-        #Some old ephems don't have the correct ra and dec formating and
-        #causes an error with -timing but not -psr
-        commands.append('if [ "$errorcode" != "0" ]; then')
-        commands.append('   echo "Folding using the -psr option"')
-        commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}'\
-                        ' -nsub 256 -n {2} {3} 1*.fits'.format(run_params.obsid, run_params.pulsar, nbins, mask))
-        commands.append('   pulsar={}'.format(run_params.pulsar))
-        commands.append('fi')
-        #commands.append('rm {0}.eph'.format(run_params.pulsar))
-
+        commands = add_prepfold_to_commands(commands, pointing, run_params.pulsar, run_params.obsid, nbins)
 
         name = "multifold_binfind_{0}_{1}".format(run_params.pulsar, i)
         batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
@@ -248,7 +317,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
 
     if run_params.stop==True:
         launch_line += " -S"
-    
+
     comp_config = config.load_config_file()
     check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'],
                                                         run_params.obsid))
@@ -260,25 +329,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     logger.info("Submitting job for {0} bins".format(nbins))
     #create slurm job:
     commands = []
-    commands.append('cd {0}'.format(run_params.pointing_dir))
-    #load presto module here because it uses python 2
-    commands.append('echo "Folding on known pulsar {0}"'.format(run_params.pulsar))
-    commands.append('psrcat -e {0} > {0}.eph'.format(run_params.pulsar))
-    commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(run_params.pulsar))
-    commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph"\
-                    " -nsub 256 -n {2} {3} 1*.fits".format(run_params.obsid, run_params.pulsar, nbins, mask))
-    commands.append('errorcode=$?')
-    commands.append('pulsar={}'.format(run_params.pulsar[1:]))
-    pulsar_bash_string = '${pulsar}'
-    #Some old ephems don't have the correct ra and dec formating and
-    #causes an error with -timing but not -psr
-    commands.append('if [ "$errorcode" != "0" ]; then')
-    commands.append('   echo "Folding using the -psr option"')
-    commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}'\
-                    ' -nsub 256 -n {2} {3} 1*.fits'.format(run_params.obsid, run_params.pulsar, nbins, mask))
-    commands.append('   pulsar={}'.format(run_params.pulsar))
-    commands.append('fi')
-    commands.append('rm {0}.eph'.format(run_params.pulsar))
+    commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins)
 
     if finish==False:
         #Rerun this script
