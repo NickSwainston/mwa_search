@@ -250,7 +250,7 @@ def submit_multifold(run_params, nbins=64):
     #see if mask is there
 
     comp_config = config.load_config_file()
-    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'],
+    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'],\
                                                         run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]

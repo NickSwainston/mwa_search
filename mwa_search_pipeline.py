@@ -308,7 +308,8 @@ def get_pulsar_dm_p(pulsar):
 def process_vcs_wrapper(search_opts, pointings,
                         pulsar_list_list=None,
                         vdif=False, summed=False,
-                        code_comment=None, pointing_id=None):
+                        code_comment=None, pointing_id=None,
+                        channels=None):
     """
     Does some basic checks and formating before
     if args.pulsar_file:
@@ -342,6 +343,7 @@ def process_vcs_wrapper(search_opts, pointings,
               '{} please move it there. Exiting'.format(rts_flag_file))
         exit()
     pvcs.ensure_metafits(data_dir, search_opts.obsid, metafits_dir)
+    channels = get_channels(search_opts.obsid, channels=channels)
     job_id_list_list = pvcs.coherent_beam(search_opts.obsid, search_opts.begin, search_opts.end,
                       data_dir, search_opts.fits_dir_base,
                       "{0}/batch".format(search_opts.fits_dir_base),
@@ -349,9 +351,9 @@ def process_vcs_wrapper(search_opts, pointings,
                       rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
-                      vcstools_version="multi-pixel_beamform")
+                      vcstools_version="multi-pixel_beamform",
+                      channels_to_beamform=channels)
 
-    search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     code_comment_in = code_comment
     dep_job_id_list = []
     for job_id_list in job_id_list_list:
@@ -369,7 +371,7 @@ def process_vcs_wrapper(search_opts, pointings,
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                           search_opts.pointing, "{0}".format(code_comment)))
             dep_job_id_list.append(dependant_splice_batch(search_opts, job_id_list=job_id_list,
-                                                                       pulsar_list=pulsar_list))
+                                                          pulsar_list=pulsar_list))
     return dep_job_id_list
 
 def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO"):
@@ -639,6 +641,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                          search_opts.pointing, ch, ne)):
                             unspliced_check = True
                             if ch not in missing_chan_list:
+                                logger.debug("missing chan {0}".format(ch))
                                 missing_chan_list.append(ch)
             else:
                 # Replacing the above with a check of the number of samples
@@ -692,42 +695,28 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pulsar_list_list_to_beamform.append(pulsar_list)
         elif unspliced_check:
             #resubmit any search_opts.channels that are incomplete
-            print("Some channels missing, resubmitting make beam scripts for {0}".\
-                    format(search_opts.pointing))
+            print("Some channels missing, beamforming on {0} for {1}".format(missing_chan_list,
+                  search_opts.pointing))
             if len(pointing_list) > 1:
                 your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
-
-            job_id_list = []
-            for ch in missing_chan_list:
-                #TODO This no longer works with the multipixel beamformer
-                if os.path.exists("{0}/batch/mb_{1}_ch{2}.batch".format(
-                                   search_opts.fits_dir_base, search_opts.pointing, ch)):
-                    #remove all files to prevent errors
-                    remove_files = glob.glob("{}*_{}_ch{:03d}_*fits".format(
-                                   search_opts.pointing_dir, search_opts.obsid, ch))
-                    for rf in remove_files:
-                        os.remove(rf)
-
-                    #resubmit missing search_opts.channels
-                    submit_line = "sbatch {0}/batch/mb_{1}_ch{2}.batch".\
-                                  format(search_opts.fits_dir_base, search_opts.pointing, ch)
-                    submit_output = search_opts.end_cmd_shell(submit_line)
-                    print(submit_line)
-                    for line in submit_output:
-                        print(line)
-                        if "Submitted" in line:
-                            temp = line.split()
-                            job_id_list.append(temp[3])
-
-                else:
-                    print("ERROR no batch file found")
-            dep_job_id = dependant_splice_batch(search_opts, job_id_list=job_id_list,
-                                                pulsar_list=pulsar_list)
+            
+            temp_pointing_id = [pointing_list.index(search_opts.pointing.replace("_", " ")) + 1]
+            dep_job_id = process_vcs_wrapper(search_opts, [search_opts.pointing],
+                                pulsar_list_list=[pulsar_list],
+                                vdif=vdif, summed=summed,
+                                code_comment=code_comment,
+                                pointing_id=temp_pointing_id,
+                                channels=missing_chan_list)
+            
+            logger.debug(pulsar_list, search_opts.pointing, dep_job_id)
+            pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base,
+                                                           search_opts.pointing)
             if pulsar_list is None:
-                pulsar_fold_dict[pulsar_list].append([search_opts.pointing_dir, dep_job_id])
+                pulsar_fold_dict[pulsar_list].append([pointing_dir_temp, dep_job_id])
             else:
-                pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir,
+                pulsar_fold_dict[" ".join(pulsar_list)].append([pointing_dir_temp,
                                                                 dep_job_id])
+
 
         else:
             #All files there so the check has succeded and going to start the pipeline
