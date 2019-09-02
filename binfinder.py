@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 #----------------------------------------------------------------------
 def add_prepfold_to_commands(commands, pointing, pulsar, obsid, nbins, use_mask=True):
-        
+
     comp_config = config.load_config_file()
     #Figure out whether or not to input a mask
     if use_mask == True:
@@ -30,11 +30,11 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, nbins, use_mask=
             mask = ""
     else:
         mask=""
-    
+
     #find the beginning and end of the pulsar's beam coverage for this obs
-    start, end = pulsar_beam_coverage(obsid, pulsar) 
+    start, end = pulsar_beam_coverage(obsid, pulsar)
     logger.info("start and end of pulsar beam coverage for on-disk files:{0}, {1}".format(start, end))
-    if start>=1.:
+    if start>=1. or end<0.:
         logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
         sys.exit(1)
 
@@ -80,13 +80,13 @@ def pulsar_beam_coverage(obsid, pulsar):
     #find how long the total observation is (because that's what enter and exit uses)
     obs_beg, obs_end, obs_dur = file_maxmin.print_minmax(obsid)
     obs_dur = obs_end-obs_beg
-     
+
     #times the source enters and exits beam
     time_enter = obs_beg + obs_dur*enter_obs_norm
     time_exit = obs_beg + obs_dur*exit_obs_norm
-   
+
     #normalised time the source enters/exits the beam in the files
-    enter_files = (time_enter-files_beg)/files_duration    
+    enter_files = (time_enter-files_beg)/files_duration
     exit_files = (time_exit-files_beg)/files_duration
 
     if enter_files<0.:
@@ -95,6 +95,8 @@ def pulsar_beam_coverage(obsid, pulsar):
         exit_files=1.
     if enter_files>1.:
         logger.warn("source {0} is not in the beam for the files on disk".format(pulsar))
+    if exit_files<0.:
+        logger.warn("source {0} is not in the beam for the files on the disk".format(pulsar))
 
     return enter_files, exit_files
 
@@ -132,13 +134,13 @@ def submit_to_db(run_params, prof_name):
     ppps = os.getcwd() + "/" + glob.glob("*{0}*{1}*.pfd.ps".format(mydict["nbins"], run_params.pulsar[1:]))[0]
     prof_name = os.getcwd() + "/" + prof_name
     png_output = oc.getcwd() +  "/" + glob.glob("*{0}*{1}*.png".format(mydict["nbins"], run_params.pulsar[1:]))[0]
-    
+
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
     data_process_pipeline.copy_data(pps, data_dir)
     data_process_pipeline.copy_data(prof_name, data_dir)
     data_process_pipeline.copy_data(png_output, data_dir)
-    
+
 
     commands = []
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
@@ -248,7 +250,7 @@ def submit_multifold(run_params, nbins=64):
     #see if mask is there
 
     comp_config = config.load_config_file()
-    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'], 
+    check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'],
                                                         run_params.obsid))
     if check_mask:
         mask = "-mask " + check_mask[0]
@@ -261,7 +263,7 @@ def submit_multifold(run_params, nbins=64):
         #create slurm job:
         commands = []
         commands = add_prepfold_to_commands(commands, pointing, run_params.pulsar, run_params.obsid, nbins)
-        
+
         name = "multifold_binfind_{0}_{1}".format(run_params.pulsar, i)
         batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
         myid = submit_slurm(name, commands,\
@@ -315,7 +317,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
 
     if run_params.stop==True:
         launch_line += " -S"
-    
+
     comp_config = config.load_config_file()
     check_mask = glob.glob("{0}{1}/incoh/*.mask".format(comp_config['base_product_dir'],
                                                         run_params.obsid))
@@ -328,7 +330,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     #create slurm job:
     commands = []
     commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins)
-    
+
     if finish==False:
         #Rerun this script
         commands.append('echo "Running script again. Passing prevbins = {0}"'.format(nbins))
