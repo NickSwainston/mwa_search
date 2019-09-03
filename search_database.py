@@ -247,7 +247,7 @@ def database_wrap_up(rownum, cand_val, end_time=datetime.datetime.now()):
     return
 
 
-def database_beamform_find(file_location, bs_id):
+def database_beamform_find(file_location, bs_id, npointings):
     time_now = datetime.datetime.now()
     #go through the batch file for info
     arguments_list = []
@@ -266,7 +266,7 @@ def database_beamform_find(file_location, bs_id):
                     command = "make_beam" #I don't think these needs to be more robust
                     arguments_list.append(l.split(command)[1])
     #set up the beamform database
-    database_script_list(bs_id, 'make_beam', arguments_list, nodes, expe_proc_time)
+    database_script_list(bs_id, 'make_beam', arguments_list, nodes, expe_proc_time/npointings)
 
     #go through the output files for start stop times
     out_file_list = glob.glob('{0}*.out'.format(file_location))
@@ -338,6 +338,8 @@ Default mode is vc'''.format(mode_options)))
     end_options.add_argument("-r", "--rownum", dest="rownum", default=None, type=str, help="The row number of the script.")
     end_options.add_argument("-f", "--file_location", type=str, help='Mode "m" csv file location.')
     end_options.add_argument("--cand_val", type=str, help='Cand values in the form of "<total> <overnoise> <detected>. Cand detected not yet implimented.')
+    end_options.add_argument("-p", "--npointings",  default=1, type=int,
+                             help="The number of pointings for that beamformer job. Default 1.")
     args=parser.parse_args()
 
     #argument parsing
@@ -375,7 +377,7 @@ Default mode is vc'''.format(mode_options)))
             file_loc = args.command + '_temp_database_file.csv'
         database_mass_update(table,file_loc)
     elif args.mode == 'b':
-        database_beamform_find(args.file_location, args.bs_id)
+        database_beamform_find(args.file_location, args.bs_id, args.npointings)
     elif args.mode.startswith("v"):
         con = lite.connect(DB_FILE, timeout = TIMEOUT)
         con.row_factory = dict_factory

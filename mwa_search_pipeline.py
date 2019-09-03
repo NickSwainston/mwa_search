@@ -344,7 +344,8 @@ def process_vcs_wrapper(search_opts, pointings,
         exit()
     pvcs.ensure_metafits(data_dir, search_opts.obsid, metafits_dir)
     channels = get_channels(search_opts.obsid, channels=channels)
-    job_id_list_list = pvcs.coherent_beam(search_opts.obsid, search_opts.begin, search_opts.end,
+    job_id_list_list, beamformer_batch = pvcs.coherent_beam(search_opts.obsid,
+                      search_opts.begin, search_opts.end,
                       data_dir, search_opts.fits_dir_base,
                       "{0}/batch".format(search_opts.fits_dir_base),
                       metafits_dir, 128, pointings, search_opts.args,
@@ -371,7 +372,9 @@ def process_vcs_wrapper(search_opts, pointings,
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                           search_opts.pointing, "{0}".format(code_comment)))
             dep_job_id_list.append(dependant_splice_batch(search_opts, job_id_list=job_id_list,
-                                                          pulsar_list=pulsar_list))
+                                                          pulsar_list=pulsar_list,
+                                                          beamformer_batch=beamformer_batch,
+                                                          npointings=len(pointings)))
     return dep_job_id_list
 
 def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO"):
@@ -397,7 +400,8 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
                 depend=job_id_list)
 
 
-def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
+def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
+                           beamformer_batch=None, npointings=1):
     """
     Launches a script that splices the beamformed files and, where approriate,
     launches the search pipeline or folds on known pulsars.
@@ -414,8 +418,9 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None):
     commands = []
     if search_opts.bsd_row_num is not None:
         #record beamforming processing time
-        commands.append('search_database.py -m b -b {0} -f {1}mb_{2}'.\
-                        format(search_opts.bsd_row_num, batch_dir, search_opts.pointing))
+        commands.append('search_database.py -m b -b {0} -f {1}{2} -p {3}'.\
+                        format(search_opts.bsd_row_num, batch_dir, beamformer_batch,
+                               npointings))
 
     #grabbing chan ids for splicing
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
