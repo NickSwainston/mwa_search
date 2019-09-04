@@ -173,7 +173,7 @@ if __name__ == '__main__':
     formatter = logging.Formatter('%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-
+    logger.propagate = False
 
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
                 pulsar=args.pulsar, nbins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
