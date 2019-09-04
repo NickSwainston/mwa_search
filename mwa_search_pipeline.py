@@ -153,6 +153,12 @@ class search_options_class:
         self._relaunch_script = value
     relaunch_script = property(getRLS, setRLS)
 
+    def getIncoh(self):
+        return self._incoh
+    def setIncoh(self, value):
+        self._incoh = value
+    incoh = property(getIncoh, setIncoh)
+
 
 
 def send_cmd_shell(cmd):
@@ -320,13 +326,16 @@ def process_vcs_wrapper(search_opts, pointings,
     your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
     your_slurm_queue_check(max_queue=500)
 
-    #check for search_opts.incoh file which is used to predict if you have used rfifind
-    search_opts.incoh_check = False
+    #check for incoh file which is used to predict if you have used rfifind
     bf_formats = " -p"
-    if not os.path.exists('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid)):
+    if os.path.exists('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid)):
+        # assumes there is already an rfimask
+        incoh_rfimask = False
+    else:
+        # assumes there is no rfimask so makes and incoherent beam and a mask
+        incoh_rfimask = True
         bf_formats += " -i"
         os.mkdir('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid))
-        search_opts.incoh_check = True
     if vdif:
         bf_formats += " -u"
     if summed:
@@ -375,7 +384,14 @@ def process_vcs_wrapper(search_opts, pointings,
                                                           pulsar_list=pulsar_list,
                                                           beamformer_batch=beamformer_batch,
                                                           npointings=len(pointings)))
-    return dep_job_id_list
+        if incoh_rfimask:
+            incoh_splice_job_id = dependant_splice_batch(search_opts,
+                                                         job_id_list=job_id_list,
+                                                         incoh_rfimask=incoh_rfimask)
+        else:
+            incoh_splice_job_id = None
+            
+    return dep_job_id_list, incoh_splice_job_id
 
 def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO"):
     """
@@ -401,7 +417,7 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
 
 
 def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
-                           beamformer_batch=None, npointings=1):
+                           beamformer_batch=None, npointings=1, incoh_rfimask=False):
     """
     Launches a script that splices the beamformed files and, where approriate,
     launches the search pipeline or folds on known pulsars.
@@ -416,7 +432,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
         batch_dir = search_opts.fits_dir_base
 
     commands = []
-    if search_opts.bsd_row_num is not None:
+    if search_opts.bsd_row_num is not None and beamformer_batch is not None:
         #record beamforming processing time
         commands.append('search_database.py -m b -b {0} -f {1}{2} -p {3}'.\
                         format(search_opts.bsd_row_num, batch_dir, beamformer_batch,
@@ -428,64 +444,32 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
     #add splice command
     splice_command = 'splice_wrapper.py -o {0} -d -c {1}'.format(search_opts.obsid,
                      ' '.join(map(str, search_opts.channels)))
-    commands.append('{0} -w {1}'.format(splice_command, search_opts.pointing_dir))
-    if search_opts.incoh:
-        commands.append('{0} -i -w {1}{2}/incoh/'.format(splice_command,
-                         comp_config['base_product_dir'], search_opts.obsid))
+    if search_opts.incoh or incoh_rfimask:
+        incoh_dir = '{0}{1}/incoh/'.format(comp_config['base_product_dir'], search_opts.obsid)
+        commands.append('{0} -i -w {1}'.format(splice_command, incoh_dir))
+    else:
+        commands.append('{0} -w {1}'.format(splice_command, search_opts.pointing_dir))
+    
+    if incoh_rfimask:
+        #Calculates -numout for prepsubbands
+        numout = (search_opts.end - search_opts.begin + 1) * 10000
 
-    """
-    if pulsar_list is not None:
-        #check_known_pulsars.py uses this to check if it was detected and if so upload it
-        commands.append('cd {0}'.format(search_opts.pointing_dir))
-        for pulsar in pulsar_list:
-            #Assign number of bins based on the period
-            period = get_pulsar_dm_p(pulsar)[1]
-            nbin = 2048*float(period)**0.75
-            nbin = int(32 * round(nbin/32))
-            if nbin<32:
-                nbin=32
+        #if there is not already a rfi mask make one
+        commands.append('cd {0}/rfi_masks'.format(search_opts.work_dir))
+        commands.append('rfifind -ncpus $ncpus -noclip -time 12.0 -o {0} -zapchan 0:19,108:127,'
+                '128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,'
+                '768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:'
+                '1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:'
+                '1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:'
+                '2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:'
+                '2835,2924:2943,2944:2963,3052:3071 {1}{0}*.fits'.format(search_opts.obsid,
+                                                                        incoh_dir))
+        #commands.append('search_database.py -c rfifind -m p -b ' +str(search_opts.bsd_row_num))
+        commands.append("prepdata -ncpus $ncpus -dm 0 " "-numout {0} -o {1}_DM0.00 "
+                        "{2}{1}.fits".format(numout, search_opts.obsid, incoh_dir))
 
-            #load presto module here because it uses python 2
-            commands.append('echo "Folding on known pulsar {0}"'.format(pulsar))
-            commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
-            commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
-            commands.append("prepfold -o {0} -noxwin -runavg -noclip -timing {1}.eph -nsub 256\
-                            {2}/1*fits -n {3}".format(search_opts.obsid, pulsar,
-                                                      search_opts.pointing_dir, nbin))
-            commands.append('errorcode=$?')
-            commands.append('pulsar={}'.format(pulsar[1:]))
-            pulsar_bash_string = '${pulsar}'
-            #Somre old ephems don't have the correct ra and dec formating and
-            #causes an error with -timing but not -psr
-            commands.append('if [ "$errorcode" != "0" ]; then')
-            commands.append('   echo "Folding using the -psr option"')
-            commands.append('   prepfold -o {0} -noxwin -runavg -noclip -psr {1} -nsub 256\
-                            {2}/1*fits -n {3}'.format(search_opts.obsid, pulsar,
-                                                      search_opts.pointing_dir, nbin))
-            commands.append('   pulsar={}'.format(pulsar))
-            commands.append('fi')
-            commands.append('rm {0}.eph'.format(pulsar))
 
-            commands.append('echo "Checking profile that it has a chi of over 4"')
-            commands.append('chi=`sed "13q;d" {0}_PSR_{1}.pfd.bestprof`'.format(search_opts.obsid,
-                                                                                pulsar_bash_string))
-            commands.append('chi=${chi#*=}')
-            commands.append('echo "Chi value of ${chi%.*}"')
-            commands.append('if [ ${chi%.*} -ge 4 ]; then')
-            commands.append('   echo "Strong detection. Uploading to MWA Pulsar Database"')
-            commands.append('   submit_to_database.py -o {0} --cal_id {1} -p {2} '
-                                '--bestprof {0}_PSR_{3}.pfd.bestprof --ppps '
-                                '{0}_PSR_{3}.pfd.ps'.format(search_opts.obsid,
-                                search_opts.cal_id, pulsar, pulsar_bash_string))
-            commands.append('   echo "Searching for pulsar using the pipeline to test the '
-                                      'pipelines effectivness"')
-            commands.append('   mwa_search_pipeline.py -o {0} -b {1} -e {2} --search '
-                                '--pulsar {3} -O {4} --code_comment "Known pulsar auto '
-                                'test {3}"'.format(search_opts.obsid, search_opts.begin,
-                                            search_opts.end, pulsar, search_opts.cal_id))
-            commands.append("fi")
-    """
-
+    
     #add search_opts.relaunch script
     if search_opts.relaunch_script is not None:
         relaunch_script = "{0} -p {1} -s {1}/{2}".format(search_opts.relaunch_script,
@@ -557,7 +541,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
         if line.startswith("#"):
             continue
         print("Checking pointing {0} out of {1}".format(n+1, len(pointing_list)))
-        if search_opts.incoh:
+        if search_opts.incoh and len(pointing_list) == 1:
             search_opts.setPoint("incoh")
         elif ':' not in line:
             #search_opts.pointing = search_opts.fits_dir_base.split("/")[-1]
@@ -706,7 +690,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
             
             temp_pointing_id = [pointing_list.index(search_opts.pointing.replace("_", " ")) + 1]
-            dep_job_id = process_vcs_wrapper(search_opts, [search_opts.pointing],
+            dep_job_id, incoh_splice_job_id = process_vcs_wrapper(search_opts,
+                                [search_opts.pointing],
                                 pulsar_list_list=[pulsar_list],
                                 vdif=vdif, summed=summed,
                                 code_comment=code_comment,
@@ -757,7 +742,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pointing_id.append(pointing_list.index(point.replace("_", " ")) + 1)
 
             print("Sending of {0} pointings for beamforming".format(len(pointings_to_beamform)))
-            dep_job_id_list = process_vcs_wrapper(search_opts, pointings_to_beamform,
+            dep_job_id_list, incoh_splice_job_id = process_vcs_wrapper(search_opts,
+                                pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
                                 vdif=vdif, summed=summed,
                                 code_comment=code_comment, pointing_id=pointing_id)
@@ -792,80 +778,14 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
             if len(dep_job_id_list) == 0:
                 dep_job_id_list = None
+            elif incoh_splice_job_id is not None:
+                dep_job_id_list.append(incoh_splice_job_id)
+
             for pulsar in pulsar_list:
                 print("Sending off data processing for {0}".format(pulsar))
                 logger.debug("{0} Pointing list: {1}".format(pulsar, pointing_dir_list))
                 #send of a fold job for each pulsar
                 multibeam_binfind(search_opts, pointing_dir_list, dep_job_id_list, pulsar)
-    return
-
-
-#-------------------------------------------------------------------------------------------------------------
-def rfifind(search_opts):
-    comp_config = config.load_config_file()
-
-    #Calculates -numout for prepsubbands
-    numout = numout_calc(search_opts.pointing_dir, search_opts.obsid)
-
-    #Set up some directories and move to it
-    if not os.path.exists("{0}{1}".format(search_opts.work_dir, search_opts.pointing)):
-        os.mkdir("{0}{1}".format(search_opts.work_dir, search_opts.pointing))
-    if not os.path.exists("{0}{1}/{2}".format(search_opts.work_dir, search_opts.pointing,
-                          search_opts.obsid)):
-        os.mkdir("{0}{1}/{2}".format(search_opts.work_dir, search_opts.pointing,
-                 search_opts.obsid))
-    if not os.path.exists("{0}{1}/{2}/batch".format(search_opts.work_dir,
-                          search_opts.pointing, search_opts.obsid)):
-        os.mkdir("{0}{1}/{2}/batch".format(search_opts.work_dir,
-                 search_opts.pointing, search_opts.obsid))
-
-    hostname = socket.gethostname()
-    if hostname.startswith('john') or hostname.startswith('farnarkle'):
-        #fft needs more memory, only need to change on ozstar
-        mem=2048
-    else:
-        mem=1024
-
-
-    rfi_batch = str(search_opts.bsd_row_num) + '_rfi_{0}'.format(search_opts.obsid)
-    commands = []
-    commands.append("ncpus={0}".format(search_opts.n_omp_threads))
-    commands.append("export OMP_NUM_THREADS={0}".format(search_opts.n_omp_threads))
-    if not os.path.exists("{0}/rfi_masks/{1}_rfifind.mask".format(search_opts.work_dir,
-                                                                  search_opts.obsid)):
-        #if there is not already a rfi mask make one
-        commands.append('cd {0}{1}/{2}'.format(search_opts.work_dir, search_opts.pointing,
-                                               search_opts.obsid))
-        commands.append('rfifind -ncpus $ncpus -noclip -time 12.0 -o {0} -zapchan 0:19,108:127,'
-                '128:147,236:255,256:275,364:383,384:403,492:511,512:531,620:639,640:659,748:767,'
-                '768:787,876:895,896:915,1004:1023,1024:1043,1132:1151,1152:1171,1260:1279,1280:'
-                '1299,1388:1407,1408:1427,1516:1535,1536:1555,1644:1663,1664:1683,1772:1791,1792:'
-                '1811,1900:1919,1920:1939,2028:2047,2048:2067,2156:2175,2176:2195,2284:2303,2304:'
-                '2323,2412:2431,2432:2451,2540:2559,2560:2579,2668:2687,2688:2707,2796:2815,2816:'
-                '2835,2924:2943,2944:2963,3052:3071 {1}*.fits'.format(search_opts.obsid,
-                                                                      search_opts.pointing_dir))
-        commands.append('mv {0}_rfifind.mask {1}/rfi_masks/'.format(search_opts.obsid,
-                                                                    search_opts.work_dir))
-        commands.append('search_database.py -c rfifind -m p -b ' +str(search_opts.bsd_row_num))
-        commands.append("prepdata -ncpus $ncpus -dm 0 " "-numout {0} -o {1}_DM0.00 "
-                        "{2}*incoh*.fits".format(numout, search_opts.obsid,
-                                                 search_opts.pointing_dir))
-        commands.append('mv {0}_rfifind.* {1}/rfi_masks/'.format(search_opts.obsid,
-                                                                 search_opts.work_dir))
-        commands.append('mv {0}_DM0.00.dat {1}/rfi_masks/'.format(search_opts.obsid,
-                                                                  search_opts.work_dir))
-        commands.append('mv {0}_DM0.00.inf {1}/rfi_masks/'.format(search_opts.obsid,
-                                                                  search_opts.work_dir))
-    #commands.append("{0} -m p -r {1} -s {2}/{3}".format(search_opts.relaunch_script,
-                     #search_opts.bsd_row_num, search_opts.pointing, search_opts.obsid))
-
-    submit_slurm(rfi_batch, commands,
-                 batch_dir="{0}{1}/{2}/batch".format(search_opts.work_dir,
-                                search_opts.pointing, search_opts.obsid),
-                 slurm_kwargs={"time": "2:00:00"}, mem=mem,
-                 nice=search_opts.nice,
-                 submit=True, module_list=[comp_config['presto_module']])
-
     return
 
 
