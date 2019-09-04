@@ -156,7 +156,7 @@ def binfind(run_params):
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
-                slurm_kwargs={"time": "00:05:00"},\
+                slurm_kwargs={"time": "00:30:00"},\
                 module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                             'presto/no-python'],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
@@ -219,7 +219,7 @@ if __name__ == '__main__':
     formatter = logging.Formatter('%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-
+    logger.propagate = False
 
     run_params = run_params_class(pointing_dir=args.pointing_dir, cal_id=args.cal_id,\
                                 pulsar=args.pulsar, obsid=args.obsid, stop=args.stop,\
