@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import sys
 import argparse
 import find_pulsar_in_obs as fpio
 import os
@@ -16,6 +17,7 @@ from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min
 import config
 from grid import get_grid
+import checks
 
 import logging
 logger = logging.getLogger(__name__)
@@ -39,9 +41,34 @@ def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
 
     return beg, end
 
+def check_data(obsid, beg=None, dur=None):
+
+    if type(beg) is not int:
+        beg = int(beg)
+    if type(dur) is not int:
+        dur = int(dur)
+    
+    #Check to see if the files are combined properly
+    if beg is not None and dur is not None:
+        logger.info("Checking recombined files beginning at {0} and ending at {1}. Duration: {2} seconds"\
+                    .format(beg, (beg+dur), dur))
+        error = checks.check_recombine(obsid, startsec=beg, n_secs=dur)
+    else:
+        logger.warn("No start time information supplied. Comparing files with full obs")
+        error = checks.check_recombine(obsid)
+
+    if error == True:
+        logger.error("Recombined files check has failed. Cannot continue")
+        sys.exit(1)
+    else:
+        logger.info("Recombined check passed")
+
+    return
+
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       vdif_check=False, product_dir='/group/mwaops/vcs',
                       mwa_search_version='master'):
+
 
 
     #obsbeg, obsend, obsdur = file_maxmin.print_minmax(obsid)
@@ -177,6 +204,9 @@ if __name__ == "__main__":
     else:
         find_beg_end(args.obsid, base_path=comp_config['base_product_dir'])
 
+    #Perform data checks
+    dur = end-beg
+    check_data(args.obsid, beg=beg, dur=dur)
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       vdif_check=args.vdif, product_dir=comp_config['base_product_dir'],
