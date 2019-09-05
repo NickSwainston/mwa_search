@@ -2,6 +2,59 @@
 
 import argparse
 import math
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_sensitivity(DD_plan_array, time, centrefreq, freqres, bandwidth):
+    base_sensitivity = 3 #mJy. This could be done properly but this will for now
+    # adjust for time
+    base_sensitivity = base_sensitivity * math.sqrt(4800) / math.sqrt(time)
+    # adjust for unscattered pulsar
+    #base_sensitivity = base_sensitivity / math.sqrt( ( 1. - 0.05) / 0.05 )
+
+    # period to work with
+    periods = np.array([ 1., 0.1, 0.01, 0.001 ])*1000.
+    widths = periods*0.05
+
+    #fig, ax = plt.subplots(1, 1)
+    plt.subplots(1, 1)
+    #ax.set_ylim(0, 100)
+    #plt.ylim(0, 100)
+    
+    for period, width in zip(periods, widths):
+        sensitivties = []
+        DMs = [] 
+        for dm_row in DD_plan_array:
+            DM_start, D_DM, DM_step, nDM_step, timeres = dm_row
+            for DM in np.arange(DM_start, D_DM, DM_step):
+                # For each DM you're going to search do a sensitivy cal based on how 
+                # a pulse will get
+                
+                #Dm smear over a frequency channel
+                dm_smear = DM * freqres * 8.3 * 10.**6 / centrefreq**3
+                #Dm smear due to maximum incorrect DM
+                dm_step_smear = 8.3 * 10.**6 * DM_step / 2. * bandwidth / centrefreq**3
+                
+                effective_width = math.sqrt(width**2 + dm_smear**2 + dm_step_smear**2 + timeres**2)
+                #print(effective_width) 
+                #sensitivity given new effectiv width
+                if effective_width >= period:
+                    sensitivties.append(1000.)
+                else:
+                    sensitivties.append(base_sensitivity /
+                                    math.sqrt( ( period - effective_width) / effective_width ) *
+                                    math.sqrt( ( period - width) / width ))
+                DMs.append(DM)
+        plt.plot(DMs, sensitivties, label="P={0} ms".format(period))
+    #plt.yscale('log')
+    plt.legend()
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.ylabel(r"Detection Sensitivity, 10$\sigma$ (mJy)")
+    plt.xlabel(r"Dispersion measure (pc cm$^{-3}$ ")
+    plt.title("Sensitivy using a minimum DM step size of {0}".format(DD_plan_array[0][2]))
+    #plt.show()
+    plt.savefig("DM_step_sens_mDMs_{0}.png".format(DD_plan_array[0][2]))
 
 
 def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_step=0.02):
@@ -80,18 +133,19 @@ if __name__ == "__main__":
                         help='The MWA observation ID of an observation. Using this command will get the require observation parameters.')
     parser.add_argument('-m', '--min_DM_step', type=float, default=0.02,
                         help='The  minimun DM step size, default 0.02')
+    parser.add_argument('-p', '--plot', action='store_true', 
+                        help='Plot the sensitivty of the DM plan')
+    parser.add_argument('--time', type=int, default=4800,
+                        help='Time in seconds to calculate the sensitivity')
     #parser.add_argument()
     args=parser.parse_args()
 
     if args.obsid:
         #get the centrefreq from the obsid metadata
-        beam_meta_data = getmeta(service='obs', params={'obs_id':args.obsid})
-
-        #work out centrefreq
-        minfreq = float(min(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
-        maxfreq = float(max(beam_meta_data[u'rfstreams'][u"0"][u'frequencies']))
-        channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
-        args.centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2)
+        beam_meta_data = get_common_obs_metadata(args.obsid)
+        obs, ra, dec, dura, [xdelays, ydelays], centrefreq, channels = beam_meta_data        
+        
+        args.centrefreq = channels
 
 
     DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM, min_DM_step=args.min_DM_step)
@@ -102,3 +156,15 @@ if __name__ == "__main__":
                format(d[0], d[1], d[2], d[3], d[4]))
         total_steps += d[3]
     print("Total DM steps required: {}".format(total_steps))
+
+    if args.plot:
+        #work out time to use
+        if args.time:
+            time = args.time
+        elif args.obsid:
+            time = dura
+        else:
+            #using default
+            time = args.time
+        freq_res = args.bandwidth / args.nfreqchan
+        plot_sensitivity(DD_plan_array, time, args.centrefreq, freq_res, args.bandwidth)
