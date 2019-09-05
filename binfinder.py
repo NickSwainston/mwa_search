@@ -133,11 +133,11 @@ def submit_to_db(run_params, prof_name):
     mydict = bestprof_info(filename = prof_name)
     ppps = os.getcwd() + "/" + glob.glob("*{0}*{1}*.pfd.ps".format(mydict["nbins"], run_params.pulsar[1:]))[0]
     prof_name = os.getcwd() + "/" + prof_name
-    png_output = oc.getcwd() +  "/" + glob.glob("*{0}*{1}*.png".format(mydict["nbins"], run_params.pulsar[1:]))[0]
+    png_output = os.getcwd() +  "/" + glob.glob("*{0}*{1}*.png".format(mydict["nbins"], run_params.pulsar[1:]))[0]
 
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
-    data_process_pipeline.copy_data(pps, data_dir)
+    data_process_pipeline.copy_data(ppps, data_dir)
     data_process_pipeline.copy_data(prof_name, data_dir)
     data_process_pipeline.copy_data(png_output, data_dir)
 
@@ -456,11 +456,11 @@ def iterate_bins(run_params):
 
             run_params.set_best_bins(int(float(info_dict["nbins"])))
             #Plot the bestprof nicely
-            prof_path = run_params.pointing_dir + bestprof
-            nice_prof_path = plotting_toolkit.plot_bestprof(prof_path, out_dir=run_params.pointing_dir)
+            prof_path = run_params.pointing_dir + "/" + bestprof
+            nice_prof_path = plotting_toolkit.plot_bestprof(prof_path, run_params.pointing_dir, nocrop=run_params.nocrop)
             #copy to data products directory
-            data_process_pipeline(nice_prof_path, "/group/mwaops/vcs/{0}/data_products/{1}"\
-                                .format(run_params.obsid, run_params.pulsar))
+            data_process_pipeline.copy_data(nice_prof_path, "/group/mwaops/vcs/{0}/data_products/{1}"\
+                                            .format(run_params.obsid, run_params.pulsar))
             #submit
             submit_to_db(run_params, bestprof)
 

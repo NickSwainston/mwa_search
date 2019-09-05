@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import logging
 import argparse
 import socket
@@ -78,7 +79,7 @@ def copy_data(data_path, target_directory):
     #Make the target directory if needed
     os.makedirs(target_directory, exist_ok=True)
     try:
-        os.popen("cp {0} {1}".format(data_path, target_dircetory))
+        os.popen("cp {0} {1}".format(data_path, target_directory))
     except RuntimeError as error:
         logger.warning("File:{0} could not be copied to {1}".format(data_path, target_directory))
         logger.warning("Error message: {0}".format(error)) 
@@ -88,10 +89,17 @@ def info_from_dir(pointing_dir):
 
     #given a pointing directory, returns a dictionary containing the obsid and pulsar name
     mydict = {}
-    mydict["obsid"] = pointing_dir.split("/")[4]
-    pulsar_coords = pointing_dir.split("/")[6].split("_")
-    pulsar_1 = pulsar_coords[0].split(":")[0] + pulsar_coords[0].split(":")[1]
-    pulsar_2 = pulsar_coords[1].split(":")[0] + pulsar_coords[1].split(":")[1]
+    pointing_dir = pointing_dir.split("/")
+    for i in pointing_dir:
+        if i == "":
+            pointing_dir.remove(i)
+
+    mydict["obsid"] = pointing_dir[3]
+
+    idx = pointing_dir.index("pointings")
+    pulsar_coords = pointing_dir[idx+1]
+    pulsar_1 = pulsar_coords.split(":")[0] + pulsar_coords.split(":")[1]
+    pulsar_2 = pulsar_coords.split(":")[2].split("_")[1] + pulsar_coords.split(":")[3]
     mydict["pulsar"] = "J" + pulsar_1 + pulsar_2
 
     return mydict
