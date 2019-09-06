@@ -37,7 +37,8 @@ else:
     channels = beam_meta_data[u'rfstreams'][u"0"][u'frequencies']
 print("Chan order: {}".format(channels))
 
-hostname = socket.gethostname()
+#hostname = socket.gethostname()
+hostname = 'temp'
 if hostname.startswith('john') or hostname.startswith('bryan'):
     #If on ozstar use their SSD to improve I/O
     SSD_file_dir = '{}/'.format(os.environ['JOBFS'])

@@ -438,7 +438,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
     commands = []
     if search_opts.bsd_row_num is not None and beamformer_batch is not None:
         #record beamforming processing time
-        commands.append('search_database.py -m b -b {0} -f {1}{2} -p {3}'.\
+        commands.append('#search_database.py -m b -b {0} -f {1}{2} -p {3}'.\
                         format(search_opts.bsd_row_num, batch_dir, beamformer_batch,
                                npointings))
 

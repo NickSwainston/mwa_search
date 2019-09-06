@@ -1,6 +1,6 @@
 # The MWA pulsar search pipeline
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/eedca9f0fca94e7cb67b45059eee1da3)](https://www.codacy.com/app/NickSwainston/blindsearch_scripts?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=NickSwainston/blindsearch_scripts&amp;utm_campaign=Badge_Grade)
-This repository was written by Nick Swainston to automate pulsar searching using the PRESTO software suit. An explanation of the search procedure can be found on the wiki of the GitHub page. It writes batch scripts that are submitted to SLURM job queues, records any errors and reruns jobs that didn't complete successfully. It can also be used as a beamform wrapper for the process\_vcs.py script from the vcs\_tools repository. 
+This repository was written by Nick Swainston to automate pulsar searching using the PRESTO software suite. An explanation of the search procedure can be found on the wiki of the GitHub page. The pipeline writes batch scripts that are submitted to SLURM job queues, records any errors and reruns jobs that didn't complete successfully. It can also be used as a beamform wrapper for the process\_vcs.py script from the vcs\_tools repository. 
 
 ## Prerequisites
 
