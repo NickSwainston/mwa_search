@@ -397,24 +397,28 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
     """
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
-    pointing_str = " ".join(pointing_dir_list)
-    logger.info("pointing string: {0}".format(pointing_str))
-    commands = []
-    commands.append("echo 'Folding on multiple pointings'")
-    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
-                    "--mwa_search {5}".format(pointing_str, search_opts.obsid,
-                    search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
+    if pulsar.startswith("J"):
+        pointing_str = " ".join(pointing_dir_list)
+        logger.info("pointing string: {0}".format(pointing_str))
+        commands = []
+        commands.append("echo 'Folding on multiple pointings'")
+        commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
+                        "--mwa_search {5}".format(pointing_str, search_opts.obsid,
+                        search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
 
-    name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
-    batch_dir = "{0}/batch/".format(search_opts.fits_dir_base)
-    submit_slurm(name, commands,\
-                batch_dir=batch_dir,\
-                slurm_kwargs={"time": "00:05:00"},\
-                module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
-                              'presto/no-python'],\
-                submit=True, vcstools_version='multi-pixel_beamform',\
-                depend=job_id_list)
-
+        name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
+        batch_dir = "{0}/batch/".format(search_opts.fits_dir_base)
+        submit_slurm(name, commands,\
+                    batch_dir=batch_dir,\
+                    slurm_kwargs={"time": "00:05:00"},\
+                    module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
+                                  'presto/no-python'],\
+                    submit=True, vcstools_version='multi-pixel_beamform',\
+                    depend=job_id_list)
+    #elif pulsar.startswith("F"):
+    #TODO: do something here
+    else:
+        logger.warn("Source name not recognized")
 
 def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
                            beamformer_batch=None, npointings=1, incoh_rfimask=False):
