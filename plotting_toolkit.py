@@ -151,7 +151,7 @@ def pulsar_db_search(pulsar=None, obsid=None):
 
 
 #--------------------------------------------------------------------------
-def plot_bestprof(bestprof, out_dir, nocrop):
+def plot_bestprof(bestprof, out_dir, nocrop=False):
 
     #retrieve data from bestprof
     x = []

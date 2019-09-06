@@ -63,8 +63,9 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, nbins, use_mask=
     return commands
 
 #----------------------------------------------------------------------
-def pulsar_beam_coverage(obsid, pulsar):
+def pulsar_beam_coverage(obsid, pulsar, beg=None, end=None):
     #returns the beginning and end time as a fraction that a pulsar is in the primary beam for the obsid files
+    #beg and end should only be supplied if the files are not present on the system
 
     #find the enter and exit times of pulsar normalized with the observing time
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
@@ -73,9 +74,15 @@ def pulsar_beam_coverage(obsid, pulsar):
     enter_obs_norm = beam_source_data[obsid][0][1]
     exit_obs_norm = beam_source_data[obsid][0][2]
 
-    #find the beginning and end time of the observation FILES you have on disk
-    files_beg, files_end = checks.find_beg_end(obsid)
-    files_duration = files_end - files_beg + 1
+    if beg is None and end is None:
+        #find the beginning and end time of the observation FILES you have on disk
+        files_beg, files_end = checks.find_beg_end(obsid)
+        files_duration = files_end - files_beg + 1
+    else:
+        #uses manually input beginning and end times to find beam coverage
+        files_beg = beg
+        files_end = end
+        files_duration = files_end - files_beg + 1
 
     #find how long the total observation is (because that's what enter and exit uses)
     obs_beg, obs_end, obs_dur = file_maxmin.print_minmax(obsid)
@@ -133,11 +140,11 @@ def submit_to_db(run_params, prof_name):
     mydict = bestprof_info(filename = prof_name)
     ppps = os.getcwd() + "/" + glob.glob("*{0}*{1}*.pfd.ps".format(mydict["nbins"], run_params.pulsar[1:]))[0]
     prof_name = os.getcwd() + "/" + prof_name
-    png_output = oc.getcwd() +  "/" + glob.glob("*{0}*{1}*.png".format(mydict["nbins"], run_params.pulsar[1:]))[0]
+    png_output = os.getcwd() +  "/" + glob.glob("*{0}*{1}*.png".format(mydict["nbins"], run_params.pulsar[1:]))[0]
 
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
-    data_process_pipeline.copy_data(pps, data_dir)
+    data_process_pipeline.copy_data(ppps, data_dir)
     data_process_pipeline.copy_data(prof_name, data_dir)
     data_process_pipeline.copy_data(png_output, data_dir)
 
@@ -456,11 +463,11 @@ def iterate_bins(run_params):
 
             run_params.set_best_bins(int(float(info_dict["nbins"])))
             #Plot the bestprof nicely
-            prof_path = run_params.pointing_dir + bestprof
-            nice_prof_path = plotting_toolkit.plot_bestprof(prof_path, out_dir=run_params.pointing_dir)
+            prof_path = run_params.pointing_dir + "/" + bestprof
+            nice_prof_path = plotting_toolkit.plot_bestprof(prof_path, run_params.pointing_dir, nocrop=run_params.nocrop)
             #copy to data products directory
-            data_process_pipeline(nice_prof_path, "/group/mwaops/vcs/{0}/data_products/{1}"\
-                                .format(run_params.obsid, run_params.pulsar))
+            data_process_pipeline.copy_data(nice_prof_path, "/group/mwaops/vcs/{0}/data_products/{1}"\
+                                            .format(run_params.obsid, run_params.pulsar))
             #submit
             submit_to_db(run_params, bestprof)
 
