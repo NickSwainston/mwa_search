@@ -323,7 +323,12 @@ def process_vcs_wrapper(search_opts, pointings,
     """
     comp_config = config.load_config_file()
     #check queue
-    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
+    hostname = socket.gethostname()
+    if ( hostname.startswith('john') or hostname.startswith('farnarkle') ):
+        gpu_max_job = 70
+    else:
+        gpu_max_job = 100
+    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
     your_slurm_queue_check(max_queue=500)
 
     #check for incoh file which is used to predict if you have used rfifind
@@ -533,8 +538,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
         if max_pointing > 29:
             # More than 30 won't fit on the GPU mem
             max_pointing = 29
+        gpu_max_job = 70
     else:
         max_pointing = 15
+        gpu_max_job = 100
 
     print("Maximum of pointings per beamforming job: {}".format(max_pointing))
 
@@ -691,7 +698,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             print("Some channels missing, beamforming on {0} for {1}".format(missing_chan_list,
                   search_opts.pointing))
             if len(pointing_list) > 1:
-                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
+                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
             
             temp_pointing_id = [pointing_list.index(search_opts.pointing.replace("_", " ")) + 1]
             dep_job_id, incoh_splice_job_id = process_vcs_wrapper(search_opts,
