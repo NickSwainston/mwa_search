@@ -1103,18 +1103,32 @@ def fold(search_opts):
 
         for c in cand_list:
             accel_file_name, cand_num, _, cand_DM, period = c
-            #through some stuffing around sort the fold into 100 folds per job
-            #the fold option using .dat files which is quicker but inaccurate
-            #fold_command = 'run "prepfold" "-ncpus $ncpus -n 128 -nsub 128 '+\
-            #           "-accelcand "+c[1]+" -accelfile "+c[0]+".cand  -o " +\
-            #           c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(search_opts.bsd_row_num)+'" "'+str(dm_i)+'"'
+            
+            # Set up the prepfold options to match the ML candidate profiler
+            if float(period) > 10.:
+                nbins = 100
+                ntimechunk = 120
+                dmstep = 1
+                period_search_n = 1
+            else:
+                # bin size is smaller than time resolution so reduce nbins
+                nbins = 50
+                ntimechunk = 40
+                dmstep = 3
+                period_search_n = 2
 
+            if numout < 6000000:
+                #if less then 10 mins use smaller amount of time chuncks
+                ntimechunk = 40
+                
             #the fold options that uses .fits files which is slower but more accurate
             if float(cand_DM) > 1.:
-                commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} '
-                    '-nosearch {5} {6}{7}_*.fits'.format(accel_file_name, cand_num,
-                    search_opts.pointing, float(period)/1000., cand_DM, mask_command,
-                    search_opts.pointing_dir, search_opts.obsid))
+                commands_list.append('-n {0} -noxwin -noclip -o {1}_{2}_{3} -p {4} -dm {5} '
+                    '{6} -nsub 256 -npart {7} -dmstep {8} -pstep 1 -pdstep 2 -npfact {9} '
+                    '-ndmfact 1 -runavg {10}{11}_*.fits'.format(nbins, accel_file_name,
+                        cand_num, search_opts.pointing, float(period)/1000., cand_DM,
+                        mask_command, ntimechunk, dmstep, period_search_n,
+                        search_opts.pointing_dir, search_opts.obsid))
             else:
                 print("Skipping cand with DM {0} and period {1} ms".format(cand_DM, period))
     search_database.database_script_list(search_opts.bsd_row_num, 'prepfold', commands_list,
