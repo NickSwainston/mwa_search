@@ -212,10 +212,11 @@ if __name__ == '__main__':
         #make polarisation plot and copy data products to different directory
         fname="{0}/{1}_archive.txt".format(run_params.pointing_dir, run_params.pulsar)
         fig_name = plotting_toolkit.plot_archive(obsid=run_params.obsid, archive=fname, pulsar=run_params.pulsar, out_dir=run_params.pointing_dir)
-        logger.info("Moving data products to '/group/mwaops/vcs/{0}/data_products/'"}.format(run_params.obsid))
+        logger.info("Moving data products to '/group/mwaops/vcs/{0}/data_products/'".format(run_params.obsid))
         data_products_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
         data_process_pipeline.copy_data(fig_name, data_products_dir)
         data_process_pipeline.copy_data("{0}/{1}_rmfit.txt".format(run_params.pointing_dir, run_params.pulsar), data_products_dir)
+        data_process_pipeline.copy_data("{0}/{1}_subint_{2}.ar".format(run_params.pointing_dir, run_params.pulsar, run_params.subint), data_products_dir)
         data_process_pipeline.copy_data("{0}/{1}_subint_{2}.ar2".format(run_params.pointing_dir, run_params.pulsar, run_params.subint), data_products_dir)
         data_process_pipeline.copy_data("{0}/{1}_archive.txt".format(run_params.pointing_dir, run_params.pulsar), data_products_dir)
 

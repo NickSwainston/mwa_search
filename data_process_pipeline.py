@@ -67,8 +67,11 @@ class run_params_class:
         self.best_bins = bins
 
     def set_RM_and_err(self, RM, RM_err):
-        self.RM=RM
-        self.RM_err=RM_err
+        self.RM = RM
+        self.RM_err = RM_err
+
+    def set_pointing_dir(self, new_dir):
+        self.pointing_dir = new_dir
 
     def stop_now(self):
         self.stop=True
@@ -159,12 +162,23 @@ def binfind(run_params):
     commands.append("echo 'Submitting binfinder in mode {0}'".format(run_params.mode))
     commands.append(launch_line)
 
+    #decide how much time to allocate based on number of poitnigns
+    n_pointings = len(run_params.pointing_dir)
+    if n_pointings<100:
+        time = "00:30:00"
+    elif n_pointings<400:
+        time = "02:00:00"
+    elif n_pointings<1000:
+        time = "05:00:00"
+    else:
+        time = "10:00:00"
+
     name = "binfind_initiate_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     comp_config = config.load_config_file()
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
-                slurm_kwargs={"time": "00:30:00"},\
+                slurm_kwargs={"time": time},\
                 module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                             'presto/no-python'],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))

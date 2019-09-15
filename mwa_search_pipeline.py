@@ -323,7 +323,12 @@ def process_vcs_wrapper(search_opts, pointings,
     """
     comp_config = config.load_config_file()
     #check queue
-    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
+    hostname = socket.gethostname()
+    if ( hostname.startswith('john') or hostname.startswith('farnarkle') ):
+        gpu_max_job = 70
+    else:
+        gpu_max_job = 100
+    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
     your_slurm_queue_check(max_queue=500)
 
     #check for incoh file which is used to predict if you have used rfifind
@@ -397,24 +402,28 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
     """
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
-    pointing_str = " ".join(pointing_dir_list)
-    logger.info("pointing string: {0}".format(pointing_str))
-    commands = []
-    commands.append("echo 'Folding on multiple pointings'")
-    commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
-                    "--mwa_search {5}".format(pointing_str, search_opts.obsid,
-                    search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
+    if pulsar.startswith("J"):
+        pointing_str = " ".join(pointing_dir_list)
+        logger.info("pointing string: {0}".format(pointing_str))
+        commands = []
+        commands.append("echo 'Folding on multiple pointings'")
+        commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
+                        "--mwa_search {5}".format(pointing_str, search_opts.obsid,
+                        search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
 
-    name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
-    batch_dir = "{0}/batch/".format(search_opts.fits_dir_base)
-    submit_slurm(name, commands,\
-                batch_dir=batch_dir,\
-                slurm_kwargs={"time": "00:05:00"},\
-                module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
-                              'presto/no-python'],\
-                submit=True, vcstools_version='multi-pixel_beamform',\
-                depend=job_id_list)
-
+        name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
+        batch_dir = "{0}/batch/".format(search_opts.fits_dir_base)
+        submit_slurm(name, commands,\
+                    batch_dir=batch_dir,\
+                    slurm_kwargs={"time": "00:05:00"},\
+                    module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
+                                  'presto/no-python'],\
+                    submit=True, vcstools_version='multi-pixel_beamform',\
+                    depend=job_id_list)
+    #elif pulsar.startswith("F"):
+    #TODO: do something here
+    else:
+        logger.warn("Source name not recognized")
 
 def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
                            beamformer_batch=None, npointings=1, incoh_rfimask=False):
@@ -529,8 +538,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
         if max_pointing > 29:
             # More than 30 won't fit on the GPU mem
             max_pointing = 29
+        gpu_max_job = 70
     else:
         max_pointing = 15
+        gpu_max_job = 100
 
     print("Maximum of pointings per beamforming job: {}".format(max_pointing))
 
@@ -687,7 +698,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             print("Some channels missing, beamforming on {0} for {1}".format(missing_chan_list,
                   search_opts.pointing))
             if len(pointing_list) > 1:
-                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
+                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
             
             temp_pointing_id = [pointing_list.index(search_opts.pointing.replace("_", " ")) + 1]
             dep_job_id, incoh_splice_job_id = process_vcs_wrapper(search_opts,
