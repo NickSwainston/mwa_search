@@ -634,9 +634,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 unspliced_check = False
                 for ch in search_opts.channels:
                     for ne in range(1,expected_file_num):
-                        logger.debug("{0}*_{1}_{2}_ch*{3}_00*{4}.fits".format(
-                                     search_opts.pointing_dir, search_opts.pointing,
-                                     search_opts.obsid, ch, ne))
+                        logger.debug("Searching for files in: {0}*_{1}_{2}_ch*{3}_00*{4}"
+                                     ".fits".format(search_opts.pointing_dir,
+                                                    search_opts.pointing,
+                                                    search_opts.obsid, ch, ne))
                         if not glob.glob("{0}*_{1}_{2}_ch*{3}_00*{4}.fits".format(
                                          search_opts.pointing_dir, search_opts.obsid,
                                          search_opts.pointing, ch, ne)):
@@ -684,7 +685,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir,
                                                                 dep_job_id])
         elif path_check or len(missing_chan_list) == 24:
-            logger.debug(missing_file_check, unspliced_check, path_check, len(missing_chan_list))
+            logger.debug("missing_file_check: {0} unspliced_check: {1} path_check "
+                         "{2} len(missing_chan_list): {3}".format(missing_file_check,
+                             unspliced_check, path_check, len(missing_chan_list)))
             # do beamforming
             print("No pointing directory or files for {0}, will beamform shortly".\
                     format(search_opts.pointing))
@@ -758,7 +761,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                 pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
                                 vdif=vdif, summed=summed,
-                                code_comment=code_comment, pointing_id=pointing_id)
+                                code_comment=code_comment, pointing_id=pointing_id,
+                                channels=search_opts.channels)
             logger.debug("pulsar_list_list_to_beamform: {}".format(pulsar_list_list_to_beamform))
             if pulsar_list_list is not None:
                 for pulsar_list, pointing, dep_job_id in zip(pulsar_list_list_to_beamform,
