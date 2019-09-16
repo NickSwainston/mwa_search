@@ -1196,14 +1196,13 @@ def wrap_up(search_opts):
     commands.append('else')
     commands.append('   over_sn=`ls ../over_3_png/*.ps | wc -l`')
     commands.append('fi')
-    commands.append('if [ $over_sn -eq 0 ]; then')
-    commands.append('   echo "No candidates so deleting pointing, dat and fft files"')
-    commands.append('   rm {0}{1}/*dat'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('   rm {0}{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('   rm {0}{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('   rm -rf {0}{1}/{2}'.format(comp_config['base_product_dir'],
-                                                  search_opts.obsid, search_opts.pointing))
-    commands.append('fi')
+    commands.append('echo "Search succesful so deleting all files except candidates"')
+    commands.append('rm {0}{1}/*dat'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}{1}/*inf'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm -rf {0}{1}/pointings/{2}'.format(comp_config['base_product_dir'],
+                                               search_opts.obsid, search_opts.pointing))
     commands.append('search_database.py -m w -b {0} --cand_val "$total $over_sn 0"'.\
                     format(search_opts.bsd_row_num))
     submit_slurm(wrap_batch, commands,
