@@ -41,7 +41,7 @@ class search_options_class:
                  pointing=None, cal_id=None, begin=None, end=None,
                  channels=None, incoh=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
-                 dm_min=0, dm_max=250,
+                 dm_min=0, dm_max=250, dm_min_step=0.01,
                  relaunch_script=None, search=False, bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
                  nice=None, search_ver='master',
@@ -86,15 +86,16 @@ class search_options_class:
             self._pointing_dir = pointing_dir
 
         #search parameters
-        self.dm_min           = dm_min
-        self.dm_max           = dm_max
+        self.dm_min      = dm_min
+        self.dm_max      = dm_max
+        self.dm_min_step = dm_min_step
 
         #search database
-        self._relaunch_script    = relaunch_script
+        self._relaunch_script   = relaunch_script
         self.search             = search
-        self._bsd_row_num        = bsd_row_num
+        self._bsd_row_num       = bsd_row_num
         self.cold_storage_check = cold_storage_check
-        self._table              = table
+        self._table             = table
         self.attempt            = attempt
 
         #job options
@@ -850,7 +851,8 @@ def prepdata(search_opts):
     #new lfDDplan method #TODO make this more robust
 
     from lfDDplan import dd_plan
-    dm_list = dd_plan(centrefreq, 30.72, 3072, 0.1, search_opts.dm_min, search_opts.dm_max)
+    dm_list = dd_plan(centrefreq, 30.72, 3072, 0.1, search_opts.dm_min, search_opts.dm_max,
+                      min_DM_step=search_opts.dm_min_step)
     #dm_list = [[low_dm, high_dm, DM_step, number_of_steps, time_res]]
 
 
@@ -1696,6 +1698,8 @@ if __name__ == "__main__":
         help='DM max searched. Default 1')
     search_options.add_argument('--dm_max', type=float, default = 250.0,
         help='DM max searched. Default 250')
+    search_options.add_argument('--dm_min_step', type=float, default = 0.01,
+        help='Smallest DM step size. Increaseing this number will increase search speed but lower sensitivty. Default 0.01')
     search_options.add_argument('--pulsar', type=str,
         help="Used to search for a known pulsar by inputing it's Jname. The code "
              "then looks within 1 DM and 15%% of the pulsar's period.")
@@ -1838,6 +1842,8 @@ if __name__ == "__main__":
         relaunch_script += " --dm_max " + str(args.dm_max)
     if args.dm_min:
         relaunch_script += " --dm_min " + str(args.dm_min)
+    if args.dm_min_step:
+        relaunch_script += " --dm_min_step " + str(args.dm_min_step)
     if args.incoh:
         relaunch_script +=  " --incoh "
     if args.mwa_search_version:
@@ -1858,6 +1864,7 @@ if __name__ == "__main__":
                  begin=args.begin, end=args.end, channels=args.channels, incoh=args.incoh,
                  args=args, work_dir=work_dir, sub_dir=sub_dir, fits_dir_base=fits_dir_base,
                  pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max,
+                 dm_min_step=args.dm_min_step,
                  relaunch_script=relaunch_script, search=args.search,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
                  table=args.table, attempt=args.attempt, search_ver=args.mwa_search_version,
