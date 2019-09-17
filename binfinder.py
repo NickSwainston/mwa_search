@@ -195,39 +195,6 @@ def submit_to_db(run_params, ideal_bins):
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 #----------------------------------------------------------------------
-def check_conditions(threshold, prevbins):
-
-    #returns a dictionary of a bunch of stuff that decides if and how to run prepfold
-    info_dict = bestprof_info(prevbins=prevbins)
-    condition_dict = {}
-    if float(info_dict["sn"]) < threshold:
-        condition_dict["sn_good"] = False
-        logger.info("Signal to noise ratio of the previous run was below the threshold")
-    else:
-        condition_dict["sn_good"] = True
-
-    if float(info_dict["chi"]) < 4.0:
-        condition_dict["chi_good"] = False
-        logger.info("Chi value of the previous run was below 4")
-    else:
-        condition_dict["chi_good"] = True
-
-    if int(float(info_dict["sn"])) == 0:
-        condition_dict["sn_nonzero"] = False
-        logger.info("The singal to noise ratio for this file is zero. Using chi for evalutation")
-    else:
-        condition_dict["sn_nonzero"] = True
-
-    if int(info_dict["nbins"]) > int(float(info_dict["period"]))/1000 * 10000: #the 10k is the 10khz time res of MWA
-        condition_dict["sampling_good"] = False
-        logger.warn("The maximum sampling frequency for this pulsar has been reached")
-    else:
-        condition_dict["sampling_good"] = True
-
-
-    return condition_dict
-
-#----------------------------------------------------------------------
 def get_best_profile(pointing_dir, threshold):
 
     #find all of the relevant bestprof profiles in the pointing directory
@@ -419,14 +386,17 @@ def iterate_bins(run_params):
         #Check to see if SN and chi are above threshold
         #If continue == True, prepfold will run again
         cont = False
-        condition_dict = check_conditions(run_params.threshold, run_params.prevbins)
-        if condition_dict["sn_nonzero"] is False:
-            if condition_dict["sn_good"] is False:
+        info_dict = bestprof_info(prevbins=prevbins)         
+        sn = info_dict["sn"]
+        chi = info_dict["chi"]
+        #decide whether to continue based on rpevious run's SN and chi
+        if sn==0:
+            if chi>=4.:
                 cont = True
-        elif condition_dict["chi_good"] is False:
-            cont = True
-
-
+        else:
+            if sn>10. and chi>4.:
+                cont=True
+            
         finish = False
         if cont is True:
             #Choosing the number of bins to use
@@ -435,7 +405,7 @@ def iterate_bins(run_params):
             #Comparing nbins to sampling rate
             bin_limit = bin_sampling_limit(run_params.pulsar)
 
-            if nbins < bin_limit:
+            if nbins < bin_limit and bin_limit<1024:
                 logger.info("Time sampling limit reached. Bins will be reduced once more")
                 nbins = bin_limit
                 finish=True
