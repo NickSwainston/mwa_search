@@ -41,7 +41,7 @@ class search_options_class:
                  pointing=None, cal_id=None, begin=None, end=None,
                  channels=None, incoh=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
-                 dm_min=0, dm_max=250,
+                 dm_min=0, dm_max=250, dm_min_step=0.01,
                  relaunch_script=None, search=False, bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
                  nice=None, search_ver='master',
@@ -86,15 +86,16 @@ class search_options_class:
             self._pointing_dir = pointing_dir
 
         #search parameters
-        self.dm_min           = dm_min
-        self.dm_max           = dm_max
+        self.dm_min      = dm_min
+        self.dm_max      = dm_max
+        self.dm_min_step = dm_min_step
 
         #search database
-        self._relaunch_script    = relaunch_script
+        self._relaunch_script   = relaunch_script
         self.search             = search
-        self._bsd_row_num        = bsd_row_num
+        self._bsd_row_num       = bsd_row_num
         self.cold_storage_check = cold_storage_check
-        self._table              = table
+        self._table             = table
         self.attempt            = attempt
 
         #job options
@@ -323,7 +324,12 @@ def process_vcs_wrapper(search_opts, pointings,
     """
     comp_config = config.load_config_file()
     #check queue
-    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
+    hostname = socket.gethostname()
+    if ( hostname.startswith('john') or hostname.startswith('farnarkle') ):
+        gpu_max_job = 70
+    else:
+        gpu_max_job = 100
+    your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
     your_slurm_queue_check(max_queue=500)
 
     #check for incoh file which is used to predict if you have used rfifind
@@ -533,8 +539,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
         if max_pointing > 29:
             # More than 30 won't fit on the GPU mem
             max_pointing = 29
+        gpu_max_job = 70
     else:
         max_pointing = 15
+        gpu_max_job = 100
 
     print("Maximum of pointings per beamforming job: {}".format(max_pointing))
 
@@ -626,9 +634,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 unspliced_check = False
                 for ch in search_opts.channels:
                     for ne in range(1,expected_file_num):
-                        logger.debug("{0}*_{1}_{2}_ch*{3}_00*{4}.fits".format(
-                                     search_opts.pointing_dir, search_opts.pointing,
-                                     search_opts.obsid, ch, ne))
+                        logger.debug("Searching for files in: {0}*_{1}_{2}_ch*{3}_00*{4}"
+                                     ".fits".format(search_opts.pointing_dir,
+                                                    search_opts.pointing,
+                                                    search_opts.obsid, ch, ne))
                         if not glob.glob("{0}*_{1}_{2}_ch*{3}_00*{4}.fits".format(
                                          search_opts.pointing_dir, search_opts.obsid,
                                          search_opts.pointing, ch, ne)):
@@ -676,7 +685,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 pulsar_fold_dict[" ".join(pulsar_list)].append([search_opts.pointing_dir,
                                                                 dep_job_id])
         elif path_check or len(missing_chan_list) == 24:
-            logger.debug(missing_file_check, unspliced_check, path_check, len(missing_chan_list))
+            logger.debug("missing_file_check: {0} unspliced_check: {1} path_check "
+                         "{2} len(missing_chan_list): {3}".format(missing_file_check,
+                             unspliced_check, path_check, len(missing_chan_list)))
             # do beamforming
             print("No pointing directory or files for {0}, will beamform shortly".\
                     format(search_opts.pointing))
@@ -691,7 +702,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             print("Some channels missing, beamforming on {0} for {1}".format(missing_chan_list,
                   search_opts.pointing))
             if len(pointing_list) > 1:
-                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=70)
+                your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
             
             temp_pointing_id = [pointing_list.index(search_opts.pointing.replace("_", " ")) + 1]
             dep_job_id, incoh_splice_job_id = process_vcs_wrapper(search_opts,
@@ -750,7 +761,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                 pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
                                 vdif=vdif, summed=summed,
-                                code_comment=code_comment, pointing_id=pointing_id)
+                                code_comment=code_comment, pointing_id=pointing_id,
+                                channels=search_opts.channels)
             logger.debug("pulsar_list_list_to_beamform: {}".format(pulsar_list_list_to_beamform))
             if pulsar_list_list is not None:
                 for pulsar_list, pointing, dep_job_id in zip(pulsar_list_list_to_beamform,
@@ -843,7 +855,8 @@ def prepdata(search_opts):
     #new lfDDplan method #TODO make this more robust
 
     from lfDDplan import dd_plan
-    dm_list = dd_plan(centrefreq, 30.72, 3072, 0.1, search_opts.dm_min, search_opts.dm_max)
+    dm_list = dd_plan(centrefreq, 30.72, 3072, 0.1, search_opts.dm_min, search_opts.dm_max,
+                      min_DM_step=search_opts.dm_min_step)
     #dm_list = [[low_dm, high_dm, DM_step, number_of_steps, time_res]]
 
 
@@ -1107,18 +1120,32 @@ def fold(search_opts):
 
         for c in cand_list:
             accel_file_name, cand_num, _, cand_DM, period = c
-            #through some stuffing around sort the fold into 100 folds per job
-            #the fold option using .dat files which is quicker but inaccurate
-            #fold_command = 'run "prepfold" "-ncpus $ncpus -n 128 -nsub 128 '+\
-            #           "-accelcand "+c[1]+" -accelfile "+c[0]+".cand  -o " +\
-            #           c[0][:-8] + " " + c[0][:-8] + '.dat" "'+str(search_opts.bsd_row_num)+'" "'+str(dm_i)+'"'
+            
+            # Set up the prepfold options to match the ML candidate profiler
+            if float(period) > 10.:
+                nbins = 100
+                ntimechunk = 120
+                dmstep = 1
+                period_search_n = 1
+            else:
+                # bin size is smaller than time resolution so reduce nbins
+                nbins = 50
+                ntimechunk = 40
+                dmstep = 3
+                period_search_n = 2
 
+            if numout < 6000000:
+                #if less then 10 mins use smaller amount of time chuncks
+                ntimechunk = 40
+                
             #the fold options that uses .fits files which is slower but more accurate
             if float(cand_DM) > 1.:
-                commands_list.append('-n 128 -noxwin -noclip -o {0}_{1}_{2} -p {3} -dm {4} '
-                    '-nosearch {5} {6}{7}_*.fits'.format(accel_file_name, cand_num,
-                    search_opts.pointing, float(period)/1000., cand_DM, mask_command,
-                    search_opts.pointing_dir, search_opts.obsid))
+                commands_list.append('-n {0} -noxwin -noclip -o {1}_{2}_{3} -p {4} -dm {5} '
+                    '{6} -nsub 256 -npart {7} -dmstep {8} -pstep 1 -pdstep 2 -npfact {9} '
+                    '-ndmfact 1 -runavg {10}{11}_*.fits'.format(nbins, accel_file_name,
+                        cand_num, search_opts.pointing, float(period)/1000., cand_DM,
+                        mask_command, ntimechunk, dmstep, period_search_n,
+                        search_opts.pointing_dir, search_opts.obsid))
             else:
                 print("Skipping cand with DM {0} and period {1} ms".format(cand_DM, period))
     search_database.database_script_list(search_opts.bsd_row_num, 'prepfold', commands_list,
@@ -1173,14 +1200,13 @@ def wrap_up(search_opts):
     commands.append('else')
     commands.append('   over_sn=`ls ../over_3_png/*.ps | wc -l`')
     commands.append('fi')
-    commands.append('if [ $over_sn -eq 0 ]; then')
-    commands.append('   echo "No candidates so deleting pointing, dat and fft files"')
-    commands.append('   rm {0}{1}/*dat'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('   rm {0}{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('   rm {0}{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('   rm -rf {0}{1}/{2}'.format(comp_config['base_product_dir'],
-                                                  search_opts.obsid, search_opts.pointing))
-    commands.append('fi')
+    commands.append('echo "Search succesful so deleting all files except candidates"')
+    commands.append('rm {0}{1}/*dat'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}{1}/*inf'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm -rf {0}{1}/pointings/{2}'.format(comp_config['base_product_dir'],
+                                               search_opts.obsid, search_opts.pointing))
     commands.append('search_database.py -m w -b {0} --cand_val "$total $over_sn 0"'.\
                     format(search_opts.bsd_row_num))
     submit_slurm(wrap_batch, commands,
@@ -1675,6 +1701,8 @@ if __name__ == "__main__":
         help='DM max searched. Default 1')
     search_options.add_argument('--dm_max', type=float, default = 250.0,
         help='DM max searched. Default 250')
+    search_options.add_argument('--dm_min_step', type=float, default = 0.01,
+        help='Smallest DM step size. Increaseing this number will increase search speed but lower sensitivty. Default 0.01')
     search_options.add_argument('--pulsar', type=str,
         help="Used to search for a known pulsar by inputing it's Jname. The code "
              "then looks within 1 DM and 15%% of the pulsar's period.")
@@ -1817,6 +1845,8 @@ if __name__ == "__main__":
         relaunch_script += " --dm_max " + str(args.dm_max)
     if args.dm_min:
         relaunch_script += " --dm_min " + str(args.dm_min)
+    if args.dm_min_step:
+        relaunch_script += " --dm_min_step " + str(args.dm_min_step)
     if args.incoh:
         relaunch_script +=  " --incoh "
     if args.mwa_search_version:
@@ -1837,6 +1867,7 @@ if __name__ == "__main__":
                  begin=args.begin, end=args.end, channels=args.channels, incoh=args.incoh,
                  args=args, work_dir=work_dir, sub_dir=sub_dir, fits_dir_base=fits_dir_base,
                  pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max,
+                 dm_min_step=args.dm_min_step,
                  relaunch_script=relaunch_script, search=args.search,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
                  table=args.table, attempt=args.attempt, search_ver=args.mwa_search_version,
