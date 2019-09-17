@@ -386,7 +386,7 @@ def iterate_bins(run_params):
         #Check to see if SN and chi are above threshold
         #If continue == True, prepfold will run again
         cont = False
-        info_dict = bestprof_info(prevbins=prevbins)         
+        info_dict = bestprof_info(prevbins=run_params.prevbins)         
         sn = info_dict["sn"]
         chi = info_dict["chi"]
         #decide whether to continue based on rpevious run's SN and chi
