@@ -170,15 +170,19 @@ def submit_to_db(run_params, ideal_bins):
     png_output = cwd +  "/" + glob.glob("*{0}_bins*{1}*.png".format(ideal_bins, run_params.pulsar[1:]))[0]
     pfd = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd".format(ideal_bins, run_params.pulsar[1:]))[0]
     
-
-
+    #do the same for 100 bin profiles
+    ppps_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.ps".format(run_params.pulsar[1:]))[0]
+    bestprof_name_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.bestprof".format(run_params.pulsar[1:]))[0]
+    png_output_100 = cwd +  "/" + glob.glob("*_100_bins*{0}*.png".format(run_params.pulsar[1:]))[0]
+    pfd_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd".format(run_params.pulsar[1:]))[0]
+    
+    products = [ppps, bestprof_name, png_output, pfd,\
+            ppps_100, bestprof_name_100, png_output_100, pfd_100]
+    
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
-    data_process_pipeline.copy_data(ppps, data_dir)
-    data_process_pipeline.copy_data(prof_name, data_dir)
-    data_process_pipeline.copy_data(png_output, data_dir)
-    data_process_pipeline.copy_data(pfd, data_dir)
-
+    for product in products:
+        data_process_pipeline.copy_data(product, data_dir)
 
     commands = []
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
