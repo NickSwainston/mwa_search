@@ -162,7 +162,7 @@ def bin_sampling_limit(pulsar, sampling_rate=0.1):
 #----------------------------------------------------------------------
 def submit_to_db(run_params, ideal_bins):
 
-    logger.info("submitting profile to database: {0}".format(run_params.prof_name))
+    logger.info("submitting profile to database: {0}".format(run_params.bestprof))
     #Add path to filenames for submit script
     cwd = os.getcwd()
     ppps = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd.ps".format(ideal_bins, run_params.pulsar[1:]))[0]
@@ -359,7 +359,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
                 module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                             'presto/no-python'],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
-    logger.info("Job successfully submitted")
+    logger.info("Job successfully submitted: {0}".format(name))
 
 
 
