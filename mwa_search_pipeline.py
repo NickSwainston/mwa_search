@@ -42,7 +42,8 @@ class search_options_class:
                  channels=None, incoh=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
                  dm_min=0, dm_max=250, dm_min_step=0.01,
-                 relaunch_script=None, search=False, bsd_row_num=None, cold_storage_check=False,
+                 relaunch_script=None, search=False, single_pulse=False,
+                 bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
                  nice=None, search_ver='master',
                  DI_dir=None, pointing_dir=None, n_omp_threads=None):
@@ -93,6 +94,7 @@ class search_options_class:
         #search database
         self._relaunch_script   = relaunch_script
         self.search             = search
+        self.single_pulse       = single_pulse
         self._bsd_row_num       = bsd_row_num
         self.cold_storage_check = cold_storage_check
         self._table             = table
@@ -664,7 +666,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
         
         # Working out if we need start the database tracking
         database_start_check = False
-        if search_opts.search and searched_check and not relaunch:
+        if (search_opts.search or search_opts.single_pulse) and searched_check and not relaunch:
             database_start_check = False
         elif missing_file_check and not unspliced_check and not path_check:
             database_start_check = True
@@ -677,7 +679,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
         else:
             database_start_check = True
 
-        if search_opts.search and database_start_check and bsd_row_num_input is None and\
+        if (search_opts.search or search_opts.single_pulse) and database_start_check and \
+           bsd_row_num_input is None and\
            ((not searched_check or relaunch) or len(pointing_list) == 1):
                 search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                    search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
@@ -688,7 +691,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
 
         #work out what needs to be done
-        if search_opts.search and searched_check and not relaunch:
+        if (search_opts.search or search_opts.single_pulse) and searched_check and not relaunch:
             print("Already searched so not searching again")
         elif missing_file_check and not unspliced_check and not path_check:
             #splice files
@@ -740,8 +743,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         else:
             #All files there so the check has succeded and going to start the pipeline
-            if search_opts.search and ((not searched_check or relaunch)\
-                   or len(pointing_list) == 1):
+            if (search_opts.search or search_opts.single_pulse) and \
+              ((not searched_check or relaunch) or len(pointing_list) == 1):
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
                     your_slurm_queue_check(max_queue=500)
@@ -898,8 +901,8 @@ def prepdata(search_opts):
                                                                      search_opts.obsid)
     else:
         mask_command = ''
-    #dms_per_job = 1024
-    dms_per_job = 256
+    dms_per_job = 1024
+    #dms_per_job = 256
     nsub = 24
     commands_list = []
     for dm_line in dm_list:
@@ -1241,13 +1244,18 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     if prepsub_commands is None:
         prepsub_commands = search_database.database_script_check('Prepdata',
                                                 search_opts.bsd_row_num, 1)
-    # Get fft commands
-    if fft_commands is None:
-        fft_commands = search_database.database_script_check('FFT', search_opts.bsd_row_num, 1)
+    
+    if not search_opts.single_pulse:
+        # Don't do fft or accel search if in single pulse search mode
+        # Get fft commands
+        if fft_commands is None:
+            fft_commands = search_database.database_script_check('FFT',
+                                           search_opts.bsd_row_num, 1)
 
-    # Get accel commands
-    if accel_commands is None:
-        accel_commands = search_database.database_script_check('Accel', search_opts.bsd_row_num, 1)
+        # Get accel commands
+        if accel_commands is None:
+            accel_commands = search_database.database_script_check('Accel',
+                                             search_opts.bsd_row_num, 1)
 
     temp_mem = 100 #GB
 
@@ -1279,51 +1287,57 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         dat_num = len(dm_list_list[dmi])
         dat_range = range(dat_start, dat_start + dat_num)
 
-        #make the fft bash file
-        with open('{0}{1}/{2}_fft_a{3}_{4}.bash'.format(search_opts.work_dir,
-                  search_opts.sub_dir, search_opts.bsd_row_num,
-                  search_opts.attempt+1, dmi), "w") as srun_bash:
-            srun_bash.write(add_temp_database_function(dmi,
-                            search_opts.attempt + 1,
-                            n_omp_threads=1))
-            for ffti in dat_range:
-                command_fft = fft_commands[ffti]
-                if isinstance(command_fft, list):
-                    srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
-                                     command_fft[0], command_fft[1], search_opts.bsd_row_num,
-                                     ffti, search_opts.attempt+1))
-                    processing_time += command_fft[2]
-                else:
-                    srun_bash.write("realfft {}\n".format(command_fft))
-        commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}_{2}.bash".\
-                        format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
+        if not search_opts.single_pulse:
+            # Don't do fft or accel search if in single pulse search mode
+            #make the fft bash file
+            with open('{0}{1}/{2}_fft_a{3}_{4}.bash'.format(search_opts.work_dir,
+                      search_opts.sub_dir, search_opts.bsd_row_num,
+                      search_opts.attempt+1, dmi), "w") as srun_bash:
+                srun_bash.write(add_temp_database_function(dmi,
+                                search_opts.attempt + 1,
+                                n_omp_threads=1))
+                for ffti in dat_range:
+                    command_fft = fft_commands[ffti]
+                    if isinstance(command_fft, list):
+                        srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
+                                         command_fft[0], command_fft[1], search_opts.bsd_row_num,
+                                         ffti, search_opts.attempt+1))
+                        processing_time += command_fft[2]
+                    else:
+                        srun_bash.write("realfft {}\n".format(command_fft))
+            commands.append("srun --export=ALL -n 1 -c 1 bash {0}_fft_a{1}_{2}.bash".\
+                            format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
 
-        #make the accel bash file
-        with open('{0}{1}/{2}_accel_a{3}_{4}.bash'.format(search_opts.work_dir,
-                  search_opts.sub_dir, search_opts.bsd_row_num,
-                  search_opts.attempt+1, dmi), "w") as srun_bash:
-            srun_bash.write(add_temp_database_function(dmi,
-                            search_opts.attempt + 1,
-                            n_omp_threads=search_opts.n_omp_threads))
-            for ai in dat_range:
-                command_accel = accel_commands[ai]
-                if isinstance(command_accel, list):
-                    srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
-                                     command_accel[0], command_accel[1], search_opts.bsd_row_num,
-                                     ai, search_opts.attempt+1))
-                    processing_time += command_accel[2]
-                else:
-                    srun_bash.write("accelsearch {}\n".format(command_accel))
+            #make the accel bash file
+            with open('{0}{1}/{2}_accel_a{3}_{4}.bash'.format(search_opts.work_dir,
+                      search_opts.sub_dir, search_opts.bsd_row_num,
+                      search_opts.attempt+1, dmi), "w") as srun_bash:
+                srun_bash.write(add_temp_database_function(dmi,
+                                search_opts.attempt + 1,
+                                n_omp_threads=search_opts.n_omp_threads))
+                for ai in dat_range:
+                    command_accel = accel_commands[ai]
+                    if isinstance(command_accel, list):
+                        srun_bash.write('run "{0}" "{1}" "{2}" "{3}" "{4}"\n'.format(
+                                         command_accel[0], command_accel[1], search_opts.bsd_row_num,
+                                         ai, search_opts.attempt+1))
+                        processing_time += command_accel[2]
+                    else:
+                        srun_bash.write("accelsearch {}\n".format(command_accel))
 
 
-        commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
-                        format(search_opts.n_omp_threads, search_opts.bsd_row_num,
-                               search_opts.attempt+1, dmi))
+            commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
+                            format(search_opts.n_omp_threads, search_opts.bsd_row_num,
+                                   search_opts.attempt+1, dmi))
 
         # load python modules required to do the single pulse python script
         commands.append('ml numpy/1.14.1-python-2.7.14')
         commands.append('ml scipy/1.0.0-python-2.7.14')
         commands.append('single_pulse_search.py $JOBFS/*.dat')
+        commands.append('tar -czvf {0}_singlepulse.tar.gz '
+                          '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid))
+        commands.append('cp $JOBFS/{0}_singlepulse.tar.gz {1}{2}'.format(search_opts.obsid,
+                        search_opts.work_dir, search_opts.sub_dir))
         commands.append('cp $JOBFS/{0}_singlepulse.ps {1}{2}'.format(search_opts.obsid,
                         search_opts.work_dir, search_opts.sub_dir))
 
@@ -1391,7 +1405,13 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
     #TODO end temp sec
 
-    commands.append("{0} -m f -r {1}".format(search_opts.relaunch_script, search_opts.bsd_row_num))
+    if search_opts.single_pulse:
+        # If in single pulse mode skip the fold step and go to wrap up
+        commands.append("{0} -m w -r {1}".format(search_opts.relaunch_script,
+                                                 search_opts.bsd_row_num))
+    else:
+        commands.append("{0} -m f -r {1}".format(search_opts.relaunch_script,
+                                                 search_opts.bsd_row_num))
 
     submit_slurm(check_depend_batch, commands,
                  batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
@@ -1417,8 +1437,13 @@ def error_check(search_opts, bash_job=False,
     temp_mem = None
     if search_opts.table == 'Prepdata':
         total_job_time = 24000
-        next_mode = 't'
-        cur_mode = 'p'
+        if search_opts.single_pulse:
+            # In single pulse search mode so skip to accel/single pulse step
+            next_mode = 'w'
+            cur_mode = 'a'
+        else:
+            next_mode = 't'
+            cur_mode = 'p'
         if hostname.startswith('john') or hostname.startswith('farnarkle'):
             mem = 2048
     elif search_opts.table == 'FFT':
@@ -1471,13 +1496,21 @@ def error_check(search_opts, bash_job=False,
                 module_list.append('presto')
 
             #find ACCEL_sift path
-            import shutil
-            accel_sift = shutil.which("ACCEL_sift.py")
-            commands = []
-            commands.append(add_database_function())
-            commands.append('cd {0}'.format(search_opts.work_dir))
-            commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
-                                                                      search_opts.sub_dir))
+            if not search_opts.single_pulse:
+                # Only uses ACCEL_sift if doing a periodic search
+                import shutil
+                accel_sift = shutil.which("ACCEL_sift.py")
+                commands = []
+                commands.append(add_database_function())
+                commands.append('cd {0}'.format(search_opts.work_dir))
+                commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
+                                                                          search_opts.sub_dir))
+            # Runs single pulse search
+            commands.append('cd {0}{1}'.format(search_opts.work_dir, search_opts.sub_dir))
+            commands.append('single_pulse_search.py *.dat')
+            commands.append('tar -czvf {0}_singlepulse.tar.gz '
+                                      '{0}_DM*singlepulse'.format(search_opts.obsid))
+            commands.append('rm {0}_DM*singlepulse'.format(search_opts.obsid))
             commands.append('module use {}'.format(comp_config['module_dir']))
             if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
                 # If on galaxy it sometimes needs the python version explictedly stated
@@ -1698,6 +1731,8 @@ if __name__ == "__main__":
     search_options.add_argument("--search", action="store_true",
         help="Continue with the search pipeline after a successful beamforming "
              "check. Default False")
+    search_options.add_argument("--single_pulse", action="store_true",
+        help="Will do only a single pulse search (no period search). Default False")
     search_options.add_argument("--relaunch", action="store_true",
         help="Will rerun the search pipeline even when no beamforming is required. "
              "Otherwise assumes that if the beamforming is complete then a search "
@@ -1756,6 +1791,10 @@ if __name__ == "__main__":
 
     if not args.observation:
         print("No observation id given. Please supply one using -o. Exiting")
+        quit()
+
+    if args.search and args.single_pulse:
+        print("Please only use --search or --single_pulse. Exiting")
         quit()
 
     if args.pulsar and not args.pointing:
@@ -1856,6 +1895,8 @@ if __name__ == "__main__":
         relaunch_script += " -b " + str(args.begin) + " -e " + str(args.end)
     if args.search and args.mode == 'b':
         relaunch_script += " --search"
+    if args.single_pulse:
+        relaunch_script += " --single_pulse"
     if args.dm_max:
         relaunch_script += " --dm_max " + str(args.dm_max)
     if args.dm_min:
@@ -1884,6 +1925,7 @@ if __name__ == "__main__":
                  pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max,
                  dm_min_step=args.dm_min_step,
                  relaunch_script=relaunch_script, search=args.search,
+                 single_pulse=args.single_pulse,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
                  table=args.table, attempt=args.attempt, search_ver=args.mwa_search_version,
                  DI_dir=args.DI_dir)
