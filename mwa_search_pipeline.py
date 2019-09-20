@@ -482,7 +482,9 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
     
     #add search_opts.relaunch script
     if search_opts.relaunch_script is not None:
-        relaunch_script = "{0} -p {1} -s {1}/{2}".format(search_opts.relaunch_script,
+        relaunch_script = search_opts.relaunch_script
+        if not ("-p" in relaunch_script or "-s" in relaunch_script):
+            relaunch_script += "{0} -p {1} -s {1}/{2}".format(relaunch_script,
                                             search_opts.pointing, search_opts.obsid)
         if search_opts.bsd_row_num is not None:
             relaunch_script += ' -r {0}'.format(search_opts.bsd_row_num)
@@ -659,11 +661,24 @@ def beamform(search_opts, pointing_list, code_comment=None,
         else:
             path_check = True
 
+        
+        # Working out if we need start the database tracking
+        database_start_check = False
+        if search_opts.search and searched_check and not relaunch:
+            database_start_check = False
+        elif missing_file_check and not unspliced_check and not path_check:
+            database_start_check = True
+        elif path_check or len(missing_chan_list) == 24:
+            # set to false because the database is staarted in beamforming
+            database_start_check = False
+        elif unspliced_check:
+            # set to false because the database is staarted in beamforming
+            database_start_check = False
+        else:
+            database_start_check = True
 
-        if ((missing_file_check and not unspliced_check and search_opts.search) or \
-            (search_opts.search and ((not searched_check or relaunch) \
-                or len(pointing_list) == 1) ) )\
-            and bsd_row_num_input is None:
+        if search_opts.search and database_start_check and bsd_row_num_input is None and\
+           ((not searched_check or relaunch) or len(pointing_list) == 1):
                 search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                    search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
                 search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script,
