@@ -20,7 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 #----------------------------------------------------------------------
-def add_prepfold_to_commands(commands, pointing, pulsar, obsid, nbins, use_mask=True):
+def add_prepfold_to_commands(commands, pointing, pulsar, obsid, use_mask=True, start=None, end=None, nbins=100, ntimechunk=120, dmstep=1, period_search_n=1):
+
+    #find the beginning and end of the pulsar's beam coverage for this obs
+    if start==None or end==None:
+        start, end = pulsar_beam_coverage(obsid, pulsar)
+        logger.info("start and end of pulsar beam coverage for on-disk files:{0}, {1}".format(start, end))
+        if start>=1. or end<0.:
+            logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
+            sys.exit(1)
 
     comp_config = config.load_config_file()
     #Figure out whether or not to input a mask
@@ -33,31 +41,35 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, nbins, use_mask=
     else:
         mask=""
 
-    #find the beginning and end of the pulsar's beam coverage for this obs
-    start, end = pulsar_beam_coverage(obsid, pulsar)
-    logger.info("start and end of pulsar beam coverage for on-disk files:{0}, {1}".format(start, end))
-    if start>=1. or end<0.:
-        logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
-        sys.exit(1)
+
+    #make the prepfold command
+    constants = "-pstep 1 -pdstep 2 -ndmfact 1 -noxwin -nosearch -runavg -noclip -nsub 256 1*fits "
+    variables = "-o {0}_{1}_bins ".format(obsid, nbins)
+    variables += mask
+    variables += "-n {0} ".format(nbins)
+    variables += "-start {0} -end {1} ".format(start, end) 
+    variables += "-dmstep {0} ".format(dmstep)
+    variables += "-npart {0} ".format(ntimechunk)
+    variables += "-npfact {0} ".format(period_search_n)
+
 
     #load presto module here because it uses python 2
     commands.append('cd {0}'.format(pointing))
     commands.append('echo "Folding on known pulsar {0}"'.format(pulsar))
     commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
     commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
-    commands.append("prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -timing {1}.eph"\
-                    " -nsub 256 -n {2} {3} -start {4} -end {5} 1*.fits"\
-                    .format(obsid, pulsar, nbins, mask, start, end))
+    commands.append("prepfold -timing {0}.eph {1} {2}"\
+                    .format(pulsar, variables, constants))
     commands.append('errorcode=$?')
     commands.append('pulsar={}'.format(pulsar[1:]))
     pulsar_bash_string = '${pulsar}'
+
     #Some old ephems don't have the correct ra and dec formating and
     #causes an error with -timing but not -psr
     commands.append('if [ "$errorcode" != "0" ]; then')
     commands.append('   echo "Folding using the -psr option"')
-    commands.append('   prepfold -o {0}_{2}_bins -noxwin -nosearch -runavg -noclip -psr {1}'\
-                    ' -nsub 256 -n {2} {3} -start {4} -end {5} 1*.fits'\
-                    .format(obsid, pulsar, nbins, mask, start, end))
+    commands.append('   prepfold -psr {0} {1} {2}'\
+                    .format(pulsar, variables, constants))
     commands.append('   pulsar={}'.format(pulsar))
     commands.append('fi')
     commands.append('rm {0}.eph'.format(pulsar))
@@ -122,14 +134,14 @@ def bestprof_info(prevbins=None, filename=None):
     lines = f.read()
     lines = lines.split("\n")
     #info:
-    info_dict["obsid"] = lines[0].split()[4].split("_")[0]
+    info_dict["obsid"] = int(lines[0].split()[4].split("_")[0])
     info_dict["pulsar"] = lines[1].split()[3].split("_")[1]
-    info_dict["nbins"] = lines[9].split()[4]
-    info_dict["chi"] = lines[12].split()[4]
-    info_dict["sn"] = lines[13].split()[4][2:]
-    info_dict["dm"] = lines[14].split()[4]
-    info_dict["period"] = lines[15].split()[4] #in ms
-    info_dict["period_error"] = lines[15].split()[6]
+    info_dict["nbins"] = int(lines[9].split()[4])
+    info_dict["chi"] = float(lines[12].split()[4])
+    info_dict["sn"] = float(lines[13].split()[4][2:])
+    info_dict["dm"] = float(lines[14].split()[4])
+    info_dict["period"] = float(lines[15].split()[4]) #in ms
+    info_dict["period_error"] = float(lines[15].split()[6])
     f.close()
     return info_dict
 
@@ -141,28 +153,36 @@ def bin_sampling_limit(pulsar, sampling_rate=0.1):
         period = query.pandas["P0"]
     except:
         logger.warn("ATNF database unavailable, attempting to find period from bestprof")
-        period = float(bestprof_info(prevbins=64)["period"])
+        period = bestprof_info(prevbins=100)["period"]
     
     min_bins = int(period/sampling_rate + 1) #the +1 is to round the limit up every time
-    logger.info("Bin limit: {0}".format(min_bins))
+    logger.debug("Bin limit: {0}".format(min_bins))
     return min_bins
     
 #----------------------------------------------------------------------
 def submit_to_db(run_params, ideal_bins):
 
-    logger.info("submitting profile to database: {0}".format(prof_name))
+    logger.info("submitting profile to database: {0}".format(run_params.bestprof))
     #Add path to filenames for submit script
     cwd = os.getcwd()
     ppps = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd.ps".format(ideal_bins, run_params.pulsar[1:]))[0]
     bestprof_name = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd.bestprof".format(ideal_bins, run_params.pulsar[1:]))[0]
     png_output = cwd +  "/" + glob.glob("*{0}_bins*{1}*.png".format(ideal_bins, run_params.pulsar[1:]))[0]
-
+    pfd = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd".format(ideal_bins, run_params.pulsar[1:]))[0]
+    
+    #do the same for 100 bin profiles
+    ppps_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.ps".format(run_params.pulsar[1:]))[0]
+    bestprof_name_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.bestprof".format(run_params.pulsar[1:]))[0]
+    png_output_100 = cwd +  "/" + glob.glob("*_100_bins*{0}*.png".format(run_params.pulsar[1:]))[0]
+    pfd_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd".format(run_params.pulsar[1:]))[0]
+    
+    products = [ppps, bestprof_name, png_output, pfd,\
+            ppps_100, bestprof_name_100, png_output_100, pfd_100]
+    
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
-    data_process_pipeline.copy_data(ppps, data_dir)
-    data_process_pipeline.copy_data(prof_name, data_dir)
-    data_process_pipeline.copy_data(png_output, data_dir)
-
+    for product in products:
+        data_process_pipeline.copy_data(product, data_dir)
 
     commands = []
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
@@ -195,39 +215,6 @@ def submit_to_db(run_params, ideal_bins):
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 #----------------------------------------------------------------------
-def check_conditions(threshold, prevbins):
-
-    #returns a dictionary of a bunch of stuff that decides if and how to run prepfold
-    info_dict = bestprof_info(prevbins=prevbins)
-    condition_dict = {}
-    if float(info_dict["sn"]) < threshold:
-        condition_dict["sn_good"] = False
-        logger.info("Signal to noise ratio of the previous run was below the threshold")
-    else:
-        condition_dict["sn_good"] = True
-
-    if float(info_dict["chi"]) < 4.0:
-        condition_dict["chi_good"] = False
-        logger.info("Chi value of the previous run was below 4")
-    else:
-        condition_dict["chi_good"] = True
-
-    if int(float(info_dict["sn"])) == 0:
-        condition_dict["sn_nonzero"] = False
-        logger.info("The singal to noise ratio for this file is zero. Using chi for evalutation")
-    else:
-        condition_dict["sn_nonzero"] = True
-
-    if int(info_dict["nbins"]) > int(float(info_dict["period"]))/1000 * 10000: #the 10k is the 10khz time res of MWA
-        condition_dict["sampling_good"] = False
-        logger.warn("The maximum sampling frequency for this pulsar has been reached")
-    else:
-        condition_dict["sampling_good"] = True
-
-
-    return condition_dict
-
-#----------------------------------------------------------------------
 def get_best_profile(pointing_dir, threshold):
 
     #find all of the relevant bestprof profiles in the pointing directory
@@ -242,9 +229,9 @@ def get_best_profile(pointing_dir, threshold):
     chi_order = []
     for prof in bestprof_names:
         prof_info = bestprof_info(filename=prof)
-        bin_order.append(int(prof_info["nbins"]))
-        sn_order.append(float(prof_info["sn"]))
-        chi_order.append(float(prof_info["chi"]))
+        bin_order.append(prof_info["nbins"])
+        sn_order.append(prof_info["sn"])
+        chi_order.append(prof_info["chi"])
     bin_order, sn_order, chi_order = zip(*sorted(zip(bin_order, sn_order, chi_order)))
     bin_order = bin_order[::-1]
     sn_order = sn_order[::-1]
@@ -254,10 +241,11 @@ def get_best_profile(pointing_dir, threshold):
     best_i = None
     bin_lim = bin_sampling_limit(run_params.pulsar)
     for i in range(len(bin_order)):
-        if bin_order[i]<=bin_lim: #only consider profiles where the number of bins is above sampling rate
-            if float(sn_order[i])>=threshold and float(chi_order[i])>=4.0:
+        if bin_order[i]<=bin_lim: #only consider profiles where the number of bins used is lower than the bin upper limit
+            if sn_chi_test(sn_order[i], chi_order[i]) == True:
                 best_i = i
                 break
+
     if best_i is None:
         logger.info("No profiles fit the threshold parameter")
         return None, None
@@ -267,22 +255,40 @@ def get_best_profile(pointing_dir, threshold):
         return prof_name, bin_order[best_i]
 
 #----------------------------------------------------------------------
-def submit_multifold(run_params, nbins=64):
+def sn_chi_test(sn, chi, sn_thresh=10., chi_thresh=4.):
+    test = False
+    if sn >= sn_thresh and chi >= chi_thresh:
+        test = True
+    elif sn == 0. and chi >= chi_thresh:
+        test = True
+    return test
+
+#----------------------------------------------------------------------
+def submit_multifold(run_params, nbins=100):
 
     job_ids = []
     comp_config=config.load_config_file()
+
+    #Check beam coverage for the pulsar
+    start, end = pulsar_beam_coverage(run_params.obsid, run_params.pulsar)
+    logger.info("start and end of pulsar beam coverage for on-disk files:{0}, {1}".format(start, end))
+    if start>=1. or end<0.:
+        logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
+        sys.exit(1)
+
     for i, pointing in enumerate(run_params.pointing_dir):
         logger.info("submitting pointing:{0}".format(pointing))
         #os.chdir(pointing)
         #create slurm job:
         commands = []
-        commands = add_prepfold_to_commands(commands, pointing, run_params.pulsar, run_params.obsid, nbins)
+        commands = add_prepfold_to_commands(commands, pointing, run_params.pulsar, run_params.obsid,\
+                    start=start, end=end, nbins=nbins)
 
         name = "multifold_binfind_{0}_{1}".format(run_params.pulsar, i)
         batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
         myid = submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
-                    slurm_kwargs={"time": "1:00:00"},\
+                    slurm_kwargs={"time": "2:00:00"},\
                     module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                                 'presto/no-python'],\
                     submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
@@ -310,7 +316,7 @@ def submit_multifold(run_params, nbins=64):
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     myid = submit_slurm(name, commands,\
             batch_dir=batch_dir,\
-            slurm_kwargs={"time": "00:10:00"},\
+            slurm_kwargs={"time": "00:30:00"},\
             module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                         "presto/no-python"],\
             submit=True, depend=job_ids, depend_type="afterany",\
@@ -335,7 +341,7 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     logger.info("Submitting job for {0} bins".format(nbins))
     #create slurm job:
     commands = []
-    commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins)
+    commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins=nbins)
 
     if finish==False:
         #Rerun this script
@@ -357,16 +363,16 @@ def submit_prepfold(run_params, nbins=32, finish=False):
                 module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                             'presto/no-python'],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
-    logger.info("Job successfully submitted")
+    logger.info("Job successfully submitted: {0}".format(name))
 
 
 
 #----------------------------------------------------------------------
-def find_best_pointing(run_params, nbins=64, submit_next=True):
+def find_best_pointing(run_params, nbins=100, submit_next=True):
     
     """
     Finds the pointing directory with the highest S/N out of those given in run_params.pointing_dir
-    The nbins value is the bin value to search over. Default is 64
+    The nbins value is the bin value to search over. Default is 100 
     submit_next tells the function whether or not to continue with the binfinder pipeline. Default=True
     """
 
@@ -381,12 +387,13 @@ def find_best_pointing(run_params, nbins=64, submit_next=True):
     best_sn = 0.0
     best_i = -1
     for i, info_dict in enumerate(bestprof_info_list):
-        if float(info_dict["chi"])>=4.0 and float(info_dict["sn"])>best_sn:
-            best_sn = float(info_dict["sn"])
+        if info_dict["chi"]>=4.0 and info_dict["sn"]>best_sn:
+            best_sn = info_dict["sn"]
             best_i = i
 
-    if best_i<0 and best_sn<5.0:
+    if best_i<0 and best_sn<run_params.threshold:
         logger.info("No pulsar found in pointings. Exiting...")
+        sys.exit(0)
     else:
         logger.info("Pulsar found in pointings. Running binfinder script on pointing: {0}"\
                     .format(run_params.pointing_dir[best_i]))
@@ -399,7 +406,7 @@ def find_best_pointing(run_params, nbins=64, submit_next=True):
         bin_limit = bin_sampling_limit(run_params.pulsar)
         if bin_limit >= 1024: 
             submit_prepfold(run_params, nbins=1024)
-        elif bin_limit >=64:
+        elif bin_limit >=100:
             submit_prepfold(run_params, nbins=bin_limit)
         else:
             logger.info("This pulsar has a low period. Folding with a smaller number of bins")
@@ -417,30 +424,26 @@ def iterate_bins(run_params):
         info_dict = bestprof_info(prevbins=run_params.prevbins)
 
         #Check to see if SN and chi are above threshold
-        #If continue == True, prepfold will run again
-        cont = False
-        condition_dict = check_conditions(run_params.threshold, run_params.prevbins)
-        if condition_dict["sn_nonzero"] is False:
-            if condition_dict["sn_good"] is False:
-                cont = True
-        elif condition_dict["chi_good"] is False:
-            cont = True
-
-
-        finish = False
-        if cont is True:
+        #If finish == True, prepfold will run again
+        info_dict = bestprof_info(prevbins=run_params.prevbins)         
+        sn = info_dict["sn"]
+        chi = info_dict["chi"]
+        #decide whether to continue based on previous run's SN and chi
+        finish = sn_chi_test(sn, chi)
+            
+        if finish is False:
             #Choosing the number of bins to use
-            nbins = int(float(info_dict["nbins"]))/2
+            nbins = info_dict["nbins"]/2
             
             #Comparing nbins to sampling rate
-            bin_limit = bin_sampling_limit(run_params.pulsar)
+            bin_upper_lim = bin_sampling_limit(run_params.pulsar)
 
-            if nbins < bin_limit:
+            if nbins < bin_upper_lim and bin_upper_lim<1024:
                 logger.info("Time sampling limit reached. Bins will be reduced once more")
-                nbins = bin_limit
+                nbins = bin_upper_lim
                 finish=True
                 
-            if nbins<=64:
+            if nbins<=100:
                 logger.warn("Minimum number of bins hit. Script will run once more")
                 finish=True
 
@@ -449,18 +452,16 @@ def iterate_bins(run_params):
 
         else:
             #Threshold reached, find the best profile and submit it to DB
-            logger.info("Signal to noise or Chi above threshold at {0} bins".format(info_dict["nbins"]))
+            logger.info("S/N iand Chi above threshold at {0} bins in pointing directory: {1}".format(info_dict["nbins"], run_params.pointing_dir))
             logger.info("Finding best profile in directory and submitting to database")
             bestprof, _ = get_best_profile(run_params.pointing_dir, run_params.threshold)
-            if bestprof==None:
-                logger.info("No profiles found with threshold parameters. Attempting threshold=5.0")
-                bestprof, _ = get_best_profile(run_params.pointing_dir, 5.0)
-                if bestprof==None:
-                    logger.info("Non-detection on pulsar {0}".format(run_params.pulsar))
-                    logger.info("Exiting....")
-                    sys.exit(0)
 
-            run_params.set_best_bins(int(float(info_dict["nbins"])))
+            if bestprof==None:
+                logger.info("Non-detection on pulsar {0}".format(run_params.pulsar))
+                logger.info("Exiting....")
+                sys.exit(0)
+
+            run_params.set_best_bins(info_dict["nbins"])
             #Plot the bestprof nicely
             prof_path = run_params.pointing_dir + "/" + bestprof
             nice_prof_path = plotting_toolkit.plot_bestprof(prof_path, run_params.pointing_dir, nocrop=run_params.nocrop)
@@ -575,7 +576,7 @@ if __name__ == '__main__':
     elif run_params.mode=="m":
         submit_multifold(run_params)
     elif run_params.mode=="b":
-        find_best_pointing(run_params, nbins=64)
+        find_best_pointing(run_params, nbins=100)
     elif run_params.mode=="f":
         iterate_bins(run_params)
     else:
