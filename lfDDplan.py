@@ -68,6 +68,7 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
 
     #Loop until you've made a hit your range max
     D_DM = 0.
+    downsample = 1
     while D_DM < round(highDM, 2):
         #calculate the DM where the current time resolution equals the
         #dispersion in a frequency channel (a bit of an overkill)
@@ -103,11 +104,12 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         D_DM = round(D_DM, 2)
         nDM_step = int((D_DM - previous_DM) / DM_step)
         if D_DM > lowDM:
-            DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres ])
+            DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, downsample ])
             previous_DM = D_DM
 
         #Double time res to account for incoherent dedispersion
         timeres *= 2.
+        downsample *= 2
 
     return DD_plan_array
 
@@ -149,11 +151,11 @@ if __name__ == "__main__":
 
 
     DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM, min_DM_step=args.min_DM_step)
-    print(" low DM | high DM | DeltaDM | Nsteps | Effective time resolution (ms)")
+    print(" low DM | high DM | DeltaDM | Nsteps | Downsamp | Effective time resolution (ms)")
     total_steps = 0
     for d in DD_plan_array:
-        print("{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:7.3f}".\
-               format(d[0], d[1], d[2], d[3], d[4]))
+        print("{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:8d} | {5:7.3f}".\
+               format(d[0], d[1], d[2], d[3], d[5], d[4]))
         total_steps += d[3]
     print("Total DM steps required: {}".format(total_steps))
 
