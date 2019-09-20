@@ -14,7 +14,7 @@ import astropy.units as u
 # vcstools and mwa_search imports
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
-from mwa_metadb_utils import obs_max_min
+from mwa_metadb_utils import obs_max_min, get_obs_array_phase
 import config
 from grid import get_grid
 import checks
@@ -65,6 +65,37 @@ def check_data(obsid, beg=None, dur=None):
 
     return
 
+
+def calc_ta_fwhm(freq, array_phase='P2C'):
+    """
+    Calculates the approximate FWHM of the tied array beam in degrees.
+    Input:
+        freq: Frequency in MHz
+    Optional inputs:
+        array_phase: the different array phase (from P1, P2C, P2E) to work out
+                     the maximum baseline length. Default P2C
+    Output:
+        fwhm: FWHM in degrees
+    """
+    from scipy.constants import c
+    from math import degrees
+
+    # Work out baseline in meters
+    if array_phase == 'P1':
+        # True max_baseline is 2800 but due to the minimal amount of long baselines
+        # the following is more realisitic
+        max_baseline = 2200.
+    if array_phase == 'P2C':
+        # True max_baseline is 700.
+        max_baseline = 360.
+    elif array_phase == 'P2E':
+        max_baseline = 5300.
+
+    wavelength = c / (freq * 1e6)
+    fwhm = degrees(wavelength / max_baseline)
+
+    return fwhm
+
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       vdif_check=False, product_dir='/group/mwaops/vcs',
                       mwa_search_version='master'):
@@ -77,6 +108,10 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     channels = meta_data[-1][-1]
+
+    oap = get_obs_array_phase(obsid)
+    centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
+    fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
 
     pointing_list = []
     jname_list = []
@@ -119,8 +154,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
             decr = coord.dec.radian
 
             #make a grid around each pulsar
-            grid_sep = np.radians(0.3 * 0.6) #TODO work this out for each obs
-            rads, decds = get_grid(rar, decr, grid_sep, 2)
+            grid_sep = np.radians(fwhm * 0.6)
+            rads, decds = get_grid(rar, decr, grid_sep, 1)
 
             #convert back to sexidecimals
             coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
