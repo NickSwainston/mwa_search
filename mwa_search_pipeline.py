@@ -42,7 +42,7 @@ class search_options_class:
                  channels=None, incoh=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
                  dm_min=0, dm_max=250, dm_min_step=0.01,
-                 relaunch_script=None, search=False, single_pulse=False,
+                 relaunch_script=None, search=False, single_pulse=False, downsample=False,
                  bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
                  nice=None, search_ver='master',
@@ -95,6 +95,7 @@ class search_options_class:
         self._relaunch_script   = relaunch_script
         self.search             = search
         self.single_pulse       = single_pulse
+        self.downsample         = downsample
         self._bsd_row_num       = bsd_row_num
         self.cold_storage_check = cold_storage_check
         self._table             = table
@@ -908,12 +909,18 @@ def prepdata(search_opts):
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = dm_line[1] #float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
+
+        if search_opts.downsample:
+            downsample = dm_line[-1]
+        else:
+            downsample = 1
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
             commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
-                '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
-                mask_command, nsub, dm_line[2], dms_per_job+1, numout, SSD_file_dir,
-                search_opts.obsid, search_opts.pointing_dir))
+                '-numdms {4} -numout {5} -zerodm -o {6}{7} -downsamp {8} '
+                '{9}{7}_*.fits'.format(dm_start, mask_command, nsub, dm_line[2],
+                    dms_per_job+1, numout, SSD_file_dir, search_opts.obsid,
+                    downsample, search_opts.pointing_dir))
             dm_list_list.append(np.around(np.arange(float(dm_start),
                                           float(dm_start) + float(dms_per_job) * float(dm_line[2]),
                                           float(dm_line[2])), decimals=2))
@@ -1329,6 +1336,13 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
             commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
                             format(search_opts.n_omp_threads, search_opts.bsd_row_num,
                                    search_opts.attempt+1, dmi))
+            
+                            #Remove accel files off ssd
+            commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
+                                                              search_opts.sub_dir))
+            commands.append('cp $JOBFS/*inf {0}{1}'.format(search_opts.work_dir,
+                                                              search_opts.sub_dir))
+
 
         # load python modules required to do the single pulse python script
         commands.append('ml numpy/1.14.1-python-2.7.14')
@@ -1336,18 +1350,10 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         commands.append('single_pulse_search.py $JOBFS/*.dat')
         commands.append('tar -czvf {0}_singlepulse.tar.gz '
                           '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid))
-        commands.append('cp $JOBFS/{0}_singlepulse.tar.gz {1}{2}'.format(search_opts.obsid,
-                        search_opts.work_dir, search_opts.sub_dir))
         commands.append('cp $JOBFS/{0}_singlepulse.ps {1}{2}'.format(search_opts.obsid,
                         search_opts.work_dir, search_opts.sub_dir))
 
-        #Remove accel files off ssd
-        commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
-                                                          search_opts.sub_dir))
-        commands.append('cp $JOBFS/*inf {0}{1}'.format(search_opts.work_dir,
-                                                          search_opts.sub_dir))
-
-        #load python modules and run database scripts
+                #load python modules and run database scripts
         #TODO Temporarily removed to avoid database timeout issues
         '''
         commands.append('module load mwa_search/{0}'.format(search_opts.search_ver))
@@ -1733,6 +1739,8 @@ if __name__ == "__main__":
              "check. Default False")
     search_options.add_argument("--single_pulse", action="store_true",
         help="Will do only a single pulse search (no period search). Default False")
+    search_options.add_argument("--downsample", action="store_true",
+        help="This will activate downsampling in the dedispersion step. Default False")
     search_options.add_argument("--relaunch", action="store_true",
         help="Will rerun the search pipeline even when no beamforming is required. "
              "Otherwise assumes that if the beamforming is complete then a search "
@@ -1897,6 +1905,8 @@ if __name__ == "__main__":
         relaunch_script += " --search"
     if args.single_pulse:
         relaunch_script += " --single_pulse"
+    if args.downsample:
+        relaunch_script += " --downsample"
     if args.dm_max:
         relaunch_script += " --dm_max " + str(args.dm_max)
     if args.dm_min:
@@ -1925,7 +1935,7 @@ if __name__ == "__main__":
                  pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max,
                  dm_min_step=args.dm_min_step,
                  relaunch_script=relaunch_script, search=args.search,
-                 single_pulse=args.single_pulse,
+                 single_pulse=args.single_pulse, downsample=args.downsample,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
                  table=args.table, attempt=args.attempt, search_ver=args.mwa_search_version,
                  DI_dir=args.DI_dir)
