@@ -39,7 +39,7 @@ class search_options_class:
     # Initializer / Instance Attributes
     def __init__(self, obsid,
                  pointing=None, cal_id=None, begin=None, end=None,
-                 channels=None, incoh=False, args=None,
+                 channels=None, incoh=False, vdif=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
                  dm_min=0, dm_max=250, dm_min_step=0.01,
                  relaunch_script=None, search=False, single_pulse=False, downsample=False,
@@ -58,6 +58,7 @@ class search_options_class:
         self.end      = end
         self.channels = get_channels(obsid, channels=channels)
         self.incoh    = incoh
+        seld.vdif     = vdif
         self.args     = args
 
         #directories
@@ -317,7 +318,7 @@ def get_pulsar_dm_p(pulsar):
 
 def process_vcs_wrapper(search_opts, pointings,
                         pulsar_list_list=None,
-                        vdif=False, summed=False,
+                        summed=False,
                         code_comment=None, pointing_id=None,
                         channels=None):
     """
@@ -345,7 +346,7 @@ def process_vcs_wrapper(search_opts, pointings,
         incoh_rfimask = True
         bf_formats += " -i"
         os.mkdir('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid))
-    if vdif:
+    if search_opts.vdif:
         bf_formats += " -u"
     if summed:
         bf_formats += " -s"
@@ -518,7 +519,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
 
 
 def beamform(search_opts, pointing_list, code_comment=None,
-             pulsar_list_list=None, vdif=False, summed=False,
+             pulsar_list_list=None, summed=False,
              relaunch=False):
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     bsd_row_num_input = search_opts.bsd_row_num
@@ -727,7 +728,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             dep_job_id, incoh_splice_job_id = process_vcs_wrapper(search_opts,
                                 [search_opts.pointing],
                                 pulsar_list_list=[pulsar_list],
-                                vdif=vdif, summed=summed,
+                                summed=summed,
                                 code_comment=code_comment,
                                 pointing_id=temp_pointing_id,
                                 channels=missing_chan_list)
@@ -779,7 +780,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             dep_job_id_list, incoh_splice_job_id = process_vcs_wrapper(search_opts,
                                 pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
-                                vdif=vdif, summed=summed,
+                                summed=summed,
                                 code_comment=code_comment, pointing_id=pointing_id,
                                 channels=search_opts.channels)
             logger.debug("pulsar_list_list_to_beamform: {}".format(pulsar_list_list_to_beamform))
@@ -1729,6 +1730,8 @@ if __name__ == "__main__":
         help="Last GPS time to process [no default]")
     beamform_options.add_argument("-a", "--all", action="store_true",
         help="Perform on entire observation span. Use instead of -b & -e.")
+    beamform_options.add_argument('--vdif', action="store_true",
+        help="Performs the inverse PFB  in beamforming making vdif files")
     beamform_options.add_argument("--fits_dir", default=None,
         help="The directory containing the fits files. Only required if the fits "
              "files aren't in the standard vcs location.")
@@ -1915,6 +1918,8 @@ if __name__ == "__main__":
         relaunch_script += " --dm_min_step " + str(args.dm_min_step)
     if args.incoh:
         relaunch_script +=  " --incoh "
+    if args.vdif:
+        relaunch_script +=  " --vdif "
     if args.mwa_search_version:
         relaunch_script +=  " -v " + str(args.mwa_search_version)
     if args.fits_dir:
@@ -1933,7 +1938,7 @@ if __name__ == "__main__":
                  begin=args.begin, end=args.end, channels=args.channels, incoh=args.incoh,
                  args=args, work_dir=work_dir, sub_dir=sub_dir, fits_dir_base=fits_dir_base,
                  pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max,
-                 dm_min_step=args.dm_min_step,
+                 dm_min_step=args.dm_min_step, vdif=args.vdif,
                  relaunch_script=relaunch_script, search=args.search,
                  single_pulse=args.single_pulse, downsample=args.downsample,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,

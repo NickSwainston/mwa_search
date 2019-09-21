@@ -113,71 +113,103 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
     fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
 
-    pointing_list = []
-    jname_list = []
+    # Sort all the sources into 3 categories, pulsars which is for slow pulsars, vdif 
+    # for fast pulsars that require vdif and sp for singple pulse searches (FRBs,
+    # RRATs and pulsars without ATNF periods)
+    pulsar_pointing_list = []
+    pulsar_name_list = []
+    vdif_pointing_list = []
+    vdif_name_list = []
+    sp_pointing_list = []
+    sp_name_list = []
     for pulsar_line in obs_data[obsid]:
+        vdif_check = False
+        sp_check = False
+        
         PSRJ = pulsar_line[0]
-        if len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
-            temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
-            temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
-            jname, raj, decj = temp[0]
-            #get pulsar period
-            cmd = ['psrcat', '-c', 'p0', jname]
-            output = subprocess.Popen(cmd,stdout=subprocess.PIPE).communicate()[0].decode()
-            period = output.split('\n')[4].split()[1] #in s
+        if not (len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa'):
+            continue
+        temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
+        temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
+        jname, raj, decj = temp[0]
+        #get pulsar period
+        period = psrqpy.QueryATNF(params=["P0"], psrs=[jname]).pandas["P0"]
 
-            if '*' in period:
-                print("WARNING: Period not found in ephermeris for {0}".format(jname))
-                period=0
+        if '*' in period:
+            print("WARNING: Period not found in ephermeris for {0} so assuming "
+                  "it's an RRAT".format(jname))
+            sp_check = True
+            period = 0
+        elif float(period) < .05:
+            vdif_check = True
+        else:
+            period = float(period)*1000.
+        print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
+               PSRJ, raj, decj, period, psrbeg, psrend))
+
+        jname_temp_list = []
+        if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
+            #Got to find all the pulsar J names with other letters
+            vdif_check = True
+            for pulsar_l in pulsar_lines:
+                if pulsar_l.startswith(PSRJ[:-2]):
+                    jname_temp_list.append(pulsar_l.split()[0])
+        else:
+            jname_temp_list.append(jname)
+
+        #convert to radians
+        coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
+        rar = coord.ra.radian #in radians
+        decr = coord.dec.radian
+
+        #make a grid around each pulsar
+        grid_sep = np.radians(fwhm * 0.6)
+        rads, decds = get_grid(rar, decr, grid_sep, 1)
+
+        #convert back to sexidecimals
+        coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
+        rajs = coord.ra.to_string(unit=u.hour, sep=':')
+        decjs = coord.dec.to_string(unit=u.degree, sep=':')
+        temp = []
+        for raj, decj in zip(rajs, decjs):
+            temp.append([raj, decj])
+        pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+        
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            if vdif_check:
+                vdif_name_list.append(jname_temp_list)
+                vdif_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+            elif sp_check:
+                sp_name_list.append(jname_temp_list)
+                sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
             else:
-                period = float(period)*1000.
-            print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
-                   PSRJ, raj, decj, period, psrbeg, psrend))
-
-            jname_temp_list = []
-            if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
-                #Got to find all the pulsar J names with other letters
-                vdif_check = True
-                for pulsar_l in pulsar_lines:
-                    if pulsar_l.startswith(PSRJ[:-2]):
-                        jname_temp_list.append(pulsar_l.split()[0])
-            else:
-                jname_temp_list.append(jname)
-                #if b'*' in period:
-                #    continue
-                #if float(period) < .05 :
-                #    vdif_check = True
-
-            #convert to radians
-            coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
-            rar = coord.ra.radian #in radians
-            decr = coord.dec.radian
-
-            #make a grid around each pulsar
-            grid_sep = np.radians(fwhm * 0.6)
-            rads, decds = get_grid(rar, decr, grid_sep, 1)
-
-            #convert back to sexidecimals
-            coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
-            rajs = coord.ra.to_string(unit=u.hour, sep=':')
-            decjs = coord.dec.to_string(unit=u.degree, sep=':')
-            temp = []
-            for raj, decj in zip(rajs, decjs):
-                temp.append([raj, decj])
-            pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
-            for prd in pointing_list_list:
-                jname_list.append(jname_temp_list)
-                pointing_list.append("{0} {1}".format(prd[0], prd[1]))
-    #Setting vdif to false since multi-pixel doesn't have vdif working yet
-    vdif_check = False
-    relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels".format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+                pulsar_name_list.append(jname_temp_list)
+                pulsar_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    
+    # Send off pulsar search
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
                               search_ver=mwa_search_version)
-    search_pipe.beamform(search_opts, pointing_list, pulsar_list_list=jname_list)
+    search_pipe.beamform(search_opts, pulsar_pointing_list,
+                         pulsar_list_list=pulsar_name_list)
+
+    #Send off vdif pulsar search
+    relaunch_script = "{0} --vdif".format(relaunch_script)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels,
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version, vdif=True)
+    search_pipe.beamform(search_opts, vdif_pointing_list,
+                         pulsar_list_list=vdif_name_list)
+
+    #Get the rest of the singple pulse search canidates
+
+
 
 
 
