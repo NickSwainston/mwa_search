@@ -6,7 +6,9 @@ import find_pulsar_in_obs as fpio
 import os
 import glob
 import subprocess
+import math
 import numpy as np
+import psrqpy
 
 from astropy.coordinates import SkyCoord
 import astropy.units as u
@@ -41,7 +43,12 @@ def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
 
     return beg, end
 
-def check_data(obsid, beg=None, dur=None):
+def check_data(obsid, beg=None, dur=None, base_dir=None):
+
+    if base_dir is None:
+        comp_config = config.load_config_file()
+        base_dir = comp_config['base_data_dir']
+    comb_dir = "{0}{1}/combined".format(base_dir, obsid)
 
     if type(beg) is not int:
         beg = int(beg)
@@ -52,10 +59,10 @@ def check_data(obsid, beg=None, dur=None):
     if beg is not None and dur is not None:
         logger.info("Checking recombined files beginning at {0} and ending at {1}. Duration: {2} seconds"\
                     .format(beg, (beg+dur), dur))
-        error = checks.check_recombine(obsid, startsec=beg, n_secs=dur)
+        error = checks.check_recombine(obsid, startsec=beg, n_secs=dur, directory=comb_dir)
     else:
         logger.warn("No start time information supplied. Comparing files with full obs")
-        error = checks.check_recombine(obsid)
+        error = checks.check_recombine(obsid, directory=comb_dir)
 
     if error == True:
         logger.error("Recombined files check has failed. Cannot continue")
@@ -97,7 +104,7 @@ def calc_ta_fwhm(freq, array_phase='P2C'):
     return fwhm
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
-                      vdif_check=False, product_dir='/group/mwaops/vcs',
+                      product_dir='/group/mwaops/vcs',
                       mwa_search_version='master'):
 
 
@@ -133,19 +140,19 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
-        period = psrqpy.QueryATNF(params=["P0"], psrs=[jname]).pandas["P0"]
+        period = psrqpy.QueryATNF(params=["P0"], psrs=[jname]).pandas["P0"][0]
 
-        if '*' in period:
+        if math.isnan(period):
             print("WARNING: Period not found in ephermeris for {0} so assuming "
                   "it's an RRAT".format(jname))
             sp_check = True
-            period = 0
+            period = 0.
         elif float(period) < .05:
             vdif_check = True
         else:
             period = float(period)*1000.
-        print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(
-               PSRJ, raj, decj, period, psrbeg, psrend))
+        print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(PSRJ,
+               raj, decj, period, psrbeg, psrend))
 
         jname_temp_list = []
         if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
@@ -187,6 +194,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 pulsar_name_list.append(jname_temp_list)
                 pulsar_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
+    print('SENDING OFF PULSAR SEARCHS')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
@@ -198,6 +206,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     search_pipe.beamform(search_opts, pulsar_pointing_list,
                          pulsar_list_list=pulsar_name_list)
 
+    print('SENDING OFF VDIF PULSAR SEARCHS')
     #Send off vdif pulsar search
     relaunch_script = "{0} --vdif".format(relaunch_script)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
@@ -208,8 +217,47 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                          pulsar_list_list=vdif_name_list)
 
     #Get the rest of the singple pulse search canidates
+    names_ra_dec = np.array(fpio.grab_source_alog(source_type='RRATs', max_dm=250))
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    
+    for pulsar_line in obs_data[obsid]:
+        jname, raj, decj, dm = pulsar_line
+        jname_temp_list = [jname]
 
+        #convert to radians
+        coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
+        rar = coord.ra.radian #in radians
+        decr = coord.dec.radian
 
+        #make a grid around each pulsar
+        grid_sep = np.radians(fwhm * 0.6)
+        rads, decds = get_grid(rar, decr, grid_sep, 1)
+
+        #convert back to sexidecimals
+        coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
+        rajs = coord.ra.to_string(unit=u.hour, sep=':')
+        decjs = coord.dec.to_string(unit=u.degree, sep=':')
+        temp = []
+        for raj, decj in zip(rajs, decjs):
+            temp.append([raj, decj])
+        pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+        
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            sp_name_list.append(jname_temp_list)
+            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    
+    print('SENDING OFF SINGLE PULSE SEARCHS')
+    # Send off pulsar search
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    for ch in channels:
+        relaunch_script = "{0} {1}".format(relaunch_script, ch)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels,
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version, single_pulse=True)
+    search_pipe.beamform(search_opts, sp_pointing_list,
+                         pulsar_list_list=sp_name_list)
 
 
 
@@ -226,15 +274,20 @@ if __name__ == "__main__":
 
     Based on a script written by Mengyao Xue.
     """)
-    parser.add_argument('-o','--obsid',type=str,help='The observation ID of the fits file to be searched')
-    parser.add_argument("--DI_dir", default=None, help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
-    parser.add_argument('-O','--cal_obs', type=int, help="Observation ID of calibrator you want to process.", default=None)
-    parser.add_argument("-v", "--vdif", action="store_true",  help="Create vdif files for all pulsars. Default is to only create vdif files for pulsar with a period shorter than 50 ms.")
+    parser.add_argument('-o', '--obsid', type=str,
+            help='The observation ID of the fits file to be searched')
+    parser.add_argument("--DI_dir", default=None,
+            help="Directory containing either Direction Independent Jones Matrices (as created by the RTS) or calibration_solution.bin as created by Andre Offringa's tools.[no default]")
+    parser.add_argument('-O','--cal_obs', type=int,
+            help="Observation ID of calibrator you want to process.", default=None)
     parser.add_argument("-b", "--begin", type=int, help="First GPS time to process [no default]")
     parser.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
-    parser.add_argument("-a", "--all", action="store_true", default=False, help="Perform on entire observation span. Use instead of -b & -e")
+    parser.add_argument("-a", "--all", action="store_true", default=False,
+            help="Perform on entire observation span. Use instead of -b & -e")
+    parser.add_argument("-n", "--no_comb_check", action="store_true",
+            help="Don't do a recombined files check")
     parser.add_argument('--mwa_search_version', type=str, default='master',
-                    help="The module version of mwa_search to use. Default: master")
+            help="The module version of mwa_search to use. Default: master")
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
                         default="INFO")
     args=parser.parse_args()
@@ -273,10 +326,11 @@ if __name__ == "__main__":
 
     #Perform data checks
     dur = end-beg
-    check_data(args.obsid, beg=beg, dur=dur)
+    if not args.no_comb_check:
+        check_data(args.obsid, beg=beg, dur=dur)
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
-                      vdif_check=args.vdif, product_dir=comp_config['base_product_dir'],
+                      product_dir=comp_config['base_product_dir'],
                       mwa_search_version=args.mwa_search_version)
 
 
