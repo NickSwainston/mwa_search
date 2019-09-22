@@ -136,7 +136,12 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         PSRJ = pulsar_line[0]
         if not (len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa'):
             continue
-        temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
+        
+        for line in names_ra_dec:
+            if PSRJ == line[0]:
+                temp = [line]
+
+        #temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
@@ -149,8 +154,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
             period = 0.
         elif float(period) < .05:
             vdif_check = True
-        else:
-            period = float(period)*1000.
+        period = float(period)*1000.
         print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(PSRJ,
                raj, decj, period, psrbeg, psrend))
 
@@ -217,11 +221,17 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                          pulsar_list_list=vdif_name_list)
 
     #Get the rest of the singple pulse search canidates
-    names_ra_dec = np.array(fpio.grab_source_alog(source_type='RRATs', max_dm=250))
+    orig_names_ra_dec = fpio.grab_source_alog(source_type='RRATs',
+                                              max_dm=250, include_dm=True)
+    # remove any RRATs without at least arc minute accuracy
+    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     
     for pulsar_line in obs_data[obsid]:
-        jname, raj, decj, dm = pulsar_line
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj, dm = line
         jname_temp_list = [jname]
 
         #convert to radians
@@ -257,7 +267,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
                               search_ver=mwa_search_version, single_pulse=True)
     search_pipe.beamform(search_opts, sp_pointing_list,
-                         pulsar_list_list=sp_name_list)
+                         pulsar_list_list=sp_name_list,
+                         code_comment="Single pulse search")
 
 
 
