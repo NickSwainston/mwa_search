@@ -58,7 +58,7 @@ class search_options_class:
         self.end      = end
         self.channels = get_channels(obsid, channels=channels)
         self.incoh    = incoh
-        seld.vdif     = vdif
+        self.vdif     = vdif
         self.args     = args
 
         #directories
@@ -297,24 +297,6 @@ def numout_calc(fits_dir, obsid):
         numout += 1
     return numout
 
-def get_pulsar_dm_p(pulsar):
-    #Gets the ra and dec from the output of PSRCAT
-    cmd = 'psrcat -c dm {}'.format(pulsar)
-    output = send_cmd(cmd)
-    lines = output.split('\n')
-    for l in lines[4:-1]:
-        columns = l.split()
-
-        if len(columns) > 1:
-            dm = columns[1]
-    cmd = 'psrcat -c p0 {}'.format(pulsar)
-    output = send_cmd(cmd)
-    lines = output.split('\n')
-    for l in lines[4:-1]:
-        columns = l.split()
-        if len(columns) > 1:
-            p = columns[1]
-    return [dm, p]
 
 def process_vcs_wrapper(search_opts, pointings,
                         pulsar_list_list=None,
@@ -384,7 +366,14 @@ def process_vcs_wrapper(search_opts, pointings,
             else:
                 pulsar_list = pulsar_list_list[pn]
             if code_comment_in is not None:
-                code_comment = "{0} pn {1}".format(code_comment_in, pointing_id[pn])
+                # Add pulsar names
+                temp_pulsar_string = ''
+                if pulsar_list is not None:
+                    for pulsar in pulsar_list:
+                        temp_pulsar_string = '{0} {1}'.format(temp_pulsar_string, pulsar)
+                
+                code_comment = "{0} {1} pn {2}".format(code_comment_in, temp_pulsar_string,
+                                                       pointing_id[pn])
             search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
                                                                   search_opts.pointing))
 
@@ -497,7 +486,11 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
             relaunch_script += ' -m r --incoh'
         else:
             relaunch_script += ' -m b'
-        commands.append(relaunch_script)
+        if pulsar_list is None:
+            commands.append(relaunch_script)
+        else:
+            for pulsar in pulsar_list:
+                commands.append("{0} --pulsar {1}".format(relaunch_script, pulsar))
 
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -684,8 +677,15 @@ def beamform(search_opts, pointing_list, code_comment=None,
         if (search_opts.search or search_opts.single_pulse) and database_start_check and \
            bsd_row_num_input is None and\
            ((not searched_check or relaunch) or len(pointing_list) == 1):
+                #Add pulsar names to the code comment
+                temp_pulsar_string = ''
+                if pulsar_list is not None:
+                    for pulsar in pulsar_list:
+                        temp_pulsar_string = '{0} {1}'.format(temp_pulsar_string, pulsar)
+
                 search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
-                                   search_opts.pointing, "{0} pn {1}".format(code_comment,n)))
+                                   search_opts.pointing, "{0} {1} pn {2}".format(code_comment,
+                                                              temp_pulsar_string, n)))
                 search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script,
                                                        search_opts.bsd_row_num))
         else:
@@ -833,16 +833,16 @@ def prepdata(search_opts):
     if not os.path.exists("{0}/rfi_masks".format(search_opts.work_dir)):
         os.mkdir("{0}/rfi_masks".format(search_opts.work_dir))
     #make subdir
-    logger.debug("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
-    if not os.path.exists("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0])):
-        os.mkdir("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
-    if not os.path.exists("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir)):
-        os.mkdir("{0}{1}".format(search_opts.work_dir, search_opts.sub_dir))
+    logger.debug("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
+    if not os.path.exists("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0])):
+        os.mkdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
+    if not os.path.exists("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir)):
+        os.mkdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
 
     os.chdir(search_opts.work_dir + search_opts.sub_dir)
 
-    if not os.path.exists("{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir)):
-        os.mkdir("{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir))
+    if not os.path.exists("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir)):
+        os.mkdir("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir))
 
 
     #Get the centre freq channel and then run DDplan.py to work out the most effective DMs
@@ -1247,6 +1247,8 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     A simpler version of error_check() that sends off prepsubband, fft and accelsearch
     commands one after the other to take advantage of Ozstars SSDs
     """
+    comp_config = config.load_config_file() 
+    
     job_id_list = []
     # Get prepsubband commands
     if prepsub_commands is None:
@@ -1821,7 +1823,9 @@ if __name__ == "__main__":
 
     if args.pulsar:
         #only search aroung the pulsar DM
-        dm, p = get_pulsar_dm_p(args.pulsar)
+        dm = fpio.grab_source_alog(pulsar_list=[args.pulsar], include_dm=True)[0][3]
+        #grab_source_alog(source_type='Pulsar', pulsar_list=[args.pulsar], include_dm=True)
+        dm = get_soure_dm(args.pulsar)
         args.dm_min = float(dm) - 2.0
         if args.dm_min < 1.0:
             args.dm_min = 1.0
