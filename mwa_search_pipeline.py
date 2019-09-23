@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 if 'SEARCH_WORK_DIR' in os.environ:
     DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
 else:
-    DEFAULT_WORK_DIR = '/fred/oz125/nswainst/pulsar_search'
+    DEFAULT_WORK_DIR = '/fred/oz125/nswainst/pulsar_search/'
 if 'SEARCH_DB' in os.environ:
     DB_FILE_LOC = os.environ['SEARCH_DB']
 else:
