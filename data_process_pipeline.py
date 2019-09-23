@@ -145,11 +145,9 @@ def binfind(run_params):
 
     #Run binfinder.py
     if run_params.mode=='f':
+        logger.info("")
         launch_line += " -d {0}".format(run_params.pointing_dir)
         launch_line += " -m f"
-    elif run_params.mode=='p':
-        launch_line += " -d {0}".format(run_params.pointing_dir)
-        launch_line += " -m c"
     elif run_params.mode=="m":
         pointing_string=""
         for p in run_params.pointing_dir:
@@ -183,7 +181,7 @@ def binfind(run_params):
                             'presto/no-python'],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
-    logger.info("Job successfully submitted")
+    logger.info("Job successfully submitted: {0}".format(name))
 
 #----------------------------------------------------------------------
 if __name__ == '__main__':
@@ -223,12 +221,11 @@ if __name__ == '__main__':
     modeop = parser.add_argument_group("Mode Options")
     otherop.add_argument("-m", "--mode", type=str, help="The mode in which to run this script:\n\
                         Binfinder Options:\n\
-                        'p' - Folds on a small number of bins in order to check if a pulsar is\n\
-                         detected in the given pointing directory (runs the b mode after by default)\n\
-                        'm' - Folds on  any numer of pointings and finds the one with the best detection\
-                        (runs the b mode after by default)\n\
-                        'b' - attempts to find an adequate number of bins to fold the pulsar with\n\
-                         and outputs a bestprof file (runs the s mode after by default)\n\
+                        'm' - Folds on any numer of pointings and finds the one with the best detection\
+                        then finds an adequate number of bins for that pointing.\n\
+                        'f' - attempts to find an adequate number of bins of a single pointin to\n\
+                        fold the pulsar with and outputs a bestprof file\n\
+                        (runs the s mode after by default)\n\
                         Stokes Fold Options:\n\
                         's' - will fold across stokes IQUV and attempt to find the rotation measure")
 
@@ -250,7 +247,7 @@ if __name__ == '__main__':
                                 threshold=args.threshold, nbins=args.nbins,\
                                 subint=args.subint)
 
-    if run_params.mode=="b" or run_params.mode=="p" or run_params.mode=="m":
+    if run_params.mode=="f" or run_params.mode=="m":
         binfind(run_params)
     elif run_params.mode=="s":
         stokes_fold(run_params)

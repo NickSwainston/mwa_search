@@ -146,15 +146,10 @@ def bestprof_info(prevbins=None, filename=None):
     return info_dict
 
 #----------------------------------------------------------------------
-def bin_sampling_limit(pulsar, sampling_rate=0.1):
+def bin_sampling_limit(pulsar, sampling_rate=1e-4):
     #returns the minimum number of bins you can use for this pulsar based on MWA sampling rate
-    try:
-        query = psrqpy.QueryATNF(params=["P0"], psrs=[pulsar])
-        period = query.pandas["P0"]
-    except:
-        logger.warn("ATNF database unavailable, attempting to find period from bestprof")
-        period = bestprof_info(prevbins=100)["period"]
-    
+    query = psrqpy.QueryATNF(params=["P0"], psrs=[pulsar]).pandas
+    period = query["P0"][0]
     min_bins = int(period/sampling_rate + 1) #the +1 is to round the limit up every time
     logger.debug("Bin limit: {0}".format(min_bins))
     return min_bins
@@ -215,10 +210,10 @@ def submit_to_db(run_params, ideal_bins):
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 #----------------------------------------------------------------------
-def get_best_profile(pointing_dir, threshold):
+def get_best_profile(pointing_dir, pulsar, threshold=10):
 
     #find all of the relevant bestprof profiles in the pointing directory
-    bestprof_names = glob.glob("*bins*{0}*.bestprof".format(run_params.pulsar[1:]))
+    bestprof_names = glob.glob("*bins*{0}*.bestprof".format(pulsar[1:]))
     if len(bestprof_names)==0:
         logger.error("No bestprofs found in directory! Exiting")
         sys.exit(1)
@@ -239,7 +234,7 @@ def get_best_profile(pointing_dir, threshold):
 
     #now find the one with the most bins that meet the sn and chi conditions
     best_i = None
-    bin_lim = bin_sampling_limit(run_params.pulsar)
+    bin_lim = bin_sampling_limit(pulsar)
     for i in range(len(bin_order)):
         if bin_order[i]<=bin_lim: #only consider profiles where the number of bins used is lower than the bin upper limit
             if sn_chi_test(sn_order[i], chi_order[i]) == True:
@@ -251,7 +246,7 @@ def get_best_profile(pointing_dir, threshold):
         return None, None
     else:
         logger.info("Adequate profile found with {0} bins".format(bin_order[best_i]))
-        prof_name = glob.glob("*{0}_bins*{1}*.bestprof".format(bin_order[best_i], run_params.pulsar[1:]))[0]
+        prof_name = glob.glob("*{0}_bins*{1}*.bestprof".format(bin_order[best_i], pulsar[1:]))[0]
         return prof_name, bin_order[best_i]
 
 #----------------------------------------------------------------------
@@ -324,11 +319,32 @@ def submit_multifold(run_params, nbins=100):
 
 
 #----------------------------------------------------------------------
-def submit_prepfold(run_params, nbins=32, finish=False):
+def submit_prepfold(run_params, nbins=100, finish=False):
 
     if nbins is not int:
         nbins = int(float(nbins))
+    
+    comp_config = config.load_config_file()
 
+    #Check to see if there is a 100 bin fold already
+    bin_lim = bin_sampling_limit(run_params.pulsar)
+    if len(glob.glob("*_100_bins**{0}*bestprof".format(run_params.pulsar)))>0 and bin_lim>100 and nbins is not 100:
+        #add a prepfold command for 100 bins
+        logger.info("Folding on 100 bins for pointing {0}".format(run_params.pointing))
+        commands = []
+        commands = add_to_prepfold(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins=100)
+ 
+        name = "binfinder_prepfold_only_{0}_100".format(run_params.pulsar)
+        batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
+        submit_slurm(name, commands,\
+                    batch_dir=batch_dir,\
+                    slurm_kwargs={"time": "2:00:00"},\
+                    module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
+                                'presto/no-python'],\
+                    submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+        logger.info("Prepfold job successfully submitted: {0}".format(name))
+
+    
     launch_line = "binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} --prevbins {5} --vcs_tools {6}\
                     --mwa_search {7} -p {8}"\
                     .format(run_params.pointing_dir, run_params.threshold, run_params.cal_id,\
@@ -341,6 +357,8 @@ def submit_prepfold(run_params, nbins=32, finish=False):
     logger.info("Submitting job for {0} bins".format(nbins))
     #create slurm job:
     commands = []
+    if firstrun==True:
+        commands = add_to_prepfold(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins=100)
     commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins=nbins)
 
     if finish==False:
@@ -474,7 +492,11 @@ def iterate_bins(run_params):
 
     else:
         #This is the first run
-        submit_prepfold(run_params, nbins=1024)
+        bin_lim = bin_sampling_limit(run_params.pulsar)
+        if bin_lim < 1024:
+            submit_prepfold(run_params, nbins=bin_lim)
+        else:
+            submit_prepfold(run_params, nbins=1024)
 
 
 #----------------------------------------------------------------------
@@ -506,12 +528,17 @@ if __name__ == '__main__':
 
     modeop = parser.add_argument_group("Mode Options:")
     modeop = required.add_argument("-m", "--mode", type=str, help="""The mode in which to run binfinder\n\
-                        'f' - Finds an adequate number of bins to fold on\n\
-                        'e' - Folds once on the default number of bins and submits the result to\
-                        the database. NOT RECOMMENDED FOR MANUAL INPUT\n\
+                        User Options:\n\
+                        'f' - Finds an adequate number of bins to fold on and submits to database if\n\
+                        a detection is found.\n\
                         'm' - Use this mode if this is part of a multi-beam observation. This will\
-                        fold on many input pointings\n\
-                        'b' - Finds the best detection out of a set of pointing directories""")
+                        fold on many input pointings and then find the best detection, if any, and\
+                        find an adequate number of bins for it.\n\
+                        
+                        Not for typical user inputs:\n\
+                        'e' - Folds once on the default number of bins and submits the result to\
+                        the database.\n\
+                        'b' - Finds the best detection out of a set of pointing directories.""")
 
 
     non_user = parser.add_argument_group("Non-User input Options:")
@@ -549,9 +576,9 @@ if __name__ == '__main__':
                     mode=args.mode, loglvl=args.loglvl,\
                     mwa_search=args.mwa_search, vcs_tools=args.vcs_tools)
 
-    """
-    NOTE: for some reason, you need to run prepfold from the directory it outputs to if you want it to properly make an image. The script will make this work regardless by using os.chdir
-    """
+
+    #NOTE: for some reason, you need to run prepfold from the directory it outputs to if you want it to properly make an image. The script will make this work regardless by using os.chdir
+
     if run_params.mode is not "m" and run_params.mode is not "b":
         os.chdir(run_params.pointing_dir)
 
