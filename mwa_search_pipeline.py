@@ -839,7 +839,7 @@ def prepdata(search_opts):
     if not os.path.exists("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir)):
         os.mkdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
 
-    os.chdir(search_opts.work_dir + search_opts.sub_dir)
+    os.chdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
 
     if not os.path.exists("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir)):
         os.mkdir("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir))
@@ -961,14 +961,11 @@ def prepdata(search_opts):
 def sort_fft(search_opts, dm_list_list=None, prepsub_commands=None):
 
     #Makes 90 files to make this all a bit more managable and sorts the files.
-    os.chdir(search_opts.work_dir + "/" + search_opts.sub_dir)
+    os.chdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
     if not os.path.exists("over_3_png"):
         os.mkdir("over_3_png")
     if not os.path.exists("{}/cand_files".format(search_opts.work_dir)):
         os.mkdir("{}/cand_files".format(search_opts.work_dir))
-
-    DIR=search_opts.work_dir + search_opts.sub_dir
-    os.chdir(DIR)
 
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -1011,7 +1008,7 @@ def sort_fft(search_opts, dm_list_list=None, prepsub_commands=None):
 #-------------------------------------------------------------------------------------------------------------
 def accel(search_opts, dm_list_list=None, prepsub_commands=None, fft_commands=None):
 
-    os.chdir(search_opts.work_dir + search_opts.sub_dir)
+    os.chdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
 
     nharm = 16. # number of harmonics to search
     min_period = 0.001 # min period to search for in sec (ANTF min = 0.0013)
@@ -1073,8 +1070,7 @@ def accel(search_opts, dm_list_list=None, prepsub_commands=None, fft_commands=No
 #-------------------------------------------------------------------------------------------------------------
 def fold(search_opts):
 
-    DIR=search_opts.work_dir + str(search_opts.sub_dir)
-    os.chdir(DIR)
+    os.chdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
     if not os.path.exists("presto_profiles"):
         os.mkdir("presto_profiles")
 
@@ -1092,10 +1088,12 @@ def fold(search_opts):
     import shutil
     if shutil.which('ACCEL_sift.py') is None:
         #don't do accelsift
-        all_files = os.listdir(DIR+ "/*/")#I may of broke it
+        all_files = os.listdir("{0}/{1}/*/".format(search_opts.work_dir,
+                                                   search_opts.sub_dir))
         for f in all_files:
             if f.endswith("ACCEL_200") or f.endswith("ACCEL_0"):
-                with open(DIR+ "/*/" +f,'rb') as accel_cand_file:
+                with open("{0}/{1}/*/{2}".format(search_opts.work_dir,
+                               search_opts.sub_dir, f),'rb') as accel_cand_file:
                     lines = accel_cand_file.readlines()
                     for l in lines[3:]:
                         l = l.split()
@@ -1125,7 +1123,7 @@ def fold(search_opts):
             print("Can't find ACCEL cand file: {}. ACCEL_sift.py likely failed".format(file_loc))
             print("Exiting here")
             exit()
-        os.chdir(DIR + "/presto_profiles")
+        os.chdir("{0}/{1}/presto_profiles".format(search_opts.work_dir, search_opts.sub_dir))
 
     #Uses the mask if it's available
     if os.path.exists('{0}rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir, search_opts.obsid)):
