@@ -18,6 +18,13 @@ import psrqpy
 import pandas as pd
 logger = logging.getLogger(__name__)
 
+#get ATNF db location
+try:
+    ATNF_LOC = os.environ['PSRCAT_FILE']
+except:
+    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
+    ATNF_LOC = None
+
 
 #----------------------------------------------------------------------
 def add_prepfold_to_commands(commands, pointing, pulsar, obsid, use_mask=True, start=None, end=None, nbins=100, ntimechunk=120, dmstep=1, period_search_n=1):
@@ -148,7 +155,8 @@ def bestprof_info(prevbins=None, filename=None):
 #----------------------------------------------------------------------
 def bin_sampling_limit(pulsar, sampling_rate=1e-4):
     #returns the minimum number of bins you can use for this pulsar based on MWA sampling rate
-    query = psrqpy.QueryATNF(params=["P0"], psrs=[pulsar]).pandas
+    
+    query = psrqpy.QueryATNF(params=["P0"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas
     period = query["P0"][0]
     min_bins = int(period/sampling_rate + 1) #the +1 is to round the limit up every time
     logger.debug("Bin limit: {0}".format(min_bins))
