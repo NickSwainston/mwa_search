@@ -353,7 +353,7 @@ def process_vcs_wrapper(search_opts, pointings,
                       rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
-                      vcstools_version="multi-pixel_beamform",
+                      vcstools_version="master",
                       channels_to_beamform=channels)
 
     code_comment_in = code_comment
@@ -412,7 +412,7 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
                     slurm_kwargs={"time": "00:05:00"},\
                     module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
                                   'presto/no-python'],\
-                    submit=True, vcstools_version='multi-pixel_beamform',\
+                    submit=True, vcstools_version='master',\
                     depend=job_id_list)
     #elif pulsar.startswith("F"):
     #TODO: do something here
@@ -507,7 +507,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
                               'presto/no-python'],
                  submit=True, depend=job_id_list, depend_type='afterany',
                  mem=mem, temp_mem=temp_mem,
-                 vcstools_version="multi-pixel_beamform")
+                 vcstools_version="master")
     return job_id
 
 

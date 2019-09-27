@@ -154,7 +154,7 @@ if __name__ == '__main__':
 
     otherop = parser.add_argument_group("Other Options:")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
-    otherop.add_argument("--vcs_tools", type=str, default="multi-pixel_beamform", help="The version of vcstools to use. Default: multi-pixel_beamform")
+    otherop.add_argument("--vcs_tools", type=str, default="master", help="The version of vcstools to use. Default: master")
     otherop.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
     otherop.add_argument("-S", "--stop", action="store_false", help="Use this tag to stop processing data after the chose mode has finished its intended purpose")
 

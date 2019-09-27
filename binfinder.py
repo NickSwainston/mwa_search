@@ -323,7 +323,7 @@ def submit_multifold(run_params, nbins=100):
             module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                         "presto/no-python"],\
             submit=True, depend=job_ids, depend_type="afterany",\
-            vcstools_version="multi-pixel_beamform")
+            vcstools_version="master")
 
 
 #----------------------------------------------------------------------
@@ -532,7 +532,7 @@ if __name__ == '__main__':
     other.add_argument("--force_initial", action="store_true", help="Use this tag to force the script to treat this as the first run.")
     other.add_argument("-S", "--stop", action="store_true", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
     other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
-    other.add_argument("--vcs_tools", type=str, default="multi-pixel_beamform", help="The version of vcs_tools to use. Default: multi-pixel_beamform")
+    other.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use. Default: master")
 
     modeop = parser.add_argument_group("Mode Options:")
     modeop = required.add_argument("-m", "--mode", type=str, help="""The mode in which to run binfinder\n\

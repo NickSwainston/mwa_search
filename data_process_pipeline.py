@@ -15,7 +15,7 @@ class run_params_class:
 
     def __init__(self, pointing_dir=None, cal_id=None,obsid=None, pulsar=None,\
                 threshold=10.0, stop=False, next_mode=True, loglvl="INFO",\
-                mode=None, mwa_search="master", vcs_tools="multi-pixel_beamform",\
+                mode=None, mwa_search="master", vcs_tools="master",\
                 nbins=None, subint=10.0, RM=None, RM_err=None, prevbins=None,\
                 best_bins=None, force_initial=False, nocrop=False, bestprof=None,\
                 archive=None, out_dir=None, epndb_dir=None):
@@ -217,7 +217,7 @@ if __name__ == '__main__':
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     otherop.add_argument("-S", "--stop", action="store_true", help="Use this mode to tell the pipeline not to continue processing data after finishing the desired task")
     otherop.add_argument("--mwa_search", type=str, default="master",  help="The version of mwa_search to use. Default: master")
-    otherop.add_argument("--vcs_tools", type=str, default="multi-pixel_beamform", help="The version of vcs_tools to use. Default: master")
+    otherop.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use. Default: master")
     modeop = parser.add_argument_group("Mode Options")
     otherop.add_argument("-m", "--mode", type=str, help="The mode in which to run this script:\n\
                         Binfinder Options:\n\
