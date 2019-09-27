@@ -9,6 +9,12 @@ import subprocess
 import math
 import numpy as np
 import psrqpy
+#get ATNF db location
+try:
+    ATNF_LOC = os.environ['PSRCAT_FILE']
+except:
+    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
+    ATNF_LOC = None
 
 from astropy.coordinates import SkyCoord
 import astropy.units as u
@@ -145,7 +151,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
-        period = psrqpy.QueryATNF(params=["P0"], psrs=[jname]).pandas["P0"][0]
+        period = psrqpy.QueryATNF(params=["P0"], psrs=[jname],
+                                  loadfromdb=ATNF_LOC).pandas["P0"][0]
 
         if math.isnan(period):
             print("WARNING: Period not found in ephermeris for {0} so assuming "
