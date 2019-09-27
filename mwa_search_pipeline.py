@@ -897,9 +897,9 @@ def prepdata(search_opts):
     else:
         SSD_file_dir = ''
     #Create a list of all the commands needed
-    if os.path.exists('{0}rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir,
+    if os.path.exists('{0}/rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir,
                                                              search_opts.obsid)):
-        mask_command = ' -mask {0}rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir,
+        mask_command = ' -mask {0}/rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir,
                                                                      search_opts.obsid)
     else:
         mask_command = ''
@@ -1075,7 +1075,7 @@ def fold(search_opts):
         os.mkdir("presto_profiles")
 
     #run accel_sift.py to find candidates with DM structure
-    file_loc = '{0}cand_files/cands_{1}.txt'.format(search_opts.work_dir,
+    file_loc = '{0}/cand_files/cands_{1}.txt'.format(search_opts.work_dir,
                                         search_opts.sub_dir.replace("/","_"))
 
     #calcs sn_min for candidates
@@ -1126,8 +1126,8 @@ def fold(search_opts):
         os.chdir("{0}/{1}/presto_profiles".format(search_opts.work_dir, search_opts.sub_dir))
 
     #Uses the mask if it's available
-    if os.path.exists('{0}rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir, search_opts.obsid)):
-        mask_command = ' -mask {0}rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir,
+    if os.path.exists('{0}/rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir, search_opts.obsid)):
+        mask_command = ' -mask {0}/rfi_masks/{1}_rfifind.mask'.format(search_opts.work_dir,
                                                                      search_opts.obsid)
     else:
         mask_command = ''
@@ -1197,7 +1197,7 @@ def wrap_up(search_opts):
     wrap_batch = str(search_opts.bsd_row_num) + "_wrap_up"
     commands = []
     commands.append(add_database_function())
-    commands.append('cd {0}{1}/presto_profiles'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('cd {0}/{1}/presto_profiles'.format(search_opts.work_dir, search_opts.sub_dir))
     commands.append('echo "Searching for a profile with a sigma greater than 3"')
     commands.append('count=0')
     commands.append('total=`ls *.ps | wc -l`')
@@ -1225,16 +1225,16 @@ def wrap_up(search_opts):
     commands.append('   over_sn=`ls ../over_3_png/*.ps | wc -l`')
     commands.append('fi')
     commands.append('echo "Search succesful so deleting all files except candidates"')
-    commands.append('rm {0}{1}/*dat'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('rm {0}{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('rm {0}{1}/*inf'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('rm {0}{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}/{1}/*dat'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}/{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}/{1}/*inf'.format(search_opts.work_dir, search_opts.sub_dir))
+    commands.append('rm {0}/{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
     commands.append('rm -rf {0}{1}/pointings/{2}'.format(comp_config['base_product_dir'],
                                                search_opts.obsid, search_opts.pointing))
     commands.append('search_database.py -m w -b {0} --cand_val "$total $over_sn 0"'.\
                     format(search_opts.bsd_row_num))
     submit_slurm(wrap_batch, commands,
-                 batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
+                 batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
                  slurm_kwargs={"time": "2:50:00"}, nice=search_opts.nice,
                  submit=True, module_list=['mwa_search/{}'.format(search_opts.search_ver)])
     return
@@ -1278,7 +1278,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         commands.append('cp -r $TEMPO2_CLOCK_DIR $JOBFS/tempo2_clock_dir')
         commands.append('export TEMPO2=$JOBFS/tempo2')
         commands.append('export TEMPO2_CLOCK_DIR=$JOBFS/tempo2_clock_dir')
-        commands.append('cd {0}{1}/'.format(search_opts.work_dir,
+        commands.append('cd {0}/{1}/'.format(search_opts.work_dir,
                                                search_opts.sub_dir))
         commands.append('')
 
@@ -1298,7 +1298,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         if not search_opts.single_pulse:
             # Don't do fft or accel search if in single pulse search mode
             #make the fft bash file
-            with open('{0}{1}/{2}_fft_a{3}_{4}.bash'.format(search_opts.work_dir,
+            with open('{0}/{1}/{2}_fft_a{3}_{4}.bash'.format(search_opts.work_dir,
                       search_opts.sub_dir, search_opts.bsd_row_num,
                       search_opts.attempt+1, dmi), "w") as srun_bash:
                 srun_bash.write(add_temp_database_function(dmi,
@@ -1317,7 +1317,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
                             format(search_opts.bsd_row_num, search_opts.attempt+1, dmi))
 
             #make the accel bash file
-            with open('{0}{1}/{2}_accel_a{3}_{4}.bash'.format(search_opts.work_dir,
+            with open('{0}/{1}/{2}_accel_a{3}_{4}.bash'.format(search_opts.work_dir,
                       search_opts.sub_dir, search_opts.bsd_row_num,
                       search_opts.attempt+1, dmi), "w") as srun_bash:
                 srun_bash.write(add_temp_database_function(dmi,
@@ -1339,9 +1339,9 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
                                    search_opts.attempt+1, dmi))
             
                             #Remove accel files off ssd
-            commands.append('cp $JOBFS/*ACCEL* {0}{1}'.format(search_opts.work_dir,
+            commands.append('cp $JOBFS/*ACCEL* {0}/{1}'.format(search_opts.work_dir,
                                                               search_opts.sub_dir))
-            commands.append('cp $JOBFS/*inf {0}{1}'.format(search_opts.work_dir,
+            commands.append('cp $JOBFS/*inf {0}/{1}'.format(search_opts.work_dir,
                                                               search_opts.sub_dir))
 
 
@@ -1351,7 +1351,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         commands.append('single_pulse_search.py $JOBFS/*.dat')
         commands.append('tar -czvf {0}_singlepulse.tar.gz '
                           '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid))
-        commands.append('cp $JOBFS/{0}_singlepulse.ps {1}{2}'.format(search_opts.obsid,
+        commands.append('cp $JOBFS/{0}_singlepulse.ps {1}/{2}'.format(search_opts.obsid,
                         search_opts.work_dir, search_opts.sub_dir))
 
                 #load python modules and run database scripts
@@ -1371,7 +1371,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
             processing_time = 10800 #max at 3 hours because that should be plenty of time
         total_job_time_str = datetime.timedelta(seconds=int(processing_time))
         job_id = submit_slurm(check_batch, commands,
-                 batch_dir="{0}{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
+                 batch_dir="{0}/{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
                  slurm_kwargs={"time": total_job_time_str},
                  module_list=['presto/min_path', 'psrcat/1.49',
                               'tempo2/278e129', 'tempo2_clock/2019-03-21'],
@@ -1421,7 +1421,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
                                                  search_opts.bsd_row_num))
 
     submit_slurm(check_depend_batch, commands,
-                 batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
+                 batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
                  slurm_kwargs={"time": "20:00"}, nice=search_opts.nice,
                  submit=True, depend=job_id_list, depend_type="afterany",
                  #module_list=['mwa_search/{}'.format(search_opts.search_ver)],
@@ -1513,7 +1513,7 @@ def error_check(search_opts, bash_job=False,
                 commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
                                                                           search_opts.sub_dir))
             # Runs single pulse search
-            commands.append('cd {0}{1}'.format(search_opts.work_dir, search_opts.sub_dir))
+            commands.append('cd {0}/{1}'.format(search_opts.work_dir, search_opts.sub_dir))
             commands.append('single_pulse_search.py *.dat')
             commands.append('tar -czvf {0}_singlepulse.tar.gz '
                                       '{0}_DM*singlepulse'.format(search_opts.obsid))
@@ -1532,7 +1532,7 @@ def error_check(search_opts, bash_job=False,
             commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
             commands.append("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(search_opts.bsd_row_num), commands,
-                         batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
+                         batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
                          slurm_kwargs={"time": '59:00'}, nice=search_opts.nice,
                          module_list=module_list,
                          cpu_threads=1, mem=mem, submit=True,
@@ -1565,7 +1565,7 @@ def error_check(search_opts, bash_job=False,
 
         if not bash_job:
             commands.append(add_database_function())
-        commands.append('cd {0}{1}/{2}'.format(search_opts.work_dir,
+        commands.append('cd {0}/{1}/{2}'.format(search_opts.work_dir,
                                          search_opts.sub_dir, sub_sub_dir))
 
         if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -1584,9 +1584,9 @@ def error_check(search_opts, bash_job=False,
             if search_opts.table == 'Prepdata' and \
                (hostname.startswith('john') or hostname.startswith('farnarkle')):
                 #prepdata is very I/O heavy so on ozstar write to the SSDs then move it off
-                bash_commands.append('echo "Moving data off SSD onto {0}{1}/{2}"'.format(
+                bash_commands.append('echo "Moving data off SSD onto {0}/{1}/{2}"'.format(
                                      search_opts.work_dir, search_opts.sub_dir, sub_sub_dir))
-                bash_commands.append('time cp $JOBFS/* {0}{1}/{2}'.format(search_opts.work_dir,
+                bash_commands.append('time cp $JOBFS/* {0}/{1}/{2}'.format(search_opts.work_dir,
                                                            search_opts.sub_dir, sub_sub_dir))
                 bash_commands.append('echo "Finished moving data off SSD"')
                 temp_mem = 51 #GB
@@ -1595,7 +1595,7 @@ def error_check(search_opts, bash_job=False,
             if (processing_time + float(er[2])) > total_job_time:
                 if bash_job:
                     #if it's a bash job make a file for it to run
-                    with open('{0}{1}/{2}.bash'.format(search_opts.work_dir,
+                    with open('{0}/{1}/{2}.bash'.format(search_opts.work_dir,
                               search_opts.sub_dir, check_batch), "w") as srun_bash:
                         srun_bash.write(add_temp_database_function(check_job_num,
                                         search_opts.attempt + 1,
@@ -1612,7 +1612,7 @@ def error_check(search_opts, bash_job=False,
                     commands = commands + bash_commands
 
                 job_id = submit_slurm(check_batch, commands,
-                         batch_dir="{0}{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
+                         batch_dir="{0}/{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
                          slurm_kwargs={"time": total_job_time_str},
                          nice=search_opts.nice,
                          module_list=['mwa_search/{}'.format(search_opts.search_ver)],
@@ -1629,14 +1629,14 @@ def error_check(search_opts, bash_job=False,
 
                 if not bash_job:
                     commands.append(add_database_function())
-                commands.append('cd {0}{1}/{2}'.format(search_opts.work_dir, search_opts.sub_dir,
+                commands.append('cd {0}/{1}/{2}'.format(search_opts.work_dir, search_opts.sub_dir,
                                                        sub_sub_dir))
 
         #Check there is a command to run
         if len(bash_commands) > 0:
             if bash_job:
                 #if it's a bash job make a file for it to run
-                with open('{0}{1}/{2}.bash'.format(search_opts.work_dir,
+                with open('{0}/{1}/{2}.bash'.format(search_opts.work_dir,
                           search_opts.sub_dir, check_batch), "w") as srun_bash:
                     srun_bash.write(add_temp_database_function(check_job_num,
                                     search_opts.attempt + 1,
@@ -1653,7 +1653,7 @@ def error_check(search_opts, bash_job=False,
                 commands = commands + bash_commands
 
             job_id = submit_slurm(check_batch, commands,
-                     batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
+                     batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
                      slurm_kwargs={"time": total_job_time_str},
                      nice=search_opts.nice,
                      module_list=['mwa_search/{}'.format(search_opts.search_ver)],
@@ -1672,7 +1672,7 @@ def error_check(search_opts, bash_job=False,
                                               search_opts.attempt + 1, search_opts.table))
 
         submit_slurm(check_depend_batch, commands,
-                     batch_dir="{0}{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
+                     batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
                      slurm_kwargs={"time": "20:00"},
                      nice=search_opts.nice,
                      submit=True, depend=job_id_list, depend_type="afterany",
