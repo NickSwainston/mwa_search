@@ -593,7 +593,7 @@ if __name__ == '__main__':
 
     if run_params.mode=="e":
         logger.info("Submitting to database")
-        prof_name, ideal_bins = get_best_profile(run_params.pointing_dir, run_params.threshold)
+        prof_name, ideal_bins = get_best_profile(run_params.pointing_dir, run_params.pulsar, run_params.threshold)
 
         if prof_name==None:
             logger.info("Non detection - no adequate profiles. Exiting....")
