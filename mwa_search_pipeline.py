@@ -1502,12 +1502,12 @@ def error_check(search_opts, bash_job=False,
                 module_list.append('numpy')
                 module_list.append('presto')
 
+            commands = []
             #find ACCEL_sift path
             if not search_opts.single_pulse:
                 # Only uses ACCEL_sift if doing a periodic search
                 import shutil
                 accel_sift = shutil.which("ACCEL_sift.py")
-                commands = []
                 commands.append(add_database_function())
                 commands.append('cd {0}'.format(search_opts.work_dir))
                 commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
