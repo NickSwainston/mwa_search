@@ -1823,8 +1823,6 @@ if __name__ == "__main__":
         import find_pulsar_in_obs as fpio
         #only search aroung the pulsar DM
         dm = fpio.grab_source_alog(pulsar_list=[args.pulsar], include_dm=True)[0][3]
-        #grab_source_alog(source_type='Pulsar', pulsar_list=[args.pulsar], include_dm=True)
-        #dm = get_source_dm(args.pulsar)
         args.dm_min = float(dm) - 2.0
         if args.dm_min < 1.0:
             args.dm_min = 1.0
