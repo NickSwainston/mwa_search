@@ -71,7 +71,7 @@ class search_options_class:
             self.work_dir  = DEFAULT_WORK_DIR
         else:
             self.work_dir  = work_dir
-        self.sub_dir       = sub_dir
+        self._sub_dir       = sub_dir
         if fits_dir_base is None:
             self.fits_dir_base = '{0}{1}/'.format(comp_config['base_product_dir'], obsid)
         else:
@@ -139,6 +139,12 @@ class search_options_class:
     def setPdir(self, value):
         self._pointing_dir = value
     pointing_dir = property(getPdir, setPdir)
+    
+    def getSdir(self):
+        return self._sub_dir
+    def setSdir(self, value):
+        self._sub_dir = value
+    sub_dir = property(getSdir, setSdir)
 
     def getPoint(self):
         return self._pointing
@@ -574,9 +580,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         #set up search_opts.relaunch scripts
         if pulsar is None:
-            search_opts.sub_dir = '{0}/{1}'.format(search_opts.pointing, search_opts.obsid)
+            search_opts.setSdir('{0}/{1}'.format(search_opts.pointing, search_opts.obsid))
         else:
-            search_opts.sub_dir = '{0}/{1}'.format(pulsar, search_opts.obsid)
+            search_opts.setSdir('{0}/{1}/{2}'.format(pulsar, search_opts.pointing, search_opts.obsid))
         search_opts.relaunch_script = "{0} -p {1} -s {2}".format(search_opts.relaunch_script_in,
                                                       search_opts.pointing, search_opts.sub_dir)
 
@@ -836,6 +842,10 @@ def prepdata(search_opts):
     logger.debug("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
     if not os.path.exists("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0])):
         os.mkdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
+    if not os.path.exists("{0}/{1}/{2}".format(search_opts.work_dir,
+                          search_opts.sub_dir.split("/")[0], search_opts.sub_dir.split("/")[1])):
+        os.mkdir("{0}/{1}/{2}".format(search_opts.work_dir,
+                 search_opts.sub_dir.split("/")[0], search_opts.sub_dir.split("/")[1]))
     if not os.path.exists("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir)):
         os.mkdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
 
@@ -1348,9 +1358,12 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         # load python modules required to do the single pulse python script
         commands.append('ml numpy/1.14.1-python-2.7.14')
         commands.append('ml scipy/1.0.0-python-2.7.14')
-        commands.append('single_pulse_search.py $JOBFS/*.dat')
-        commands.append('tar -czvf {0}_singlepulse.tar.gz '
-                          '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid))
+        commands.append('srun --export -c 1 -n 1 single_pulse_search.py $JOBFS/*.dat')
+        commands.append('mv {0}_singlepulse.ps {0}_{1}_singlepulse.ps'.format(search_opts.obsid,
+                                                                              search_opts.pointing))
+        commands.append('tar -czvf {0}_{1}_singlepulse.tar.gz '
+                          '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid,
+                                                              search_opts.pointing))
         commands.append('cp $JOBFS/{0}_singlepulse.ps {1}/{2}'.format(search_opts.obsid,
                         search_opts.work_dir, search_opts.sub_dir))
 
@@ -1496,7 +1509,6 @@ def error_check(search_opts, bash_job=False,
                 module_list.append('matplotlib/2.2.2-python-2.7.14')
             else:
                 # use galaxy modules
-                module_list.append('module unload vcstools')
                 module_list.append('matplotlib')
                 module_list.append('python/2.7.14')
                 module_list.append('numpy')
@@ -1514,9 +1526,12 @@ def error_check(search_opts, bash_job=False,
                                                                           search_opts.sub_dir))
             # Runs single pulse search
             commands.append('cd {0}/{1}'.format(search_opts.work_dir, search_opts.sub_dir))
-            commands.append('single_pulse_search.py *.dat')
-            commands.append('tar -czvf {0}_singlepulse.tar.gz '
-                                      '{0}_DM*singlepulse'.format(search_opts.obsid))
+            commands.append('srun --export -c 1 -n 1 single_pulse_search.py *.dat')
+            commands.append('mv {0}_singlepulse.ps {0}_{1}_singlepulse.ps'.format(search_opts.obsid,
+                                                                                  search_opts.pointing))
+            commands.append('tar -czvf {0}_{1}_singlepulse.tar.gz '
+                                      '{0}_DM*singlepulse'.format(search_opts.obsid,
+                                                                  search_opts.pointing))
             commands.append('rm {0}_DM*singlepulse'.format(search_opts.obsid))
             commands.append('module use {}'.format(comp_config['module_dir']))
             if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
@@ -1533,7 +1548,7 @@ def error_check(search_opts, bash_job=False,
             commands.append("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(search_opts.bsd_row_num), commands,
                          batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
-                         slurm_kwargs={"time": '59:00'}, nice=search_opts.nice,
+                         slurm_kwargs={"time": '01:59:00'}, nice=search_opts.nice,
                          module_list=module_list,
                          cpu_threads=1, mem=mem, submit=True,
                          vcstools_version="Error_on_purpose")
