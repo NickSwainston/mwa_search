@@ -109,6 +109,52 @@ def calc_ta_fwhm(freq, array_phase='P2C'):
 
     return fwhm
 
+def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
+    """
+    Gets the number of grid pointings required to cover the search radius
+
+    Parameters
+    ----------
+    source_ra, source_dec: string
+        A string separated representing the RA and dec respectively.
+        Expected format is 'hh:mm[:ss.s]'
+    fwhm: float
+        FWHM of the tied-array beam in degrees.
+        Can be calculated in the calc_ta_fwhm function
+    search_radius: float
+        The radius of the circle that you would like to search
+
+    Returns
+    -------
+    pointing_list_list: list of lists
+        A list of pointings were each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss'
+        [[RA, Dec]]
+    """
+    #convert to radians
+    coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
+    rar = coord.ra.radian #in radians
+    decr = coord.dec.radian
+
+    #make a grid around each pulsar
+    grid_sep = fwhm * 0.6
+    #work out how many loops are required
+    loops = int( (search_radius - fwhm/2.) / grid_sep )
+    if loops < 0:
+        loops = 0
+    logger.debug("loops: {}".format(loops))
+    rads, decds = get_grid(rar, decr, np.radians(grid_sep), loops)
+
+    #convert back to sexidecimals
+    coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
+    rajs = coord.ra.to_string(unit=u.hour, sep=':')
+    decjs = coord.dec.to_string(unit=u.degree, sep=':')
+    temp = []
+    for raj, decj in zip(rajs, decjs):
+        temp.append([raj, decj])
+    pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+    return pointing_list_list
+
+
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
                       mwa_search_version='master'):
@@ -135,6 +181,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vdif_name_list = []
     sp_pointing_list = []
     sp_name_list = []
+    candidate_pointing_list = []
+    candidate_name_list = []
     for pulsar_line in obs_data[obsid]:
         vdif_check = False
         sp_check = False
@@ -175,23 +223,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         else:
             jname_temp_list.append(jname)
 
-        #convert to radians
-        coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
-        rar = coord.ra.radian #in radians
-        decr = coord.dec.radian
-
-        #make a grid around each pulsar
-        grid_sep = np.radians(fwhm * 0.6)
-        rads, decds = get_grid(rar, decr, grid_sep, 1)
-
-        #convert back to sexidecimals
-        coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
-        rajs = coord.ra.to_string(unit=u.hour, sep=':')
-        decjs = coord.dec.to_string(unit=u.degree, sep=':')
-        temp = []
-        for raj, decj in zip(rajs, decjs):
-            temp.append([raj, decj])
-        pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
         
         # sort the pointings into the right groups
         for prd in pointing_list_list:
@@ -241,24 +274,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 jname, raj, decj, dm = line
         jname_temp_list = [jname]
 
-        #convert to radians
-        coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
-        rar = coord.ra.radian #in radians
-        decr = coord.dec.radian
-
-        #make a grid around each pulsar
-        grid_sep = np.radians(fwhm * 0.6)
-        rads, decds = get_grid(rar, decr, grid_sep, 1)
-
-        #convert back to sexidecimals
-        coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
-        rajs = coord.ra.to_string(unit=u.hour, sep=':')
-        decjs = coord.dec.to_string(unit=u.degree, sep=':')
-        temp = []
-        for raj, decj in zip(rajs, decjs):
-            temp.append([raj, decj])
-        pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
-        
+        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
+               
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             sp_name_list.append(jname_temp_list)
