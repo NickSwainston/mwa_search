@@ -260,7 +260,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     search_pipe.beamform(search_opts, vdif_pointing_list,
                          pulsar_list_list=vdif_name_list)
 
+
     #Get the rest of the singple pulse search canidates
+    #-----------------------------------------------------------------------------------------------------------
     orig_names_ra_dec = fpio.grab_source_alog(source_type='RRATs',
                                               max_dm=250, include_dm=True)
     # remove any RRATs without at least arc minute accuracy
@@ -282,7 +284,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
-    print('SENDING OFF SINGLE PULSE SEARCHS')
+    print('SENDING OFF RRAT SINGLE PULSE SEARCHS')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
@@ -293,7 +295,86 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version, single_pulse=True)
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
-                         code_comment="Single pulse search")
+                         code_comment="RRATs single pulse search")
+
+
+    # Find all of the FRB candidates
+    #-----------------------------------------------------------------------------------------------------------
+    orig_names_ra_dec = fpio.grab_source_alog(source_type='FRB',
+                                              max_dm=10000, include_dm=True)
+    # remove any RRATs without at least arc minute accuracy
+    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    
+    sp_name_list = []
+    sp_pointing_list = []
+    for pulsar_line in obs_data[obsid]:
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj, dm = line
+        jname_temp_list = [jname]
+
+        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
+               
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            sp_name_list.append(jname_temp_list)
+            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    
+    print('SENDING OFF FRB SINGLE PULSE SEARCHS')
+    # Send off pulsar search
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    for ch in channels:
+        relaunch_script = "{0} {1}".format(relaunch_script, ch)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels,
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version, single_pulse=True)
+    search_pipe.beamform(search_opts, sp_pointing_list,
+                         pulsar_list_list=sp_name_list,
+                         code_comment="FRB single pulse search")
+
+
+    # Find all of the Fermi candidates
+    #-----------------------------------------------------------------------------------------------------------
+    orig_names_ra_dec = fpio.grab_source_alog(source_type='Fermi',
+                                              max_dm=10000, include_dm=True)
+    # remove any RRATs without at least arc minute accuracy
+    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    
+    sp_name_list = []
+    sp_pointing_list = []
+    for pulsar_line in obs_data[obsid]:
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj, dm = line
+        jname_temp_list = [jname]
+
+        #TODO add the candidate size from the file
+        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
+               
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            sp_name_list.append(jname_temp_list)
+            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    
+    print('SENDING OFF FERMI CANDIDATE SEARCHS')
+    # Send off pulsar search
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --search --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    for ch in channels:
+        relaunch_script = "{0} {1}".format(relaunch_script, ch)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels,
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version, search=True)
+    search_pipe.beamform(search_opts, sp_pointing_list,
+                         pulsar_list_list=sp_name_list,
+                         code_comment="Fermi candidate pulsar search")
 
 
 
