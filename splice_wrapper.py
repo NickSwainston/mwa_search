@@ -7,7 +7,6 @@ import time
 import mwa_metadb_utils as meta
 import glob
 from shutil import copy
-import socket
 
 parser = argparse.ArgumentParser(description="""
 Wraps the splice_psrfits.sh script to automate it. Should be run from the foulder containing the files.
@@ -77,13 +76,13 @@ for n in n_fits:
             unspliced_files.append(glob.glob('{}/*{}*_ch{:03d}_{:04d}.fits'.format(args.work_dir,
                                                   obsid, ch, n))[0])
 
-    
+
     if hostname.startswith('john') or hostname.startswith('bryan'):
         print("Moving each channel onto $JOBFS")
         for us_file in unspliced_files:
             copy(us_file, SSD_file_dir)
 
-    # Create splice command and submit 
+    # Create splice command and submit
     submit_line = 'splice_psrfits '
     for us_file in unspliced_files:
         if hostname.startswith('john') or hostname.startswith('bryan'):

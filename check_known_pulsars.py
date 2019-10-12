@@ -5,17 +5,9 @@ import argparse
 import find_pulsar_in_obs as fpio
 import os
 import glob
-import subprocess
 import math
 import numpy as np
 import psrqpy
-#get ATNF db location
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except:
-    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
-    ATNF_LOC = None
-
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
@@ -29,6 +21,14 @@ import checks
 
 import logging
 logger = logging.getLogger(__name__)
+
+#get ATNF db location
+try:
+    ATNF_LOC = os.environ['PSRCAT_FILE']
+except KeyError:
+    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
+    ATNF_LOC = None
+
 
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
 
@@ -56,9 +56,9 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
         base_dir = comp_config['base_data_dir']
     comb_dir = "{0}{1}/combined".format(base_dir, obsid)
 
-    if type(beg) is not int:
+    if not isinstance(beg, int):
         beg = int(beg)
-    if type(dur) is not int:
+    if not isinstance(dur, int):
         dur = int(dur)
     
     #Check to see if the files are combined properly
@@ -172,7 +172,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
     fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
 
-    # Sort all the sources into 3 categories, pulsars which is for slow pulsars, vdif 
+    # Sort all the sources into 3 categories, pulsars which is for slow pulsars, vdif
     # for fast pulsars that require vdif and sp for singple pulse searches (FRBs,
     # RRATs and pulsars without ATNF periods)
     pulsar_pointing_list = []
@@ -181,8 +181,6 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vdif_name_list = []
     sp_pointing_list = []
     sp_name_list = []
-    candidate_pointing_list = []
-    candidate_name_list = []
     for pulsar_line in obs_data[obsid]:
         vdif_check = False
         sp_check = False
@@ -275,7 +273,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         jname = pulsar_line[0]
         for line in names_ra_dec:
             if jname == line[0]:
-                jname, raj, decj, dm = line
+                jname, raj, decj, _ = line
         jname_temp_list = [jname]
 
         # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
@@ -424,7 +422,7 @@ if __name__ == "__main__":
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     logger.propagate = False
-    
+
     #option parsing
     if not args.obsid:
         print("Please input observation id by setting -o or --obsid. Exiting")

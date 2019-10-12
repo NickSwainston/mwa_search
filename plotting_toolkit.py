@@ -187,7 +187,7 @@ def plot_bestprof(bestprof, out_dir, nocrop=False):
     plt.text(0.05, 0.925,     "Chi Sq:          {0}".format(info_dict["chi"]), fontsize=9, color="black", transform=ax.transAxes)
     plt.text(0.05, 0.9,    "DM:              {0}".format(info_dict["dm"]), fontsize=9, color="black", transform=ax.transAxes)
     plt.text(0.05, 0.875,     "Period (ms):     {0}+/-{1}".format(info_dict["period"], info_dict["period_error"]), fontsize=9, color="black", transform=ax.transAxes)
-    
+
     ax.plot(x, y, color="black")
     fig_path = "{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"])
     print("Saving figure:   {0}".format(fig_path))
@@ -245,10 +245,10 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     #plot -
     fig = plt.figure(figsize=(20, 12))
     fig.subplots_adjust(hspace=0)
-   
-    if run_params is not None: 
+
+    if run_params is not None:
         nocrop = run_params.nocrop
-    
+
     if nocrop==False:
         crop=(0.25, 0.75)
     else:

@@ -15,13 +15,12 @@ import find_pulsar_in_obs as fpio
 import check_known_pulsars as checks
 import file_maxmin
 import psrqpy
-import pandas as pd
 logger = logging.getLogger(__name__)
 
 #get ATNF db location
 try:
     ATNF_LOC = os.environ['PSRCAT_FILE']
-except:
+except KeyError:
     logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
     ATNF_LOC = None
 
@@ -54,7 +53,7 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, use_mask=True, s
     variables = "-o {0}_{1}_bins ".format(obsid, nbins)
     variables += mask
     variables += "-n {0} ".format(nbins)
-    variables += "-start {0} -end {1} ".format(start, end) 
+    variables += "-start {0} -end {1} ".format(start, end)
     variables += "-dmstep {0} ".format(dmstep)
     variables += "-npart {0} ".format(ntimechunk)
     variables += "-npfact {0} ".format(period_search_n)
@@ -69,7 +68,6 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, use_mask=True, s
                     .format(pulsar, variables, constants))
     commands.append('errorcode=$?')
     commands.append('pulsar={}'.format(pulsar[1:]))
-    pulsar_bash_string = '${pulsar}'
 
     #Some old ephems don't have the correct ra and dec formating and
     #causes an error with -timing but not -psr
@@ -155,13 +153,13 @@ def bestprof_info(prevbins=None, filename=None):
 #----------------------------------------------------------------------
 def bin_sampling_limit(pulsar, sampling_rate=1e-4):
     #returns the minimum number of bins you can use for this pulsar based on MWA sampling rate
-    
+
     query = psrqpy.QueryATNF(params=["P0"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas
     period = query["P0"][0]
     min_bins = int(period/sampling_rate + 1) #the +1 is to round the limit up every time
     logger.debug("Bin limit: {0}".format(min_bins))
     return min_bins
-    
+
 #----------------------------------------------------------------------
 def submit_to_db(run_params, ideal_bins):
 
@@ -172,16 +170,16 @@ def submit_to_db(run_params, ideal_bins):
     bestprof_name = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd.bestprof".format(ideal_bins, run_params.pulsar[1:]))[0]
     png_output = cwd +  "/" + glob.glob("*{0}_bins*{1}*.png".format(ideal_bins, run_params.pulsar[1:]))[0]
     pfd = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd".format(ideal_bins, run_params.pulsar[1:]))[0]
-    
+
     #do the same for 100 bin profiles
     ppps_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.ps".format(run_params.pulsar[1:]))[0]
     bestprof_name_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.bestprof".format(run_params.pulsar[1:]))[0]
     png_output_100 = cwd +  "/" + glob.glob("*_100_bins*{0}*.png".format(run_params.pulsar[1:]))[0]
     pfd_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd".format(run_params.pulsar[1:]))[0]
-    
+
     products = [ppps, bestprof_name, png_output, pfd,\
             ppps_100, bestprof_name_100, png_output_100, pfd_100]
-    
+
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
     for product in products:
@@ -331,7 +329,7 @@ def submit_prepfold(run_params, nbins=100, finish=False):
 
     if nbins is not int:
         nbins = int(float(nbins))
-    
+
     comp_config = config.load_config_file()
 
     #Check to see if there is a 100 bin fold already
@@ -341,7 +339,7 @@ def submit_prepfold(run_params, nbins=100, finish=False):
         logger.info("Folding on 100 bins for pointing {0}".format(run_params.pointing))
         commands = []
         commands = add_to_prepfold(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins=100)
- 
+
         name = "binfinder_prepfold_only_{0}_100".format(run_params.pulsar)
         batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
         submit_slurm(name, commands,\
@@ -352,7 +350,7 @@ def submit_prepfold(run_params, nbins=100, finish=False):
                     submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
         logger.info("Prepfold job successfully submitted: {0}".format(name))
 
-    
+
     launch_line = "binfinder.py -d {0} -t {1} -O {2} -o {3} -L {4} --prevbins {5} --vcs_tools {6}\
                     --mwa_search {7} -p {8}"\
                     .format(run_params.pointing_dir, run_params.threshold, run_params.cal_id,\
@@ -395,10 +393,10 @@ def submit_prepfold(run_params, nbins=100, finish=False):
 
 #----------------------------------------------------------------------
 def find_best_pointing(run_params, nbins=100, submit_next=True):
-    
+
     """
     Finds the pointing directory with the highest S/N out of those given in run_params.pointing_dir
-    The nbins value is the bin value to search over. Default is 100 
+    The nbins value is the bin value to search over. Default is 100
     submit_next tells the function whether or not to continue with the binfinder pipeline. Default=True
     """
 
@@ -430,14 +428,14 @@ def find_best_pointing(run_params, nbins=100, submit_next=True):
         run_params.set_pointing_dir(run_params.pointing_dir[best_i])
         #check sampling rate and submit prepfold
         bin_limit = bin_sampling_limit(run_params.pulsar)
-        if bin_limit >= 1024: 
+        if bin_limit >= 1024:
             submit_prepfold(run_params, nbins=1024)
         elif bin_limit >=100:
             submit_prepfold(run_params, nbins=bin_limit)
         else:
             logger.info("This pulsar has a low period. Folding with a smaller number of bins")
             submit_prepfold(run_params, nbins=bin_limit, finish=True)
-        
+
 
 #----------------------------------------------------------------------
 def iterate_bins(run_params):
@@ -451,16 +449,16 @@ def iterate_bins(run_params):
 
         #Check to see if SN and chi are above threshold
         #If finish == True, prepfold will run again
-        info_dict = bestprof_info(prevbins=run_params.prevbins)         
+        info_dict = bestprof_info(prevbins=run_params.prevbins)
         sn = info_dict["sn"]
         chi = info_dict["chi"]
         #decide whether to continue based on previous run's SN and chi
         finish = sn_chi_test(sn, chi)
-            
+
         if finish is False:
             #Choosing the number of bins to use
             nbins = info_dict["nbins"]/2
-            
+
             #Comparing nbins to sampling rate
             bin_upper_lim = bin_sampling_limit(run_params.pulsar)
 
@@ -468,7 +466,7 @@ def iterate_bins(run_params):
                 logger.info("Time sampling limit reached. Bins will be reduced once more")
                 nbins = bin_upper_lim
                 finish=True
-                
+
             if nbins<=100:
                 logger.warn("Minimum number of bins hit. Script will run once more")
                 finish=True
@@ -542,7 +540,7 @@ if __name__ == '__main__':
                         'm' - Use this mode if this is part of a multi-beam observation. This will\
                         fold on many input pointings and then find the best detection, if any, and\
                         find an adequate number of bins for it.\n\
-                        
+
                         Not for typical user inputs:\n\
                         'e' - Folds once on the default number of bins and submits the result to\
                         the database.\n\

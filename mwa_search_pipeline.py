@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-import subprocess
 import os
 import argparse
 import textwrap
@@ -43,7 +42,7 @@ class search_options_class:
                  work_dir=None, sub_dir=None, fits_dir_base=None,
                  dm_min=0, dm_max=250, dm_min_step=0.01,
                  cand_name=None, cand_type='Blind',
-                 relaunch_script=None, downsample=False, 
+                 relaunch_script=None, downsample=False,
                  search=False, single_pulse=False, data_process=False,
                  bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
@@ -654,7 +653,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 #check if we have any unspliced files
                 #there are some so going to resubmit jobs
                 search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
-                job_id_list =[]
                 unspliced_check = False
                 for ch in search_opts.channels:
                     for ne in range(1,expected_file_num):
@@ -853,7 +851,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
 #-------------------------------------------------------------------------------------------------------------
 def prepdata(search_opts):
-    comp_config = config.load_config_file()
 
     #Set up some directories and move to it
     if not os.path.exists("{0}/rfi_masks".format(search_opts.work_dir)):
@@ -1126,7 +1123,7 @@ def fold(search_opts):
 
     #calcs sn_min for candidates
     numout = numout_calc(search_opts.pointing_dir, search_opts.obsid)
-    from math import sqrt,log
+    from math import sqrt
     #sn_min = ( sqrt(log(numout)) - 0.88 ) / 0.47
     sn_min = 5.
 
@@ -1291,7 +1288,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     A simpler version of error_check() that sends off prepsubband, fft and accelsearch
     commands one after the other to take advantage of Ozstars SSDs
     """
-    comp_config = config.load_config_file() 
+    comp_config = config.load_config_file()
     
     job_id_list = []
     # Get prepsubband commands
@@ -1871,7 +1868,7 @@ if __name__ == "__main__":
         jname, raj, decj, dm = temp[0]
         if not args.pointing:
             args.pointing = '{0}_{1}'.format(raj, decj)
-        
+
         args.dm_min = float(dm) - 2.0
         if args.dm_min < 1.0:
             args.dm_min = 1.0

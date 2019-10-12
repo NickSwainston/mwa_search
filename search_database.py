@@ -452,7 +452,7 @@ Default mode is vc'''.format(mode_options)))
                 print('{:4d} | {:4d} | {:4d} | {:19s} | {:19s} | {:4s} | {:10s} | {:10s} | {:4s} | {}'.format(row['BSID'],
                       row['Rownum'], row['AttemptNum'], str(row['Started']), str(row['Ended']),
                       str(row['Exit']), str(row['Proc']), str(row['ExpProc']), str(row['CPUs']), row['Arguments']))
-        
+ 
         if args.mode == "vp":
             for ri, row in enumerate(rows):
                 if ri%20 == 0:
