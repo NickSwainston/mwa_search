@@ -16,20 +16,20 @@ def dict_factory(cursor, row):
         d[col[0]] = row[idx]
     return d
 
-def database_search_start(obsid, pointing, comment):
+def database_search_start(obsid, pointing, comment, cand_type='blind', cand_name=None):
     import version
     con = lite.connect(DB_FILE, timeout = TIMEOUT)
     with con:
         cur = con.cursor()
         cur.execute("""INSERT INTO PulsarSearch(Started, Obsid, Pointing,
-                UserID, Version, Comment,
+                UserID, Version, Comment, CandType, CandName,
                 TotalProc, TotalErrors, TotalDS, TotalDE, TotalJobComp,
                 BeamformProc, BeamformErrors, BeamformDS, BeamformDE, BeamformJobComp,
                 PrepdataProc, PrepdataErrors, PrepdataDS, PrepdataDE, PrepdataJobComp,
                 FFTProc, FFTErrors, FFTDS, FFTDE, FFTJobComp,
                 AccelProc, AccelErrors, AccelDS, AccelDE, AccelJobComp,
                 FoldProc, FoldErrors, FoldDS, FoldDE, FoldJobComp,
-                CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,?,?,
+                CandTotal, CandOverNoise, CandDect) VALUES(?,?,?,?,?,?,?,?,
                        ?,?,?,?,?,
                        ?,?,?,?,?,
                        ?,?,?,?,?,
@@ -39,6 +39,7 @@ def database_search_start(obsid, pointing, comment):
                        ?,?,?)""",
                   (datetime.datetime.now(), obsid, pointing,
                   os.environ['USER'], version.__version__, comment,
+                  cand_type, cand_name,
                   0.0, 0, 0, 0, 0,
                   0.0, 0, 0, 0, 0,
                   0.0, 0, 0, 0, 0,
