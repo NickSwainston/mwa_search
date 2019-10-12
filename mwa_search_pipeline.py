@@ -874,7 +874,23 @@ def prepdata(search_opts):
     if not os.path.exists("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir)):
         os.mkdir("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir))
 
+    #If searching for a known source only search around its DM
+    if search_opts.cand_type is not 'Blind' and search_opts.cand_type is not 'Fermi'\
+            and search_opts.cand_name is not None:
+        import find_pulsar_in_obs as fpio
+        temp = fpio.grab_source_alog(source_type=search_opts.cand_type, pulsar_list=[search_opts.cand_name],
+                                     include_dm=True)
+        dm = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)[0][-1]
+        #I don't need to make a set class command because this is the last time I use this function
+        #For that reason I also shouldn't have to update the relaunch script
+        search_opts.dm_min = float(dm) - 2.0
+        if search_opts.dm_min < 1.0:
+            search_opts.dm_min = 1.0
+        search_opts.dm_max = float(dm) + 2.0
+        print("Searching DMs from {0} to {1}".format(args.dm_min, args.dm_max))
 
+    
+    
     #Get the centre freq channel and then run DDplan.py to work out the most effective DMs
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     minfreq = float(min(search_opts.channels))
