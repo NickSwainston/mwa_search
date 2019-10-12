@@ -131,7 +131,7 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
         [[RA, Dec]]
     """
     #convert to radians
-    coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
+    coord = SkyCoord(source_ra, source_dec, unit=(u.hourangle,u.deg))
     rar = coord.ra.radian #in radians
     decr = coord.dec.radian
 
@@ -238,7 +238,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 pulsar_name_list.append(jname_temp_list)
                 pulsar_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
-    print('SENDING OFF PULSAR SEARCHS')
+    print('\nSENDING OFF PULSAR PROCESSING')
+    print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
@@ -246,17 +247,18 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version)
+                              search_ver=mwa_search_version, data_process=True)
     search_pipe.beamform(search_opts, pulsar_pointing_list,
                          pulsar_list_list=pulsar_name_list)
 
-    print('SENDING OFF VDIF PULSAR SEARCHS')
+    print('\nSENDING OFF VDIF PULSAR PROCESSING')
+    print('----------------------------------------------------------------------------------------')
     #Send off vdif pulsar search
     relaunch_script = "{0} --vdif".format(relaunch_script)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, vdif=True)
+                              search_ver=mwa_search_version, vdif=True, data_process=True)
     search_pipe.beamform(search_opts, vdif_pointing_list,
                          pulsar_list_list=vdif_name_list)
 
@@ -284,7 +286,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
-    print('SENDING OFF RRAT SINGLE PULSE SEARCHS')
+    print('\nSENDING OFF RRAT SINGLE PULSE SEARCHS')
+    print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
@@ -323,7 +326,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
-    print('SENDING OFF FRB SINGLE PULSE SEARCHS')
+    print('\nSENDING OFF FRB SINGLE PULSE SEARCHS')
+    print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
@@ -351,19 +355,19 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         jname = pulsar_line[0]
         for line in names_ra_dec:
             if jname == line[0]:
-                jname, raj, decj, dm = line
+                jname, raj, decj, pos_u = line
         jname_temp_list = [jname]
 
-        #TODO add the candidate size from the file
-        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
+        # grid the pointings to fill the position uncertaint (given in arcminutes)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, pos_u/60.)
                
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
-    print('SENDING OFF FERMI CANDIDATE SEARCHS')
+    print('\nSENDING OFF FERMI CANDIDATE SEARCHS')
+    print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --search --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
