@@ -289,13 +289,14 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF RRAT SINGLE PULSE SEARCHS')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type RRATs --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, single_pulse=True)
+                              search_ver=mwa_search_version, single_pulse=True,
+                              cand_type='RRATs')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
                          code_comment="RRATs single pulse search")
@@ -329,13 +330,14 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF FRB SINGLE PULSE SEARCHS')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type FRB --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, single_pulse=True)
+                              search_ver=mwa_search_version, single_pulse=True,
+                              cand_type='FRB')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
                          code_comment="FRB single pulse search")
@@ -369,13 +371,14 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF FERMI CANDIDATE SEARCHS')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --search --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type Fermi --DI_dir {2} -b {3} -e {4} --search --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, search=True)
+                              search_ver=mwa_search_version, search=True,
+                              cand_type='Fermi')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
                          code_comment="Fermi candidate pulsar search")
