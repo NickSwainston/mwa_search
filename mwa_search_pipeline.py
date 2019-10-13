@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import os
+import subprocess
 import argparse
 import textwrap
 import pipes
@@ -133,10 +134,10 @@ class search_options_class:
 
     #Set up variables that need to be editted
     def getCandName(self):
-        return self._candname
+        return self._cand_name
     def setCandName(self, value):
-        self._candname = value
-    candname = property(getCandName, setCandName)
+        self._cand_name = value
+    cand_name = property(getCandName, setCandName)
 
     def getTable(self):
         return self._table
@@ -774,7 +775,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
                     your_slurm_queue_check(max_queue=500)
+                search_opts.setCandName(pulsar_list[0])
                 prepdata(search_opts)
+                search_opts.setCandName(None)
             else:
                 print("Fits files available, not beamforming or searching")
                 if pulsar_list is None:
@@ -872,8 +875,9 @@ def prepdata(search_opts):
         os.mkdir("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir))
 
     #If searching for a known source only search around its DM
-    if search_opts.cand_type is not 'Blind' and search_opts.cand_type is not 'Fermi'\
-            and search_opts.cand_name is not None:
+    print("cand_type: {}   cand_name: {}".format(search_opts.cand_type,
+                                                        search_opts.cand_name))
+    if not search_opts.cand_type in ['Blind', 'Fermi'] and search_opts.cand_name is not None:
         import find_pulsar_in_obs as fpio
         temp = fpio.grab_source_alog(source_type=search_opts.cand_type, pulsar_list=[search_opts.cand_name],
                                      include_dm=True)
@@ -884,7 +888,7 @@ def prepdata(search_opts):
         if search_opts.dm_min < 1.0:
             search_opts.dm_min = 1.0
         search_opts.dm_max = float(dm) + 2.0
-        print("Searching DMs from {0} to {1}".format(args.dm_min, args.dm_max))
+        print("Searching DMs from {0} to {1}".format(search_opts.dm_min, search_opts.dm_max))
 
     
     
@@ -946,13 +950,21 @@ def prepdata(search_opts):
                                                                      search_opts.obsid)
     else:
         mask_command = ''
+
     dms_per_job = 1024
-    #dms_per_job = 256
-    nsub = 24
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = dm_line[1] #float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
+
+        #work out how many subbands to use based on the dm smear over a subband
+        nsub = 2
+        #time_res and dm_smear are in ms
+        time_res = 0.1
+        dm_smear = dm_end * 0.01 / nsub * 8.3 * 10.**6 / centrefreq**3
+        while dm_smear > time_res:
+            nsub *= 2.
+            dm_smear = dm_end * 0.01 / nsub * 8.3 * 10.**6 / centrefreq**3
 
         if search_opts.downsample:
             downsample = dm_line[-1]
@@ -1859,7 +1871,7 @@ if __name__ == "__main__":
         print("Please only use --search or --single_pulse. Exiting")
         quit()
 
-    if args.cand_name:
+    if args.cand_name and args.cand_type not in ['Blind', 'Fermi']:
         #if no pointing given grab it from psrcat
         import find_pulsar_in_obs as fpio
         temp = fpio.grab_source_alog(source_type=args.cand_type, pulsar_list=[args.cand_name],
