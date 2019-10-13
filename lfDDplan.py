@@ -58,6 +58,32 @@ def plot_sensitivity(DD_plan_array, time, centrefreq, freqres, bandwidth):
 
 
 def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_step=0.02):
+    """
+    Work out the dedisperion plan
+
+    Parameters
+    ----------
+    centrefreq: float
+        The center frequency of the observation in MHz
+    bandwidth: float
+        The bandwidth of the observation in MHz
+    nfreqchan: int
+        The number of frequency channels
+    timeres: float
+        The time resolution of the observation in ms
+    lowDM: float
+        The lowest dispersion measure
+    highDM: float
+        The highest dispersion measure
+    min_DM_step: float
+        Will overwrite the minimum DM step with this value
+
+    Returns
+    -------
+    DD_plan_array: list list
+        dedispersion plan format:
+        [[low_DM, high_DM, DM_step, nDM_step, timeres, downsample]]
+    """
 
     DD_plan_array = []
     freqres = bandwidth / float(nfreqchan)
