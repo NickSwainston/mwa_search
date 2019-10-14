@@ -144,17 +144,17 @@ def binfind(run_params):
         launch_line += " -S"
 
     #Run binfinder.py
-    if run_params.mode=='f':
+    if type(run_params.pointing_dir)==str:
         logger.info("")
         launch_line += " -d {0}".format(run_params.pointing_dir)
         launch_line += " -m f"
-    elif run_params.mode=="m":
+    elif type(run_params.pointing_dir)==list:
         pointing_string=""
         for p in run_params.pointing_dir:
             logger.info("folding on: {0}".format(p))
             pointing_string = pointing_string + p + " "
         launch_line += " -d {0}".format(pointing_string)
-        launch_line += " -m m"
+        launch_line += " -m f"
 
     commands = []
     commands.append("echo 'Submitting binfinder in mode {0}'".format(run_params.mode))
@@ -221,10 +221,7 @@ if __name__ == '__main__':
     modeop = parser.add_argument_group("Mode Options")
     otherop.add_argument("-m", "--mode", type=str, help="The mode in which to run this script:\n\
                         Binfinder Options:\n\
-                        'm' - Folds on any numer of pointings and finds the one with the best detection\
-                        then finds an adequate number of bins for that pointing.\n\
-                        'f' - attempts to find an adequate number of bins of a single pointin to\n\
-                        fold the pulsar with and outputs a bestprof file\n\
+                        'f' - attempts to find the ideal profile for any number of input pointings\n\
                         (runs the s mode after by default)\n\
                         Stokes Fold Options:\n\
                         's' - will fold across stokes IQUV and attempt to find the rotation measure")
@@ -247,7 +244,7 @@ if __name__ == '__main__':
                                 threshold=args.threshold, nbins=args.nbins,\
                                 subint=args.subint)
 
-    if run_params.mode=="f" or run_params.mode=="m":
+    if run_params.mode=="f":
         binfind(run_params)
     elif run_params.mode=="s":
         stokes_fold(run_params)
