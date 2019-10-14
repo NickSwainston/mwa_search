@@ -12,46 +12,49 @@ import config
 import binfinder
 import data_process_pipeline
 import plotting_toolkit
+
+import psrqpy
+import numpy as np
 logger = logging.getLogger(__name__)
 
+#get ATNF db location
+try:
+    ATNF_LOC = os.environ['PSRCAT_FILE']
+except:
+    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
+    ATNF_LOC = None
 
 def find_RM_from_cat(pulsar):
     #Tries to get RM from psrcat
 
-    RM=None
-    RM_err=None
-    f = open("{0}/{1}.eph".format(run_params.pointing_dir, run_params.pulsar))
-    lines=f.readlines()
-    for line in lines:
-        line = line.split()
-        if line[0]=="RM":
-            RM=float(line[1])
-            RM_err=float(line[2])
-            break
+    query = psrqpy.QueryATNF(params=["RM"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas 
+    rm = query["RM"][0]
+    rm_err = query["RM_ERR"][0]
 
-    if not RM or not RM_err:
-        logger.warn("Rotation measure not stored in psrcat ephemeris")
-
-    return RM, RM_err
+    if np.isnan(rm):
+        return None, None
+    elif np.isnan(rm_err):
+        rm_err = 0.15*rm
+    return rm, rm_err
 
 
 def find_RM_from_file(fname):
    #Tries to get RM from an rmfit output
     f = open(fname)
     lines=f.readlines()
-    RM=None
-    RM_err=None
+    rm=None
+    rm_err=None
     for line in lines:
         line = line.split()
         if line[0] == "Best" and line[1] == "RM":
-            RM=float(line[3])
-            RM_err=float(line[5])
+            rm=float(line[3])
+            rm_err=float(line[5])
             break
 
-    if not RM:
+    if not rm:
         logger.warn("RM could not be generated from archive")
 
-    return RM, RM_err
+    return rm, rm_err
 
 #def submit_RM()
     #This is not implemented in the pulsar databse yet
