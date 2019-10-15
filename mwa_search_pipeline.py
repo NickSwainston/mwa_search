@@ -1403,14 +1403,15 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         # load python modules required to do the single pulse python script
         commands.append('ml numpy/1.14.1-python-2.7.14')
         commands.append('ml scipy/1.0.0-python-2.7.14')
-        commands.append('srun --export -c 1 -n 1 single_pulse_search.py $JOBFS/*.dat')
+        commands.append('srun --export=ALL -n 1 -c 1 single_pulse_search.py $JOBFS/*.dat')
         commands.append('mv {0}_singlepulse.ps {0}_{1}_singlepulse.ps'.format(search_opts.obsid,
                                                                               search_opts.pointing))
-        commands.append('tar -czvf {0}_{1}_singlepulse.tar.gz '
-                          '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid,
-                                                              search_opts.pointing))
-        commands.append('cp $JOBFS/{0}_singlepulse.ps {1}/{2}'.format(search_opts.obsid,
-                        search_opts.work_dir, search_opts.sub_dir))
+        #tars don't like collins so including pointing after
+        commands.append('tar -czvf {0}_singlepulse.tar.gz '
+                          '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid))
+        commands.append('cp $JOBFS/{0}_singlepulse.ps '
+                           '{1}/{2}/{0}_{3}_singlepulse.tar.gz'.format(search_opts.obsid,
+                           search_opts.work_dir, search_opts.sub_dir, search_opts.pointing))
 
                 #load python modules and run database scripts
         #TODO Temporarily removed to avoid database timeout issues
@@ -1571,12 +1572,15 @@ def error_check(search_opts, bash_job=False,
                                                                           search_opts.sub_dir))
             # Runs single pulse search
             commands.append('cd {0}/{1}'.format(search_opts.work_dir, search_opts.sub_dir))
-            commands.append('srun --export -c 1 -n 1 single_pulse_search.py *.dat')
+            commands.append('srun --export=ALL -c 1 -n 1 single_pulse_search.py *.dat')
             commands.append('mv {0}_singlepulse.ps {0}_{1}_singlepulse.ps'.format(search_opts.obsid,
-                                                                                  search_opts.pointing))
-            commands.append('tar -czvf {0}_{1}_singlepulse.tar.gz '
-                                      '{0}_DM*singlepulse'.format(search_opts.obsid,
-                                                                  search_opts.pointing))
+                                                                           search_opts.pointing))
+            #tars don't like collins so including pointing after
+            commands.append('tar -czvf {0}_singlepulse.tar.gz '
+                                      '{0}_DM*singlepulse'.format(search_opts.obsid))
+            commands.append('mv {0}_singlepulse.tar.gz '
+                               '{0}_{1}_singlepulse.tar.gz'.format(search_opts.obsid,
+                                                                   search_opts.pointing))
             commands.append('rm {0}_DM*singlepulse'.format(search_opts.obsid))
             commands.append('module use {}'.format(comp_config['module_dir']))
             if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
