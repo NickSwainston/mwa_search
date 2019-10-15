@@ -157,7 +157,8 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
-                      mwa_search_version='master'):
+                      mwa_search_version='master',
+                      relaunch=False):
 
 
 
@@ -297,7 +298,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               cand_type='RRATs')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
-                         code_comment="RRATs single pulse search")
+                         code_comment="RRATs single pulse search",
+                         relaunch=relaunch)
 
 
     # Find all of the FRB candidates
@@ -338,7 +340,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               cand_type='FRB')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
-                         code_comment="FRB single pulse search")
+                         code_comment="FRB single pulse search",
+                         relaunch=relaunch)
 
 
     # Find all of the Fermi candidates
@@ -379,7 +382,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               cand_type='Fermi')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
-                         code_comment="Fermi candidate pulsar search")
+                         code_comment="Fermi candidate pulsar search",
+                         relaunch=relaunch)
 
 
 
@@ -408,6 +412,8 @@ if __name__ == "__main__":
             help="Perform on entire observation span. Use instead of -b & -e")
     parser.add_argument("-n", "--no_comb_check", action="store_true",
             help="Don't do a recombined files check")
+    parser.add_argument("-r", "--relaunch", action="store_true", default=False,
+            help="Will relaunch searches is they have already completed")
     parser.add_argument('--mwa_search_version', type=str, default='master',
             help="The module version of mwa_search to use. Default: master")
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
@@ -453,7 +459,8 @@ if __name__ == "__main__":
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       product_dir=comp_config['base_product_dir'],
-                      mwa_search_version=args.mwa_search_version)
+                      mwa_search_version=args.mwa_search_version,
+                      relaunch=args.relaunch)
 
 
 
