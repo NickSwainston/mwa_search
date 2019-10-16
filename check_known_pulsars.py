@@ -4,17 +4,9 @@ import sys
 import argparse
 import os
 import glob
-import subprocess
 import math
 import numpy as np
 import psrqpy
-#get ATNF db location
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except:
-    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
-    ATNF_LOC = None
-
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
@@ -30,6 +22,14 @@ import find_pulsar_in_obs as fpio
 
 import logging
 logger = logging.getLogger(__name__)
+
+#get ATNF db location
+try:
+    ATNF_LOC = os.environ['PSRCAT_FILE']
+except KeyError:
+    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
+    ATNF_LOC = None
+
 
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
     """
@@ -72,9 +72,9 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
         base_dir = comp_config['base_data_dir']
     comb_dir = "{0}{1}/combined".format(base_dir, obsid)
 
-    if type(beg) is not int:
+    if not isinstance(beg, int):
         beg = int(beg)
-    if type(dur) is not int:
+    if not isinstance(dur, int):
         dur = int(dur)
     
     #Check to see if the files are combined properly
@@ -130,6 +130,52 @@ def calc_ta_fwhm(freq, array_phase='P2C'):
 
     return fwhm
 
+def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
+    """
+    Gets the number of grid pointings required to cover the search radius
+
+    Parameters
+    ----------
+    source_ra, source_dec: string
+        A string separated representing the RA and dec respectively.
+        Expected format is 'hh:mm[:ss.s]'
+    fwhm: float
+        FWHM of the tied-array beam in degrees.
+        Can be calculated in the calc_ta_fwhm function
+    search_radius: float
+        The radius of the circle that you would like to search
+
+    Returns
+    -------
+    pointing_list_list: list of lists
+        A list of pointings were each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss'
+        [[RA, Dec]]
+    """
+    #convert to radians
+    coord = SkyCoord(source_ra, source_dec, unit=(u.hourangle,u.deg))
+    rar = coord.ra.radian #in radians
+    decr = coord.dec.radian
+
+    #make a grid around each pulsar
+    grid_sep = fwhm * 0.6
+    #work out how many loops are required
+    loops = int( (search_radius - fwhm/2.) / grid_sep )
+    if loops < 0:
+        loops = 0
+    logger.debug("loops: {}".format(loops))
+    rads, decds = get_grid(rar, decr, np.radians(grid_sep), loops)
+
+    #convert back to sexidecimals
+    coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
+    rajs = coord.ra.to_string(unit=u.hour, sep=':')
+    decjs = coord.dec.to_string(unit=u.degree, sep=':')
+    temp = []
+    for raj, decj in zip(rajs, decjs):
+        temp.append([raj, decj])
+    pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+    return pointing_list_list
+
+
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
                       mwa_search_version='master'):
@@ -168,7 +214,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
     fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
 
-    # Sort all the sources into 3 categories, pulsars which is for slow pulsars, vdif 
+    # Sort all the sources into 3 categories, pulsars which is for slow pulsars, vdif
     # for fast pulsars that require vdif and sp for singple pulse searches (FRBs,
     # RRATs and pulsars without ATNF periods)
     pulsar_pointing_list = []
@@ -224,23 +270,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         else:
             jname_temp_list.append(jname)
 
-        #convert to radians
-        coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
-        rar = coord.ra.radian #in radians
-        decr = coord.dec.radian
-
-        #make a grid around each pulsar
-        grid_sep = np.radians(fwhm * 0.6)
-        rads, decds = get_grid(rar, decr, grid_sep, 1)
-
-        #convert back to sexidecimals
-        coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
-        rajs = coord.ra.to_string(unit=u.hour, sep=':')
-        decjs = coord.dec.to_string(unit=u.degree, sep=':')
-        temp = []
-        for raj, decj in zip(rajs, decjs):
-            temp.append([raj, decj])
-        pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
         
         # sort the pointings into the right groups
         for prd in pointing_list_list:
@@ -254,7 +285,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 pulsar_name_list.append(jname_temp_list)
                 pulsar_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
-    print('SENDING OFF PULSAR SEARCHS')
+    print('\nSENDING OFF PULSAR PROCESSING')
+    print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
@@ -262,21 +294,24 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version)
+                              search_ver=mwa_search_version, data_process=True)
     search_pipe.beamform(search_opts, pulsar_pointing_list,
                          pulsar_list_list=pulsar_name_list)
 
-    print('SENDING OFF VDIF PULSAR SEARCHS')
+    print('\nSENDING OFF VDIF PULSAR PROCESSING')
+    print('----------------------------------------------------------------------------------------')
     #Send off vdif pulsar search
     relaunch_script = "{0} --vdif".format(relaunch_script)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, vdif=True)
+                              search_ver=mwa_search_version, vdif=True, data_process=True)
     search_pipe.beamform(search_opts, vdif_pointing_list,
                          pulsar_list_list=vdif_name_list)
 
+
     #Get the rest of the singple pulse search canidates
+    #-----------------------------------------------------------------------------------------------------------
     orig_names_ra_dec = fpio.grab_source_alog(source_type='RRATs',
                                               max_dm=250, include_dm=True)
     # remove any RRATs without at least arc minute accuracy
@@ -287,44 +322,116 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         jname = pulsar_line[0]
         for line in names_ra_dec:
             if jname == line[0]:
-                jname, raj, decj, dm = line
+                jname, raj, decj, _ = line
         jname_temp_list = [jname]
 
-        #convert to radians
-        coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
-        rar = coord.ra.radian #in radians
-        decr = coord.dec.radian
-
-        #make a grid around each pulsar
-        grid_sep = np.radians(fwhm * 0.6)
-        rads, decds = get_grid(rar, decr, grid_sep, 1)
-
-        #convert back to sexidecimals
-        coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
-        rajs = coord.ra.to_string(unit=u.hour, sep=':')
-        decjs = coord.dec.to_string(unit=u.degree, sep=':')
-        temp = []
-        for raj, decj in zip(rajs, decjs):
-            temp.append([raj, decj])
-        pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
-        
+        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
+               
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
-    print('SENDING OFF SINGLE PULSE SEARCHS')
+    print('\nSENDING OFF RRAT SINGLE PULSE SEARCHS')
+    print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type RRATs --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, single_pulse=True)
+                              search_ver=mwa_search_version, single_pulse=True,
+                              cand_type='RRATs')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
-                         code_comment="Single pulse search")
+                         code_comment="RRATs single pulse search",
+                         relaunch=relaunch)
+
+
+    # Find all of the FRB candidates
+    #-----------------------------------------------------------------------------------------------------------
+    orig_names_ra_dec = fpio.grab_source_alog(source_type='FRB',
+                                              max_dm=10000, include_dm=True)
+    # remove any RRATs without at least arc minute accuracy
+    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    
+    sp_name_list = []
+    sp_pointing_list = []
+    for pulsar_line in obs_data[obsid]:
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj, dm = line
+        jname_temp_list = [jname]
+
+        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
+               
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            sp_name_list.append(jname_temp_list)
+            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    
+    print('\nSENDING OFF FRB SINGLE PULSE SEARCHS')
+    print('----------------------------------------------------------------------------------------')
+    # Send off pulsar search
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type FRB --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    for ch in channels:
+        relaunch_script = "{0} {1}".format(relaunch_script, ch)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels,
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version, single_pulse=True,
+                              cand_type='FRB')
+    search_pipe.beamform(search_opts, sp_pointing_list,
+                         pulsar_list_list=sp_name_list,
+                         code_comment="FRB single pulse search",
+                         relaunch=relaunch)
+
+
+    # Find all of the Fermi candidates
+    #-----------------------------------------------------------------------------------------------------------
+    orig_names_ra_dec = fpio.grab_source_alog(source_type='Fermi',
+                                              max_dm=10000, include_dm=True)
+    # remove any RRATs without at least arc minute accuracy
+    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    
+    sp_name_list = []
+    sp_pointing_list = []
+    for pulsar_line in obs_data[obsid]:
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj, pos_u = line
+        jname_temp_list = [jname]
+
+        # grid the pointings to fill the position uncertaint (given in arcminutes)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, pos_u/60.)
+               
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            sp_name_list.append(jname_temp_list)
+            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    
+    print('\nSENDING OFF FERMI CANDIDATE SEARCHS')
+    print('----------------------------------------------------------------------------------------')
+    # Send off pulsar search
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type Fermi --DI_dir {2} -b {3} -e {4} --search --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    for ch in channels:
+        relaunch_script = "{0} {1}".format(relaunch_script, ch)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels,
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version, search=True,
+                              cand_type='Fermi')
+    search_pipe.beamform(search_opts, sp_pointing_list,
+                         pulsar_list_list=sp_name_list,
+                         code_comment="Fermi candidate pulsar search",
+                         relaunch=relaunch)
 
 
     return
@@ -352,6 +459,8 @@ if __name__ == "__main__":
             help="Perform on entire observation span. Use instead of -b & -e")
     parser.add_argument("-n", "--no_comb_check", action="store_true",
             help="Don't do a recombined files check")
+    parser.add_argument("-r", "--relaunch", action="store_true", default=False,
+            help="Will relaunch searches is they have already completed")
     parser.add_argument('--mwa_search_version', type=str, default='master',
             help="The module version of mwa_search to use. Default: master")
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
@@ -366,7 +475,7 @@ if __name__ == "__main__":
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     logger.propagate = False
-    
+
     #option parsing
     if not args.obsid:
         print("Please input observation id by setting -o or --obsid. Exiting")
@@ -397,7 +506,8 @@ if __name__ == "__main__":
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       product_dir=comp_config['base_product_dir'],
-                      mwa_search_version=args.mwa_search_version)
+                      mwa_search_version=args.mwa_search_version,
+                      relaunch=args.relaunch)
 
 
 

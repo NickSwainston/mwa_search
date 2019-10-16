@@ -10,18 +10,23 @@ except KeyError:
 con = lite.connect(DB_FILE)
 with con:
     #PulsarSearch Table: stores all major values for the mwa search pipeline for each pointing
-    #Rownum: ID to reference
-    #Comment: What the pipeline's purpose (eg testing or main search centered at x y)
-    #SampleNum: Number of time samples in fits files used
-    #*Proc: total prossing wall time in seconds
-    #*Errors: total errors for each section
-    #*DS: Number of jobs that didn't start
-    #*DE: number of jobs that didn't end
-    #*JobComp: Number of jobs that completed succesfully
-    #*JobExp: Expected number of jobs to be completed
-    #CandTotal: total cands
-    #CandOverNoise: total cands over noise (normaly 3 sigma but I may change it)
-    #CandDect: cands that were confirmed as pulsars (known or hopefully new)
+    #Rownum:        ID to reference
+    #Started:       Date and time when pipeline started
+    #Ended:         Date and time when pipeline finished, if not finished may of broke
+    #Obsid:         MWA observation ID
+    #Pointing:      The ra and dec of the search
+    #CandType:      Candidate type from ['Pulsar', 'FRB', 'rFRB', 'RRATs', 'Fermi', 'Blind', 'Cand']
+    #CandName:      Candidate name eg J0437
+    #Comment:       What the pipeline's purpose (eg testing or main search centered at x y)
+    #*Proc:         Total prossing wall time in seconds
+    #*Errors:       Total errors for each section
+    #*DS:           Number of jobs that didn't start
+    #*DE:           Number of jobs that didn't end
+    #*JobComp:      Number of jobs that completed succesfully
+    #*JobExp:       Expected number of jobs to be completed
+    #CandTotal:     Total cands
+    #CandOverNoise: Total cands over noise (normaly 3 sigma but I may change it)
+    #CandDect:      Cands that were confirmed as pulsars (known or hopefully new)
     cur = con.cursor()
     cur.execute("""CREATE TABLE PulsarSearch(
                 Rownum INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,10 +34,11 @@ with con:
                 Ended date,
                 Obsid INT,
                 Pointing TEXT,
+                CandType TEXT,
+                CandName TEXT,
                 UserID TEXT,
                 Version TEXT,
                 Comment TEXT,
-                SampleNum INT,
                 TotalProc FLOAT,
                 TotalErrors INT,
                 TotalDS INT,

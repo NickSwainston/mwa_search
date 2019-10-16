@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 
-import os
-import glob
 import logging
 import argparse
 import sys
-import logging
 
 from job_submit import submit_slurm
 import config
-import binfinder
 import data_process_pipeline
 import plotting_toolkit
 

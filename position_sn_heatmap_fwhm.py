@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 import argparse
-import os
 
 from astropy.coordinates import SkyCoord
 import astropy.units as u
@@ -100,28 +99,28 @@ def find_fwhm_and_plot(obsid, pointing):
 
 
     diff = 10**20
-      
-    # Find the min diff by comparing difference 
-    # of all possible pairs in given array 
+
+    # Find the min diff by comparing difference
+    # of all possible pairs in given array
     n = len(dec_line)
-    for i in range(n-1): 
-        for j in range(i+1,n): 
-            if abs(dec_line[i]-dec_line[j]) < diff: 
-                diff = abs(dec_line[i] - dec_line[j])  
+    for i in range(n-1):
+        for j in range(i+1,n):
+            if abs(dec_line[i]-dec_line[j]) < diff:
+                diff = abs(dec_line[i] - dec_line[j])
     n = len(ra_line)
-    for i in range(n-1): 
-        for j in range(i+1,n): 
-            if abs(ra_line[i]-ra_line[j]) < diff: 
-                diff = abs(ra_line[i] - ra_line[j])  
+    for i in range(n-1):
+        for j in range(i+1,n):
+            if abs(ra_line[i]-ra_line[j]) < diff:
+                diff = abs(ra_line[i] - ra_line[j])
     diff = 0.01
     print("Diff: {}".format(diff))
-    
+
     ras = np.array(ras); decs = np.array(decs)
     fig = plt.figure(figsize=(7, 7))
     ax = fig.add_subplot(111)
 
     plt.grid(True)
-    
+
     #sort by sn
     ras = [x for _,x in sorted(zip(sn,ras))]
     decs = [x for _,x in sorted(zip(sn,decs))]

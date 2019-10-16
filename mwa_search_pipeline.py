@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
-import subprocess
 import os
+import subprocess
 import argparse
 import textwrap
 import pipes
@@ -42,7 +42,9 @@ class search_options_class:
                  channels=None, incoh=False, vdif=False, args=None,
                  work_dir=None, sub_dir=None, fits_dir_base=None,
                  dm_min=0, dm_max=250, dm_min_step=0.01,
-                 relaunch_script=None, search=False, single_pulse=False, downsample=False,
+                 cand_name=None, cand_type='Blind',
+                 relaunch_script=None, downsample=False,
+                 search=False, single_pulse=False, data_process=False,
                  bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
                  nice=None, search_ver='master',
@@ -71,7 +73,7 @@ class search_options_class:
             self.work_dir  = DEFAULT_WORK_DIR
         else:
             self.work_dir  = work_dir
-        self.sub_dir       = sub_dir
+        self._sub_dir       = sub_dir
         if fits_dir_base is None:
             self.fits_dir_base = '{0}{1}/'.format(comp_config['base_product_dir'], obsid)
         else:
@@ -93,9 +95,18 @@ class search_options_class:
         self.dm_min_step = dm_min_step
 
         #search database
+        self._cand_name         = cand_name
+        if cand_type is None:
+            if search:
+                self.cand_type  = 'Blind'
+            elif single_pulse:
+                self.cand_type  = 'FRB'
+        else:
+            self.cand_type      = cand_type
         self._relaunch_script   = relaunch_script
         self.search             = search
         self.single_pulse       = single_pulse
+        self.data_process       = data_process
         self.downsample         = downsample
         self._bsd_row_num       = bsd_row_num
         self.cold_storage_check = cold_storage_check
@@ -122,6 +133,12 @@ class search_options_class:
             self._n_omp_threads = n_omp_threads
 
     #Set up variables that need to be editted
+    def getCandName(self):
+        return self._cand_name
+    def setCandName(self, value):
+        self._cand_name = value
+    cand_name = property(getCandName, setCandName)
+
     def getTable(self):
         return self._table
     def setTable(self, value):
@@ -139,6 +156,12 @@ class search_options_class:
     def setPdir(self, value):
         self._pointing_dir = value
     pointing_dir = property(getPdir, setPdir)
+    
+    def getSdir(self):
+        return self._sub_dir
+    def setSdir(self, value):
+        self._sub_dir = value
+    sub_dir = property(getSdir, setSdir)
 
     def getPoint(self):
         return self._pointing
@@ -365,9 +388,9 @@ def process_vcs_wrapper(search_opts, pointings,
                 pulsar_list = None
             else:
                 pulsar_list = pulsar_list_list[pn]
+            temp_pulsar_string = ''
             if code_comment_in is not None:
                 # Add pulsar names
-                temp_pulsar_string = ''
                 if pulsar_list is not None:
                     for pulsar in pulsar_list:
                         temp_pulsar_string = '{0} {1}'.format(temp_pulsar_string, pulsar)
@@ -378,7 +401,8 @@ def process_vcs_wrapper(search_opts, pointings,
                                                                   search_opts.pointing))
 
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
-                                          search_opts.pointing, "{0}".format(code_comment)))
+                                          search_opts.pointing, "{0}".format(code_comment),
+                                          cand_name=temp_pulsar_string, cand_type=search_opts.cand_type))
             dep_job_id_list.append(dependant_splice_batch(search_opts, job_id_list=job_id_list,
                                                           pulsar_list=pulsar_list,
                                                           beamformer_batch=beamformer_batch,
@@ -490,7 +514,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
             commands.append(relaunch_script)
         else:
             for pulsar in pulsar_list:
-                commands.append("{0} --pulsar {1}".format(relaunch_script, pulsar))
+                commands.append("{0} --cand_name {1}".format(relaunch_script, pulsar))
 
     hostname = socket.gethostname()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
@@ -520,6 +544,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
     #create a dictionary for recording pointdirs and pulsars to make a depdant fold job
     pulsar_fold_dict = {}
+    incoh_splice_job_id = None
     if pulsar_list_list is None:
         pulsar_fold_dict[None] = []
     else:
@@ -574,9 +599,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
         #set up search_opts.relaunch scripts
         if pulsar is None:
-            search_opts.sub_dir = '{0}/{1}'.format(search_opts.pointing, search_opts.obsid)
+            search_opts.setSdir('{0}/{1}'.format(search_opts.pointing, search_opts.obsid))
         else:
-            search_opts.sub_dir = '{0}/{1}'.format(pulsar, search_opts.obsid)
+            search_opts.setSdir('{0}/{1}/{2}'.format(pulsar, search_opts.pointing, search_opts.obsid))
         search_opts.relaunch_script = "{0} -p {1} -s {2}".format(search_opts.relaunch_script_in,
                                                       search_opts.pointing, search_opts.sub_dir)
 
@@ -629,7 +654,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 #check if we have any unspliced files
                 #there are some so going to resubmit jobs
                 search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
-                job_id_list =[]
                 unspliced_check = False
                 for ch in search_opts.channels:
                     for ne in range(1,expected_file_num):
@@ -684,8 +708,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
                         temp_pulsar_string = '{0} {1}'.format(temp_pulsar_string, pulsar)
 
                 search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
-                                   search_opts.pointing, "{0} {1} pn {2}".format(code_comment,
-                                                              temp_pulsar_string, n)))
+                                   search_opts.pointing,
+                                   "{0} {1} pn {2}".format(code_comment, temp_pulsar_string, n),
+                                   cand_name=temp_pulsar_string, cand_type=search_opts.cand_type))
                 search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script,
                                                        search_opts.bsd_row_num))
         else:
@@ -750,7 +775,9 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
                     your_slurm_queue_check(max_queue=500)
+                search_opts.setCandName(pulsar_list[0])
                 prepdata(search_opts)
+                search_opts.setCandName(None)
             else:
                 print("Fits files available, not beamforming or searching")
                 if pulsar_list is None:
@@ -799,7 +826,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             pointings_to_beamform = []
             pulsar_list_list_to_beamform = []
     #send off pulsar fold jobs
-    if pulsar_list_list is not None:
+    if pulsar_list_list is not None and search_opts.data_process:
         for pulsar_list in pulsar_fold_dict:
             pulsar_list = pulsar_list.split()
             logger.debug("pulsar_list: {}".format(pulsar_list))
@@ -827,7 +854,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
 
 #-------------------------------------------------------------------------------------------------------------
 def prepdata(search_opts):
-    comp_config = config.load_config_file()
 
     #Set up some directories and move to it
     if not os.path.exists("{0}/rfi_masks".format(search_opts.work_dir)):
@@ -836,6 +862,10 @@ def prepdata(search_opts):
     logger.debug("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
     if not os.path.exists("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0])):
         os.mkdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir.split("/")[0]))
+    if not os.path.exists("{0}/{1}/{2}".format(search_opts.work_dir,
+                          search_opts.sub_dir.split("/")[0], search_opts.sub_dir.split("/")[1])):
+        os.mkdir("{0}/{1}/{2}".format(search_opts.work_dir,
+                 search_opts.sub_dir.split("/")[0], search_opts.sub_dir.split("/")[1]))
     if not os.path.exists("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir)):
         os.mkdir("{0}/{1}".format(search_opts.work_dir, search_opts.sub_dir))
 
@@ -844,7 +874,24 @@ def prepdata(search_opts):
     if not os.path.exists("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir)):
         os.mkdir("{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir))
 
+    #If searching for a known source only search around its DM
+    print("cand_type: {}   cand_name: {}".format(search_opts.cand_type,
+                                                        search_opts.cand_name))
+    if not search_opts.cand_type in ['Blind', 'Fermi'] and search_opts.cand_name is not None:
+        import find_pulsar_in_obs as fpio
+        temp = fpio.grab_source_alog(source_type=search_opts.cand_type, pulsar_list=[search_opts.cand_name],
+                                     include_dm=True)
+        dm = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)[0][-1]
+        #I don't need to make a set class command because this is the last time I use this function
+        #For that reason I also shouldn't have to update the relaunch script
+        search_opts.dm_min = float(dm) - 2.0
+        if search_opts.dm_min < 1.0:
+            search_opts.dm_min = 1.0
+        search_opts.dm_max = float(dm) + 2.0
+        print("Searching DMs from {0} to {1}".format(search_opts.dm_min, search_opts.dm_max))
 
+    
+    
     #Get the centre freq channel and then run DDplan.py to work out the most effective DMs
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     minfreq = float(min(search_opts.channels))
@@ -903,13 +950,21 @@ def prepdata(search_opts):
                                                                      search_opts.obsid)
     else:
         mask_command = ''
+
     dms_per_job = 1024
-    #dms_per_job = 256
-    nsub = 24
     commands_list = []
     for dm_line in dm_list:
         dm_start = dm_line[0]
         dm_end = dm_line[1] #float(dm_line[2]) * float(dm_line[4]) + float(dm_start)
+
+        #work out how many subbands to use based on the dm smear over a subband
+        nsub = 2
+        #time_res and dm_smear are in ms
+        time_res = 0.1
+        dm_smear = dm_end * 0.01 / nsub * 8.3 * 10.**6 / centrefreq**3
+        while dm_smear > time_res:
+            nsub *= 2.
+            dm_smear = dm_end * 0.01 / nsub * 8.3 * 10.**6 / centrefreq**3
 
         if search_opts.downsample:
             downsample = dm_line[-1]
@@ -1080,7 +1135,7 @@ def fold(search_opts):
 
     #calcs sn_min for candidates
     numout = numout_calc(search_opts.pointing_dir, search_opts.obsid)
-    from math import sqrt,log
+    from math import sqrt
     #sn_min = ( sqrt(log(numout)) - 0.88 ) / 0.47
     sn_min = 5.
 
@@ -1245,7 +1300,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     A simpler version of error_check() that sends off prepsubband, fft and accelsearch
     commands one after the other to take advantage of Ozstars SSDs
     """
-    comp_config = config.load_config_file() 
+    comp_config = config.load_config_file()
     
     job_id_list = []
     # Get prepsubband commands
@@ -1348,11 +1403,15 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         # load python modules required to do the single pulse python script
         commands.append('ml numpy/1.14.1-python-2.7.14')
         commands.append('ml scipy/1.0.0-python-2.7.14')
-        commands.append('single_pulse_search.py $JOBFS/*.dat')
+        commands.append('srun --export=ALL -n 1 -c 1 single_pulse_search.py $JOBFS/*.dat')
+        commands.append('mv {0}_singlepulse.ps {0}_{1}_singlepulse.ps'.format(search_opts.obsid,
+                                                                              search_opts.pointing))
+        #tars don't like collins so including pointing after
         commands.append('tar -czvf {0}_singlepulse.tar.gz '
                           '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid))
-        commands.append('cp $JOBFS/{0}_singlepulse.ps {1}/{2}'.format(search_opts.obsid,
-                        search_opts.work_dir, search_opts.sub_dir))
+        commands.append('cp $JOBFS/{0}_singlepulse.ps '
+                           '{1}/{2}/{0}_{3}_singlepulse.tar.gz'.format(search_opts.obsid,
+                           search_opts.work_dir, search_opts.sub_dir, search_opts.pointing))
 
                 #load python modules and run database scripts
         #TODO Temporarily removed to avoid database timeout issues
@@ -1496,7 +1555,6 @@ def error_check(search_opts, bash_job=False,
                 module_list.append('matplotlib/2.2.2-python-2.7.14')
             else:
                 # use galaxy modules
-                module_list.append('module unload vcstools')
                 module_list.append('matplotlib')
                 module_list.append('python/2.7.14')
                 module_list.append('numpy')
@@ -1514,9 +1572,15 @@ def error_check(search_opts, bash_job=False,
                                                                           search_opts.sub_dir))
             # Runs single pulse search
             commands.append('cd {0}/{1}'.format(search_opts.work_dir, search_opts.sub_dir))
-            commands.append('single_pulse_search.py *.dat')
+            commands.append('srun --export=ALL -c 1 -n 1 single_pulse_search.py *.dat')
+            commands.append('mv {0}_singlepulse.ps {0}_{1}_singlepulse.ps'.format(search_opts.obsid,
+                                                                           search_opts.pointing))
+            #tars don't like collins so including pointing after
             commands.append('tar -czvf {0}_singlepulse.tar.gz '
                                       '{0}_DM*singlepulse'.format(search_opts.obsid))
+            commands.append('mv {0}_singlepulse.tar.gz '
+                               '{0}_{1}_singlepulse.tar.gz'.format(search_opts.obsid,
+                                                                   search_opts.pointing))
             commands.append('rm {0}_DM*singlepulse'.format(search_opts.obsid))
             commands.append('module use {}'.format(comp_config['module_dir']))
             if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
@@ -1533,7 +1597,7 @@ def error_check(search_opts, bash_job=False,
             commands.append("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(search_opts.bsd_row_num), commands,
                          batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
-                         slurm_kwargs={"time": '59:00'}, nice=search_opts.nice,
+                         slurm_kwargs={"time": '01:59:00'}, nice=search_opts.nice,
                          module_list=module_list,
                          cpu_threads=1, mem=mem, submit=True,
                          vcstools_version="Error_on_purpose")
@@ -1763,10 +1827,13 @@ if __name__ == "__main__":
     search_options.add_argument('--dm_max', type=float, default = 250.0,
         help='DM max searched. Default 250')
     search_options.add_argument('--dm_min_step', type=float, default = 0.01,
-        help='Smallest DM step size. Increaseing this number will increase search speed but lower sensitivty. Default 0.01')
-    search_options.add_argument('--pulsar', type=str,
-        help="Used to search for a known pulsar by inputing it's Jname. The code "
+        help='Smallest DM step size. Increaseing this number will increase search speed but lower '
+             'sensitivty. Default 0.01')
+    search_options.add_argument('--cand_name', type=str,
+        help="Used to search for a known candidate by inputing it's Jname. The code "
              "then looks within 1 DM and 15%% of the pulsar's period.")
+    search_options.add_argument('--cand_type', type=str, default='Blind',
+        help="Candidate type from  ['Pulsar', 'FRB', 'rFRB', 'RRATs', 'Fermi', 'Blind', 'Cand']. Default 'Blind'")
     search_options.add_argument('-m', '--mode', type=str, default="b",
         help=textwrap.dedent('''Modes used by the pipeline do indicate which step in the process it is up to. The default is beamform mode.
 "b" Checks the fits file directory to decide if all files are there or if splicing or beamforming is required.
@@ -1792,7 +1859,7 @@ if __name__ == "__main__":
     formatter = logging.Formatter('%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-
+    logger.propagate = False
 
     #argument parsing
     if args.mode not in mode_options:
@@ -1808,26 +1875,25 @@ if __name__ == "__main__":
         print("Please only use --search or --single_pulse. Exiting")
         quit()
 
-    if args.pulsar and not args.pointing:
+    if args.cand_name and args.cand_type not in ['Blind', 'Fermi']:
         #if no pointing given grab it from psrcat
         import find_pulsar_in_obs as fpio
-        temp = fpio.get_psrcat_ra_dec(pulsar_list=[args.pulsar])
+        temp = fpio.grab_source_alog(source_type=args.cand_type, pulsar_list=[args.cand_name],
+                                     include_dm=True)
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
-        jname, raj, decj = temp[0]
-        args.pointing = '{0}_{1}'.format(raj, decj)
-    elif not (args.pointing or args.pulsar_file or args.incoh):
-        print("No pointing option supplied. Please either use -p or --pulsar_file. Exiting")
-        quit()
+        jname, raj, decj, dm = temp[0]
+        if not args.pointing:
+            args.pointing = '{0}_{1}'.format(raj, decj)
 
-    if args.pulsar:
-        import find_pulsar_in_obs as fpio
-        #only search aroung the pulsar DM
-        dm = fpio.grab_source_alog(pulsar_list=[args.pulsar], include_dm=True)[0][3]
         args.dm_min = float(dm) - 2.0
         if args.dm_min < 1.0:
             args.dm_min = 1.0
         args.dm_max = float(dm) + 2.0
         print("Searching DMs from {0} to {1}".format(args.dm_min, args.dm_max))
+
+    if not args.cand_name and not (args.pointing or args.pulsar_file or args.incoh):
+        print("No pointing option supplied. Please either use -p or --pulsar_file. Exiting")
+        quit()
 
     if args.mode == "b":
         if args.incoh:
@@ -1899,8 +1965,10 @@ if __name__ == "__main__":
         relaunch_script += " --DI_dir="+args.DI_dir
     if args.bsd_row_num:
         relaunch_script += " -r " + str(args.bsd_row_num)
-    if not args.pulsar == None:
-        relaunch_script += " --pulsar " + args.pulsar
+    if args.cand_name is not None:
+        relaunch_script += " --cand_name " + args.cand_name
+    if args.cand_type:
+        relaunch_script += " --cand_type " + args.cand_type
     if args.pointing:
         relaunch_script += " -p " + str(pointing)
     if args.begin and args.end:
@@ -1940,6 +2008,7 @@ if __name__ == "__main__":
                  args=args, work_dir=work_dir, sub_dir=sub_dir, fits_dir_base=fits_dir_base,
                  pointing_dir=pointing_dir, dm_min=args.dm_min, dm_max=args.dm_max,
                  dm_min_step=args.dm_min_step, vdif=args.vdif,
+                 cand_name=args.cand_name, cand_type=args.cand_type,
                  relaunch_script=relaunch_script, search=args.search,
                  single_pulse=args.single_pulse, downsample=args.downsample,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
@@ -1984,10 +2053,10 @@ if __name__ == "__main__":
             summed=False
 
         #pulsar check parsing
-        if args.pulsar is None:
+        if args.cand_name is None:
             pulsar_list_list=None
         else:
-            pulsar_list_list = [[args.pulsar]]
+            pulsar_list_list = [[args.cand_name]]
         beamform(search_opts, pointing_list, code_comment=code_comment,
                  pulsar_list_list=pulsar_list_list, summed=summed,
                  relaunch=args.relaunch)
