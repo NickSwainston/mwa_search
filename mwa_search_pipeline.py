@@ -425,7 +425,7 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
         logger.info("pointing string: {0}".format(pointing_str))
         commands = []
         commands.append("echo 'Folding on multiple pointings'")
-        commands.append("data_process_pipeline.py -m m -d {0} -o {1} -O {2} -p {3} -L {4} "
+        commands.append("data_process_pipeline.py -m f -d {0} -o {1} -O {2} -p {3} -L {4} "
                         "--mwa_search {5}".format(pointing_str, search_opts.obsid,
                         search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
 

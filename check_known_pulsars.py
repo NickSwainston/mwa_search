@@ -2,7 +2,6 @@
 
 import sys
 import argparse
-import find_pulsar_in_obs as fpio
 import os
 import glob
 import math
@@ -18,6 +17,8 @@ from mwa_metadb_utils import obs_max_min, get_obs_array_phase
 import config
 from grid import get_grid
 import checks
+import find_pulsar_in_obs as fpio
+#import sn_flux_est as snfe
 
 import logging
 logger = logging.getLogger(__name__)
@@ -31,8 +32,23 @@ except KeyError:
 
 
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
+    """
+    looks through the comined files of the obsid to find the beginning and end gps times
+    
+    Parameters: 
+    -----------
+    obsid: int
+        The observation ID
+    base_path: string
+        OPTIONAL - The system's base working path. Default = '/group/mwaops/vcs/'
 
-    #looks through the comined files of the input obsid and returns the max and min in gps time
+    Returns:
+    --------
+    beg: int
+        The beginning time for on-disk files 
+    end: int
+        The end time for on-disk files
+    """
     #TODO have some sort of check to look for gaps
     if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid)):
         combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid))
@@ -82,13 +98,18 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
 def calc_ta_fwhm(freq, array_phase='P2C'):
     """
     Calculates the approximate FWHM of the tied array beam in degrees.
-    Input:
-        freq: Frequency in MHz
-    Optional inputs:
-        array_phase: the different array phase (from P1, P2C, P2E) to work out
-                     the maximum baseline length. Default P2C
-    Output:
-        fwhm: FWHM in degrees
+    
+    Parameters:
+    -----------
+    freq: float
+        Frequency in MHz
+    array_phase: string
+        OPTIONAL - The different array phase (from P1, P2C, P2E) to work out the maximum baseline length. Default = 'P2C'
+
+    Returns:
+    --------
+    fwhm: float
+        FWHM in degrees
     """
     from scipy.constants import c
     from math import degrees
@@ -157,9 +178,29 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
-                      mwa_search_version='master',
-                      relaunch=False):
+                      mwa_search_version='master'):
+    """
+    Beamforms on all pulsar locations in the obsid field between some time range. Launches search pipeline when done
 
+    Parameters:
+    -----------
+    obsid: int
+        The observation ID
+    DI_dir: str 
+        The directory containing the Jones matrices solutions
+    cal_obs: 
+        The calibration observation ID
+    args: object
+        The args object generated from argparse. Used for documentation purposes
+    psrbeg: int
+        The beginning of the observing time
+    psrend: int
+        The end of the observing time
+    product_dir: string
+        OPTIONAL - The base directory to store data products. Default = '/group/mwaops/vcs'
+    mwa_search_version: string 
+        OPTIONAL - The version of vcstools to use. Default = 'master'
+    """
 
 
     #obsbeg, obsend, obsdur = file_maxmin.print_minmax(obsid)
@@ -187,6 +228,13 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         sp_check = False
         
         PSRJ = pulsar_line[0]
+        #See if pulsar is in beam for times
+        #enter, exit = snfe.pulsar_beam_coverage(obsid, PSRJ, beg=psrbeg, end=psrend)
+        #if enter is None or exit is None:
+        #    print("{0} is not in beam for time range. Not beamforming".format(PSRJ))        
+        #    continue
+        #TODO: uncomment this section when sn_flux_est is pulled to vcstools master
+
         if not (len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa'):
             continue
         
@@ -384,7 +432,6 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                          pulsar_list_list=sp_name_list,
                          code_comment="Fermi candidate pulsar search",
                          relaunch=relaunch)
-
 
 
     return
