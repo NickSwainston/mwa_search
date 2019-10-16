@@ -174,15 +174,20 @@ def submit_to_db(run_params):
     pfd = cwd + "/" + glob.glob("*{0}_bins*{1}*.pfd".format(run_params.best_bins, run_params.pulsar[1:]))[0]
     
 
-    #do the same for 100 bin profiles
-    logger.info("Submitting profile to database: {0}".format(glob.glob("*_100_bins*{0}*.pfd.bestprof".format(run_params.pulsar[1:]))[0]))
-    ppps_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.ps".format(run_params.pulsar[1:]))[0]
-    bestprof_name_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd.bestprof".format(run_params.pulsar[1:]))[0]
-    png_output_100 = cwd +  "/" + glob.glob("*_100_bins*{0}*.png".format(run_params.pulsar[1:]))[0]
-    pfd_100 = cwd + "/" + glob.glob("*_100_bins*{0}*.pfd".format(run_params.pulsar[1:]))[0]
+    bin_lim = bin_sampling_lim(run_params.pulsar)
+    if bin_lim>=100:
+        b=100
+    else:
+        b=50
+    #do the same for 100/50 bin profiles depending on whether this is an msp or not
+    logger.info("Submitting profile to database: {0}".format(glob.glob("*_{0}_bins*{1}*.pfd.bestprof".format(b, run_params.pulsar[1:]))[0]))
+    ppps_b = cwd + "/" + glob.glob("*_{0}_bins*{1}*.pfd.ps".format(b, run_params.pulsar[1:]))[0]
+    bestprof_name_b = cwd + "/" + glob.glob("*_{0}_bins*{1}*.pfd.bestprof".format(b, run_params.pulsar[1:]))[0]
+    png_output_b = cwd +  "/" + glob.glob("*_{0}_bins*{1}*.png".format(b, run_params.pulsar[1:]))[0]
+    pfd_b = cwd + "/" + glob.glob("*_{0}_bins*{1}*.pfd".format(b, run_params.pulsar[1:]))[0]
 
     products = [ppps, bestprof_name, png_output, pfd,\
-            ppps_100, bestprof_name_100, png_output_100, pfd_100]
+            ppps_b, bestprof_name_b, png_output_b, pfd_b]
 
     #move all of these data products to a suitable directory
     data_dir = "/group/mwaops/vcs/{0}/data_products/{1}".format(run_params.obsid, run_params.pulsar)
@@ -253,7 +258,7 @@ def get_best_profile(pointing_dir, pulsar, threshold=10):
 
     if best_i is None:
         logger.info("No profiles fit the threshold parameter")
-        return None, None
+        return None
     else:
         logger.info("Adequate profile found with {0} bins".format(bin_order[best_i]))
         prof_name = glob.glob("*{0}_bins*{1}*.bestprof".format(bin_order[best_i], pulsar[1:]))[0]
@@ -346,7 +351,7 @@ def submit_prepfold(run_params, nbins=100, finish=False):
         commands.append("echo 'prepfolding on 100 bins'")
         commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins=100)
  
-    #Fold on 50 bins if this is an msp
+    #Fold on 50 bins if this is an msp and a fold on 50 bins hasn't been done already
     if len(glob.glob("*_50_bins**{0}*bestprof".format(run_params.pulsar[1:])))==0 and bin_lim<100 and nbins is not 50:
         commands.append("echo 'prepfolding on 50 bins'") 
         commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins=100)
@@ -367,11 +372,11 @@ def submit_prepfold(run_params, nbins=100, finish=False):
 
     if finish==False:
         #Rerun this script
-        commands.append('echo "Running script again. Passing prevbins = {0}"'.format(nbins))
+        commands.append('echo "Running binfinder script again in find mode. Passing prevbins = {0}"'.format(nbins))
         launch_line += " -m f"
     else:
         #Run again only once and without prepfold
-        commands.append('echo "Running script again without folding. Passing prevbins = {0}"'.format(nbins))
+        commands.append('echo "Running binfinder script in submission mode. Passing prevbins = {0}"'.format(nbins))
         launch_line += " -m e"
 
     commands.append(launch_line)
@@ -461,12 +466,12 @@ def iterate_bins(run_params):
             bin_upper_lim = bin_sampling_limit(run_params.pulsar)
 
             if nbins < bin_upper_lim and bin_upper_lim<1024:
-                logger.info("Time sampling limit reached. Bins will be reduced once more")
+                logger.info("Time sampling limit reached")
                 nbins = bin_upper_lim
                 finish=True
 
             if nbins<=100:
-                logger.warn("Minimum number of bins hit. Script will run once more")
+                logger.warn("Minimum number of bins hit: {0}".format(nbins))
                 finish=True
 
             #create slurm job:
@@ -584,12 +589,12 @@ if __name__ == '__main__':
         os.chdir(run_params.pointing_dir)
 
     if run_params.mode=="e":
-        logger.info("Submitting to database")
         prof_name = get_best_profile(run_params.pointing_dir, run_params.pulsar, run_params.threshold)
-
         if prof_name==None:
             logger.info("Non detection - no adequate profiles. Exiting....")
             sys.exit(0)
+        else:
+            logger.info("Submitting to database")
         #plot the profile properly
         plotting_toolkit.plot_bestprof("{0}/{1}".format(run_params.pointing_dir, prof_name),
                                         out_dir=run_params.pointing_dir)
