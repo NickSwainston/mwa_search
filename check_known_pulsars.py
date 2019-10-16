@@ -178,7 +178,7 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
-                      mwa_search_version='master'):
+                      mwa_search_version='master', relaunch=False):
     """
     Beamforms on all pulsar locations in the obsid field between some time range. Launches search pipeline when done
 
