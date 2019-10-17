@@ -295,7 +295,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF PULSAR PROCESSING')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --cand_type Pulsar --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
