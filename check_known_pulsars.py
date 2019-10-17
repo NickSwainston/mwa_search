@@ -210,6 +210,14 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     channels = meta_data[-1][-1]
 
+    #get all the pulsars periods
+    pulsar_list = []
+    for o in obs_data[obsid]:
+        pulsar_list.append(o[0])
+    periods = psrqpy.QueryATNF(params=["P0"], psrs=pulsar_list,
+                               loadfromdb=ATNF_LOC).pandas["P0"]
+
+
     oap = get_obs_array_phase(obsid)
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
     fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
@@ -223,7 +231,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vdif_name_list = []
     sp_pointing_list = []
     sp_name_list = []
-    for pulsar_line in obs_data[obsid]:
+    for pi, pulsar_line in enumerate(obs_data[obsid]):
         vdif_check = False
         sp_check = False
         
@@ -246,9 +254,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
-        period = psrqpy.QueryATNF(params=["P0"], psrs=[jname],
-                                  loadfromdb=ATNF_LOC).pandas["P0"][0]
-
+        period = periods[pi] 
         if math.isnan(period):
             print("WARNING: Period not found in ephermeris for {0} so assuming "
                   "it's an RRAT".format(jname))
@@ -264,9 +270,10 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
             #Got to find all the pulsar J names with other letters
             vdif_check = True
-            for pulsar_l in pulsar_lines:
-                if pulsar_l.startswith(PSRJ[:-2]):
-                    jname_temp_list.append(pulsar_l.split()[0])
+            for pulsar_l in obs_data[obsid]:
+                pulsar_name = pulsar_l[0]
+                if pulsar_name.startswith(PSRJ[:-2]):
+                    jname_temp_list.append(pulsar_name)
         else:
             jname_temp_list.append(jname)
 
@@ -410,7 +417,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         jname_temp_list = [jname]
 
         # grid the pointings to fill the position uncertaint (given in arcminutes)
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, pos_u/60.)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, float(pos_u)/60.)
                
         # sort the pointings into the right groups
         for prd in pointing_list_list:
