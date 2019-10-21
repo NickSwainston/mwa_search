@@ -1832,7 +1832,7 @@ if __name__ == "__main__":
     search_options.add_argument('--cand_name', type=str,
         help="Used to search for a known candidate by inputing it's Jname. The code "
              "then looks within 1 DM and 15%% of the pulsar's period.")
-    search_options.add_argument('--cand_type', type=str, default='Blind',
+    search_options.add_argument('--cand_type', type=str, default=None,
         help="Candidate type from  ['Pulsar', 'FRB', 'rFRB', 'RRATs', 'Fermi', 'Blind', 'Cand']. Default 'Blind'")
     search_options.add_argument('-m', '--mode', type=str, default="b",
         help=textwrap.dedent('''Modes used by the pipeline do indicate which step in the process it is up to. The default is beamform mode.
