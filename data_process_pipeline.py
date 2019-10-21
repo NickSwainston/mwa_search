@@ -17,13 +17,16 @@ class run_params_class:
                 mode=None, mwa_search="master", vcs_tools="master",\
                 nbins=None, subint=10.0, RM=None, RM_err=None, prevbins=None,\
                 best_bins=None, force_initial=False, nocrop=False, bestprof=None,\
-                archive=None, out_dir=None, epndb_dir=None):
+                archive=None, out_dir=None, epndb_dir=None, stokes_bins=None,\
+                beg=None, end=None):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
         self.cal_id         = cal_id
         self.obsid          = obsid
         self.pulsar         = pulsar
+        self.beg            = beg
+        self.end            = end
 
         #Versions
         self.mwa_search     = mwa_search
@@ -50,7 +53,7 @@ class run_params_class:
         self.RM_err         = RM_err
         self.prevbins       = prevbins
         self.best_bins      = best_bins
-
+        self.stokes_bins    = stokes_bins
 
         if self.obsid==None:
             self.obsid=info_from_dir(self.pointing_dir)["obsid"]
@@ -59,11 +62,23 @@ class run_params_class:
                 self.pointing_dir=self.pointing_dir[0]
 
 
+    def set_beg(self, beg):
+        self.beg = beg
+    
+    def set_end(self, end):
+        self.end = end
+    
     def set_prevbins(self, prevbins):
         self.prevbins = prevbins
 
     def set_best_bins(self, bins):
         self.best_bins = bins
+
+    def set_nbins(self, bins):
+        self.nbins = bins
+
+    def set_stokes_bins(self, bins):
+        self.stokes_bins = bins
 
     def set_RM_and_err(self, RM, RM_err):
         self.RM = RM
@@ -74,7 +89,7 @@ class run_params_class:
 
     def stop_now(self):
         self.stop=True
-
+    
 #----------------------------------------------------------------------
 def copy_data(data_path, target_directory):
     #copies the data_path file to target_directory
