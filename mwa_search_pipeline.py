@@ -426,11 +426,13 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
         commands = []
         commands.append("echo 'Folding on multiple pointings'")
         commands.append("data_process_pipeline.py -m f -d {0} -o {1} -O {2} -p {3} -L {4} "
-                        "--mwa_search {5}".format(pointing_str, search_opts.obsid,
-                        search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
+                        "--mwa_search {5} -b {6} -e {7}".format(pointing_str, search_opts.obsid,
+                        search_opts.cal_id, pulsar, loglvl, search_opts.search_ver,
+                        search_opts.begin, search_opts.end))
 
-        name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
-        batch_dir = "{0}/batch/".format(search_opts.fits_dir_base)
+        name="dpp_launch_{0}_{1}".format(pulsar, search_opts.obsid)
+        logger.info("Submitting job: {}".format(name))
+        batch_dir = os.path.join(search_opts.fits_dir_base, "batch")
         submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
                     slurm_kwargs={"time": "00:05:00"},\
