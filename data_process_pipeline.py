@@ -12,13 +12,12 @@ logger = logging.getLogger(__name__)
 #----------------------------------------------------------------------
 class run_params_class:
 
-    def __init__(self, pointing_dir=None, cal_id=None,obsid=None, pulsar=None,\
+    def __init__(self, pointing_dir=None, cal_id=None, obsid=None, pulsar=None,\
                 threshold=10.0, stop=False, next_mode=True, loglvl="INFO",\
                 mode=None, mwa_search="master", vcs_tools="master",\
-                nbins=None, subint=10.0, RM=None, RM_err=None, prevbins=None,\
-                best_bins=None, force_initial=False, nocrop=False, bestprof=None,\
-                archive=None, out_dir=None, epndb_dir=None, stokes_bins=None,\
-                beg=None, end=None):
+                subint=10.0, RM=None, RM_err=None, force_initial=False,\
+                nocrop=False, bestprof=None, archive=None, out_dir=None,\
+                epndb_dir=None, stokes_bins=None, beg=None, end=None):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -47,12 +46,10 @@ class run_params_class:
 
         #Other Parameters
         self.threshold      = threshold
-        self.nbins          = nbins
         self.subint         = subint
         self.RM             = RM
         self.RM_err         = RM_err
         self.prevbins       = prevbins
-        self.best_bins      = best_bins
         self.stokes_bins    = stokes_bins
 
         if self.obsid==None:
@@ -148,33 +145,19 @@ def stokes_fold(run_params):
 #----------------------------------------------------------------------
 def binfind(run_params):
 
-    launch_line = "binfinder.py -O {0} -t {1} -p {2} -o {3} -L {4} --mwa_search {5}\
-                --vcs_tools {6}"\
-                .format(run_params.cal_id, run_params.threshold, run_params.pulsar,\
-                run_params.obsid, run_params.loglvl, run_params.mwa_search,\
-                run_params.vcs_tools)
-
-    if run_params.stop==True:
-        launch_line += " -S"
-
-    #Run binfinder.py
-    if type(run_params.pointing_dir)==str:
-        logger.info("")
-        launch_line += " -d {0}".format(run_params.pointing_dir)
-        launch_line += " -m f"
-    elif type(run_params.pointing_dir)==list:
-        pointing_string=""
-        for p in run_params.pointing_dir:
-            logger.info("folding on: {0}".format(p))
-            pointing_string = pointing_string + p + " "
-        launch_line += " -d {0}".format(pointing_string)
-        launch_line += " -m f"
+    p=""
+    for pointing in run_params.pointing_dir:
+        p += " {}".format(pointing)
 
     commands = []
-    commands.append("echo 'Submitting binfinder in mode {0}'".format(run_params.mode))
-    commands.append(launch_line)
+    commands.append("echo 'Launching binfinder in mode {0}'".format(run_params.mode))
+    commands.append("binfinder.py -O {0} -t {1} -p {2} -o {3} -L {4} --mwa_search {5}\
+                --vcs_tools {6}, -b {7}, -e {8} -d {9}"\
+                .format(run_params.cal_id, run_params.threshold, run_params.pulsar,\
+                run_params.obsid, run_params.loglvl, run_params.mwa_search,\
+                run_params.vcs_tools, run_params.beg, run_params.end, p))
 
-    #decide how much time to allocate based on number of poitnigns
+    #decide how much time to allocate based on number of pointings
     n_pointings = len(run_params.pointing_dir)
     if n_pointings<100:
         time = "00:30:00"
@@ -185,7 +168,10 @@ def binfind(run_params):
     else:
         time = "10:00:00"
 
-    name = "binfind_initiate_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+    name = "bf_initiate_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+    logger.info("Submitting binfinder script:")
+    logger.info("")
+    logger.info("Job Name: {}".format(name))
     comp_config = config.load_config_file()
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     submit_slurm(name, commands,\
@@ -215,6 +201,8 @@ if __name__ == '__main__':
     obsop.add_argument("-o", "--obsid", type=str, help="The obs ID of the data")
     obsop.add_argument("-O", "--cal_id", type=str, help="The ID of the calibrator used to calibrate the data")
     obsop.add_argument("-p", "--pulsar", type=str, help="The J name of the pulsar. e.g. J2241-5236")
+    obsop.add_argument("-b", "beg", type=int, help="The beginning of the observation")
+    obsop.add_argument("-e", "end", type=int, help="The end of the observation")
 
     binfindop = parser.add_argument_group("Binfinder Options")
     binfindop.add_argument("-t", "--threshold", type=float, default=10.0, help="The presto sigma value\
@@ -256,7 +244,7 @@ if __name__ == '__main__':
                                 mode=args.mode, mwa_search=args.mwa_search,\
                                 vcs_tools=args.vcs_tools, loglvl=args.loglvl,\
                                 threshold=args.threshold, nbins=args.nbins,\
-                                subint=args.subint)
+                                subint=args.subint, beg=args.beg, end=args.end)
 
     if run_params.mode=="f":
         binfind(run_params)
