@@ -30,14 +30,4 @@ if [ ! -d $ROOT/$VERSION ]; then
 fi
 
 # Updates to the project version are explained in CHANGELOG.md
-PROJECT_VERSION="1.0.0"
-VERSION_GIT=$(git log -1 --format=%h)
-SEARCH_VERSION="${PROJECT_VERSION}_${VERSION_GIT}"
-# Creates version.py to track git version in scripts
-echo '__version__ = ''"'${SEARCH_VERSION}'"' > ${ROOT}/${VERSION}/version.py
-
-cp ${ROOT_DIR}/*py $ROOT/$VERSION/
-
-# Fix permissions.
-find "$ROOT/$VERSION" -user "$USER" -type d -exec chmod u+rwx,g+rwx,o+rx,o-w {} \;
-find "$ROOT/$VERSION" -user "$USER" -type f -exec chmod u+rwx,g+rwx,o+rx,o-w {} \;
+python3 setup.py build --build-scripts=$ROOT/$VERSION/
