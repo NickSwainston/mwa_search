@@ -178,7 +178,9 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
-                      mwa_search_version='master', relaunch=False):
+                      mwa_search_version='master',
+                      vcstools_version='master',
+                      relaunch=False):
     """
     Beamforms on all pulsar locations in the obsid field between some time range. Launches search pipeline when done
 
@@ -199,6 +201,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     product_dir: string
         OPTIONAL - The base directory to store data products. Default = '/group/mwaops/vcs'
     mwa_search_version: string 
+        OPTIONAL - The version of mwas_search to use. Default = 'master'
+    vcstools_version: string 
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
 
@@ -295,13 +299,15 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF PULSAR PROCESSING')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --cand_type Pulsar --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --DI_dir {2} -b {3} -e {4} --cand_type Pulsar --vcstools_version {5} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, data_process=True)
+                              search_ver=mwa_search_version,
+                              vcstools_ver=vcstools_version,
+                              data_process=True)
     search_pipe.beamform(search_opts, pulsar_pointing_list,
                          pulsar_list_list=pulsar_name_list)
 
@@ -312,7 +318,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, vdif=True, data_process=True)
+                              search_ver=mwa_search_version,
+                              vcstools_ver=vcstools_version,
+                              vdif=True, data_process=True)
     search_pipe.beamform(search_opts, vdif_pointing_list,
                          pulsar_list_list=vdif_name_list)
 
@@ -343,14 +351,15 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF RRAT SINGLE PULSE SEARCHS')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type RRATs --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type RRATs --DI_dir {2} -b {3} -e {4} --single_pulse --vcstools_version {5} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, single_pulse=True,
-                              cand_type='RRATs')
+                              search_ver=mwa_search_version,
+                              vcstools_ver=vcstools_version,
+                              single_pulse=True, cand_type='RRATs')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
                          code_comment="RRATs single pulse search",
@@ -385,14 +394,15 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF FRB SINGLE PULSE SEARCHS')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type FRB --DI_dir {2} -b {3} -e {4} --single_pulse --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type FRB --DI_dir {2} -b {3} -e {4} --single_pulse --vcstools_version {5} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, single_pulse=True,
-                              cand_type='FRB')
+                              search_ver=mwa_search_version,
+                              vcstools_ver=vcstools_version,
+                              single_pulse=True, cand_type='FRB')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
                          code_comment="FRB single pulse search",
@@ -427,14 +437,15 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF FERMI CANDIDATE SEARCHS')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type Fermi --DI_dir {2} -b {3} -e {4} --search --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend)
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type Fermi --DI_dir {2} -b {3} -e {4} --search --vcstools_version {5} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
     search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
                               begin=psrbeg, end=psrend, channels=channels,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version, search=True,
-                              cand_type='Fermi')
+                              search_ver=mwa_search_version,
+                              vcstools_ver=vcstools_version,
+                              search=True, cand_type='Fermi')
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
                          code_comment="Fermi candidate pulsar search",
@@ -470,6 +481,8 @@ if __name__ == "__main__":
             help="Will relaunch searches is they have already completed")
     parser.add_argument('--mwa_search_version', type=str, default='master',
             help="The module version of mwa_search to use. Default: master")
+    parser.add_argument('--vcstools_version', type=str, default='master',
+            help="The module version of vcstools to use. Default: master")
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
                         default="INFO")
     args=parser.parse_args()
@@ -514,6 +527,7 @@ if __name__ == "__main__":
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       product_dir=comp_config['base_product_dir'],
                       mwa_search_version=args.mwa_search_version,
+                      vcstools_version=args.vcstools_version,
                       relaunch=args.relaunch)
 
 
