@@ -9,12 +9,17 @@ ROOT_DIR=$ROOT
 cd $ROOT
 # VERSION is... the version of the software. This could be hard-coded, or you could determine it from something else.
 # The following git branches, if possible.
-if ! git branch | grep "\\*" | grep "detached"; then
-    VERSION=$(git branch | grep "\\*" | cut -d" " -f2-)
-elif git describe --tags &> /dev/null; then
-    VERSION=$(git describe --tags)
+if [ $# -eq 0 ]
+then
+    if ! git branch | grep "\\*" | grep "detached"; then
+        VERSION=$(git branch | grep "\\*" | cut -d" " -f2-)
+    elif git describe --tags &> /dev/null; then
+        VERSION=$(git describe --tags)
+    else
+        VERSION=$(git branch | grep "\\*" | grep "detached" | rev | cut -d" " -f1 | rev | sed "s|)||")
+    fi
 else
-    VERSION=$(git branch | grep "\\*" | grep "detached" | rev | cut -d" " -f1 | rev | sed "s|)||")
+    VERSION=$1
 fi
 cd -
 
