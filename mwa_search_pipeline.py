@@ -972,9 +972,9 @@ def prepdata(search_opts):
             downsample = 1
         while ( (dm_end - float(dm_start)) / float(dm_line[2])) > float(dms_per_job) :
             #dedisperse for only 1024 steps
-            commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
+            commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2:d} -dmstep {3} '
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} -downsamp {8} '
-                '{9}{7}_*.fits'.format(dm_start, mask_command, nsub, dm_line[2],
+                '{9}{7}_*.fits'.format(dm_start, mask_command, int(nsub), dm_line[2],
                     dms_per_job+1, numout, SSD_file_dir, search_opts.obsid,
                     downsample, search_opts.pointing_dir))
             dm_list_list.append(np.around(np.arange(float(dm_start),
@@ -983,9 +983,9 @@ def prepdata(search_opts):
             dm_start = str(float(dm_start) + (float(dms_per_job) * float(dm_line[2])))
         steps = int((dm_end - float(dm_start)) / float(dm_line[2]))
         #last loop to get the <1024 steps
-        commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2} -dmstep {3} '
+        commands_list.append('-ncpus $ncpus -lodm {0} {1} -nsub {2:d} -dmstep {3} '
                 '-numdms {4} -numout {5} -zerodm -o {6}{7} {8}{7}_*.fits'.format(dm_start,
-                mask_command, nsub, dm_line[2], steps+1, numout, SSD_file_dir,
+                mask_command, int(nsub), dm_line[2], steps+1, numout, SSD_file_dir,
                 search_opts.obsid, search_opts.pointing_dir))
         dm_list_list.append(np.around(np.arange(float(dm_start),
                                       float(dm_start) + float(steps) * float(dm_line[2]),
@@ -996,20 +996,10 @@ def prepdata(search_opts):
 
 
     search_opts.setTable('Prepdata')
-    hostname = socket.gethostname()
-    if hostname.startswith('john') or hostname.startswith('farnarkle'):
-        #It is more efficient on ozstar to use their SSDs for the intermediate files
-        #such as .dat and fft files so the PRESTO commands must be run in series in a
-        #single job
-        sort_fft(search_opts, dm_list_list=dm_list_list, prepsub_commands=commands_list)
-    else:
-        #Puts all the expected jobs on the databse
-        #search_database_script_id_list
-        search_database.database_script_list(search_opts.bsd_row_num, 'prepsubband', commands_list,
-                             search_opts.n_omp_threads, expe_proc_time)
-
-
-        error_check(search_opts, bash_job=True, total_job_time=7200)
+    #It is more efficient on ozstar to use their SSDs for the intermediate files
+    #such as .dat and fft files so the PRESTO commands must be run in series in a
+    #single job
+    sort_fft(search_opts, dm_list_list=dm_list_list, prepsub_commands=commands_list)
     return
 
 #-------------------------------------------------------------------------------------------------------------
@@ -1046,15 +1036,8 @@ def sort_fft(search_opts, dm_list_list=None, prepsub_commands=None):
 
     #Send off jobs
     search_opts.setTable('FFT')
-    hostname = socket.gethostname()
-    if hostname.startswith('john') or hostname.startswith('farnarkle'):
-        accel(search_opts, dm_list_list=dm_list_list,
-              prepsub_commands=prepsub_commands, fft_commands=commands_list)
-    else:
-        search_database.database_script_list(search_opts.bsd_row_num, 'realfft', commands_list,
-                                             search_opts.n_omp_threads, expe_proc_time)
-
-        error_check(search_opts, bash_job=True, total_job_time=3600)
+    accel(search_opts, dm_list_list=dm_list_list,
+          prepsub_commands=prepsub_commands, fft_commands=commands_list)
 
     print("Sent off fft jobs")
     return
@@ -1300,8 +1283,14 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     A simpler version of error_check() that sends off prepsubband, fft and accelsearch
     commands one after the other to take advantage of Ozstars SSDs
     """
+    hostname = socket.gethostname()
     comp_config = config.load_config_file()
-    
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        #If on ozstar use their SSD to improve I/O
+        SSD_file_dir = '$JOBFS/'
+    else:
+        SSD_file_dir = ''
+
     job_id_list = []
     # Get prepsubband commands
     if prepsub_commands is None:
@@ -1320,8 +1309,6 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
             accel_commands = search_database.database_script_check('Accel',
                                              search_opts.bsd_row_num, 1)
 
-    temp_mem = 100 #GB
-
     dat_start = 0 #id of the first file to use dat/fft
     for dmi, command_data in enumerate(prepsub_commands):
         processing_time = 0.0
@@ -1329,10 +1316,13 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
                                         search_opts.attempt+1, dmi)
         commands = []
         commands.append(add_database_function())
-        commands.append('cp -r $TEMPO2 $JOBFS/tempo2')
-        commands.append('cp -r $TEMPO2_CLOCK_DIR $JOBFS/tempo2_clock_dir')
-        commands.append('export TEMPO2=$JOBFS/tempo2')
-        commands.append('export TEMPO2_CLOCK_DIR=$JOBFS/tempo2_clock_dir')
+
+        if hostname.startswith('john') or hostname.startswith('farnarkle'):
+            # These are supposed to speed up tempo 2 stuff but haven't tested it
+            commands.append('cp -r $TEMPO2 $JOBFS/tempo2')
+            commands.append('cp -r $TEMPO2_CLOCK_DIR $JOBFS/tempo2_clock_dir')
+            commands.append('export TEMPO2=$JOBFS/tempo2')
+            commands.append('export TEMPO2_CLOCK_DIR=$JOBFS/tempo2_clock_dir')
         commands.append('cd {0}/{1}/'.format(search_opts.work_dir,
                                                search_opts.sub_dir))
         commands.append('')
@@ -1394,23 +1384,25 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
                                    search_opts.attempt+1, dmi))
             
                             #Remove accel files off ssd
-            commands.append('cp $JOBFS/*ACCEL* {0}/{1}'.format(search_opts.work_dir,
-                                                              search_opts.sub_dir))
-            commands.append('cp $JOBFS/*inf {0}/{1}'.format(search_opts.work_dir,
-                                                              search_opts.sub_dir))
+            if hostname.startswith('john') or hostname.startswith('farnarkle'):
+                commands.append('cp $JOBFS/*ACCEL* {0}/{1}'.format(search_opts.work_dir,
+                                                                  search_opts.sub_dir))
+                commands.append('cp $JOBFS/*inf {0}/{1}'.format(search_opts.work_dir,
+                                                                  search_opts.sub_dir))
 
 
         # load python modules required to do the single pulse python script
-        commands.append('ml numpy/1.14.1-python-2.7.14')
-        commands.append('ml scipy/1.0.0-python-2.7.14')
-        commands.append('srun --export=ALL -n 1 -c 1 single_pulse_search.py $JOBFS/*.dat')
+        if hostname.startswith('john') or hostname.startswith('farnarkle'):
+            commands.append('ml numpy/1.14.1-python-2.7.14')
+            commands.append('ml scipy/1.0.0-python-2.7.14')
+        commands.append('srun --export=ALL -n 1 -c 1 single_pulse_search.py {0}*.dat'.format(SSD_file_dir))
         commands.append('mv {0}_singlepulse.ps {0}_{1}_singlepulse.ps'.format(search_opts.obsid,
                                                                               search_opts.pointing))
         #tars don't like collins so including pointing after
         commands.append('tar -czvf {0}_singlepulse.tar.gz '
-                          '$JOBFS/*{0}_DM*singlepulse'.format(search_opts.obsid))
-        commands.append('cp $JOBFS/{0}_singlepulse.ps '
-                           '{1}/{2}/{0}_{3}_singlepulse.tar.gz'.format(search_opts.obsid,
+                          '{1}*{0}_DM*singlepulse'.format(search_opts.obsid,SSD_file_dir))
+        commands.append('cp {0}{1}_singlepulse.ps '
+                           '{2}/{3}/{1}_{4}_singlepulse.tar.gz'.format(SSD_file_dir, search_opts.obsid,
                            search_opts.work_dir, search_opts.sub_dir, search_opts.pointing))
 
                 #load python modules and run database scripts
@@ -1428,14 +1420,24 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
             processing_time = 10800
         if processing_time > 10800:
             processing_time = 10800 #max at 3 hours because that should be plenty of time
+
+        if hostname.startswith('john') or hostname.startswith('farnarkle'):
+            mem = 2048
+            temp_mem = 100 #GB
+            module_list=['presto/min_path', 'psrcat/1.49',
+                         'tempo2/278e129', 'tempo2_clock/2019-03-21']
+        else:
+            mem = 1024
+            temp_mem = None
+            module_list=['presto/master']
+
         total_job_time_str = datetime.timedelta(seconds=int(processing_time))
         job_id = submit_slurm(check_batch, commands,
                  batch_dir="{0}/{1}/batch".format(search_opts.work_dir,search_opts.sub_dir),
                  slurm_kwargs={"time": total_job_time_str},
-                 module_list=['presto/min_path', 'psrcat/1.49',
-                              'tempo2/278e129', 'tempo2_clock/2019-03-21'],
+                 module_list=module_list,
                  submit=True, cpu_threads=search_opts.n_omp_threads,
-                 mem=2048, temp_mem=temp_mem,
+                 mem=mem, temp_mem=temp_mem,
                  vcstools_version=None)
         job_id_list.append(job_id)
 
@@ -1453,12 +1455,12 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     #commands.append("{0} --attempt {1} -m c --table Accel".format(search_opts.relaunch_script,
     #                                                              search_opts.attempt + 1))
     #TODO ONLY NEED FOR database removal
-    module_list = []
-    # on ozstar so use their modules
-    module_list.append('mwa_search/{}'.format(search_opts.search_ver))
-    module_list.append('module use /apps/users/pulsar/skylake/modulefiles\n'
-                       'module load presto/d6265c2')
-    module_list.append('matplotlib/2.2.2-python-2.7.14')
+    if hostname.startswith('john') or hostname.startswith('farnarkle'):
+        module_list = ['module use /apps/users/pulsar/skylake/modulefiles\'module load presto/d6265c2',
+                       'matplotlib/2.2.2-python-2.7.14']
+    else:
+        module_list = ['presto/master',
+                       'matplotlib']
     #find ACCEL_sift path
     import shutil
     accel_sift = shutil.which("ACCEL_sift.py")
@@ -1467,6 +1469,18 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     commands.append('cd {0}'.format(search_opts.work_dir))
     commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
                                                               search_opts.sub_dir))
+    commands.append('')
+    if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
+        # If on galaxy it sometimes needs the python version explictedly stated
+        commands.append('module unload matplotlib')
+        commands.append('module unload numpy')
+        commands.append('module unload presto')
+        commands.append('module unload python/2.7.14')
+        commands.append('PYTHON_VERSION=3.6.3')
+        commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
+        commands.append('module load python/3.6.3')
+        commands.append('module load scipy')
+        commands.append('module load matplotlib')
     commands.append('module use {}'.format(comp_config['module_dir']))
     commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
     #TODO end temp sec
@@ -1484,7 +1498,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
                  slurm_kwargs={"time": "20:00"}, nice=search_opts.nice,
                  submit=True, depend=job_id_list, depend_type="afterany",
                  #module_list=['mwa_search/{}'.format(search_opts.search_ver)],
-                 module_list=module_list,
+                 module_list=module_list, vcstools_version=None,
                  cpu_threads=search_opts.n_omp_threads)
 
     return
