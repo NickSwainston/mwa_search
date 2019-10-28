@@ -47,7 +47,8 @@ class search_options_class:
                  search=False, single_pulse=False, data_process=False,
                  bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
-                 nice=None, search_ver='master',
+                 nice=None,
+                 search_ver='master', vcstools_ver='master',
                  DI_dir=None, pointing_dir=None, n_omp_threads=None):
         hostname = socket.gethostname()
         comp_config = config.load_config_file()
@@ -121,7 +122,8 @@ class search_options_class:
                  self.nice = 100
         else:
             self.nice = nice
-        self.search_ver = search_ver
+        self.search_ver   = search_ver
+        self.vcstools_ver = vcstools_ver
         if n_omp_threads is None:
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
                 #on ozstar use single core jobs
@@ -376,7 +378,7 @@ def process_vcs_wrapper(search_opts, pointings,
                       rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
-                      vcstools_version="master",
+                      vcstools_version=search_opts.vcstools_ver,
                       channels_to_beamform=channels)
 
     code_comment_in = code_comment
@@ -426,8 +428,9 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
         commands = []
         commands.append("echo 'Folding on multiple pointings'")
         commands.append("data_process_pipeline.py -m f -d {0} -o {1} -O {2} -p {3} -L {4} "
-                        "--mwa_search {5}".format(pointing_str, search_opts.obsid,
-                        search_opts.cal_id, pulsar, loglvl, search_opts.search_ver))
+                        "--mwa_search {5} --vcs_tools {6}".format(pointing_str, search_opts.obsid,
+                        search_opts.cal_id, pulsar, loglvl, search_opts.search_ver,
+                        search_opts.vcstools_ver))
 
         name="multibeam_fold_{0}_{1}".format(pulsar, search_opts.obsid)
         batch_dir = "{0}/batch/".format(search_opts.fits_dir_base)
@@ -436,7 +439,7 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
                     slurm_kwargs={"time": "00:05:00"},\
                     module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
                                   'presto/no-python'],\
-                    submit=True, vcstools_version='master',\
+                    submit=True, vcstools_version=search_opts.vcstools_ver,\
                     depend=job_id_list)
     #elif pulsar.startswith("F"):
     #TODO: do something here
@@ -531,7 +534,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
                               'presto/no-python'],
                  submit=True, depend=job_id_list, depend_type='afterany',
                  mem=mem, temp_mem=temp_mem,
-                 vcstools_version="master")
+                 vcstools_version=search_opts.vcstools_ver)
     return job_id
 
 
@@ -1274,7 +1277,8 @@ def wrap_up(search_opts):
     submit_slurm(wrap_batch, commands,
                  batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
                  slurm_kwargs={"time": "2:50:00"}, nice=search_opts.nice,
-                 submit=True, module_list=['mwa_search/{}'.format(search_opts.search_ver)])
+                 submit=True, module_list=['mwa_search/{}'.format(search_opts.search_ver)],
+                 vcstools_version=search_opts.vcstools_ver)
     return
 
 def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
@@ -1614,7 +1618,7 @@ def error_check(search_opts, bash_job=False,
                          slurm_kwargs={"time": '01:59:00'}, nice=search_opts.nice,
                          module_list=module_list,
                          cpu_threads=1, mem=mem, submit=True,
-                         vcstools_version="Error_on_purpose")
+                         vcstools_version=None)
         else:
             print("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
             print(send_cmd_shell("{0} -m {1}".format(search_opts.relaunch_script, next_mode)))
@@ -1695,7 +1699,8 @@ def error_check(search_opts, bash_job=False,
                          nice=search_opts.nice,
                          module_list=['mwa_search/{}'.format(search_opts.search_ver)],
                          submit=True, cpu_threads=search_opts.n_omp_threads,
-                         mem=mem, temp_mem=temp_mem)
+                         mem=mem, temp_mem=temp_mem,
+                         vcstools_version=search_opts.vcstools_ver)
                 job_id_list.append(job_id)
 
                 check_job_num += 1
@@ -1736,7 +1741,8 @@ def error_check(search_opts, bash_job=False,
                      nice=search_opts.nice,
                      module_list=['mwa_search/{}'.format(search_opts.search_ver)],
                      cpu_threads=search_opts.n_omp_threads, submit=True,
-                     mem=mem, temp_mem=temp_mem)
+                     mem=mem, temp_mem=temp_mem,
+                     vcstools_version=search_opts.vcstools_ver)
             job_id_list.append(job_id)
 
         #Depsearch_opts.endancy job
@@ -1755,7 +1761,8 @@ def error_check(search_opts, bash_job=False,
                      nice=search_opts.nice,
                      submit=True, depend=job_id_list, depend_type="afterany",
                      module_list=['mwa_search/{}'.format(search_opts.search_ver)],
-                     cpu_threads=search_opts.n_omp_threads)
+                     cpu_threads=search_opts.n_omp_threads,
+                     vcstools_version=search_opts.vcstools_ver)
     return
 
 
@@ -1780,6 +1787,8 @@ if __name__ == "__main__":
              'used to find the channel IDs.')
     parser.add_argument('-v', '--mwa_search_version', type=str, default='master',
         help="The module version of mwa_search to use. Default: master")
+    parser.add_argument('--vcstools_version', type=str, default='master',
+        help="The module version of vcstools to use. Default: master")
     parser.add_argument("-L", "--loglvl", type=str, choices=loglevels.keys(), default="INFO",
         help="Logger verbosity level. Default: INFO")
 
@@ -2005,6 +2014,8 @@ if __name__ == "__main__":
         relaunch_script +=  " --vdif "
     if args.mwa_search_version:
         relaunch_script +=  " -v " + str(args.mwa_search_version)
+    if args.vcstools_version:
+        relaunch_script +=  "--vcstools_version " + str(args.vcstools_version)
     if args.fits_dir:
         relaunch_script +=  " --fits_dir " + str(args.fits_dir)
     if args.channels:
@@ -2026,7 +2037,8 @@ if __name__ == "__main__":
                  relaunch_script=relaunch_script, search=args.search,
                  single_pulse=args.single_pulse, downsample=args.downsample,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
-                 table=args.table, attempt=args.attempt, search_ver=args.mwa_search_version,
+                 table=args.table, attempt=args.attempt, 
+                 search_ver=args.mwa_search_version, vcstools_ver=args.vcstools_version,
                  DI_dir=args.DI_dir)
 
     #work out start and stop times for beamforming
