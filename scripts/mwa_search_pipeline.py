@@ -404,7 +404,9 @@ def process_vcs_wrapper(search_opts, pointings,
 
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                           search_opts.pointing, "{0}".format(code_comment),
-                                          cand_name=temp_pulsar_string, cand_type=search_opts.cand_type))
+                                          cand_name=temp_pulsar_string,
+                                          cand_type=search_opts.cand_type))
+
             dep_job_id_list.append(dependant_splice_batch(search_opts, job_id_list=job_id_list,
                                                           pulsar_list=pulsar_list,
                                                           beamformer_batch=beamformer_batch,
@@ -693,21 +695,23 @@ def beamform(search_opts, pointing_list, code_comment=None,
         # Working out if we need start the database tracking
         database_start_check = False
         if (search_opts.search or search_opts.single_pulse) and searched_check and not relaunch:
+            # already searched and not relaunching so don't start
             database_start_check = False
         elif missing_file_check and not unspliced_check and not path_check:
+            # going to splice so start
             database_start_check = True
         elif path_check or len(missing_chan_list) == 24:
-            # set to false because the database is staarted in beamforming
+            # set to false because the database will be started in beamforming
             database_start_check = False
         elif unspliced_check:
-            # set to false because the database is staarted in beamforming
+            # set to false because the database will be started in beamforming
             database_start_check = False
         else:
+            #All files there so the check has succeded and going to start the pipeline
             database_start_check = True
 
         if (search_opts.search or search_opts.single_pulse) and database_start_check and \
-           bsd_row_num_input is None and\
-           ((not searched_check or relaunch) or len(pointing_list) == 1):
+           bsd_row_num_input is None:
                 #Add pulsar names to the code comment
                 temp_pulsar_string = ''
                 if pulsar_list is not None:
@@ -753,6 +757,14 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #resubmit any search_opts.channels that are incomplete
             print("Some channels missing, beamforming on {0} for {1}".format(missing_chan_list,
                   search_opts.pointing))
+            
+            # remove the missing channels
+            for missing_chan in missing_chan_list:
+                for rm_file in glob.glob("{0}*_{1}_{2}_ch*{3}_00*.fits".format(
+                                         search_opts.pointing_dir, search_opts.obsid,
+                                         search_opts.pointing, missing_chan)):
+                     os.remove(rm_file)
+            
             if len(pointing_list) > 1:
                 your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
             
@@ -2019,7 +2031,7 @@ if __name__ == "__main__":
     if args.mwa_search_version:
         relaunch_script +=  " -v " + str(args.mwa_search_version)
     if args.vcstools_version:
-        relaunch_script +=  "--vcstools_version " + str(args.vcstools_version)
+        relaunch_script +=  " --vcstools_version " + str(args.vcstools_version)
     if args.fits_dir:
         relaunch_script +=  " --fits_dir " + str(args.fits_dir)
     if args.channels:
