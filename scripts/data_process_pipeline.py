@@ -15,7 +15,7 @@ class run_params_class:
     def __init__(self, pointing_dir=None, cal_id=None, obsid=None, pulsar=None,\
                 threshold=10.0, stop=False, next_mode=True, loglvl="INFO",\
                 mode=None, mwa_search="master", vcs_tools="master",\
-                subint=10.0, RM=None, RM_err=None, force_initial=False,\
+                subint=10.0, RM=None, RM_err=None,\
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
                 epndb_dir=None, stokes_bins=None, beg=None, end=None):
 
@@ -34,7 +34,6 @@ class run_params_class:
         #Run Options
         self.stop           = stop
         self.loglvl         = loglvl
-        self.force_initial  = force_initial
         self.mode           = mode
 
         #Plotting Options
@@ -49,13 +48,10 @@ class run_params_class:
         self.subint         = subint
         self.RM             = RM
         self.RM_err         = RM_err
-        self.prevbins       = prevbins
         self.stokes_bins    = stokes_bins
 
-        if self.obsid==None:
-            self.obsid=info_from_dir(self.pointing_dir)["obsid"]
         if self.pointing_dir is not None:
-            if len(self.pointing_dir)==1:
+            if isinstance(self.pointing_dir, list) and len(self.pointing_dir)==1:
                 self.pointing_dir=self.pointing_dir[0]
 
 
@@ -65,14 +61,8 @@ class run_params_class:
     def set_end(self, end):
         self.end = end
     
-    def set_prevbins(self, prevbins):
-        self.prevbins = prevbins
-
     def set_best_bins(self, bins):
         self.best_bins = bins
-
-    def set_nbins(self, bins):
-        self.nbins = bins
 
     def set_stokes_bins(self, bins):
         self.stokes_bins = bins
@@ -119,10 +109,10 @@ def info_from_dir(pointing_dir):
     return mydict
 
 #----------------------------------------------------------------------
-def stokes_fold(run_params):
+def stokes_fold(run_params, nbins):
 
     launch_line = "stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
-                .format(run_params.pointing_dir, run_params.pulsar, run_params.nbins, run_params.subint,\
+                .format(run_params.pointing_dir, run_params.pulsar, nbins, run_params.subint,\
                 run_params.loglvl, run_params.vcs_tools, run_params.mwa_search)
     if run_params.stop==True:
         launch_line += " -S"
@@ -145,14 +135,14 @@ def stokes_fold(run_params):
 #----------------------------------------------------------------------
 def binfind(run_params):
 
-    p=""
-    for pointing in run_params.pointing_dir:
-        p += " {}".format(pointing)
-
+    #p=""
+    #for pointing in run_params.pointing_dir:
+    #    p += " {}".format(pointing)
+    p=run_params.pointing_dir
     commands = []
     commands.append("echo 'Launching binfinder in mode {0}'".format(run_params.mode))
     commands.append("binfinder.py -O {0} -t {1} -p {2} -o {3} -L {4} --mwa_search {5}\
-                --vcs_tools {6}, -b {7}, -e {8} -d {9}"\
+                --vcs_tools {6} -b {7} -e {8} -d {9}"\
                 .format(run_params.cal_id, run_params.threshold, run_params.pulsar,\
                 run_params.obsid, run_params.loglvl, run_params.mwa_search,\
                 run_params.vcs_tools, run_params.beg, run_params.end, p))
@@ -197,12 +187,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""A pipeline for processing calibrated VCS data""")
 
     obsop = parser.add_argument_group("Observation Options")
-    obsop.add_argument("-d", "--pointing_dir", nargs='+', help="The location of the pointing directory/s")
+    obsop.add_argument("-d", "--pointing_dir", nargs='+', type=str, help="The location of the pointing directory/s")
     obsop.add_argument("-o", "--obsid", type=str, help="The obs ID of the data")
     obsop.add_argument("-O", "--cal_id", type=str, help="The ID of the calibrator used to calibrate the data")
     obsop.add_argument("-p", "--pulsar", type=str, help="The J name of the pulsar. e.g. J2241-5236")
-    obsop.add_argument("-b", "beg", type=int, help="The beginning of the observation")
-    obsop.add_argument("-e", "end", type=int, help="The end of the observation")
+    obsop.add_argument("-b", "--beg", type=int, help="The beginning of the observation")
+    obsop.add_argument("-e", "--end", type=int, help="The end of the observation")
 
     binfindop = parser.add_argument_group("Binfinder Options")
     binfindop.add_argument("-t", "--threshold", type=float, default=10.0, help="The presto sigma value\
@@ -212,7 +202,7 @@ if __name__ == '__main__':
                              Default: 10.0")
 
     stokesop = parser.add_argument_group("Stokes Fold Options")
-    stokesop.add_argument("-b", "--nbins", type=int, default=128, help="The number of bins for to fold over for the stokes folding script. Default: 128")
+    stokesop.add_argument("-n", "--nbins", type=int, default=128, help="The number of bins for to fold over for the stokes folding script. Default: 128")
     stokesop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations (in seconds) used for dspsr. Default: 10.0")
 
     otherop = parser.add_argument_group("Other Options")
@@ -243,12 +233,12 @@ if __name__ == '__main__':
                                 pulsar=args.pulsar, obsid=args.obsid, stop=args.stop,\
                                 mode=args.mode, mwa_search=args.mwa_search,\
                                 vcs_tools=args.vcs_tools, loglvl=args.loglvl,\
-                                threshold=args.threshold, nbins=args.nbins,\
+                                threshold=args.threshold,\
                                 subint=args.subint, beg=args.beg, end=args.end)
 
     if run_params.mode=="f":
         binfind(run_params)
     elif run_params.mode=="s":
-        stokes_fold(run_params)
+        stokes_fold(run_params, args.nbins)
     else:
         logger.error("Mode not recognized. Please rerun with a valid mode identifer")
