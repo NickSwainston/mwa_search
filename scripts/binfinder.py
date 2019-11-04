@@ -40,7 +40,7 @@ def copy_to_product_dir(pulsar, pointing_dir, obsid):
         The obsid of the observation
     """
     comp_config = config.load_config_file()
-    base_dir = comp_config['base_product_dir'],
+    base_dir = comp_config['base_product_dir']
     product_dir = os.path.join(base_dir, obsid, "data_products", pulsar)
     all_bins = find_bins_in_dir(pointing_dir)
     bin_limit = bin_sampling_limit(pulsar)
@@ -100,9 +100,10 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, beg, end, nbins,
         The commands list that was input with the prepfold commands appended
     """
     #find the beginning and end of the pulsar's beam coverage for this obs
-    start, end = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end)
-    logger.info("start and end of pulsar beam coverage for on-disk files:{0}, {1}".format(start, end))
-    if start is None or end is None:
+    enter, exit = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end)
+    logger.info("start and end of pulsar beam coverage for beginng time: {0} and end time: {1}:"\
+                ":{2}, {3}".format(beg, end, enter, exit))
+    if enter is None or exit is None:
         logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
         sys.exit(1)
 
@@ -122,7 +123,7 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, beg, end, nbins,
     variables = "-o {0}_{1}_bins ".format(obsid, nbins)
     variables += mask
     variables += "-n {0} ".format(nbins)
-    variables += "-start {0} -end {1} ".format(start, end)
+    variables += "-start {0} -end {1} ".format(enter, exit)
     variables += "-dmstep {0} ".format(dmstep)
     variables += "-npart {0} ".format(ntimechunk)
     variables += "-npfact {0} ".format(period_search_n)
@@ -213,7 +214,7 @@ def bin_sampling_limit(pulsar, sampling_rate=1e-4):
     query = psrqpy.QueryATNF(params=["P0"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas
     period = query["P0"][0]
     bin_lim = int(period/sampling_rate + 1) #the +1 is to round the limit up every time
-    logger.debug("Bin limit: {0}".format(min_bins))
+    logger.debug("Bin limit: {0}".format(bin_lim))
     return bin_lim
 
 
@@ -234,7 +235,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     ppps = glob.glob("*{0}_bins*{1}*.pfd.ps".format(best_bins, run_params.pulsar[1:]))[0]
     ppps = os.path.join(cwd, ppps)
     bestprof = glob.glob("*{0}_bins*{1}*.pfd.bestprof".format(best_bins, run_params.pulsar[1:]))[0]
-    bestprof = os.path.join(cwd, bestprof_name)
+    bestprof = os.path.join(cwd, bestprof)
     png = glob.glob("*{0}_bins*{1}*.png".format(best_bins, run_params.pulsar[1:]))[0]
     png = os.path.join(cwd, png)
     pfd = glob.glob("*{0}_bins*{1}*.pfd".format(best_bins, run_params.pulsar[1:]))[0]
@@ -243,12 +244,12 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands = []
     commands.append("echo 'Submitting profile to database with {} bins'".format(best_bins))
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
-    .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof_name, ppps))
-    commands.append('echo "submitted profile to database: {0}"'.format(bestprof_name))
+    .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof, ppps))
+    commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
 
 
     #Make a nice plot
-    plotting_toolkit.plot_bestprof(os.path.join(run_params.pointing_dir, prof_name),\
+    plotting_toolkit.plot_bestprof(os.path.join(run_params.pointing_dir, bestprof),\
                                     out_dir=run_params.pointing_dir)
     #copy all data to product directoy for easy viewing
     copy_to_product_dir(run_params.pulsar, run_params.pointing_dir, run_params.obsid) 
@@ -264,7 +265,7 @@ def submit_to_db_and_continue(run_params, best_bins):
         ppps = glob.glob("*{0}_bins*{1}*.pfd.ps".format(b_standard, run_params.pulsar[1:]))[0]
         ppps = os.path.join(cwd, ppps)
         bestprof = glob.glob("*{0}_bins*{1}*.pfd.bestprof".format(b_standard, run_params.pulsar[1:]))[0]
-        bestprof = os.path.join(cwd, bestprof_name)
+        bestprof = os.path.join(cwd, bestprof)
         png = glob.glob("*{0}_bins*{1}*.png".format(b_standard, run_params.pulsar[1:]))[0]
         png = os.path.join(cwd, png)
         pfd = glob.glob("*{0}_bins*{1}*.pfd".format(b_standard, run_params.pulsar[1:]))[0]
@@ -273,14 +274,14 @@ def submit_to_db_and_continue(run_params, best_bins):
         commands = []
         commands.append("echo 'Submitting profile to database with {} bins'".format(b_standard))
         commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
-        .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof_name, ppps))
-        commands.append('echo "submitted profile to database: {0}"'.format(bestprof_name))
+        .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof, ppps))
+        commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
 
     #submit job
     name = "Submit_db_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     comp_config = config.load_config_file()
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
-    logger.info("Submitting submission script for profile: {0}".format(bestprof_name))
+    logger.info("Submitting submission script for profile: {0}".format(bestprof))
     logger.info("Job name: {}".format(name))
 
     submit_slurm(name, commands,\
@@ -294,7 +295,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -b {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7} -m s"\
                     .format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar,\
-                    run_params.obsid, run_params.best_bins, run_params.loglvl, run_params.mwa_search,\
+                    run_params.obsid, best_bins, run_params.loglvl, run_params.mwa_search,\
                     run_params.vcs_tools))
 
     name = "dpp_stokes_{0}_{1}".format(run_params.pulsar, run_params.obsid)
@@ -383,6 +384,9 @@ def sn_chi_test(bestprof, sn_thresh=10., chi_thresh=4.):
         Whether or not the input sn and chi combination is acceptable
     """
     test = False
+    info_dict = bestprof_info(bestprof)
+    sn = info_dict["sn"]
+    chi = info_dict["chi"]
     if sn >= sn_thresh and chi >= chi_thresh:
         test = True
     elif sn == 0. and chi >= chi_thresh:
@@ -402,20 +406,12 @@ def submit_multiple_pointings(run_params):
     job_ids = []
     comp_config=config.load_config_file()
 
-    #Check beam coverage for the pulsar
-    start, end = snfe.pulsar_beam_coverage(run_params.obsid, run_params.pulsar)
-    logger.info("start and end of pulsar beam coverage for on-disk files:{0}, {1}".format(start, end))
-    if start>=1. or end<0.:
-        logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
-        sys.exit(1)
-        #TODO: pulsar_beam_coverage will return Nones when sn_flux_est is merged to master branch
-
     #Check number of bins to use
     bin_limit=bin_sampling_limit(run_params.pulsar)
     if bin_limit<100:
         nbins=50
     else:
-        nbis=100
+        nbins=100
    
     logger.info("Submitting multiple prepfold jobs:")
     logger.info("Pulsar name: {}".format(run_params.pulsar))
@@ -429,7 +425,7 @@ def submit_multiple_pointings(run_params):
         commands = []
         commands = add_prepfold_to_commands(commands, pointing, run_params.pulsar, run_params.obsid,\
                     run_params.beg, run_params.end, nbins)
-        name = "bf_multi_{0}_{1}_{2}".format(run_params.pulsar, nbins, i)
+        name = "bf_multi_{0}_{1}_{2}_bins_{3}".format(run_params.pulsar, run_params.obsid, nbins, i)
         batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
         logger.info("Submitting pointing: {0}".format(pointing))
         logger.info("Job name: {}".format(name))
@@ -443,9 +439,10 @@ def submit_multiple_pointings(run_params):
 
         job_ids.append(myid)
 
-    #Now submit the check script
+    p = ""
     for pointing in run_params.pointing_dir:
-        p += " " + pointing
+        p += p + " "
+
     commands=[]
     commands.append("binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} {5} --vcs_tools {6}\
                     --mwa_search {7} -p {8} -b {9} -e {10}"\
@@ -484,15 +481,16 @@ def submit_prepfold(run_params, nbins):
     commands.append("echo '############### Relaunching binfinder script ###############'" )
 
     #binfinder relaunch:
-    commands.append("binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} {5} --vcs_tools {6}\
-                    --mwa_search {7} -p {8} -b {9} -e {10}"\
-                    .format(p, run_params.cal_id, run_params.pulsar, run_params.obsid,\
-                    run_params.loglvl, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar,\
+    commands.append("binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5}\
+                    --mwa_search {6} -b {7} -e {8}"\
+                    .format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar,\
+                    run_params.obsid, run_params.loglvl, run_params.vcs_tools, run_params.mwa_search,\
                     run_params.beg, run_params.end))
 
     comp_config = config.load_config_file()
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
-    
+    name = "bf_{0}_{1}_{2}_bins".format(run_params.pulsar, run_params.obsid, nbins)   
+ 
     logger.info("Submitting prepfold and resubmission job:")
     logger.info("Pointing directory: {}".format(run_params.pointing_dir))
     logger.info("Pulsar name: {}".format(run_params.pulsar))
@@ -586,7 +584,7 @@ def how_many_bins_next(pulsar, directory):
         elif bin_limit not in bins_in_dir:
             return bin_limit
         else:
-            next_bins = min(bins_in_dir[1:])/2
+            next_bins =int(min(bins_in_dir[1:])/2)
     #regular period pulsar
     else:
         if 100 not in bins_in_dir:
@@ -594,7 +592,7 @@ def how_many_bins_next(pulsar, directory):
         elif 1024 not in bins_in_dir:
             return 1024
         else:
-            next_bins = min(bins_in_dir[1:])/2   
+            next_bins = int(min(bins_in_dir[1:])/2)
      
     #Check to see if this is an acceptable number
     if next_bins<100:
@@ -635,7 +633,7 @@ def work_out_what_to_do(run_params):
         The run_params object defined by data_proces_pipeline
     """
     #Multiple pointings?
-    if len(run_params.pointing_dir)>1:
+    if isinstance(run_params.pointing_dir, list):
         #Have these directories been folded on?
         bins_in_dir = find_bins_in_dir(run_params.pointing_dir[0])
         if len(bins_in_dir)==0:
@@ -645,14 +643,14 @@ def work_out_what_to_do(run_params):
             #Check the pointings and fold on the best one, if any
             find_best_pointing(run_params, nbins=bins_in_dir[0])
 
-    elif len(run_params.pointing_dir)==1:
+    elif isinstance(run_params.pointing_dir, str):
         #Get some info on where we're at
         bin_limit = bin_sampling_limit(run_params.pulsar)
         bins_in_dir = find_bins_in_dir(run_params.pointing_dir)
         if len(bins_in_dir)==0:
             #No folds done
             next_bins = how_many_bins_next(run_params.pulsar, run_params.pointing_dir)
-            submit_prepfold(run_params.next_bins)
+            submit_prepfold(run_params, next_bins)
 
         elif len(bins_in_dir)==1:
             #only 100/50 bin fold in directory
@@ -669,7 +667,7 @@ def work_out_what_to_do(run_params):
 
         else: #more than one fold done
            #check the last fold done 
-            if bim_limit<50:
+            if bin_limit<50:
                 last_fold_bins = bins_in_dir[0]
             else:
                 last_fold_bins = min(bins_in_dir[1:])
@@ -706,17 +704,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="A script that handles pulsar folding operations")
 
     required = parser.add_argument_group("Required Inputs:")
-    required.add_argument("-d", "--pointing_dir", nargs="+", help="Pointing directory(s) that contains\
-                            the spliced fits files. If mode='m', more than one argument may be supplied.")
+    required.add_argument("-d", "--pointing_dir", action="store", nargs="+", help="Pointing directory(s) that contains the spliced fits files.")
+    required.add_argument("-o", "--obsid", type=str, help="The observation ID")
     required.add_argument("-O", "--cal_id", type=str, help="The Obs ID of the calibrator")
-    required.add_argument("-p", "--pulsar", type=str, default=None, help="The name of the pulsar. eg. J2241-5236")
+    required.add_argument("-p", "--pulsar", type=str, help="The name of the pulsar. eg. J2241-5236")
     required.add_argument("-b", "--beg", type=int, help="The beginning of the observation. Will try to find if unsupplied")
     required.add_argument("-e", "--end", type=int, help="The end of the observation. Will try to find if unsupplied")
     
 
     other = parser.add_argument_group("Other Options:")
     other.add_argument("-t", "--threshold", type=float, default=10.0, help="The signal to noise threshold to stop at. Default = 10.0")
-    other.add_argument("-o", "--obsid", type=str, default=None, help="The observation ID")
     other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     other.add_argument("-S", "--stop", action="store_true", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
     other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
@@ -741,23 +738,20 @@ if __name__ == '__main__':
     elif args.pulsar == None:
         logger.error("No pulsar name supplied. Please input a pulsar and rerun")
         sys.exit(1)
-    elif args.mode == None:
-        logger.error("Mode not supplied. Please input a mode from the list of modes and rerun")
 
 
     run_params = data_process_pipeline.run_params_class\
-                    (args.pointing_dir, args.cal_id,\
-                    prevbins=args.prevbins, pulsar=args.pulsar,\
-                    obsid=args.obsid, threshold=args.threshold,\
-                    stop=args.stop, force_initial=args.force_initial,\
-                    mode=args.mode, loglvl=args.loglvl,\
+                    (args.pointing_dir, args.cal_id, pulsar=args.pulsar,obsid=args.obsid,\
+                    threshold=args.threshold, stop=args.stop,loglvl=args.loglvl,\
                     mwa_search=args.mwa_search, vcs_tools=args.vcs_tools,\
                     beg=args.beg, end=args.end)
 
 
     #NOTE: for some reason, you need to run prepfold from the directory it outputs to if you want it to properly make an image. The script will make this work regardless by using os.chdir
-    if type(run_params.pointing_dir)!=list:
+    logger.info("Pointing Dir: {} sadfasd".format(run_params.pointing_dir))
+    if isinstance(run_params.pointing_dir, str):
         os.chdir(run_params.pointing_dir)
+        
 
     #Try to find the beginning and end using ondisk files
     if run_params.end is None or run_params.beg is None:
