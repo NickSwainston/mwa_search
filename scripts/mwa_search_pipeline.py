@@ -423,14 +423,17 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
     if pulsar.startswith("J"):
-        pointing_str = " ".join(pointing_dir_list)
-        logger.info("pointing string: {0}".format(pointing_str))
+        #pointing_str = " ".join(pointing_dir_list)
+        #logger.info("pointing string: {0}".format(pointing_str))
+        p = ""
+        for pointing in pointing_dir_list:
+            p += "{} ".format(pointing)
         commands = []
         commands.append("echo 'Folding on multiple pointings'")
         commands.append("data_process_pipeline.py -m f -d {0} -o {1} -O {2} -p {3} -L {4} "
-                        "--mwa_search {5} --vcs_tools {6} -b {7} -e {8}".format(pointing_str,\
+                        "--mwa_search {5} --vcs_tools {6} -b {7} -e {8}".format(p,\
                         search_opts.obsid, search_opts.cal_id, pulsar, loglvl, search_opts.search_ver,\
-                        search_opts.vcstools_ver, search_opts.begin, search_opts.end)
+                        search_opts.vcstools_ver, search_opts.begin, search_opts.end))
 
         name="dpp_launch_{0}_{1}".format(pulsar, search_opts.obsid)
         logger.info("Submitting job: {}".format(name))
