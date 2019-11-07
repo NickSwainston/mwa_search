@@ -82,6 +82,9 @@ class search_options_class:
         if pointing_dir is None:
             if incoh:
                 self._pointing_dir = '{0}incoh/'.format(self.fits_dir_base)
+            elif data_process and self.pointing is not None:
+                self._pointing_dir = '{0}dpp_pointings/{1}/'.format(self.fits_dir_base,
+                                                                    self.pointing)
             elif self.pointing is not None:
                 self._pointing_dir = '{0}pointings/{1}/'.format(self.fits_dir_base,
                                                                self.pointing)
@@ -379,7 +382,8 @@ def process_vcs_wrapper(search_opts, pointings,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
                       vcstools_version=search_opts.vcstools_ver,
-                      channels_to_beamform=channels)
+                      channels_to_beamform=channels,
+                      dpp=search_opts.data_process)
 
     code_comment_in = code_comment
     dep_job_id_list = []
