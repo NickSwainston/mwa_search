@@ -60,7 +60,7 @@ def submit_dspsr(run_params):
 
     launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -L {4} --mwa_search {5}\
                     --vcs_tools {6}"\
-                    .format(run_params.pointing_dir, run_params.pulsar, run_params.nbins,\
+                    .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
                     run_params.subint, run_params.loglvl, run_params.mwa_search,\
                     run_params.vcs_tools)
     if run_params.stop==True:
@@ -71,7 +71,7 @@ def submit_dspsr(run_params):
     commands.append("psrcat -e {0} > {1}/{0}.eph".format(run_params.pulsar, run_params.pointing_dir))
     commands.append("echo 'Running DSPSR folding...\n'")
     commands.append("dspsr -cont -U 4000 -A -L {0} -E {3}/{1}.eph -K -b {2} -O {3}/{1}_subint_{0} {3}/*.fits"\
-                    .format(run_params.subint, run_params.pulsar, run_params.nbins, run_params.pointing_dir))
+                    .format(run_params.subint, run_params.pulsar, run_params.stokes_bins, run_params.pointing_dir))
     commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt\n'"\
                     .format(run_params.pointing_dir, run_params.pulsar))
     commands.append("rmfit {0}/{1}_subint_{2}.ar -t > {0}/{1}_rmfit.txt"\
@@ -101,7 +101,7 @@ def submit_RM_correct(run_params):
 
     launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -L {4} --mwa_search {5}\
                     --vcs_tools {6}"\
-                    .format(run_params.pointing_dir, run_params.pulsar, run_params.nbins,\
+                    .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
                     run_params.subint, run_params.loglvl, run_params.mwa_search,\
                     run_params.vcs_tools)#, run_params.stop)
 
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     logger.propagate = False
 
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
-                pulsar=args.pulsar, nbins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
+                pulsar=args.pulsar, stokes_bins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
                 mode=args.mode, vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
                 obsid=args.obsid, stop=args.stop)
 

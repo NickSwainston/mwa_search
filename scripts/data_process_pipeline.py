@@ -15,7 +15,7 @@ class run_params_class:
     def __init__(self, pointing_dir=None, cal_id=None, obsid=None, pulsar=None,\
                 threshold=10.0, stop=False, next_mode=True, loglvl="INFO",\
                 mode=None, mwa_search="master", vcs_tools="master",\
-                subint=10.0, RM=None, RM_err=None,\
+                subint=10.0, RM=None, RM_err=None, stokes_bins=None,\
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
                 epndb_dir=None, stokes_bins=None, beg=None, end=None):
 
@@ -35,6 +35,7 @@ class run_params_class:
         self.stop           = stop
         self.loglvl         = loglvl
         self.mode           = mode
+        self.stokes_bins    = stokes_bins
 
         #Plotting Options
         self.nocrop         = nocrop
