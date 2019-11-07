@@ -839,8 +839,15 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                                              pointings_to_beamform,
                                                              dep_job_id_list):
                     logger.debug(pulsar_list, pointing, dep_job_id)
-                    pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base,
-                                                                   pointing)
+                    if search_opts.data_process:
+                        # use the /astro dir if dataprocessing
+                        pointing_dir_temp = '{0}/dpp_pointings/{1}'.format(\
+                                             search_opts.fits_dir_base,
+                                             pointing)
+                    else:
+                        pointing_dir_temp = '{0}/pointings/{1}'.format(\
+                                             search_opts.fits_dir_base,
+                                             pointing)
                     if pulsar_list is None:
                         pulsar_fold_dict[pulsar_list].append([pointing_dir_temp, dep_job_id])
                     else:
