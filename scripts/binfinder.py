@@ -25,7 +25,7 @@ except KeyError:
     ATNF_LOC = None
 
 #----------------------------------------------------------------------
-def copy_to_product_dir(pulsar, pointing_dir, obsid):
+def move_to_product_dir(pulsar, pointing_dir, obsid):
     """
     Copies the files fitting the input specifications from a prepfold operation to a data product directory
     Parameters:
@@ -41,7 +41,7 @@ def copy_to_product_dir(pulsar, pointing_dir, obsid):
     """
     comp_config = config.load_config_file()
     base_dir = comp_config['base_product_dir']
-    product_dir = os.path.join(base_dir, obsid, "data_products", pulsar)
+    product_dir = os.path.join(base_dir, obsid, "data_products", pointing_dir)
     all_bins = find_bins_in_dir(pointing_dir)
     bin_limit = bin_sampling_limit(pulsar)
     copy_bins=[]
@@ -251,8 +251,6 @@ def submit_to_db_and_continue(run_params, best_bins):
     #Make a nice plot
     plotting_toolkit.plot_bestprof(os.path.join(run_params.pointing_dir, bestprof),\
                                     out_dir=run_params.pointing_dir)
-    #copy all data to product directoy for easy viewing
-    copy_to_product_dir(run_params.pulsar, run_params.pointing_dir, run_params.obsid) 
 
     bin_lim = bin_sampling_limit(run_params.pulsar)
     if bin_lim>100:
@@ -277,6 +275,12 @@ def submit_to_db_and_continue(run_params, best_bins):
         .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof, ppps))
         commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
 
+    #Move the pointing directory
+    comp_config = config.load_config_file()
+    move_loc = os.path.join(comp_config["base_product_dir"], run_params.obsid, "data_products")
+    commands.append("echo 'Moving directory {0} to location {1}".format(run_params.pointing_dir, move_loc))
+    commands.append("mv -r {0} {1}".format(run_params.pointing_dir, move_loc))
+
     #submit job
     name = "Submit_db_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     comp_config = config.load_config_file()
@@ -291,15 +295,18 @@ def submit_to_db_and_continue(run_params, best_bins):
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
     #Run stokes fold
+    #Needs to look in the new pointing directory
+    pointing = run_params.pointing_dir.split("/")[-1]
+    new_pointing_dir = os.path.join(move_loc, pointing)
+
     commands = []
     commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7} -m s"\
-                    .format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar,\
+                    .format(new_pointing_dir, run_params.cal_id, run_params.pulsar,\
                     run_params.obsid, best_bins, run_params.loglvl, run_params.mwa_search,\
                     run_params.vcs_tools))
 
     name = "dpp_stokes_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    comp_config = config.load_config_file()
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
     logger.info("Submitting Stokes Fold script")
     logger.info("Job Name: {}".format(name))
@@ -478,9 +485,14 @@ def submit_prepfold(run_params, nbins):
     commands = []
     commands.append("echo '############### Prepfolding on {} bins ###############'".format(nbins))
     commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, nbins)
-    commands.append("echo '############### Relaunching binfinder script ###############'" )
+
+    #Check if prepfold worked:
+    commands.append("errorcode=$?")
+    commands.append("if ['$errorcode' != '0']; then")
+    commands.append("   exit $errorcode")
 
     #binfinder relaunch:
+    commands.append("echo '############### Relaunching binfinder script ###############'" )
     commands.append("binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5}\
                     --mwa_search {6} -b {7} -e {8}"\
                     .format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar,\
