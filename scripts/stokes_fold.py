@@ -146,10 +146,9 @@ if __name__ == '__main__':
     foldop = parser.add_argument_group("Folding Options:")
     foldop.add_argument("-d", "--pointing_dir", type=str, help="Pointing directory that contains the fits files")
     foldop.add_argument("-p", "--pulsar", type=str, default=None, help="The name of the pulsar. If not provided, the script will try to get the pulsar from the pointing directory")
-    foldop.add_argument("-b", "--nbins", type=int, default=128, help="The number of bins to fold the profile with")
+    foldop.add_argument("-b", "--nbins", type=int, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
-
 
     otherop = parser.add_argument_group("Other Options:")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
@@ -160,7 +159,7 @@ if __name__ == '__main__':
     modeop = parser.add_argument_group("Mode Options:")
     modeop.add_argument("-m", "--mode", type=str, help="The mode in which to run stokes_fold: \n\
                         'i' - Creates a dspsr archive and runs rmfit and outputs the result\n\
-                        'f' - Reads and RMfit output and corrects the archive for RM. Then creates\
+                        'f' - Reads an RMfit output and corrects the archive for RM. Then creates\
                         an ascii text file\n\
                         'p' - Plots a dspsr ascii text file")
 
@@ -173,23 +172,24 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     logger.propagate = False
+    
+    if args.nbins is None:
+        logger.error("Please input an argument for the number of bins to use")
+        sys.exit(1)
+    if args.pulsar is None:
+        logger.error("Pulsar name not supplied. Please run again and specify puslar name")
+        sys.exit(1)
+    if args.pointing_dir is None:
+        logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
+        sys.exit(1)
+    if args.obsid is None:
+        logger.error("Obsid not supplied. Please run again and specify a pointing directory")
+        sys.exit(1)
 
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
                 pulsar=args.pulsar, stokes_bins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
                 mode=args.mode, vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
                 obsid=args.obsid, stop=args.stop)
-
-
-    if run_params.pulsar is None:
-        logger.error("Pulsar name not supplied. Please run again and specify puslar name")
-        sys.exit(1)
-    if run_params.pointing_dir is None:
-        logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
-        sys.exit(1)
-    if run_params.obsid is None:
-        logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
-        sys.exit(1)
-
 
     if run_params.mode == "i":
         submit_dspsr(run_params)

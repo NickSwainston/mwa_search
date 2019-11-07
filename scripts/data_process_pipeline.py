@@ -17,7 +17,7 @@ class run_params_class:
                 mode=None, mwa_search="master", vcs_tools="master",\
                 subint=10.0, RM=None, RM_err=None, stokes_bins=None,\
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
-                epndb_dir=None, stokes_bins=None, beg=None, end=None):
+                epndb_dir=None, beg=None, end=None):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -49,7 +49,6 @@ class run_params_class:
         self.subint         = subint
         self.RM             = RM
         self.RM_err         = RM_err
-        self.stokes_bins    = stokes_bins
 
         if self.pointing_dir is not None:
             if isinstance(self.pointing_dir, list) and len(self.pointing_dir)==1:
@@ -112,9 +111,10 @@ def info_from_dir(pointing_dir):
 #----------------------------------------------------------------------
 def stokes_fold(run_params, nbins):
 
-    launch_line = "stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
+    launch_line = "stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} -o {5} --vcs_tools {6}\
+                    --mwa_search {7}"\
                 .format(run_params.pointing_dir, run_params.pulsar, nbins, run_params.subint,\
-                run_params.loglvl, run_params.vcs_tools, run_params.mwa_search)
+                run_params.loglvl, run_params.obsid, run_params.vcs_tools, run_params.mwa_search)
     if run_params.stop==True:
         launch_line += " -S"
 
@@ -203,7 +203,7 @@ if __name__ == '__main__':
                              Default: 10.0")
 
     stokesop = parser.add_argument_group("Stokes Fold Options")
-    stokesop.add_argument("-n", "--nbins", type=int, default=128, help="The number of bins for to fold over for the stokes folding script. Default: 128")
+    stokesop.add_argument("-n", "--nbins", type=int, help="The number of bins for to fold over for the stokes folding script")
     stokesop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations (in seconds) used for dspsr. Default: 10.0")
 
     otherop = parser.add_argument_group("Other Options")
@@ -234,7 +234,7 @@ if __name__ == '__main__':
                                 pulsar=args.pulsar, obsid=args.obsid, stop=args.stop,\
                                 mode=args.mode, mwa_search=args.mwa_search,\
                                 vcs_tools=args.vcs_tools, loglvl=args.loglvl,\
-                                threshold=args.threshold,\
+                                threshold=args.threshold, stokes_bins=args.nbins,\
                                 subint=args.subint, beg=args.beg, end=args.end)
 
     if run_params.mode=="f":

@@ -292,7 +292,7 @@ def submit_to_db_and_continue(run_params, best_bins):
 
     #Run stokes fold
     commands = []
-    commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -b {4} -L {5}\
+    commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7} -m s"\
                     .format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar,\
                     run_params.obsid, best_bins, run_params.loglvl, run_params.mwa_search,\
