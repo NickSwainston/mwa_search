@@ -11,13 +11,13 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 
 # vcstools and mwa_search imports
+import find_pulsar_in_obs as fpio
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min, get_obs_array_phase
 import config
 from grid import get_grid
 import checks
-import find_pulsar_in_obs as fpio
 #import sn_flux_est as snfe
 
 import logging
