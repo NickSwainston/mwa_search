@@ -403,8 +403,13 @@ def process_vcs_wrapper(search_opts, pointings,
                 
                 code_comment = "{0} {1} pn {2}".format(code_comment_in, temp_pulsar_string,
                                                        pointing_id[pn])
-            search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
+            if search_opts.data_process:
+                search_opts.setPdir('{0}/dpp_pointings/{1}'.format(search_opts.fits_dir_base,
                                                                   search_opts.pointing))
+            else:
+                search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
+                                                                  search_opts.pointing))
+
 
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
                                           search_opts.pointing, "{0}".format(code_comment),
@@ -624,8 +629,13 @@ def beamform(search_opts, pointing_list, code_comment=None,
             if search_opts.incoh:
                 search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
             else:
-                search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
+                if search_opts.data_process:
+                    search_opts.setPdir('{0}dpp_pointings/{1}/'.format(search_opts.fits_dir_base,
                                                                    search_opts.pointing))
+                else:
+                    search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
+                                                                   search_opts.pointing))
+
         else:
             search_opts.setPdir(pointing_dir_input)
 
