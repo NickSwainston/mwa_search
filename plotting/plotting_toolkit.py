@@ -12,7 +12,7 @@ import time
 
 import search_epndb
 import binfinder
-from mwa_metadb_utils import get_common_obs_metadata
+import mwa_metadb_utils
 from data_process_pipeline import run_params_class
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,7 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
         freq=None
     else:
         logger.info("Obtaining observation metadata")
-        metadata = mwa_metadb_utils.get_common_obs_metadata[5]
+        metadata = mwa_metadb_utils.get_common_obs_metadata(obsid)[5]
         freq=metadata[5]
 
 
