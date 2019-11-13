@@ -18,35 +18,6 @@ from data_process_pipeline import run_params_class
 logger = logging.getLogger(__name__)
 
 
-def get_obs_info(prof_path=None, obsid=None):
-
-    #prof path is for bestrprofs only
-    if obsid is None:
-        if prof_path is not None:
-            f = open(prof_path, "r")
-            line = f.read()
-            line = line.split()
-            line = line[4].split("_")
-            obsid = str(line[0])
-            f.close()
-            #the return is in the format:
-            #[obs, ra, dec, dura, [xdelays, ydelays], centrefreq, channels]
-        else:
-            logger.error("No obsid or profile path supplied. Cannot get metadata")
-            system.exit(1)
-
-    for _ in range(10):
-        try:
-            return get_common_obs_metadata(obsid)
-        except RuntimeError as err:
-            logger.warn("Error ocurred when trying to access metadata for obsid: {0}".format(obsid))
-            logger.warn("Here is the exception: {0}".format(err))
-            logger.warn("The metadata server may be down at the moment... Trying again in 30 seconds...")
-            time.sleep(30)
-    logger.error("Could not obtain metadata for obsid {0}".format(obsid))
-    logger.error("Exiting...")
-    sys.exit(1)
-
 #--------------------------------------------------------------------------
 def align_data_with_peak(stokes_I, stokes_Q=None, stokes_U=None, stokes_V=None):
     #feed this only the y values of each dataset
@@ -215,7 +186,7 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
         freq=None
     else:
         logger.info("Obtaining observation metadata")
-        metadata = get_obs_info(obsid=obsid)
+        metadata = mwa_metadb_utils.get_common_obs_metadata[5]
         freq=metadata[5]
 
 
