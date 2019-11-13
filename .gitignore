@@ -2,3 +2,4 @@ output/*
 *.pyc
 obs_meta.csv
 bin/*
+nextflow/.next*
