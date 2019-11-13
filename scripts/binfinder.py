@@ -277,6 +277,14 @@ def submit_to_db_and_continue(run_params, best_bins):
     #Move the pointing directory
     comp_config = config.load_config_file()
     move_loc = os.path.join(comp_config["base_product_dir"], run_params.obsid, "data_products")
+   
+    #in case the previous command fails. Don't move stuff around 
+    commands.append("errorcode=$?")
+    commands.append('if [ "$errorcode" != "0" ]; then')
+    commands.append("   echo 'Submission Failure!'")
+    commands.append("   exit $errorcode")
+    commands.append("fi")
+
     commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
     commands.append("mv {0} {1}".format(run_params.pointing_dir, move_loc))
 
