@@ -487,7 +487,7 @@ def submit_prepfold(run_params, nbins):
 
     #Check if prepfold worked:
     commands.append("errorcode=$?")
-    commands.append("if [ '$errorcode' != '0' ]; then")
+    commands.append('if [ "$errorcode" != "0" ]; then')
     commands.append("   echo 'Prepfold operation failure!'")
     commands.append("   exit $errorcode")
     commands.append("fi")
