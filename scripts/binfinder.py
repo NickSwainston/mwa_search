@@ -278,7 +278,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     comp_config = config.load_config_file()
     move_loc = os.path.join(comp_config["base_product_dir"], run_params.obsid, "data_products")
     commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
-    commands.append("mv -r {0} {1}".format(run_params.pointing_dir, move_loc))
+    commands.append("mv {0} {1}".format(run_params.pointing_dir, move_loc))
 
     #submit job
     name = "Submit_db_{0}_{1}".format(run_params.pulsar, run_params.obsid)
