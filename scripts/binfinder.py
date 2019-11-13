@@ -146,7 +146,6 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, beg, end, nbins,
                     .format(pulsar, variables, constants))
     commands.append('   pulsar={}'.format(pulsar))
     commands.append('fi')
-    commands.append('rm {0}.eph'.format(pulsar))
 
     return commands
 
@@ -488,8 +487,10 @@ def submit_prepfold(run_params, nbins):
 
     #Check if prepfold worked:
     commands.append("errorcode=$?")
-    commands.append("if ['$errorcode' != '0']; then")
+    commands.append("if [ '$errorcode' != '0' ]; then")
+    commands.append("   echo 'Prepfold operation failure!'")
     commands.append("   exit $errorcode")
+    commands.append("fi")
 
     #binfinder relaunch:
     commands.append("echo '############### Relaunching binfinder script ###############'" )
