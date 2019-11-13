@@ -3,6 +3,7 @@
 import logging
 import argparse
 import sys
+import os
 
 from job_submit import submit_slurm
 import config
@@ -48,7 +49,7 @@ def find_RM_from_file(fname):
             break
 
     if not rm:
-        logger.warn("RM could not be generated from archive")
+        logger.warn("RM could not be generated from archive file")
 
     return rm, rm_err
 
@@ -58,10 +59,10 @@ def find_RM_from_file(fname):
 def submit_dspsr(run_params):
     #run dspsr
 
-    launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -L {4} --mwa_search {5}\
-                    --vcs_tools {6}"\
+    launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -o {4} -L {5}\
+                    --mwa_search {6} --vcs_tools {7}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
-                    run_params.subint, run_params.loglvl, run_params.mwa_search,\
+                    run_params.subint, run_params.obsid, run_params.loglvl, run_params.mwa_search,\
                     run_params.vcs_tools)
     if run_params.stop==True:
         launch_line += " -S"
@@ -99,11 +100,11 @@ def submit_RM_correct(run_params):
     #correct for RM and submit plot
 
 
-    launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -L {4} --mwa_search {5}\
-                    --vcs_tools {6}"\
+    launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -o {4} -L {5}\
+                    --mwa_search {6} --vcs_tools {7}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
-                    run_params.subint, run_params.loglvl, run_params.mwa_search,\
-                    run_params.vcs_tools)#, run_params.stop)
+                    run_params.obsid, run_params.subint, run_params.loglvl,\
+                    run_params.mwa_search, run_params.vcs_tools)
 
     if run_params.stop==True:
         launch_line += " -S"
