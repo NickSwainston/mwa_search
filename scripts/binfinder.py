@@ -297,7 +297,7 @@ def submit_to_db_and_continue(run_params, best_bins):
 
     submit_slurm(name, commands,\
                  batch_dir=batch_dir,\
-                 slurm_kwargs={"time": "00:05:00"},\
+                 slurm_kwargs={"time": "01:00:00"},\
                  module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
