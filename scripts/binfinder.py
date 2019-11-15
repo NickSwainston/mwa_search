@@ -277,16 +277,20 @@ def submit_to_db_and_continue(run_params, best_bins):
     #Move the pointing directory
     comp_config = config.load_config_file()
     move_loc = os.path.join(comp_config["base_product_dir"], run_params.obsid, "data_products")
-   
+    pointing = run_params.pointing_dir.split("/")[-1]
+    new_pointing_dir = os.path.join(move_loc, pointing)   
+
+
     #in case the previous command fails. Don't move stuff around 
     commands.append("errorcode=$?")
+    commands.append("echo 'errorcode' $errorcode")
     commands.append('if [ "$errorcode" != "0" ]; then')
     commands.append("   echo 'Submission Failure!'")
     commands.append("   exit $errorcode")
     commands.append("fi")
 
     commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
-    commands.append("mv {0} {1}".format(run_params.pointing_dir, move_loc))
+    commands.append("mv {0} {1}".format(run_params.pointing_dir, new_pointing_dir))
 
     #submit job
     name = "Submit_db_{0}_{1}".format(run_params.pulsar, run_params.obsid)
@@ -302,10 +306,6 @@ def submit_to_db_and_continue(run_params, best_bins):
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
     #Run stokes fold
-    #Needs to look in the new pointing directory
-    pointing = run_params.pointing_dir.split("/")[-1]
-    new_pointing_dir = os.path.join(move_loc, pointing)
-
     commands = []
     commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7} -m s"\
@@ -495,6 +495,7 @@ def submit_prepfold(run_params, nbins):
 
     #Check if prepfold worked:
     commands.append("errorcode=$?")
+    commands.append("echo 'errorcode' $errorcode")
     commands.append('if [ "$errorcode" != "0" ]; then')
     commands.append("   echo 'Prepfold operation failure!'")
     commands.append("   exit $errorcode")
