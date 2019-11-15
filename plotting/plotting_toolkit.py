@@ -160,7 +160,8 @@ def plot_bestprof(bestprof, out_dir, nocrop=False):
     plt.text(0.05, 0.875,     "Period (ms):     {0}+/-{1}".format(info_dict["period"], info_dict["period_error"]), fontsize=9, color="black", transform=ax.transAxes)
 
     ax.plot(x, y, color="black")
-    fig_path = "{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"])
+    fig_name = "{0}_{1}_presto_pulse_prof.png".format(info_dict["obsid"], info_dict["pulsar"]) 
+    fig_path = os.path.join(out_dir, fig_name)
     print("Saving figure:   {0}".format(fig_path))
     plt.savefig("{0}".format(fig_path))
 
