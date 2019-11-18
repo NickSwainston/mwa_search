@@ -309,10 +309,10 @@ def submit_to_db_and_continue(run_params, best_bins):
     #Run stokes fold
     commands = []
     commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
-                    --mwa_search {6} --vcs_tools {7} -m s"\
+                    --mwa_search {6} --vcs_tools {7} -f {8} -m s"\
                     .format(new_pointing_dir, run_params.cal_id, run_params.pulsar,\
                     run_params.obsid, best_bins, run_params.loglvl, run_params.mwa_search,\
-                    run_params.vcs_tools))
+                    run_params.vcs_tools, run_params.freq))
 
     name = "dpp_stokes_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
@@ -460,10 +460,10 @@ def submit_multiple_pointings(run_params):
 
     commands=[]
     commands.append("binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} {5} --vcs_tools {6}\
-                    --mwa_search {7} -p {8} -b {9} -e {10}"\
+                    --mwa_search {7} -p {8} -b {9} -e {10} -f {11}"\
                     .format(p, run_params.cal_id, run_params.pulsar, run_params.obsid,\
                     run_params.loglvl, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar,\
-                    run_params.beg, run_params.end))
+                    run_params.beg, run_params.end, run_params.freq))
 
     name="bf_post_multi_{0}".format(run_params.pulsar)
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
@@ -505,10 +505,10 @@ def submit_prepfold(run_params, nbins):
     #binfinder relaunch:
     commands.append("echo '############### Relaunching binfinder script ###############'" )
     commands.append("binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5}\
-                    --mwa_search {6} -b {7} -e {8}"\
+                    --mwa_search {6} -b {7} -e {8} -f {9}"\
                     .format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar,\
                     run_params.obsid, run_params.loglvl, run_params.vcs_tools, run_params.mwa_search,\
-                    run_params.beg, run_params.end))
+                    run_params.beg, run_params.end, run_params.freq))
 
     comp_config = config.load_config_file()
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
@@ -736,6 +736,7 @@ if __name__ == '__main__':
     
 
     other = parser.add_argument_group("Other Options:")
+    other.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
     other.add_argument("-t", "--threshold", type=float, default=10.0, help="The signal to noise threshold to stop at. Default = 10.0")
     other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     other.add_argument("-S", "--stop", action="store_true", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
@@ -767,7 +768,10 @@ if __name__ == '__main__':
                     (args.pointing_dir, args.cal_id, pulsar=args.pulsar,obsid=args.obsid,\
                     threshold=args.threshold, stop=args.stop,loglvl=args.loglvl,\
                     mwa_search=args.mwa_search, vcs_tools=args.vcs_tools,\
-                    beg=args.beg, end=args.end)
+                    beg=args.beg, end=args.end, freq=args.freq)
+
+    if run_params.freq is None:
+        run_params.set_freq_from_metadata(run_params.obsid)
 
 
     #NOTE: for some reason, you need to run prepfold from the directory it outputs to if you want it to properly make an image. The script will make this work regardless by using os.chdir
