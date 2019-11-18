@@ -290,6 +290,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands.append("fi")
 
     commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
+    commands.append("mkdir {}".format(move_loc))
     commands.append("mv {0} {1}".format(run_params.pointing_dir, new_pointing_dir))
 
     #submit job
