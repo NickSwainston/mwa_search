@@ -5,6 +5,7 @@ import logging
 import argparse
 from job_submit import submit_slurm
 import config
+from mwa_metadb_utils import get_common_obs_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class run_params_class:
                 mode=None, mwa_search="master", vcs_tools="master",\
                 subint=10.0, RM=None, RM_err=None, stokes_bins=None,\
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
-                epndb_dir=None, beg=None, end=None):
+                epndb_dir=None, beg=None, end=None, freq=None):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -26,6 +27,7 @@ class run_params_class:
         self.pulsar         = pulsar
         self.beg            = beg
         self.end            = end
+        self.freq           = freq
 
         #Versions
         self.mwa_search     = mwa_search
@@ -76,7 +78,13 @@ class run_params_class:
 
     def stop_now(self):
         self.stop=True
+
+    def set_freq(self, new_freq):
+        self.freq = new_frew
     
+    def set_freq_from_metadata(self, obsid):
+        self.freq = get_common_obs_metadata(obsid)[5]
+        
 #----------------------------------------------------------------------
 def copy_data(data_path, target_directory):
     #copies the data_path file to target_directory
@@ -112,9 +120,10 @@ def info_from_dir(pointing_dir):
 def stokes_fold(run_params, nbins):
 
     launch_line = "stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} -o {5} --vcs_tools {6}\
-                    --mwa_search {7}"\
+                    --mwa_search {7} -f {8}"\
                 .format(run_params.pointing_dir, run_params.pulsar, nbins, run_params.subint,\
-                run_params.loglvl, run_params.obsid, run_params.vcs_tools, run_params.mwa_search)
+                run_params.loglvl, run_params.obsid, run_params.vcs_tools, run_params.mwa_search,\
+                run_params.freq)
     if run_params.stop==True:
         launch_line += " -S"
 
@@ -143,10 +152,10 @@ def binfind(run_params):
     commands = []
     commands.append("echo 'Launching binfinder in mode {0}'".format(run_params.mode))
     commands.append("binfinder.py -O {0} -t {1} -p {2} -o {3} -L {4} --mwa_search {5}\
-                --vcs_tools {6} -b {7} -e {8} -d {9}"\
+                --vcs_tools {6} -b {7} -e {8} -d {9} -f {10}"\
                 .format(run_params.cal_id, run_params.threshold, run_params.pulsar,\
                 run_params.obsid, run_params.loglvl, run_params.mwa_search,\
-                run_params.vcs_tools, run_params.beg, run_params.end, p))
+                run_params.vcs_tools, run_params.beg, run_params.end, p, run_params.freq))
 
     #decide how much time to allocate based on number of pointings
     n_pointings = len(run_params.pointing_dir)
@@ -194,6 +203,7 @@ if __name__ == '__main__':
     obsop.add_argument("-p", "--pulsar", type=str, help="The J name of the pulsar. e.g. J2241-5236")
     obsop.add_argument("-b", "--beg", type=int, help="The beginning of the observation")
     obsop.add_argument("-e", "--end", type=int, help="The end of the observation")
+    obsop.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
 
     binfindop = parser.add_argument_group("Binfinder Options")
     binfindop.add_argument("-t", "--threshold", type=float, default=10.0, help="The presto sigma value\
@@ -235,7 +245,7 @@ if __name__ == '__main__':
                                 mode=args.mode, mwa_search=args.mwa_search,\
                                 vcs_tools=args.vcs_tools, loglvl=args.loglvl,\
                                 threshold=args.threshold, stokes_bins=args.nbins,\
-                                subint=args.subint, beg=args.beg, end=args.end)
+                                subint=args.subint, beg=args.beg, end=args.end, freq=args.freq)
 
     if run_params.mode=="f":
         binfind(run_params)
