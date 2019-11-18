@@ -172,26 +172,7 @@ def plot_bestprof(bestprof, out_dir, nocrop=False):
 
 
 #--------------------------------------------------------------------------
-def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir="./", nocrop=False):
-    #Must supply either a run_params class or all other inputs
-    if run_params is not None:
-        obsid=run_params.obsid
-        archive=run_params.archive
-        pulsar=run_params.pulsar
-        out_dir=run_params.out_dir
-
-    if archive is None:
-        logger.error("No archive file supplied, cannot continue")
-        sys.exit(1)
-    if obsid is None:
-        logger.warn("No obsid supplied! Cannot supply metadata information")
-        freq=None
-    else:
-        logger.info("Obtaining observation metadata")
-        metadata = mwa_metadb_utils.get_common_obs_metadata(obsid)[5]
-        freq=metadata[5]
-
-
+def plot_archive(archive, obsid, pulsar, freq, out_dir="./", nocrop=False):
     #Read the archive
     x=[]
     sI=[]
@@ -218,9 +199,6 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     #plot -
     fig = plt.figure(figsize=(20, 12))
     fig.subplots_adjust(hspace=0)
-
-    if run_params is not None:
-        nocrop = run_params.nocrop
 
     if nocrop==False:
         crop=(0.25, 0.75)
