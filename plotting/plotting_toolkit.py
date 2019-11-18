@@ -13,6 +13,7 @@ import time
 import search_epndb
 import binfinder
 import mwa_metadb_utils
+import os
 from data_process_pipeline import run_params_class
 
 logger = logging.getLogger(__name__)
