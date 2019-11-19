@@ -75,7 +75,11 @@ def find_RM_from_file(fname):
         line = line.split()
         if line[0] == "Best" and line[1] == "RM":
             rm=float(line[3])
-            rm_err=float(line[5])
+            if len(line) >= 5:
+                rm_err=float(line[5])
+            else:
+                logger.warn("Uncertainty for RM not available")
+                rm_err=None
             break
 
     if not rm:
