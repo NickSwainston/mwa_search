@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import find_pulsar_in_obs as fpio
 
 import matplotlib.pyplot as plt
 from matplotlib import patches
@@ -18,7 +19,6 @@ from mwa_pb.mwa_tile import h2e
 #import json
 
 import mwa_metadb_utils as meta
-import find_pulsar_in_obs as fpio
 
 
 def getTargetAZZA(ra,dec,time,lat=-26.7033,lon=116.671,height=377.827):
