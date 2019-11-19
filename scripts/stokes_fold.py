@@ -30,7 +30,7 @@ def find_RM_from_cat(pulsar):
     -----------
     pulsar: str
         The J-name of the pulsar
-    
+
     Returns:
     --------
     rm: float
@@ -39,7 +39,7 @@ def find_RM_from_cat(pulsar):
         The uncertainty in the rotation measure
     """
 
-    query = psrqpy.QueryATNF(params=["RM"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas 
+    query = psrqpy.QueryATNF(params=["RM"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas
     rm = query["RM"][0]
     rm_err = query["RM_ERR"][0]
 
@@ -59,7 +59,7 @@ def find_RM_from_file(fname):
     -----------
     fname: str
         The path to the file
-    
+
     Returns:
     --------
     rm: float
@@ -223,7 +223,7 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     logger.propagate = False
-    
+
     if args.nbins is None:
         logger.error("Please input an argument for the number of bins to use")
         sys.exit(1)

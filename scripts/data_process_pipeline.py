@@ -59,10 +59,10 @@ class run_params_class:
 
     def set_beg(self, beg):
         self.beg = beg
-    
+
     def set_end(self, end):
         self.end = end
-    
+
     def set_best_bins(self, bins):
         self.best_bins = bins
 
@@ -80,11 +80,11 @@ class run_params_class:
         self.stop=True
 
     def set_freq(self, new_freq):
-        self.freq = new_frew
-    
+        self.freq = new_freq
+
     def set_freq_from_metadata(self, obsid):
         self.freq = get_common_obs_metadata(obsid)[5]
-        
+
 #----------------------------------------------------------------------
 def copy_data(data_path, target_directory):
     #copies the data_path file to target_directory
