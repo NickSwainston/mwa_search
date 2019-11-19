@@ -443,4 +443,4 @@ if __name__ == '__main__':
         plot_bestprof(args.bestprof, args.out_dir, args.nocrop)
     elif run_params.mode=="s":
         plot_archive(args.archive, args.obsid, args.pulsar, args.freq,\
-                    outdir=args.outdir, nocrop=args.nocrop)
+                    out_dir=args.outdir, nocrop=args.nocrop)
