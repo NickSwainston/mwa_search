@@ -695,7 +695,7 @@ def work_out_what_to_do(run_params):
             test_dir = os.path.join(run_params.pointing_dir,"*{0}_bins*bestprof".format(last_fold_bins))
             test_dir = glob.glob(test_dir)[0]
             test = sn_chi_test(test_dir)
-            if test==False:
+            if not test:
                 next_bins = how_many_bins_next(run_params.pulsar, run_params.pointing_dir)
                 if next_bins is not None:
                     submit_prepfold(run_params, next_bins)
