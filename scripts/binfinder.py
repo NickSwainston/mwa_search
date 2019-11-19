@@ -11,9 +11,7 @@ import data_process_pipeline
 from job_submit import submit_slurm
 import plotting_toolkit
 import find_pulsar_in_obs as fpio
-import check_known_pulsars as checks
 import sn_flux_est as snfe
-import file_maxmin
 import psrqpy
 logger = logging.getLogger(__name__)
 

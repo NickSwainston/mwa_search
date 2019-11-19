@@ -8,7 +8,6 @@ from matplotlib.lines import Line2D
 import logging
 import argparse
 import json
-import time
 
 import search_epndb
 import binfinder
@@ -404,9 +403,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Plots pulse profiles for a given pulsar""")
 
     obsop = parser.add_argument_group("Observation Options")
-    obsop.add_argument("-p ", "--pulsar", type=str, help="J name of the pulsar. eg. J2241-5326. Default: ''")
-    obsop.add_argument("-o", "--obsid", type=str, default="", help="The observation ID. Default: ''")
-    obsop.add_argument("-O", "--cal_id", type=str, default="", help="The ID of the calibrator. Default: ''")
+    obsop.add_argument("-p ", "--pulsar", type=str, help="J name of the pulsar. eg. J2241-5326")
+    obsop.add_argument("-o", "--obsid", type=str, help="The observation ID")
+    obsop.add_argument("-O", "--cal_id", type=str, help="The ID of the calibrator.")
+    obsop.add_argument("-f", "--freq", type=float, help="The central frequency in MHz of the observation. If unsupplied, will find from metadta")
 
     ioop = parser.add_argument_group("Input and Output Opttions")
     ioop.add_argument("-b", "--bestprof", type=str, help="Location of the MWA bestprof file.")
@@ -437,13 +437,10 @@ if __name__ == '__main__':
         logger.error("Please supply an output directory and rerun.")
         sys.exit(1)
 
-    run_params = run_params_class(pulsar=args.pulsar, obsid=args.obsid, cal_id=args.cal_id,\
-                    bestprof=args.bestprof, archive=args.archive, out_dir=args.out_dir,\
-                    epndb_dir=args.epndb_dir, loglvl=args.loglvl, mode=args.mode, nocrop=args.nocrop)
-
 
     #sort_data(args.pulsar_name, args.epndb_dir, args.out_dir, args.bestprof, args.full_stokes)
     if run_params.mode=="b":
         plot_bestprof(args.bestprof, args.out_dir, args.nocrop)
     elif run_params.mode=="s":
-        plot_archive(run_params=run_params)
+        plot_archive(args.archive, args.obsid, args.pulsar, args.freq,\
+                    outdir=args.outdir, nocrop=args.nocrop)
