@@ -90,7 +90,7 @@ def find_RM_from_file(fname):
 #def submit_RM()
     #This is not implemented in the pulsar databse yet
 
-def submit_dspsr(run_params):
+def submit_dspsr(run_params, dspsr_ops=''):
     """
     Runs dspsr on fits files and relaunches the stokes fold script
 
@@ -99,6 +99,9 @@ def submit_dspsr(run_params):
     run_params: object
         The run_params object from data_process_pipeline.py
     """
+
+    if dspsr_ops!='':
+        logger.info("dspsr custom options: {}".format(dspsr_ops))
 
     launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -o {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7}"\
@@ -112,8 +115,8 @@ def submit_dspsr(run_params):
     commands=[]
     commands.append("psrcat -e {0} > {1}/{0}.eph".format(run_params.pulsar, run_params.pointing_dir))
     commands.append("echo 'Running DSPSR folding...\n'")
-    commands.append("dspsr -cont -U 4000 -A -L {0} -E {3}/{1}.eph -K -b {2} -O {3}/{1}_subint_{0} {3}/*.fits"\
-                    .format(run_params.subint, run_params.pulsar, run_params.stokes_bins, run_params.pointing_dir))
+    commands.append("dspsr -cont -U 4000 -A -L {0} -E {3}/{1}.eph -K -b {2} -O {3}/{1}_subint_{0} {3}/*.fits {4}"\
+                    .format(run_params.subint, run_params.pulsar, run_params.stokes_bins, run_params.pointing_dir, dspsr_ops))
     commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt\n'"\
                     .format(run_params.pointing_dir, run_params.pulsar))
     commands.append("rmfit {0}/{1}_subint_{2}.ar -t > {0}/{1}_rmfit.txt"\
@@ -147,7 +150,6 @@ def submit_RM_correct(run_params):
     run_params: object
         The run_params object from data_process_pipeline.py
     """
-
 
     launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -o {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7}"\
@@ -199,6 +201,7 @@ if __name__ == '__main__':
     foldop.add_argument("-b", "--nbins", type=int, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
+    foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding. eg: '-D 50.0 -c 506.25'. Defualt=''")
 
     otherop = parser.add_argument_group("Other Options:")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
@@ -243,11 +246,10 @@ if __name__ == '__main__':
                 obsid=args.obsid, stop=args.stop)
 
     if run_params.mode == "i":
-        submit_dspsr(run_params)
+        submit_dspsr(run_params, args.dspsr_ops)
 
     elif run_params.mode == "f":
-        RM, RM_err = find_RM_from_file("{0}/{1}_rmfit.txt".format(run_params.pointing_dir,\
-        run_params.pulsar))
+        RM, RM_err = find_RM_from_file(os.path.join(run_params.pointing_dir, "{1}_rmfit.txt".format(run_params.pulsar)))
         if RM is None:
             RM, RM_err = find_RM_from_cat(run_params.pulsar)
 
@@ -260,7 +262,7 @@ if __name__ == '__main__':
 
     elif run_params.mode == "p":
         logger.info("Plotting dspsr archive in {}".format(run_params.pointing_dir))
-        fname="{0}/{1}_archive.txt".format(run_params.pointing_dir, run_params.pulsar)
+        fname = os.path.join(run_params.pointing_dir, "{1}_archive.txt".format(run_params.pulsar)))
         fig_name = plotting_toolkit.plot_archive(fname, run_params.obsid, run_params.pulsar, run_params.freq, out_dir=run_params.pointing_dir)
     else:
         logger.error("Unrecognised mode. Please rerun with a suitable mode selected")
