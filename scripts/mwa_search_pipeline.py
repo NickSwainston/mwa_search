@@ -693,9 +693,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                 missing_chan_list.append(ch)
             else:
                 # Replacing the above with a check of the number of samples
-                expected_nsamples = (search_opts.end-search_opts.begin) * 10000
+                expected_nsamples = (search_opts.end-search_opts.begin-2) * 10000
                 nsamples = numout_calc(search_opts.pointing_dir, search_opts.obsid)
                 if expected_nsamples > nsamples:
+                    logger.debug("N samples in {}: {} > {}".format(search_opts.pointing_dir, expected_nsamples, nsamples))
                     print("Not enough fits files so deleteing fits files and beamforming")
                     path_check = True
                     for rm_file in glob.glob("{}/{}*fits".format(search_opts.pointing_dir,
