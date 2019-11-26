@@ -2054,6 +2054,8 @@ if __name__ == "__main__":
         relaunch_script +=  " -v " + str(args.mwa_search_version)
     if args.vcstools_version:
         relaunch_script +=  " --vcstools_version " + str(args.vcstools_version)
+    if args.mwa_search_version:
+        relaunch_script +=  " --mwa_search_version " + str(args.mwa_search_version)
     if args.fits_dir:
         relaunch_script +=  " --fits_dir " + str(args.fits_dir)
     if args.channels:
