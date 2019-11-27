@@ -266,7 +266,6 @@ def submit_to_db_and_continue(run_params, best_bins):
         pfd = glob.glob("*{0}_bins*{1}*.pfd".format(b_standard, run_params.pulsar[1:]))[0]
         pfd = os.path.join(cwd, pfd)
 
-        commands = []
         commands.append("echo 'Submitting profile to database with {} bins'".format(b_standard))
         commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
         .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof, ppps))
@@ -275,9 +274,11 @@ def submit_to_db_and_continue(run_params, best_bins):
     #Move the pointing directory
     comp_config = config.load_config_file()
     move_loc = os.path.join(comp_config["base_product_dir"], run_params.obsid, "data_products")
-    pointing = run_params.pointing_dir.split("/")[-1]
-    new_pointing_dir = os.path.join(move_loc, pointing)
-
+    pointing = run_params.pointing_dir.split("/")
+    pointing = [i for i in pointing if i != ""]
+    print("pointing: {}".format(pointing))
+    new_pointing_dir = os.path.join(move_loc, pointing[-1])
+    print("new_pointing_dir: {}".format(new_pointing_dir))
 
     #in case the previous command fails. Don't move stuff around
     commands.append("errorcode=$?")
@@ -298,13 +299,14 @@ def submit_to_db_and_continue(run_params, best_bins):
     logger.info("Submitting submission script for profile: {0}".format(bestprof))
     logger.info("Job name: {}".format(name))
 
-    submit_slurm(name, commands,\
+    dep_id = submit_slurm(name, commands,\
                  batch_dir=batch_dir,\
                  slurm_kwargs={"time": "01:00:00"},\
                  module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
     #Run stokes fold
+    new_pointing_dir = os.path.join(new_pointing_dir, run_params.pointing_dir.split("/")[-1])
     commands = []
     commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7} -f {8} -m s"\
@@ -318,10 +320,11 @@ def submit_to_db_and_continue(run_params, best_bins):
     logger.info("Job Name: {}".format(name))
 
     submit_slurm(name, commands,\
-                 batch_dir=batch_dir,\
-                 slurm_kwargs={"time": "00:05:00"},\
-                 module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
-                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+                batch_dir=batch_dir,\
+                slurm_kwargs={"time": "00:05:00"},\
+                depend=dep_id, depend_type="afterany",\
+                module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
+                submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 #----------------------------------------------------------------------
 def get_best_profile_in_dir(pointing_dir, pulsar):
