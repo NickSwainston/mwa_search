@@ -306,7 +306,6 @@ def submit_to_db_and_continue(run_params, best_bins):
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
     #Run stokes fold
-    new_pointing_dir = os.path.join(new_pointing_dir, run_params.pointing_dir.split("/")[-1])
     commands = []
     commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
                     --mwa_search {6} --vcs_tools {7} -f {8} -m s"\

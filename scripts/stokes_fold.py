@@ -153,7 +153,7 @@ def submit_RM_correct(run_params):
     launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -o {4} -L {5} -f {6}\
                     --mwa_search {7} --vcs_tools {8}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
-                    run_params.obsid, run_params.subint, run_params.loglvl, run_params.freq\
+                    run_params.obsid, run_params.subint, run_params.loglvl, run_params.freq,\
                     run_params.mwa_search, run_params.vcs_tools)
 
     if run_params.stop==True:
