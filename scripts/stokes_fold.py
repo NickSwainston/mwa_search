@@ -242,7 +242,7 @@ if __name__ == '__main__':
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
                 pulsar=args.pulsar, stokes_bins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
                 mode=args.mode, vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
-                obsid=args.obsid, stop=args.stop)
+                obsid=args.obsid, stop=args.stop, freq=args.freq)
 
     if run_params.mode == "i":
         submit_dspsr(run_params)
