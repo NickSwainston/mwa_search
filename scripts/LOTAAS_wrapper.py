@@ -3,7 +3,6 @@
 import logging
 import argparse
 import glob
-import sys
 import os
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,6 @@ def categorize_classifier_files(out_dir):
     #For each pfd with >=3 positive IDs, write that pfd to 'positive' file, else write to 'negative' file
     pos_f = open(os.path.join(out_dir, "LOTAAS_positive_detections.txt"), "w+")
     neg_f = open(os.path.join(out_dir, "LOTAAS_negative_detections.txt"), "w+")
-    num_pfds = 0
     for pfd_key in pulsar_pfds.keys():
         if pulsar_pfds[pfd_key]>=3:
             print("detected pulsar: {}".format(pfd_key))
@@ -85,11 +83,4 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    categorize_classifier_files(args.out_dir)
-   
-    
-
-    
-
-
-    
+    categorize_classifier_files(args.out_dir)  
