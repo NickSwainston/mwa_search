@@ -263,7 +263,7 @@ if __name__ == '__main__':
 
     elif run_params.mode == "p":
         logger.info("Plotting dspsr archive in {}".format(run_params.pointing_dir))
-        fname = os.path.join(run_params.pointing_dir, "{}_archive.txt".format(run_params.pulsar)))
+        fname = os.path.join(run_params.pointing_dir, "{}_archive.txt".format(run_params.pulsar))
         fig_name = plotting_toolkit.plot_archive(fname, run_params.obsid, run_params.pulsar, run_params.freq, out_dir=run_params.pointing_dir)
     else:
         logger.error("Unrecognised mode. Please rerun with a suitable mode selected")
