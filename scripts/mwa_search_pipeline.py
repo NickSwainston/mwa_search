@@ -922,6 +922,11 @@ def prepdata(search_opts):
         import find_pulsar_in_obs as fpio
         temp = fpio.grab_source_alog(source_type=search_opts.cand_type, pulsar_list=[search_opts.cand_name],
                                      include_dm=True)
+        #sometimes rrat not in database, if so process it as a pulsar
+        if len(temp)==0:
+            print("RRAT {} not found on database, processing as a pulsar instead".format(search_opts.cand_name))
+            temp = fpio.grab_source_alog(source_type="Pulsar", pulsar_list=[search_opts.cand_name],
+                                     include_dm=True)
         dm = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)[0][-1]
         #I don't need to make a set class command because this is the last time I use this function
         #For that reason I also shouldn't have to update the relaunch script

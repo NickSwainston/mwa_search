@@ -119,6 +119,9 @@ def info_from_dir(pointing_dir):
 #----------------------------------------------------------------------
 def stokes_fold(run_params, nbins):
 
+    if run_params.freq is None:
+        run_params.set_freq_from_metadata(run_params.obsid)
+
     launch_line = "stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} -o {5} --vcs_tools {6}\
                     --mwa_search {7} -f {8}"\
                 .format(run_params.pointing_dir, run_params.pulsar, nbins, run_params.subint,\
@@ -148,6 +151,9 @@ def binfind(run_params):
     #p=""
     #for pointing in run_params.pointing_dir:
     #    p += " {}".format(pointing)
+    if run_params.freq is None:
+        run_params.set_freq_from_metadata(run_params.obsid)
+        
     p=run_params.pointing_dir
     commands = []
     commands.append("echo 'Launching binfinder in mode {0}'".format(run_params.mode))
