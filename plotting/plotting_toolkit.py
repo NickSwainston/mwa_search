@@ -8,44 +8,14 @@ from matplotlib.lines import Line2D
 import logging
 import argparse
 import json
-import time
 
 import search_epndb
 import binfinder
-from mwa_metadb_utils import get_common_obs_metadata
+import os
 from data_process_pipeline import run_params_class
 
 logger = logging.getLogger(__name__)
 
-
-def get_obs_info(prof_path=None, obsid=None):
-
-    #prof path is for bestrprofs only
-    if obsid is None:
-        if prof_path is not None:
-            f = open(prof_path, "r")
-            line = f.read()
-            line = line.split()
-            line = line[4].split("_")
-            obsid = str(line[0])
-            f.close()
-            #the return is in the format:
-            #[obs, ra, dec, dura, [xdelays, ydelays], centrefreq, channels]
-        else:
-            logger.error("No obsid or profile path supplied. Cannot get metadata")
-            system.exit(1)
-
-    for _ in range(10):
-        try:
-            return get_common_obs_metadata(obsid)
-        except RuntimeError as err:
-            logger.warn("Error ocurred when trying to access metadata for obsid: {0}".format(obsid))
-            logger.warn("Here is the exception: {0}".format(err))
-            logger.warn("The metadata server may be down at the moment... Trying again in 30 seconds...")
-            time.sleep(30)
-    logger.error("Could not obtain metadata for obsid {0}".format(obsid))
-    logger.error("Exiting...")
-    sys.exit(1)
 
 #--------------------------------------------------------------------------
 def align_data_with_peak(stokes_I, stokes_Q=None, stokes_U=None, stokes_V=None):
@@ -189,7 +159,8 @@ def plot_bestprof(bestprof, out_dir, nocrop=False):
     plt.text(0.05, 0.875,     "Period (ms):     {0}+/-{1}".format(info_dict["period"], info_dict["period_error"]), fontsize=9, color="black", transform=ax.transAxes)
 
     ax.plot(x, y, color="black")
-    fig_path = "{0}/{1}_{2}_presto_pulse_prof.png".format(out_dir, info_dict["pulsar"], info_dict["obsid"])
+    fig_name = "{0}_{1}_presto_pulse_prof.png".format(info_dict["obsid"], info_dict["pulsar"])
+    fig_path = os.path.join(out_dir, fig_name)
     print("Saving figure:   {0}".format(fig_path))
     plt.savefig("{0}".format(fig_path))
 
@@ -199,26 +170,7 @@ def plot_bestprof(bestprof, out_dir, nocrop=False):
 
 
 #--------------------------------------------------------------------------
-def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir="./", nocrop=False):
-    #Must supply either a run_params class or all other inputs
-    if run_params is not None:
-        obsid=run_params.obsid
-        archive=run_params.archive
-        pulsar=run_params.pulsar
-        out_dir=run_params.out_dir
-
-    if archive is None:
-        logger.error("No archive file supplied, cannot continue")
-        sys.exit(1)
-    if obsid is None:
-        logger.warn("No obsid supplied! Cannot supply metadata information")
-        freq=None
-    else:
-        logger.info("Obtaining observation metadata")
-        metadata = get_obs_info(obsid=obsid)
-        freq=metadata[5]
-
-
+def plot_archive(archive, obsid, pulsar, freq, out_dir="./", nocrop=False):
     #Read the archive
     x=[]
     sI=[]
@@ -245,9 +197,6 @@ def plot_archive(run_params=None, obsid=None, archive=None, pulsar=None, out_dir
     #plot -
     fig = plt.figure(figsize=(20, 12))
     fig.subplots_adjust(hspace=0)
-
-    if run_params is not None:
-        nocrop = run_params.nocrop
 
     if nocrop==False:
         crop=(0.25, 0.75)
@@ -454,9 +403,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Plots pulse profiles for a given pulsar""")
 
     obsop = parser.add_argument_group("Observation Options")
-    obsop.add_argument("-p ", "--pulsar", type=str, help="J name of the pulsar. eg. J2241-5326. Default: ''")
-    obsop.add_argument("-o", "--obsid", type=str, default="", help="The observation ID. Default: ''")
-    obsop.add_argument("-O", "--cal_id", type=str, default="", help="The ID of the calibrator. Default: ''")
+    obsop.add_argument("-p ", "--pulsar", type=str, help="J name of the pulsar. eg. J2241-5326")
+    obsop.add_argument("-o", "--obsid", type=str, help="The observation ID")
+    obsop.add_argument("-O", "--cal_id", type=str, help="The ID of the calibrator.")
+    obsop.add_argument("-f", "--freq", type=float, help="The central frequency in MHz of the observation. If unsupplied, will find from metadta")
 
     ioop = parser.add_argument_group("Input and Output Opttions")
     ioop.add_argument("-b", "--bestprof", type=str, help="Location of the MWA bestprof file.")
@@ -487,13 +437,10 @@ if __name__ == '__main__':
         logger.error("Please supply an output directory and rerun.")
         sys.exit(1)
 
-    run_params = run_params_class(pulsar=args.pulsar, obsid=args.obsid, cal_id=args.cal_id,\
-                    bestprof=args.bestprof, archive=args.archive, out_dir=args.out_dir,\
-                    epndb_dir=args.epndb_dir, loglvl=args.loglvl, mode=args.mode, nocrop=args.nocrop)
-
 
     #sort_data(args.pulsar_name, args.epndb_dir, args.out_dir, args.bestprof, args.full_stokes)
     if run_params.mode=="b":
         plot_bestprof(args.bestprof, args.out_dir, args.nocrop)
     elif run_params.mode=="s":
-        plot_archive(run_params=run_params)
+        plot_archive(args.archive, args.obsid, args.pulsar, args.freq,\
+                    out_dir=args.outdir, nocrop=args.nocrop)

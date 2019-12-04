@@ -2,3 +2,6 @@ output/*
 *.pyc
 obs_meta.csv
 bin/*
+nextflow/.nextflow*
+nextflow/.vscode*
+nextflow/work*

@@ -86,7 +86,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
     pointing_count = 0
     for i in range(len(dec_range)):
         #calculating the FWHM at this dec
-        ra_sex, deg_sex = fpio.deg2sex(start_ra, dec_range[i]).split()
+        ra_sex, deg_sex = fpio.deg2sex(start_ra, dec_range[i])
         cord = [start_obsid, str(ra_sex), str(deg_sex), 1, delays_range[i],centrefreq, channels]
         #powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
         names_ra_dec = np.column_stack((['source']*len(RA_FWHM_calc), RA_FWHM_calc, Dec_FWHM_calc))
@@ -261,6 +261,9 @@ if __name__ == "__main__":
     if args.all_obsids:
         #observations= find_pulsar_in_obs.find_obsids_meta_pages()
         observations = fpio.find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
+        #print(observations)
+        #observations = [o for o in observations if o <=  1104109216]
+        #print(observations)
     elif args.obsid_list:
         observations = args.obsid_list
         pointing_count = len(observations)
@@ -274,7 +277,8 @@ if __name__ == "__main__":
 
     nz_sens_overlap = np.zeros(len(RA))
     nz_shade_colour = np.zeros(len(RA))
-    nz_sens = np.empty(len(RA))
+    nz_shade_colour_2 = np.zeros(len(RA))
+    #nz_sens = np.full(len(RA), 50.)
     nz_sens[:] = np.nan
     max_ra_list = []
     RA_FWHM_atdec =[]
@@ -309,9 +313,11 @@ if __name__ == "__main__":
                     ob, ra, dec, time, delays,centrefreq, channels = omf
                     ob = int(ob)
                     time = int(time)
-                    delays = map(int,delays[1:-1].split(","))
+                    delaysx = list(map(int,delays[2:-2].split("], [")[0].split(",")))
+                    delaysy = list(map(int,delays[2:-2].split("], [")[1].split(",")))
+                    delays = [delaysx, delaysx]
                     centrefreq = float(centrefreq)
-                    channels = map(int,channels[1:-1].split(","))
+                    channels = list(map(int,channels[1:-1].split(",")))
                     obs_foun_check = True
             if not obs_foun_check:
                 print("Getting metadata for {}".format(ob))
@@ -328,6 +334,7 @@ if __name__ == "__main__":
 
     #Loop over observations and calc beam power
     for i, ob in enumerate(observations):
+        print("Calculating obs {0}/{1}".format(i + 1, len(observations)))
         ra = ra_list[i]
         dec = dec_list[i]
         delays = delays_list[i]
@@ -447,10 +454,21 @@ if __name__ == "__main__":
                 else:
                     max_check = False
 
+                if args.ra_offset:
+                    if max_ra > 180:
+                        ra_text = -max_ra/180.*np.pi+2*np.pi
+                    else:
+                        ra_text = -max_ra/180.*np.pi
+                else:
+                    ra_text = -max_ra/180.*np.pi+np.pi
+                dec_text = dec/180.*np.pi
+
+                #ax.text(ra_text, dec_text, str(i), fontsize=12)
+                
                 if  c == (len(colour_groups)-1) and \
                        ( (min_lim <= max_ra and max_ra < 360.) or \
-                         (0.      <= max_ra and max_ra < max_lim) ) \
-                    or    (min_lim < max_ra and max_ra <= max_lim ):
+                         (0.      <= max_ra and max_ra < max_lim) ) or\
+                         ( min_lim < max_ra and max_ra <= max_lim ):
                         colors = ['0.5' for _ in range(50)]
                         colors[0] = colour_groups[c]
 
@@ -460,11 +478,26 @@ if __name__ == "__main__":
                         #plt.scatter(-max_ra/180*np.pi + np.pi, dec/180*np.pi, 1.5,\
                         #            lw=0, marker='o', color=colour_groups[c])
 
-                        if args.shade == colour_groups[c] and args.smart:
-                            #sum powers for this colour to be shaded when plotting
-                            for zi in range(len(nz)):
-                                if nz[zi] >= levels[0]:
-                                    nz_shade_colour[zi] = nz[zi]
+                
+                if args.shade and i in [0, 1, 2, 3, 4, 5, 10, 64, 65, 66, 67, 68, 69]:
+                    #sum powers for this colour to be shaded when plotting
+                    for zi in range(len(nz)):
+                        if nz[zi] >= levels[0]:
+                            nz_shade_colour[zi] = nz[zi]
+                # This is a temp feature that I'll delete to shade certain obs
+                if args.shade and (i == 11 or i == 18):#[18, 11]:#11
+                    for zi in range(len(nz)):
+                        if nz[zi] >= levels[0]:
+                            nz_shade_colour_2[zi] = nz[zi]
+                    #Temp shade second colour
+                    cs = plt.tricontour(nx, ny, nz_shade_colour_2, levels=levels[0],alpha=0.0)
+                    cs0 = cs.collections[0]
+                    cspaths = cs0.get_paths()
+                    spch_0 = patches.PathPatch(cspaths[0], facecolor='lightcoral',
+                                               edgecolor='gray',lw=0.5, alpha=0.35)
+                    ax.add_patch(spch_0)
+                    nz_shade_colour_2 = np.zeros(len(RA))
+
 
 
         # plot contours ---------------------------------------
@@ -491,8 +524,9 @@ if __name__ == "__main__":
         dec_limit_mask = ny > np.radians(30)
         nz[dec_limit_mask] = np.nan
         import matplotlib.colors as colors
-        plt.pcolor(nx, ny, nz, cmap=colour_map)#, norm=colors.LogNorm(vmin=nz.min(), vmax=nz.max()))
-        plt.colorbar(spacing='uniform', shrink = 0.65, label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
+        plt.pcolor(nx, ny, nz, cmap=colour_map, vmin=2., vmax=10.)
+        plt.colorbar(spacing='uniform', shrink = 0.65, #ticks=[2., 10., 20., 30., 40., 50.], 
+                     label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
@@ -527,33 +561,49 @@ if __name__ == "__main__":
                                    edgecolor='gray',lw=0.5, alpha=0.35)
         ax.add_patch(spch_0)
 
+        """
+        #Temp shade second colour
+        cs = plt.tricontour(nx, ny, nz_shade_colour_2, levels=levels[0],alpha=0.0)
+        cs0 = cs.collections[0]
+        cspaths = cs0.get_paths()
+        spch_0 = patches.PathPatch(cspaths[0], facecolor='red',
+                                   edgecolor='gray',lw=0.5, alpha=0.35)
+        ax.add_patch(spch_0)
+        """
+
 
     #add lines of other surveys
     if args.lines:
-      """
-      plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-               np.full(len(map_ra_range),0./180.*np.pi),
-               '--m',label=r'LOTAS $\delta_{min}$', zorder=130)
-      plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-               np.full(len(map_ra_range),-40./180.*np.pi),
-               '--g',label=r'GBT $\delta_{min}$', zorder=130)
-      plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-               np.full(len(map_ra_range),-55./180.*np.pi),
-               '--c',label=r'GMRT $\delta_{min}$', zorder=130)
-      plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
-               np.full(len(map_ra_range),np.radians(-15.)),
-               '--b',label=r'FAST $\delta_{min}$', zorder=130)
-      plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
-               np.full(len(map_ra_range),np.radians(30.)),
-               'y',label=r'MWA $\delta_{max}$', zorder=130)
-      """
-      plt.plot(np.full(len(map_dec_range),-125./180.*np.pi),#8.3 hours
-               np.array(map_dec_range)/180.*np.pi,
-               'y', zorder=130)
-      plt.plot(np.full(len(map_dec_range),-335./180.*np.pi + 2.*np.pi),#22.3 hours
-               np.array(map_dec_range)/180.*np.pi,
-               'y', zorder=130)
+        """
+        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                 np.full(len(map_ra_range),0./180.*np.pi),
+                 '--m',label=r'LOTAS $\delta_{min}$', zorder=130)
+        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                 np.full(len(map_ra_range),-40./180.*np.pi),
+                 '--g',label=r'GBT $\delta_{min}$', zorder=130)
+        plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
+                 np.full(len(map_ra_range),np.radians(-15.)),
+                 '--b',label=r'FAST $\delta_{min}$', zorder=130)
+        plt.plot(np.full(len(map_dec_range),-125./180.*np.pi),#8.3 hours
+                 np.array(map_dec_range)/180.*np.pi,
+                 'y', zorder=130)
+        plt.plot(np.full(len(map_dec_range),-335./180.*np.pi + 2.*np.pi),#22.3 hours
+                 np.array(map_dec_range)/180.*np.pi,
+                 'y', zorder=130)
+        """
+        plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
+                 np.full(len(map_ra_range),np.radians(30.)),
+                 'r',label=r'MWA $\delta_{max}$', zorder=130)
+        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                 np.full(len(map_ra_range),-55./180.*np.pi),
+                 '--g',label=r'GMRT $\delta_{min}$', zorder=130)
+        
+        handles, labels = ax.get_legend_handles_labels()
+        plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
+                   ncol=1, mode="expand", borderaxespad=0., fontsize=6)
 
+
+      
     if args.fill:
         import matplotlib.transforms as mtransforms
         trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
