@@ -201,7 +201,8 @@ if __name__ == '__main__':
     foldop.add_argument("-b", "--nbins", type=int, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
-    foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding. eg: '-D 50.0 -c 506.25'. Defualt=''")
+    foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
+                        eg: '-D 50.0 -c 506.25'. Defualt=''")
 
     otherop = parser.add_argument_group("Other Options:")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
@@ -262,7 +263,7 @@ if __name__ == '__main__':
 
     elif run_params.mode == "p":
         logger.info("Plotting dspsr archive in {}".format(run_params.pointing_dir))
-        fname = os.path.join(run_params.pointing_dir, "{1}_archive.txt".format(run_params.pulsar)))
+        fname = os.path.join(run_params.pointing_dir, "{}_archive.txt".format(run_params.pulsar)))
         fig_name = plotting_toolkit.plot_archive(fname, run_params.obsid, run_params.pulsar, run_params.freq, out_dir=run_params.pointing_dir)
     else:
         logger.error("Unrecognised mode. Please rerun with a suitable mode selected")
