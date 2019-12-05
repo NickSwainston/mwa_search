@@ -1503,7 +1503,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     #                                                              search_opts.attempt + 1))
     #TODO ONLY NEED FOR database removal
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
-        module_list = ['module use /apps/users/pulsar/skylake/modulefiles\'module load presto/d6265c2',
+        module_list = ['module use /apps/users/pulsar/skylake/modulefiles\n module load presto/d6265c2',
                        'matplotlib/2.2.2-python-2.7.14']
     else:
         module_list = ['presto/master',
@@ -1514,7 +1514,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     commands = []
     commands.append(add_database_function())
     commands.append('cd {0}'.format(search_opts.work_dir))
-    commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
+    commands.append('srun --export=ALL -n 1 -c 1 python {0} {1}/'.format(accel_sift,
                                                               search_opts.sub_dir))
     commands.append('')
     if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
@@ -1629,7 +1629,7 @@ def error_check(search_opts, bash_job=False,
                 accel_sift = shutil.which("ACCEL_sift.py")
                 commands.append(add_database_function())
                 commands.append('cd {0}'.format(search_opts.work_dir))
-                commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
+                commands.append('srun --export=ALL -n 1 -c 1 python {0} {1}/'.format(accel_sift,
                                                                           search_opts.sub_dir))
             # Runs single pulse search
             commands.append('cd {0}/{1}'.format(search_opts.work_dir, search_opts.sub_dir))

@@ -373,6 +373,8 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--type',type=str,help='Can be put in either "hex" or "square" tiling mode. Default is hex.',default='hex')
     parser.add_argument('-l', '--loop',type=int,help='Number  of "loops" around the centre pointing the code will calculate. Default is 1',default=1)
     parser.add_argument('-a','--all_pointings',action="store_true",help='Will calculate all the pointings within the FWHM of the observations tile beam.')
+    parser.add_argument('-b', '--begin',type=int,help='Begin time of the obs for the --all_pointings options')
+    parser.add_argument('-e', '--end',type=int,help='End time of the obs for the --all_pointings options')
     parser.add_argument('--dec_range',type=float,nargs='+',help='Dec limits: "decmin decmax". Default -90 90', default=[-90,90])
     parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 390', default=[0,360])
     parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
@@ -423,7 +425,11 @@ if __name__ == "__main__":
         args.loop = int(tile_fwhm/2./(args.deg_fwhm*args.fraction))
 
         #calculating pointing from metadata
-        ra = np.radians(ra + duration/3600.*15./2)
+        if int(obs) < 1252177700 :
+            #the ra used to mean the start of the obs so it had to be corrected for
+            ra = np.radians(ra + duration/3600.*15./2)
+        else:
+            ra = np.radians(ra)
         dec = np.radians(dec)
     elif args.pulsar:
         temp = fpio.get_psrcat_ra_dec(pulsar_list=args.pulsar)
@@ -457,6 +463,15 @@ if __name__ == "__main__":
 
     if args.all_pointings:
         #calculate powers
+        obeg, oend = meta.obs_max_min(obs)
+        if args.begin:
+            start_time = obeg - args.begin
+        else:
+            start_time = 0
+        if args.end and args.begin:
+            duration = args.end - args.begin
+        elif args.end:
+            duration = args.end - obeg
         obs_metadata = [obs, ra, dec, duration, xdelays, centrefreq, channels]
         names_ra_dec = []
         for ni in range(len(rads)):
