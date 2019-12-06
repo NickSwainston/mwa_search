@@ -155,7 +155,7 @@ def submit_RM_correct(run_params):
     launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -o {4} -L {5} -f {6}\
                     --mwa_search {7} --vcs_tools {8}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
-                    run_params.obsid, run_params.subint, run_params.loglvl, run_params.freq,\
+                     run_params.subint, run_params.obsid, run_params.loglvl, run_params.freq,\
                     run_params.mwa_search, run_params.vcs_tools)
 
     if run_params.stop==True:
@@ -211,7 +211,8 @@ if __name__ == '__main__':
     otherop.add_argument("--vcs_tools", type=str, default="master", help="The version of vcstools to use. Default: master")
     otherop.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
     otherop.add_argument("-S", "--stop", action="store_false", help="Use this tag to stop processing data after the chose mode has finished its intended purpose")
-    otherop.add_argument("-f", "--freq", type=str, help="The central frequency of the observation in MHz")
+    otherop.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
+    otherop.add_argument("--nocrop", action="store_true", help="Use this tag to force no cropping of the profile")
 
     modeop = parser.add_argument_group("Mode Options:")
     modeop.add_argument("-m", "--mode", type=str, help="The mode in which to run stokes_fold: \n\
@@ -246,13 +247,14 @@ if __name__ == '__main__':
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
                 pulsar=args.pulsar, stokes_bins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
                 mode=args.mode, vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
-                obsid=args.obsid, stop=args.stop, freq=args.freq)
+                obsid=args.obsid, stop=args.stop, freq=args.freq, nocrop=args.nocrop)
 
     if run_params.mode == "i":
         submit_dspsr(run_params, args.dspsr_ops)
 
     elif run_params.mode == "f":
-        RM, RM_err = find_RM_from_file(os.path.join(run_params.pointing_dir, "{1}_rmfit.txt".format(run_params.pulsar)))
+        fname = os.path.join(run_params.pointing_dir, "{0}_rmfit.txt".format(run_params.pulsar))
+        RM, RM_err = find_RM_from_file(fname)
         if RM is None:
             RM, RM_err = find_RM_from_cat(run_params.pulsar)
 
@@ -266,7 +268,8 @@ if __name__ == '__main__':
     elif run_params.mode == "p":
         logger.info("Plotting dspsr archive in {}".format(run_params.pointing_dir))
         fname = os.path.join(run_params.pointing_dir, "{}_archive.txt".format(run_params.pulsar))
-        fig_name = plotting_toolkit.plot_archive(fname, run_params.obsid, run_params.pulsar, run_params.freq, out_dir=run_params.pointing_dir)
+        fig_name = plotting_toolkit.plot_archive(fname, run_params.obsid, run_params.pulsar, run_params.freq,\
+                    nocrop=run_params.nocrop, out_dir=run_params.pointing_dir)
     else:
         logger.error("Unrecognised mode. Please rerun with a suitable mode selected")
         sys.exit(1)
