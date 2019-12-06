@@ -190,6 +190,7 @@ def plot_archive(archive, obsid, pulsar, freq, out_dir="./", nocrop=False):
 
     #normalize, align and find linear polarization and position angle
     x=normalize(x)
+    nbins = len(x)
     sI, sQ, sU, sV = normalize(sI, stokes_Q=sQ, stokes_U=sU, stokes_V=sV)
     sI, sQ, sU, sV = align_data_with_peak(sI, stokes_Q=sQ, stokes_U=sU, stokes_V=sV)
     lin_pol, pa = calc_lin_pa(sQ, sU)
@@ -226,9 +227,10 @@ def plot_archive(archive, obsid, pulsar, freq, out_dir="./", nocrop=False):
         ax_2.scatter(x, pa, color="k", label="Position Angle")
 
     ax_1.legend(loc="upper right", fontsize=18)
-    plt.savefig("{0}/{1}_polarimetry_profile.png".format(out_dir, pulsar))
+    savepath = os.path.join(out_dir, "{0}_{1}_{2}_bins_polarimetry_profile.png".format(obsid, pulsar, nbins))
+    plt.savefig(savepath)
 
-    return "{0}/{1}_polarimetry_profile.png".format(out_dir, pulsar)
+    return savepath
 
 #--------------------------------------------------------------------------
 def plot_stack(frequencies, stokes_I, lin_pol, stokes_V, pulsar_name, out_dir, mybuffer=0.75):
