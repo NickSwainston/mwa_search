@@ -809,7 +809,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
                     your_slurm_queue_check(max_queue=500)
-                search_opts.setCandName(pulsar_list[0])
+                if pulsar_list is not None:
+                    search_opts.setCandName(pulsar_list[0])
                 prepdata(search_opts)
                 search_opts.setCandName(None)
             else:
