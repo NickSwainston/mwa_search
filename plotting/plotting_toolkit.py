@@ -307,7 +307,7 @@ def calc_lin_pa(stokes_Q, stokes_U):
     pa = []
     for q, u in zip(stokes_Q, stokes_U):
         lin_pol.append(np.sqrt(q**2+u**2))
-        pa.append(np.arctan(q/u))
+        pa.append(0.5*np.arctan(q/u))
 
     return lin_pol, pa
 
