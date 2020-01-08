@@ -384,15 +384,18 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
 
     ax_1 = plt.subplot2grid((4,1),(0,0), colspan=1, rowspan=3)
     ax_1.tick_params(labelsize=14)
-    ax_1.set_xticks([])#empty
+    ax_1.set_xticks([])
     ax_1.set_title(title, fontsize=36)
     ax_1.set_ylabel("Intensity", fontsize=20)
+    ax_1.set_xlim(-0.5, 0.5)
 
     ax_2 = plt.subplot2grid((4,1),(3,0), colspan=1, rowspan=1)
     ax_2.tick_params(labelsize=14)
-    ax_2.set_yticks([-1.5,-1.0,-0.5,0,0.5,1.0,1.5])
+    ax_2.set_yticks([-0.5, 0.5])
+    ax_2.set_xticks(np.linspace(-0.5, 0.5, 11))
     ax_2.set_xlabel("Pulse Phase", fontsize=20)
     ax_2.set_ylabel("Position Angle", fontsize=20)
+    ax_2.set_xlim(-0.5, 0.5)
 
     ax_1.plot(x, sI, color="k", label="Stokes I")
     ax_1.plot(x, lin_pol, color="r", label="Linear Polarization")
