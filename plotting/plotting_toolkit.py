@@ -128,7 +128,7 @@ def get_data_from_epndb(pulsar):
 
     pulsar_dict={"Ix":[], "Qx":[], "Ux":[], "Vx":[], "Iy":[], "Qy":[], "Uy":[], "Vy":[],\
                 "freq":[], "dm":[], "rm":[], "site":[]}
-    for i, file_path in enumerate(json_pulsar_dirs):
+    for file_path in json_pulsar_dirs:
         with open(file_path) as json_file:
             data = json.load(json_file)
             header = data["hdr"]
@@ -462,7 +462,7 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     #roll the profiles to align the first maxima
     rolled_profs = []
     for profile in profs_y:
-        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(I)
+        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(profile)
         rl_prof = roll_data(I, idx_to_roll=maxima[0])[-1]
         rolled_profs.append(rl_prof)
 
@@ -533,11 +533,9 @@ def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
 
     for i in sorted(ignore_idxs, reverse=True):
         del frequencies[i]
-        del Ix[i]
-        del Iy[i]
-        del lin_x[i]
+        del I_x[i]
+        del I_y[i]
         del lin_y[i]
-        del circ_x[i]
         del circ_y[i]
 
     #roll the profiles to align the first maxima
@@ -566,7 +564,7 @@ def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
         plt.plot(I_x[i], I_y, color="black")
         plt.plot(I_x[i], lin_y, color="red")
         plt.plot(I_x[i], circ_y, color="blue")
-        plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = "blue")
+        plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = "black")
 
     #Finalizing the plot and saving the figure
     plt.xlim(-0.5, 0.5)
