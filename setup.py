@@ -29,7 +29,7 @@ def get_git_version():
 
 mwa_search_version = get_git_version()
 
-# Since we mostly run this on supercomputers it probably isn't correct to 
+# Since we mostly run this on supercomputers it probably isn't correct to
 # pip install all these modules
 reqs = ['python>=3.6.3',
         'argparse>=1.4.0',
@@ -49,7 +49,7 @@ setup(name="mwa_search",
       #install_requires=reqs,
       scripts=['scripts/ACCEL_sift.py', 'scripts/binfinder.py', 'scripts/check_known_pulsars.py',
                'scripts/data_process_pipeline.py', 'scripts/grid.py', 'scripts/lfDDplan.py',
-               'scripts/mwa_search_pipeline.py', 'scripts/search_epndb.py',
+               'scripts/mwa_search_pipeline.py',
                'scripts/splice_wrapper.py', 'scripts/stokes_fold.py', 'scripts/LOTAAS_wrapper.py',
                'database/init_search_database.py', 'database/search_database.py',
                'database/cold_storage_mover.py',
