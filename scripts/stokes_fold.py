@@ -90,7 +90,7 @@ def find_RM_from_file(fname):
 #def submit_RM()
     #This is not implemented in the pulsar databse yet
 
-def submit_dspsr(run_params):
+def submit_dspsr(run_params, dspsr_ops=''):
     """
     Runs dspsr on fits files and relaunches the stokes fold script
 
@@ -100,24 +100,28 @@ def submit_dspsr(run_params):
         The run_params object from data_process_pipeline.py
     """
 
-    launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -o {4} -L {5}\
-                    --mwa_search {6} --vcs_tools {7}"\
+    if dspsr_ops!='':
+        logger.info("dspsr custom options: {}".format(dspsr_ops))
+
+    launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -o {4} -L {5} -f {6}\
+                    --mwa_search {7} --vcs_tools {8}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
-                    run_params.subint, run_params.obsid, run_params.loglvl, run_params.mwa_search,\
-                    run_params.vcs_tools)
+                    run_params.subint, run_params.obsid, run_params.loglvl, run_params.freq,\
+                    run_params.mwa_search, run_params.vcs_tools)
     if run_params.stop==True:
         launch_line += " -S"
 
 
     commands=[]
-    commands.append("psrcat -e {0} > {1}/{0}.eph".format(run_params.pulsar, run_params.pointing_dir))
+    commands.append("cd {}".format(run_params.pointing_dir))
+    commands.append("psrcat -e {0} > {0}.eph".format(run_params.pointing_dir))
     commands.append("echo 'Running DSPSR folding...\n'")
-    commands.append("dspsr -cont -U 4000 -A -L {0} -E {3}/{1}.eph -K -b {2} -O {3}/{1}_subint_{0} {3}/*.fits"\
-                    .format(run_params.subint, run_params.pulsar, run_params.stokes_bins, run_params.pointing_dir))
+    commands.append("dspsr -cont -U 4000 -A -L {0} -E {3}/{1}.eph -K -b {2} -O {3}/{1}_subint_{0} {3}/*.fits {4}"\
+                    .format(run_params.subint, run_params.pulsar, run_params.stokes_bins, run_params.pointing_dir, dspsr_ops))
     commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt\n'"\
                     .format(run_params.pointing_dir, run_params.pulsar))
-    commands.append("rmfit {0}/{1}_subint_{2}.ar -t > {0}/{1}_rmfit.txt"\
-                    .format(run_params.pointing_dir, run_params.pulsar, run_params.subint))
+    commands.append("rmfit {0}_subint_{1}.ar -t > {0}_rmfit.txt"\
+                    .format(run_params.pulsar, run_params.subint))
 
     #rerun the script
     commands.append(launch_line)
@@ -148,11 +152,10 @@ def submit_RM_correct(run_params):
         The run_params object from data_process_pipeline.py
     """
 
-
-    launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -o {4} -L {5}\
-                    --mwa_search {6} --vcs_tools {7}"\
+    launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -o {4} -L {5} -f {6}\
+                    --mwa_search {7} --vcs_tools {8}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
-                    run_params.obsid, run_params.subint, run_params.loglvl,\
+                     run_params.subint, run_params.obsid, run_params.loglvl, run_params.freq,\
                     run_params.mwa_search, run_params.vcs_tools)
 
     if run_params.stop==True:
@@ -160,13 +163,14 @@ def submit_RM_correct(run_params):
 
     commands = []
     #correct for RM
+    commands.append("cd {}".format(run_params.pointing_dir))
     commands.append("echo 'Correcting for input rotation measure\n'")
-    commands.append("pam -e ar2 -R {0} {1}/{2}_subint_{3}.ar"\
-    .format(run_params.RM, run_params.pointing_dir, run_params.pulsar, run_params.subint))
+    commands.append("pam -e ar2 -R {0} {1}_subint_{2}.ar"\
+    .format(run_params.RM, run_params.pulsar, run_params.subint))
     #Turn the archive into a readable ascii file
     commands.append("echo 'Wiritng result to text file\n'")
-    commands.append("pdv -FTt {0}/{1}_subint_{2}.ar2 > {0}/{1}_archive.txt".\
-    format(run_params.pointing_dir, run_params.pulsar, run_params.subint))
+    commands.append("pdv -FTt {0}_subint_{1}.ar2 > {0}_archive.txt".\
+    format(run_params.pulsar, run_params.subint))
 
     #launch plotting
     commands.append(launch_line)
@@ -199,13 +203,16 @@ if __name__ == '__main__':
     foldop.add_argument("-b", "--nbins", type=int, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
+    foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
+                        eg: '-D 50.0 -c 506.25'. Defualt=''")
 
     otherop = parser.add_argument_group("Other Options:")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     otherop.add_argument("--vcs_tools", type=str, default="master", help="The version of vcstools to use. Default: master")
     otherop.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
     otherop.add_argument("-S", "--stop", action="store_false", help="Use this tag to stop processing data after the chose mode has finished its intended purpose")
-    otherop.add_argument("-f", "--freq", type=str, help="The central frequency of the observation in MHz")
+    otherop.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
+    otherop.add_argument("--nocrop", action="store_true", help="Use this tag to force no cropping of the profile")
 
     modeop = parser.add_argument_group("Mode Options:")
     modeop.add_argument("-m", "--mode", type=str, help="The mode in which to run stokes_fold: \n\
@@ -240,14 +247,14 @@ if __name__ == '__main__':
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
                 pulsar=args.pulsar, stokes_bins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
                 mode=args.mode, vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
-                obsid=args.obsid, stop=args.stop)
+                obsid=args.obsid, stop=args.stop, freq=args.freq, nocrop=args.nocrop)
 
     if run_params.mode == "i":
-        submit_dspsr(run_params)
+        submit_dspsr(run_params, args.dspsr_ops)
 
     elif run_params.mode == "f":
-        RM, RM_err = find_RM_from_file("{0}/{1}_rmfit.txt".format(run_params.pointing_dir,\
-        run_params.pulsar))
+        fname = os.path.join(run_params.pointing_dir, "{0}_rmfit.txt".format(run_params.pulsar))
+        RM, RM_err = find_RM_from_file(fname)
         if RM is None:
             RM, RM_err = find_RM_from_cat(run_params.pulsar)
 
@@ -260,8 +267,9 @@ if __name__ == '__main__':
 
     elif run_params.mode == "p":
         logger.info("Plotting dspsr archive in {}".format(run_params.pointing_dir))
-        fname="{0}/{1}_archive.txt".format(run_params.pointing_dir, run_params.pulsar)
-        fig_name = plotting_toolkit.plot_archive(fname, run_params.obsid, run_params.pulsar, run_params.freq, out_dir=run_params.pointing_dir)
+        fname = os.path.join(run_params.pointing_dir, "{}_archive.txt".format(run_params.pulsar))
+        fig_name = plotting_toolkit.plot_archive(fname, run_params.obsid, run_params.pulsar, run_params.freq,\
+                    nocrop=run_params.nocrop, out_dir=run_params.pointing_dir)
     else:
         logger.error("Unrecognised mode. Please rerun with a suitable mode selected")
         sys.exit(1)

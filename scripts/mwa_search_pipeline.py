@@ -809,7 +809,8 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 print("Fits files available, begining pipeline for {0}".format(search_opts.pointing))
                 if len(pointing_list) > 1:
                     your_slurm_queue_check(max_queue=500)
-                search_opts.setCandName(pulsar_list[0])
+                if pulsar_list is not None:
+                    search_opts.setCandName(pulsar_list[0])
                 prepdata(search_opts)
                 search_opts.setCandName(None)
             else:
@@ -921,6 +922,11 @@ def prepdata(search_opts):
     if not search_opts.cand_type in ['Blind', 'Fermi'] and search_opts.cand_name is not None:
         import find_pulsar_in_obs as fpio
         temp = fpio.grab_source_alog(source_type=search_opts.cand_type, pulsar_list=[search_opts.cand_name],
+                                     include_dm=True)
+        #sometimes rrat not in database, if so process it as a pulsar
+        if len(temp)==0:
+            print("RRAT {} not found on database, processing as a pulsar instead".format(search_opts.cand_name))
+            temp = fpio.grab_source_alog(source_type="Pulsar", pulsar_list=[search_opts.cand_name],
                                      include_dm=True)
         dm = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)[0][-1]
         #I don't need to make a set class command because this is the last time I use this function
@@ -1498,7 +1504,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     #                                                              search_opts.attempt + 1))
     #TODO ONLY NEED FOR database removal
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
-        module_list = ['module use /apps/users/pulsar/skylake/modulefiles\'module load presto/d6265c2',
+        module_list = ['module use /apps/users/pulsar/skylake/modulefiles\n module load presto/d6265c2',
                        'matplotlib/2.2.2-python-2.7.14']
     else:
         module_list = ['presto/master',
@@ -1509,7 +1515,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     commands = []
     commands.append(add_database_function())
     commands.append('cd {0}'.format(search_opts.work_dir))
-    commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
+    commands.append('srun --export=ALL -n 1 -c 1 python {0} {1}/'.format(accel_sift,
                                                               search_opts.sub_dir))
     commands.append('')
     if not (hostname.startswith('john') or hostname.startswith('farnarkle')):
@@ -1624,7 +1630,7 @@ def error_check(search_opts, bash_job=False,
                 accel_sift = shutil.which("ACCEL_sift.py")
                 commands.append(add_database_function())
                 commands.append('cd {0}'.format(search_opts.work_dir))
-                commands.append('srun --export=ALL -n 1 -c 1 {0} {1}/'.format(accel_sift,
+                commands.append('srun --export=ALL -n 1 -c 1 python {0} {1}/'.format(accel_sift,
                                                                           search_opts.sub_dir))
             # Runs single pulse search
             commands.append('cd {0}/{1}'.format(search_opts.work_dir, search_opts.sub_dir))
