@@ -4,16 +4,13 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 import logging
 import argparse
 import json
 import os
-import sys
 import glob
 
 import prof_utils
-import search_epndb
 import binfinder
 
 logger = logging.getLogger(__name__)
@@ -132,7 +129,7 @@ def get_data_from_epndb(pulsar):
     pulsar_dict={"Ix":[], "Qx":[], "Ux":[], "Vx":[], "Iy":[], "Qy":[], "Uy":[], "Vy":[],\
                 "freq":[], "dm":[], "rm":[], "site":[]}
     for i, file_path in enumerate(json_pulsar_dirs):
-        with open(json_pulsar_dirs[i]) as json_file:
+        with open(file_path) as json_file:
             data = json.load(json_file)
             header = data["hdr"]
             series = data["series"]
@@ -210,13 +207,14 @@ def plot_bestprof(bestprof, freq=None, out_dir="./"):
     save_name += ".png"
 
     #plot
-    fig, ax = plt.subplots(figsize=(12, 8))
+    _, ax = plt.subplots(figsize=(12, 8))
     plt.plot(x, y, color="black")
     plt.title(title)
     plt.text(0.05, 0.95,  "S/N:             {0}".format(info_dict["sn"]), fontsize=10, color="black", transform=ax.transAxes)
     plt.text(0.05, 0.925, "Chi Sq:          {0}".format(info_dict["chi"]), fontsize=10, color="black", transform=ax.transAxes)
     plt.text(0.05, 0.9,   "DM:              {0}".format(info_dict["dm"]), fontsize=10, color="black", transform=ax.transAxes)
-    plt.text(0.05, 0.875, "Period (ms):     {0} +/- {1}".format(info_dict["period"], info_dict["period_error"]), fontsize=10, color="black", transform=ax.transAxes)
+    plt.text(0.05, 0.875, "Period (ms):     {0} +/- {1}".format(info_dict["period"], info_dict["period_error"]), fontsize=10,\
+            color="black", transform=ax.transAxes)
 
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving bestprof figure: {0}".format(fig_path))
@@ -411,7 +409,7 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
 
 #--------------------------------------------------------------------------
 def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
-                out_dir="./", mybuffer=0.75, ignore_duplicates=True, special_freqs=[], ignore_freqs=[]):
+                out_dir="./", mybuffer=0.75, ignore_duplicates=True, special_freqs=None, ignore_freqs=None):
     """
     Plots multiple profiles stacked on top of one anothre in order of frequency. Saves as a .png
 
@@ -422,7 +420,7 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     profs_x: list
         The phases of the profiles to plot. Where one phsae rotation begins as -0.5 and ends at 0.5
     profs_y: list
-        The Intesisites of the profiles
+        The Intesities of the profiles
     pulsar_name: string
         The name of the pulsar
     out_dir: string
@@ -432,24 +430,27 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     ignore_dupicates: boolean
         OPTIONAL - If True, will not plot duplicate frequencies. Default: True
     special_freqs: list
-        OPTIONAL - Any frequencies to be highlighted in the plot. Default: []
+        OPTIONAL - Any frequencies to be highlighted in the plot. Default: None
     ignore_freqs: list
-        OPTIONAL - Any frequencies to not plot. Default: []
+        OPTIONAL - Any frequencies to not plot. Default: None
 
     Returns:
     --------
     fig_name: string
         The path of the saved .png
     """
-    assert len(frequencies) == len(profs_y) and len(profs_x) == len(profs_y),\
-            "Frequencies and/or values have different lengths"
+    #initialize nones
+    if not special_freqs:
+        special_freqs = []
+    if not ignore_freqs:
+        ignore_freqs = []
 
     #Find and remove unwanted data
     ignore_idxs = []
     for i, freq in enumerate(frequencies):
         if freq in ignore_freqs:
             ignore_idxs.append(i)
-        if ignore_duplicates==True and frequencies[i-1]==freq:
+        if ignore_duplicates and frequencies[i-1]==freq:
             ignore_idxs.append(i)
         ignore_idxs = list(set(ignore_idxs))
 
@@ -461,9 +462,8 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     #roll the profiles to align the first maxima
     rolled_profs = []
     for profile in profs_y:
-        reg_prof, _, _ = prof_utils.regularize_prof(profile, reg_param=1e-4)
-        _, maxima = prof_utils.find_minima_maxima(reg_prof, ignore_threshold=0.1, min_comp_len=0.05*len(profile))
-        rl_prof = roll_data(profile, idx_to_roll=maxima[0])[-1]
+        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(I)
+        rl_prof = roll_data(I, idx_to_roll=maxima[0])[-1]
         rolled_profs.append(rl_prof)
 
     #Initialize figure
@@ -479,7 +479,7 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
         y = np.array(rolled_profs[i])/max(rolled_profs[i])
         y = np.array(y) + mybuffer*i
         plt.plot(x, y, color=clr)
-        plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = "blue")
+        plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = "black")
 
     #Finalizing the plot and saving the figure
     plt.xlim(-0.5, 0.5)
@@ -489,6 +489,93 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     plt.ylabel("Intensity", fontsize=40)
     plt.title(pulsar_name + " Pulse Profiles", fontsize=60)
     fig_name = os.path.join(out_dir, pulsar_name + "_stacked_profiles.png")
+    logger.info("Saving stacked profiles: {}".format(fig_name))
+    plt.savefig(fig_name)
+
+    return fig_name
+
+def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
+                out_dir="./", mybuffer=1.1, ignore_duplicates=True, ignore_freqs=None):
+    """
+    Plots multiple profiles stacked on top of one anothre in order of frequency. Saves as a .png
+
+    Parameters:
+    -----------
+
+    out_dir: string
+        OPTIONAL - The directory to output the .png to. Default: './'
+    mybuffer: float
+        OPTIONAL - The separation in intensity between profiles. Default:0.75
+    ignore_dupicates: boolean
+        OPTIONAL - If True, will not plot duplicate frequencies. Default: True
+    special_freqs: list
+        OPTIONAL - Any frequencies to be highlighted in the plot. Default: None
+    ignore_freqs: list
+        OPTIONAL - Any frequencies to not plot. Default: None
+
+    Returns:
+    --------
+    fig_name: string
+        The path of the saved .png
+    """
+    #initialize nones
+    if not ignore_freqs:
+        ignore_freqs = []
+
+    #Find and remove unwanted data
+    ignore_idxs = []
+    for i, freq in enumerate(frequencies):
+        if freq in ignore_freqs:
+            ignore_idxs.append(i)
+        if ignore_duplicates and frequencies[i-1]==freq:
+            ignore_idxs.append(i)
+        ignore_idxs = list(set(ignore_idxs))
+
+    for i in sorted(ignore_idxs, reverse=True):
+        del frequencies[i]
+        del Ix[i]
+        del Iy[i]
+        del lin_x[i]
+        del lin_y[i]
+        del circ_x[i]
+        del circ_y[i]
+
+    #roll the profiles to align the first maxima
+    rolled_I = []
+    rolled_lin = []
+    rolled_circ = []
+    for I, lin, circ in zip(I_y, lin_y, circ_y):
+        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(I)
+        idx, roll_to, new_I = roll_data(I, idx_to_roll=maxima[0])
+        new_lin = roll_data(lin, idx_to_roll=idx, roll_to=roll_to)[-1]
+        new_circ = roll_data(circ, idx_to_roll=idx, roll_to=roll_to)[-1]
+        rolled_I.append(new_I)
+        rolled_lin.append(new_lin)
+        rolled_circ.append(new_circ)
+
+    #Initialize figure
+    plt.figure(figsize=(24, 20 + 2*len(frequencies)))
+    #Loop over all frequencies
+    for i, freq in enumerate(frequencies):
+        max_I = max(rolled_I[i])
+        I_y = np.array(rolled_I[i])/max_I + mybuffer*i
+        lin_y = np.array(rolled_lin[i])/max_I + mybuffer*i
+        circ_y = np.array(rolled_circ[i])/max_I + mybuffer*i
+        #logger.info("I_x: {}".format(I_x))
+        #logger.info("I_y: {}".format(I_y))
+        plt.plot(I_x[i], I_y, color="black")
+        plt.plot(I_x[i], lin_y, color="red")
+        plt.plot(I_x[i], circ_y, color="blue")
+        plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = "blue")
+
+    #Finalizing the plot and saving the figure
+    plt.xlim(-0.5, 0.5)
+    plt.yticks([])
+    plt.xticks(fontsize=30)
+    plt.xlabel("Pulse Phase", fontsize=40)
+    plt.ylabel("Intensity", fontsize=40)
+    plt.title(pulsar_name + " Pulse Profiles", fontsize=60)
+    fig_name = os.path.join(out_dir, pulsar_name + "_stacked_profiles_pol.png")
     logger.info("Saving stacked profiles: {}".format(fig_name))
     plt.savefig(fig_name)
 
@@ -521,8 +608,11 @@ if __name__ == '__main__':
     modeop.add_argument("--plt_ascii", action="store_true", help="Plot an ascii profile")
     modeop.add_argument("--plt_pol", action="store_true", help="Plot a polarimetry profile from a supplied ascii archive")
     modeop.add_argument("--plt_stack", action="store_true", help="Plot data from epndb")
-    modeop.add_argument("--plt_bp_stack", action="store_true", help="Plot data from epnds and include supplied bestprof")
-    modeop.add_argument("--plt_ascii_stack", action="store_true", help="Plot data from epnds and include supplied ascii file")
+    modeop.add_argument("--plt_stack_pol", action="store_true", help="Plot data from epndb with full polarisation information")
+    modeop.add_argument("--plt_bp_stack", action="store_true", help="Plot data from epndb and include supplied bestprof")
+    modeop.add_argument("--plt_ascii_stack", action="store_true", help="Plot data from epndb and include supplied ascii file")
+    modeop.add_argument("--plt_ascii_stack_pol", action="store_true", help="Plot data from epndb with full polarisation information\
+                        and include supplied ascii file")
 
     otherop = parser.add_argument_group("Other Options")
     otherop.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO", choices=loglevels.keys(), default="INFO")
@@ -536,19 +626,28 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
+    #Assertions
     if args.plt_bestprof:
-        assert args.bestprof, "Please supply a bestprof profile to plot"
-    if args.plt_ascii or args.plt_pol:
-        assert args.ascii, "Please supply an ascii profile to plot"
-    if args.plt_stack:
-        assert args.pulsar, "Please supply a pulsar name"
-    if args.plt_bp_stack:
-        assert args.pulsar and args.bestprof and args.freq,\
-            "Please ensure you have suppled a pulsar name as well as a bestprof profile"
-    if args.plt_ascii_stack:
-        assert args.pulsar and args.ascii and args.freq,\
-            "Please ensure you have suppled a pulsar name, frequency and an ascii profile"
+        if not args.bestprof:
+            logger.error("Please supply a bestprof profile to plot")
 
+    if args.plt_ascii or args.plt_pol:
+        if not args.ascii:
+            logger.error("Please supply an ascii profile to plot")
+
+    if args.plt_stack or args.plt_stack_pol:
+        if not args.pulsar:
+            logger.error("Please supply a pulsar name")
+
+    if args.plt_bp_stack:
+        if not args.pulsar or not args.bestprof or not args.freq:
+            logger.error("Please ensure you have suppled a pulsar name as well as a bestprof profile")
+
+    if args.plt_ascii_stack or args.plt_ascii_stack_pol:
+        if not args.pulsar or not args.ascii or not args.freq:
+            logger.error("Please ensure you have suppled a pulsar name, frequency and an ascii profile")
+
+    #Do the things
     if args.plt_bestprof:
         plot_bestprof(args.bestprof, out_dir=args.out_dir)
 
@@ -579,6 +678,7 @@ if __name__ == '__main__':
                 pulsar_dict[key].append(args.freq)
             else:
                 pulsar_dict[key].append(None)
+
         #sort by frequency
         freq_list = pulsar_dict["freq"]
         for key in pulsar_dict.keys():
@@ -586,3 +686,74 @@ if __name__ == '__main__':
         #plot
         plot_stack(pulsar_dict["freq"], pulsar_dict["Ix"], pulsar_dict["Iy"], args.pulsar,\
             out_dir=args.out_dir, special_freqs=[args.freq])
+
+    if args.plt_stack_pol:
+        pulsar_dict = get_data_from_epndb(args.pulsar)
+        #remove anything without pol. info
+        del_idxs=[]
+        for i, Q, U, V in zip(range(len(pulsar_dict["Qy"])), pulsar_dict["Qy"], pulsar_dict["Uy"], pulsar_dict["Vy"]):
+            if not Q or not U or not V:
+                del_idxs.append(i)
+        for i in sorted(del_idxs, reverse=True):
+            del pulsar_dict["Ix"][i]
+            del pulsar_dict["Iy"][i]
+            del pulsar_dict["Qy"][i]
+            del pulsar_dict["Uy"][i]
+            del pulsar_dict["Vy"][i]
+            del pulsar_dict["freq"][i]
+
+        #calc lin pol
+        lin=[]
+        for Qy, Uy in zip(pulsar_dict["Qy"], pulsar_dict["Uy"]):
+            lin.append(calc_lin_pa(Qy, Uy)[0])
+
+        #plot
+        plot_stack_pol(pulsar_dict["freq"], pulsar_dict["Ix"], pulsar_dict["Iy"], lin, pulsar_dict["Vy"], args.pulsar,\
+            out_dir=args.out_dir)
+
+    if args.plt_ascii_stack_pol:
+        pulsar_dict = get_data_from_epndb(args.pulsar)
+        I, Q, U, V, length = prof_utils.get_stokes_from_ascii(args.ascii)
+        x = np.linspace(-0.5, 0.5, length)
+        for key in pulsar_dict.keys():
+            if key == "Ix":
+                pulsar_dict[key].append(x)
+            elif key == "Iy":
+                pulsar_dict[key].append(I)
+            elif key == "Qy":
+                pulsar_dict[key].append(Q)
+            elif key == "Uy":
+                pulsar_dict[key].append(U)
+            elif key == "Vy":
+                pulsar_dict[key].append(V)
+            elif key == "freq":
+                pulsar_dict[key].append(args.freq)
+            else:
+                pulsar_dict[key].append(None)
+
+        #remove anything without pol. info
+        del_idxs=[]
+        for i, Q, U, V in zip(range(len(pulsar_dict["Qy"])), pulsar_dict["Qy"], pulsar_dict["Uy"], pulsar_dict["Vy"]):
+            if not Q or not U or not V:
+                del_idxs.append(i)
+        for i in sorted(del_idxs, reverse=True):
+            del pulsar_dict["Ix"][i]
+            del pulsar_dict["Iy"][i]
+            del pulsar_dict["Qy"][i]
+            del pulsar_dict["Uy"][i]
+            del pulsar_dict["Vy"][i]
+            del pulsar_dict["freq"][i]
+
+        #sort by frequency
+        freq_list = pulsar_dict["freq"]
+        for key in pulsar_dict.keys():
+            _, pulsar_dict[key] = (list(t) for t in zip(*sorted(zip(freq_list, pulsar_dict[key]))))
+
+        #calc lin pol
+        lin=[]
+        for Qy, Uy in zip(pulsar_dict["Qy"], pulsar_dict["Uy"]):
+            lin.append(calc_lin_pa(Qy, Uy)[0])
+
+        #plot
+        plot_stack_pol(pulsar_dict["freq"], pulsar_dict["Ix"], pulsar_dict["Iy"], lin, pulsar_dict["Vy"], args.pulsar,\
+            out_dir=args.out_dir)
