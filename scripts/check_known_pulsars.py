@@ -451,6 +451,44 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                          code_comment="Fermi candidate pulsar search",
                          relaunch=relaunch)
 
+    # Find all of the points of interest candidates
+    #-----------------------------------------------------------------------------------------------
+    names_ra_dec = fpio.grab_source_alog(source_type='POI')
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    
+    sp_name_list = []
+    sp_pointing_list = []
+    for pulsar_line in obs_data[obsid]:
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj, pos_u = line
+        jname_temp_list = [jname]
+
+        # grid the pointings to fill the position uncertaint (given in arcminutes)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, float(pos_u)/60.)
+               
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            sp_name_list.append(jname_temp_list)
+            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    
+    print('\nSENDING OFF POINTS OF INTEREST SEARCHS')
+    print('----------------------------------------------------------------------------------------')
+    # Send off pulsar search
+    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type POI --DI_dir {2} -b {3} -e {4} --search --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
+    for ch in channels:
+        relaunch_script = "{0} {1}".format(relaunch_script, ch)
+    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
+                              begin=psrbeg, end=psrend, channels=channels,
+                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
+                              search_ver=mwa_search_version,
+                              vcstools_ver=vcstools_version,
+                              search=True, cand_type='POI')
+    search_pipe.beamform(search_opts, sp_pointing_list,
+                         pulsar_list_list=sp_name_list,
+                         code_comment="Points of interest candidate pulsar search",
+                         relaunch=relaunch)
 
     return
 
