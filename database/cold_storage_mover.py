@@ -10,30 +10,30 @@ def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
     for fn, fits_dir in enumerate(file_list):
         if fits_dir.endswith("\n"):
             fits_dir = fits_dir[:-1]
-        pointing = fits_dir.split("/")[-1]
+        dir_name = fits_dir.split("/")[-1]
         #only lets 5 jobs at a time to not flood the transfer (could probably handle more
         if os.path.exists(fits_dir):
-            print(pointing)
+            print(dir_name)
             your_slurm_queue_check(max_queue=5, grep='tar', queue='workq')
             commands = []
             commands.append('cd {}'.format(fits_dir))
-            commands.append("srun -n 1 -c 10 tar zcvvf - *.fits | ssh hpc-hsm.pawsey.org.au 'cat - > {0}/temp_{1}.tar.gz'".format(hsm_work_dir, fn))
+            commands.append("srun -n 1 -c 1 tar zcvvf - {0} | ssh hpc-hsm.pawsey.org.au 'cat - > {1}/temp_{2}.tar.gz'".format(fits_dir, hsm_work_dir, fn))
             commands.append('errorcode=$?')
             commands.append('if [ $errorcode == "0" ]; then')
-            commands.append('   echo mv temp_{0}.tar.gz {1}_pointing.tar.gz'.format(fn, pointing))
-            commands.append('   ssh hpc-hsm.pawsey.org.au "mv {0}/temp_{1}.tar.gz {0}/{2}_pointing.tar.gz"'.format(hsm_work_dir, fn, pointing))
+            commands.append('   echo mv temp_{0}.tar.gz {1}.tar.gz'.format(fn, dir_name))
+            commands.append('   ssh hpc-hsm.pawsey.org.au "mv {0}/temp_{1}.tar.gz {0}/{2}.tar.gz"'.format(hsm_work_dir, fn, dir_name))
             if remove:
                 commands.append('   cd ..')
-                commands.append('   rm -r {}'.format(pointing))
+                commands.append('   rm -r {}'.format(dir_name))
             commands.append('fi')
             #TODO and a move command
-            submit_slurm('tar_{0}_{1}'.format(pointing,fn), commands,
+            submit_slurm('tar_{0}_{1}'.format(dir_name,fn), commands,
                      batch_dir="./",
                      slurm_kwargs={"time": "5:00:00"},
                      queue='copyq',
                      submit=True, export='ALL')
         else:
-           print('{} does not exist'.format(pointing))
+           print('{} does not exist'.format(dir_name))
 
 
 #srun -n 1 -c 10 tar zcvvf - 1117643248_00*.fits | ssh hsm 'cat - > /project/mwaops/nswainston/yogesh_low_DM_candiate/temp_${2}.tar.gz
