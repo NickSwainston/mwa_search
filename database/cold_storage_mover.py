@@ -29,7 +29,8 @@ def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
             #TODO and a move command
             submit_slurm('tar_{0}_{1}'.format(pointing,fn), commands,
                      batch_dir="./",
-                     slurm_kwargs={"time": "5:00:00", "partition": "workq"},
+                     slurm_kwargs={"time": "5:00:00"},
+                     queue='copyq',
                      submit=True, export='ALL')
         else:
            print('{} does not exist'.format(pointing))
