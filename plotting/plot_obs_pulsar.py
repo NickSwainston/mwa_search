@@ -279,6 +279,7 @@ if __name__ == "__main__":
     nz_shade_colour = np.zeros(len(RA))
     nz_shade_colour_2 = np.zeros(len(RA))
     #nz_sens = np.full(len(RA), 50.)
+    nz_sens = np.zeros(len(RA))
     nz_sens[:] = np.nan
     max_ra_list = []
     RA_FWHM_atdec =[]
@@ -485,7 +486,7 @@ if __name__ == "__main__":
                         if nz[zi] >= levels[0]:
                             nz_shade_colour[zi] = nz[zi]
                 # This is a temp feature that I'll delete to shade certain obs
-                if args.shade and (i == 11 or i == 18):#[18, 11]:#11
+                if args.shade and (i == 11 or i == 18 or i == 16 or i == 8 or i == 7):#[18, 11]:#11
                     for zi in range(len(nz)):
                         if nz[zi] >= levels[0]:
                             nz_shade_colour_2[zi] = nz[zi]
@@ -576,9 +577,6 @@ if __name__ == "__main__":
     if args.lines:
         """
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-                 np.full(len(map_ra_range),0./180.*np.pi),
-                 '--m',label=r'LOTAS $\delta_{min}$', zorder=130)
-        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-40./180.*np.pi),
                  '--g',label=r'GBT $\delta_{min}$', zorder=130)
         plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
@@ -590,10 +588,22 @@ if __name__ == "__main__":
         plt.plot(np.full(len(map_dec_range),-335./180.*np.pi + 2.*np.pi),#22.3 hours
                  np.array(map_dec_range)/180.*np.pi,
                  'y', zorder=130)
-        """
         plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
                  np.full(len(map_ra_range),np.radians(30.)),
                  'r',label=r'MWA $\delta_{max}$', zorder=130)
+        
+        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                 np.full(len(map_ra_range),0./180.*np.pi),
+                 color='black', linestyle='-', zorder=120,
+                 linewidth=3)
+        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                 np.full(len(map_ra_range),-55./180.*np.pi),
+                 color='black', linestyle='-', zorder=120,
+                 linewidth=3)
+        """
+        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                 np.full(len(map_ra_range),0./180.*np.pi),
+                 '--m',label=r'LOTAS $\delta_{min}$', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-55./180.*np.pi),
                  '--g',label=r'GMRT $\delta_{min}$', zorder=130)
