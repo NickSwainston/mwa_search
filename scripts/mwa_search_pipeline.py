@@ -371,14 +371,13 @@ def process_vcs_wrapper(search_opts, pointings,
         print('RTS flag file is not in the default location of: '
               '{} please move it there. Exiting'.format(rts_flag_file))
         exit()
-    print(rts_flag_file)
     pvcs.ensure_metafits(data_dir, search_opts.obsid, metafits_dir)
     channels = get_channels(search_opts.obsid, channels=channels)
     job_id_list_list, beamformer_batch = pvcs.coherent_beam(search_opts.obsid,
                       search_opts.begin, search_opts.end,
                       data_dir, search_opts.fits_dir_base,
                       "{0}/batch".format(search_opts.fits_dir_base),
-                      metafits_dir, 128, pointings,
+                      metafits_dir, 128, pointings, search_opts.args,
                       rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
