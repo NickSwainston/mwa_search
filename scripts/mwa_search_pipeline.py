@@ -377,7 +377,7 @@ def process_vcs_wrapper(search_opts, pointings,
                       search_opts.begin, search_opts.end,
                       data_dir, search_opts.fits_dir_base,
                       "{0}/batch".format(search_opts.fits_dir_base),
-                      metafits_dir, 128, pointings, search_opts.args,
+                      metafits_dir, 128, pointings,
                       rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
@@ -405,10 +405,10 @@ def process_vcs_wrapper(search_opts, pointings,
                                                        pointing_id[pn])
             if search_opts.data_process:
                 search_opts.setPdir('{0}/dpp_pointings/{1}'.format(search_opts.fits_dir_base,
-                                                                  search_opts.pointing))
+                                                                  pointing))
             else:
                 search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
-                                                                  search_opts.pointing))
+                                                                  pointing))
 
 
             search_opts.setBRN(search_database.database_search_start(search_opts.obsid,
@@ -620,8 +620,6 @@ def beamform(search_opts, pointing_list, code_comment=None,
             search_opts.setSdir('{0}/{1}'.format(search_opts.pointing, search_opts.obsid))
         else:
             search_opts.setSdir('{0}/{1}/{2}'.format(pulsar, search_opts.pointing, search_opts.obsid))
-        search_opts.relaunch_script = "{0} -p {1} -s {2}".format(search_opts.relaunch_script_in,
-                                                      search_opts.pointing, search_opts.sub_dir)
 
         #fits dir parsing
         comp_config = config.load_config_file()
@@ -697,7 +695,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 nsamples = numout_calc(search_opts.pointing_dir, search_opts.obsid)
                 if expected_nsamples > nsamples:
                     logger.debug("N samples in {}: {} > {}".format(search_opts.pointing_dir, expected_nsamples, nsamples))
-                    print("Not enough fits files so deleteing fits files and beamforming")
+                    print("Not enough fits files so deleting fits files and beamforming")
                     path_check = True
                     for rm_file in glob.glob("{}/{}*fits".format(search_opts.pointing_dir,
                                                                  search_opts.obsid)):
@@ -838,7 +836,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             for point in pointings_to_beamform:
                 pointing_id.append(pointing_list.index(point.replace("_", " ")) + 1)
 
-            print("Sending of {0} pointings for beamforming".format(len(pointings_to_beamform)))
+            print("Sending off {0} pointings for beamforming".format(len(pointings_to_beamform)))
             dep_job_id_list, incoh_splice_job_id = process_vcs_wrapper(search_opts,
                                 pointings_to_beamform,
                                 pulsar_list_list=pulsar_list_list_to_beamform,
@@ -1040,6 +1038,9 @@ def prepdata(search_opts):
 
     if "-r" not in search_opts.relaunch_script:
         search_opts.setRLS("{0} -r {1}".format(search_opts.relaunch_script, search_opts.bsd_row_num))
+    if "-p" not in search_opts.relaunch_script:
+        search_opts.setRLS("{0} -p {1} -s {1}/{2}".format(search_opts.relaunch_script,
+                                            search_opts.pointing, search_opts.obsid))
 
 
     search_opts.setTable('Prepdata')
