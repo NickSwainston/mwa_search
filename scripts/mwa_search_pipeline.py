@@ -519,8 +519,8 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
     if search_opts.relaunch_script is not None:
         relaunch_script = search_opts.relaunch_script
         if not ("-p" in relaunch_script or "-s" in relaunch_script):
-            relaunch_script += "{0} -p {1} -s {1}/{2}".format(relaunch_script,
-                                            search_opts.pointing, search_opts.obsid)
+            relaunch_script += " -p {0} -s {0}/{1}".format(search_opts.pointing,
+                                                           search_opts.obsid)
         if search_opts.bsd_row_num is not None:
             relaunch_script += ' -r {0}'.format(search_opts.bsd_row_num)
         if search_opts.incoh:
