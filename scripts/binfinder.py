@@ -291,7 +291,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     if not os.path.exists(move_loc):
         commands.append("mkdir {}".format(move_loc))
 
-    if pulsar[-1].isalpha(): #if last character is a letter, copy directory rather than move it
+    if run_params.pulsar[-1].isalpha(): #if last character is a letter, copy directory rather than move it
         if glob.glob("{}".format(os.path.join(move_loc, "*fits"))): #if fits files already there, don't copy them again
             commands.append("echo 'Copying files from {0} to location {1}'".format(run_params.pointing_dir, new_pointing_dir))
             commands.append("cp -r {0}/!(*fits) {1}".format(run_params.pointing_dir, new_pointing_dir))
