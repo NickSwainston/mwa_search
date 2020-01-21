@@ -34,8 +34,8 @@ except KeyError:
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
     """
     looks through the comined files of the obsid to find the beginning and end gps times
-    
-    Parameters: 
+
+    Parameters:
     -----------
     obsid: int
         The observation ID
@@ -45,7 +45,7 @@ def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
     Returns:
     --------
     beg: int
-        The beginning time for on-disk files 
+        The beginning time for on-disk files
     end: int
         The end time for on-disk files
     """
@@ -66,7 +66,25 @@ def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
     return beg, end
 
 def check_data(obsid, beg=None, dur=None, base_dir=None):
+    """
+    Checks to see if all of the recombined files exist on disk
 
+    Parameters:
+    -----------
+    obsid: int
+        The observation ID to check
+    beg: int
+        OPTIONAL - The beginning time of the files to check. If none, will use entire obs. Default: None
+    dur: int
+        OPTIONAL - The duration in seconds to check since the beginning time. If none, will use entire obs. Default: None
+    base_dir: string
+        OPTIONAL - The base directory to use. If none, will load from config. Default: None
+
+    Returns:
+    ---------
+    check: boolean
+        True - all files are on disk. False - not all files are on disk
+    """
     if base_dir is None:
         comp_config = config.load_config_file()
         base_dir = comp_config['base_data_dir']
@@ -76,7 +94,7 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
         beg = int(beg)
     if not isinstance(dur, int):
         dur = int(dur)
-    
+
     #Check to see if the files are combined properly
     if beg is not None and dur is not None:
         logger.info("Checking recombined files beginning at {0} and ending at {1}. Duration: {2} seconds"\
@@ -87,18 +105,16 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
         error = checks.check_recombine(obsid, directory=comb_dir)
 
     if error == True:
-        logger.error("Recombined files check has failed. Cannot continue")
-        sys.exit(1)
+        check = False
     else:
-        logger.info("Recombined check passed")
-
-    return
+        check = True
+    return check
 
 
 def calc_ta_fwhm(freq, array_phase='P2C'):
     """
     Calculates the approximate FWHM of the tied array beam in degrees.
-    
+
     Parameters:
     -----------
     freq: float
@@ -188,9 +204,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     -----------
     obsid: int
         The observation ID
-    DI_dir: str 
+    DI_dir: str
         The directory containing the Jones matrices solutions
-    cal_obs: 
+    cal_obs:
         The calibration observation ID
     args: object
         The args object generated from argparse. Used for documentation purposes
@@ -200,9 +216,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         The end of the observing time
     product_dir: string
         OPTIONAL - The base directory to store data products. Default = '/group/mwaops/vcs'
-    mwa_search_version: string 
+    mwa_search_version: string
         OPTIONAL - The version of mwas_search to use. Default = 'master'
-    vcstools_version: string 
+    vcstools_version: string
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
 
@@ -238,18 +254,18 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     for pi, pulsar_line in enumerate(obs_data[obsid]):
         vdif_check = False
         sp_check = False
-        
+
         PSRJ = pulsar_line[0]
         #See if pulsar is in beam for times
         #enter, exit = snfe.pulsar_beam_coverage(obsid, PSRJ, beg=psrbeg, end=psrend)
         #if enter is None or exit is None:
-        #    print("{0} is not in beam for time range. Not beamforming".format(PSRJ))        
+        #    print("{0} is not in beam for time range. Not beamforming".format(PSRJ))
         #    continue
         #TODO: uncomment this section when sn_flux_est is pulled to vcstools master
 
         if not (len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa'):
             continue
-        
+
         for line in names_ra_dec:
             if PSRJ == line[0]:
                 temp = [line]
@@ -258,7 +274,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
-        period = periods[pi] 
+        period = periods[pi]
         if math.isnan(period):
             print("WARNING: Period not found in ephermeris for {0} so assuming "
                   "it's an RRAT".format(jname))
@@ -283,7 +299,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
         # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
         pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
-        
+
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             if vdif_check:
@@ -295,7 +311,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
             else:
                 pulsar_name_list.append(jname_temp_list)
                 pulsar_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
-    
+
     print('\nSENDING OFF PULSAR PROCESSING')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
@@ -332,7 +348,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     # remove any RRATs without at least arc minute accuracy
     names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    
+
     for pulsar_line in obs_data[obsid]:
         jname = pulsar_line[0]
         for line in names_ra_dec:
@@ -342,13 +358,13 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
         # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
         pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
-               
+
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
-    
-    print('\nSENDING OFF RRAT SINGLE PULSE SEARCHS')
+
+    print('\nSENDING OFF RRAT SINGLE PULSE SEARCHES')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type RRATs --DI_dir {2} -b {3} -e {4} --single_pulse --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
@@ -373,7 +389,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     # remove any RRATs without at least arc minute accuracy
     names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    
+
     sp_name_list = []
     sp_pointing_list = []
     for pulsar_line in obs_data[obsid]:
@@ -385,13 +401,13 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
         # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
         pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
-               
+
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
-    
-    print('\nSENDING OFF FRB SINGLE PULSE SEARCHS')
+
+    print('\nSENDING OFF FRB SINGLE PULSE SEARCHES')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type FRB --DI_dir {2} -b {3} -e {4} --single_pulse --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
@@ -416,7 +432,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     # remove any RRATs without at least arc minute accuracy
     names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    
+
     sp_name_list = []
     sp_pointing_list = []
     for pulsar_line in obs_data[obsid]:
@@ -428,13 +444,13 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
         # grid the pointings to fill the position uncertaint (given in arcminutes)
         pointing_list_list = get_pointings_required(raj, decj, fwhm, float(pos_u)/60.)
-               
+
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             sp_name_list.append(jname_temp_list)
             sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
-    
-    print('\nSENDING OFF FERMI CANDIDATE SEARCHS')
+
+    print('\nSENDING OFF FERMI CANDIDATE SEARCHES')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type Fermi --DI_dir {2} -b {3} -e {4} --search --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
@@ -453,8 +469,6 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
 
     return
-
-
 
 if __name__ == "__main__":
     loglevels = dict(DEBUG=logging.DEBUG,
@@ -486,7 +500,7 @@ if __name__ == "__main__":
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
                         default="INFO")
     args=parser.parse_args()
-    
+
     # set up the logger for stand-alone execution
     logger.setLevel(loglevels[args.loglvl])
     ch = logging.StreamHandler()
@@ -522,7 +536,12 @@ if __name__ == "__main__":
     #Perform data checks
     dur = end-beg
     if not args.no_comb_check:
-        check_data(args.obsid, beg=beg, dur=dur)
+        check = check_data(args.obsid, beg=beg, dur=dur)
+        if not check:
+            logger.error("Recombined check has failed. Cannot continue.")
+            sys.exit(1)
+        else:
+            logger.info("Recombined check passed, all files present.")
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       product_dir=comp_config['base_product_dir'],
