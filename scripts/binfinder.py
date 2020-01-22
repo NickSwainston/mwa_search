@@ -109,9 +109,9 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, beg, end, nbins,\
     psr_01 = pow_dict[0.1][obisd]
     #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     if pulsar in psr_03:
-        enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, pow=0.3)
+        enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_power=0.3)
     elif pulsar in psr_01:
-        enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, pow=0.1)
+        enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_power=0.1)
     else:
         logger.warn("Pulsar not found to be in beam. Will use entire integration time")
         enter = 0.
