@@ -243,7 +243,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     for psr in pow_dict[0.1][obsid]:
         if psr[0] not in psrs_list_03:
             sn, sn_err = est_pulsar_sn(pulsar, obsid,\
-                         beg=psrbeg, end=psrend, obs_metadata=meta_data, o_enter=psr[1], o_exit=psr[2]):
+                         beg=psrbeg, end=psrend, obs_metadata=meta_data, o_enter=psr[1], o_exit=psr[2])
             if sn is not None and sn_err is not None:
                 if sn - sn_err >= 10.:
                     obs_psrs.append(psr)

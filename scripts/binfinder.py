@@ -749,7 +749,7 @@ if __name__ == '__main__':
 
     #Arguments
     parser = argparse.ArgumentParser(description="A script that handles pulsar folding operations",\
-                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter))
+                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     required = parser.add_argument_group("Required Inputs:")
     required.add_argument("-d", "--pointing_dir", action="store", nargs="+", help="Pointing directory(s) that contains the spliced fits files.")
