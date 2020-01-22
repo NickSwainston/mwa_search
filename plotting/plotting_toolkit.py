@@ -462,7 +462,7 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     #roll the profiles to align the first maxima
     rolled_profs = []
     for profile in profs_y:
-        _, _, _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(profile)
+        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(profile)
         rl_prof = roll_data(I, idx_to_roll=maxima[0])[-1]
         rolled_profs.append(rl_prof)
 
@@ -543,7 +543,7 @@ def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
     rolled_lin = []
     rolled_circ = []
     for I, lin, circ in zip(I_y, lin_y, circ_y):
-        _, _, _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(I)
+        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(I)
         idx, roll_to, new_I = roll_data(I, idx_to_roll=maxima[0])
         new_lin = roll_data(lin, idx_to_roll=idx, roll_to=roll_to)[-1]
         new_circ = roll_data(circ, idx_to_roll=idx, roll_to=roll_to)[-1]
