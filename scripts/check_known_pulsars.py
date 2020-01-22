@@ -191,6 +191,18 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
     pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
     return pointing_list_list
 
+def find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None):
+
+    if names_ra_dec is None:
+        names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
+
+    pulsar_power_dict = {}
+    for pow in powers:
+        obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100, min_power=pow)
+        pulsar_power_dict[pow] = obs_data
+
+    return pulsar_power_dict, meta_data
+
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
@@ -222,17 +234,23 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
 
-
-    #obsbeg, obsend, obsdur = file_maxmin.print_minmax(obsid)
-
-    #wrapping for find_pulsar_in_obs.py
-    names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
-    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    #Find all pulsars in beam at at least 0.3 of zenith normlaized power
+    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None):
     channels = meta_data[-1][-1]
+    obs_psrs = pow_dict[0.3][obisd]
+    psrs_list_03 = [x[0] for x in obs_psrs]
+    #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
+    for psr in pow_dict[0.1][obsid]:
+        if psr[0] not in psrs_list_03:
+            sn, sn_err = est_pulsar_sn(pulsar, obsid,\
+                         beg=psrbeg, end=psrend, obs_metadata=meta_data, o_enter=psr[1], o_exit=psr[2]):
+            if sn is not None and sn_err is not None:
+                if sn - sn_err >= 10.:
+                    obs_psrs.append(psr)
 
     #get all the pulsars periods
     pulsar_list = []
-    for o in obs_data[obsid]:
+    for o in obs_psrs:
         pulsar_list.append(o[0])
     periods = psrqpy.QueryATNF(params=["P0"], psrs=pulsar_list,
                                loadfromdb=ATNF_LOC).pandas["P0"]
@@ -251,7 +269,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vdif_name_list = []
     sp_pointing_list = []
     sp_name_list = []
-    for pi, pulsar_line in enumerate(obs_data[obsid]):
+    for pi, pulsar_line in enumerate(obs_psrs):
         vdif_check = False
         sp_check = False
 
@@ -290,7 +308,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         if PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa':
             #Got to find all the pulsar J names with other letters
             vdif_check = True
-            for pulsar_l in obs_data[obsid]:
+            for pulsar_l in obs_psrs:
                 pulsar_name = pulsar_l[0]
                 if pulsar_name.startswith(PSRJ[:-2]):
                     jname_temp_list.append(pulsar_name)
