@@ -766,7 +766,7 @@ if __name__ == '__main__':
     other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level.", choices=loglevels.keys())
     other.add_argument("-S", "--stop", action="store_true", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
     other.add_argument("--int_beg", type=float, default=None, help="The normalized time for the folding to begin. If None, will calculate")
-    other.add_argument("--int_end", type=float, default=None, help="The normalized  time for the folding to end. If None, will calculate"")
+    other.add_argument("--int_end", type=float, default=None, help="The normalized  time for the folding to end. If None, will calculate")
     other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use")
     other.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use")
 
