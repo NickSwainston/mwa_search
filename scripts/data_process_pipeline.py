@@ -18,7 +18,8 @@ class run_params_class:
                 mode=None, mwa_search="master", vcs_tools="master",\
                 subint=10.0, RM=None, RM_err=None, stokes_bins=None,\
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
-                epndb_dir=None, beg=None, end=None, freq=None):
+                epndb_dir=None, beg=None, end=None, freq=None, int_beg=None,\
+                int_end=None):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -28,6 +29,8 @@ class run_params_class:
         self.beg            = beg
         self.end            = end
         self.freq           = freq
+        self.int_beg        = int_beg
+        self.int_end        = int_end
 
         #Versions
         self.mwa_search     = mwa_search
@@ -153,7 +156,7 @@ def binfind(run_params):
     #    p += " {}".format(pointing)
     if run_params.freq is None:
         run_params.set_freq_from_metadata(run_params.obsid)
-        
+
     p=run_params.pointing_dir
     commands = []
     commands.append("echo 'Launching binfinder in mode {0}'".format(run_params.mode))
