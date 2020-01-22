@@ -18,7 +18,7 @@ from mwa_metadb_utils import obs_max_min, get_obs_array_phase
 import config
 from grid import get_grid
 import checks
-#import sn_flux_est as snfe
+import sn_flux_est as snfe
 
 import logging
 logger = logging.getLogger(__name__)
@@ -191,15 +191,39 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
     pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
     return pointing_list_list
 
-def find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None):
+def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
+    """
+    Finds the beam power information for pulsars in a specific obsid
+
+    Parameters:
+    -----------
+    obsid: int
+        The observation ID
+    powers: list
+        OPTIONAL - A list of minimum beam powers to evaluate the pulsar coverage at. If none, will use [0.1, 0.3]. Default: None
+    names_ra_dec: list
+        OPTIONAL - A list of puslars and their RA and Dec values to evaluate (generated from fpio.get_source_alog).
+                   If none, will look for all pulsars. Default: None
+
+    Returns:
+    --------
+    pulsar_power_dict: dictionary
+        Contains keys - power
+            Contains key - obsid
+                Contains one list for each pulsar found in that power
+                    Each list is constructed as [jname, enter, exit, max_power]
+    meta_data: list
+        A list of the output of get_common_obs_metadata for the input obsid
+    """
+
 
     if names_ra_dec is None:
         names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
 
     pulsar_power_dict = {}
-    for pow in powers:
+    for pwr in powers:
         obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100, min_power=pow)
-        pulsar_power_dict[pow] = obs_data
+        pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data
 
@@ -242,7 +266,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     for psr in pow_dict[0.1][obsid]:
         if psr[0] not in psrs_list_03:
-            sn, sn_err = est_pulsar_sn(pulsar, obsid,\
+            sn, sn_err = snfe.est_pulsar_sn(pulsar, obsid,\
                          beg=psrbeg, end=psrend, obs_metadata=meta_data, o_enter=psr[1], o_exit=psr[2])
             if sn is not None and sn_err is not None:
                 if sn - sn_err >= 10.:
