@@ -13,6 +13,7 @@ import plotting_toolkit
 import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
 import psrqpy
+import check_known_pulsars as ckp
 logger = logging.getLogger(__name__)
 
 #get ATNF db location
@@ -104,9 +105,9 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, beg, end, nbins,\
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
-    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None)
-    psr_03 = pow_dict[0.3][obisd]
-    psr_01 = pow_dict[0.1][obisd]
+    pow_dict, _ = ckp.find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
+    psr_03 = pow_dict[0.3][obsid][0]
+    psr_01 = pow_dict[0.1][obsid][0]
     #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     if pulsar in psr_03:
         enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_power=0.3)
