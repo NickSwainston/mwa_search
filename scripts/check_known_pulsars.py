@@ -235,7 +235,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     """
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
-    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None):
+    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None)
     channels = meta_data[-1][-1]
     obs_psrs = pow_dict[0.3][obisd]
     psrs_list_03 = [x[0] for x in obs_psrs]

@@ -104,7 +104,7 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, beg, end, nbins,\
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
-    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None):
+    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None)
     psr_03 = pow_dict[0.3][obisd]
     psr_01 = pow_dict[0.1][obisd]
     #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
