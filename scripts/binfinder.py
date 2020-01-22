@@ -288,19 +288,9 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands.append("   exit $errorcode")
     commands.append("fi")
 
-    if not os.path.exists(move_loc):
-        commands.append("mkdir {}".format(move_loc))
-
-    if run_params.pulsar[-1].isalpha(): #if last character is a letter, copy directory rather than move it
-        if glob.glob("{}".format(os.path.join(move_loc, "*fits"))): #if fits files already there, don't copy them again
-            commands.append("echo 'Copying files from {0} to location {1}'".format(run_params.pointing_dir, new_pointing_dir))
-            commands.append("cp -r {0}/!(*fits) {1}".format(run_params.pointing_dir, new_pointing_dir))
-        else:
-            commands.append("echo 'Copying {0} to new directory: {1}'".format(run_params.pointing_dir, new_pointing_dir))
-            commands.append("cp -r {0} {1}".format(run_params.pointing_dir, move_loc))
-    else:
-        commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
-        commands.append("mv {0} {1}".format(run_params.pointing_dir, move_loc))
+    commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
+    commands.append("mkdir {}".format(move_loc))
+    commands.append("mv {0} {1}".format(run_params.pointing_dir, new_pointing_dir))
 
     #submit job
     name = "Submit_db_{0}_{1}".format(run_params.pulsar, run_params.obsid)
