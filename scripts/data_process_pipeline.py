@@ -123,10 +123,10 @@ def stokes_fold(run_params, nbins):
         run_params.set_freq_from_metadata(run_params.obsid)
 
     launch_line = "stokes_fold.py -m i -d {0} -p {1} -b {2} -s {3} -L {4} -o {5} --vcs_tools {6}\
-                    --mwa_search {7} -f {8}"\
-                .format(run_params.pointing_dir, run_params.pulsar, nbins, run_params.subint,\
-                run_params.loglvl, run_params.obsid, run_params.vcs_tools, run_params.mwa_search,\
-                run_params.freq)
+                    --mwa_search {7} -f {8} --beg {9} --end {10}"\
+                    .format(run_params.pointing_dir, run_params.pulsar, nbins, run_params.subint,\
+                    run_params.loglvl, run_params.obsid, run_params.vcs_tools, run_params.mwa_search,\
+                    run_params.freq, run_params.beg, run_params.end)
     if run_params.stop==True:
         launch_line += " -S"
 
@@ -221,6 +221,8 @@ if __name__ == '__main__':
     stokesop = parser.add_argument_group("Stokes Fold Options")
     stokesop.add_argument("-n", "--nbins", type=int, help="The number of bins for to fold over for the stokes folding script")
     stokesop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations (in seconds) used for dspsr. Default: 10.0")
+    stokesop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
+                        eg: '-D 50.0 -c 506.25'. Defualt=''")
 
     otherop = parser.add_argument_group("Other Options")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
