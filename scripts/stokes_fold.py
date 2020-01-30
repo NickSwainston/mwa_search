@@ -149,7 +149,7 @@ def submit_dspsr(run_params, dspsr_ops=''):
                 slurm_kwargs={"time": "08:00:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),\
                             "dspsr/master", "psrchive/master"],\
-                submit=True, vcstools_version=run_params.vcs_tools)
+                submit=True, vcstools_version=run_params.vcs_tools, mem="")
 
     logger.info("Job submitted for dspsr using\n\
                 pointing directory:         {0}\n\
@@ -203,7 +203,7 @@ def submit_RM_correct(run_params):
                 slurm_kwargs={"time": "03:00:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),
                             "psrchive/master"],\
-                submit=True, vcstools_version=run_params.vcs_tools)
+                submit=True, vcstools_version=run_params.vcs_tools, mem="")
 
 
 if __name__ == '__main__':
