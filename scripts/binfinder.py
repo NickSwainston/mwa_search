@@ -13,7 +13,6 @@ import plotting_toolkit
 import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
 import psrqpy
-import check_known_pulsars as ckp
 logger = logging.getLogger(__name__)
 
 #get ATNF db location
@@ -109,6 +108,8 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
 
     Parameters:
     -----------
+    commands: list
+        A list of commands. Can be empty, this list will be appended to by the function
     pointing: string
         The directory to work in. Typically the pointing directory.
     puslar: string
@@ -117,14 +118,18 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
         The ID of the observation
     enter: float
         OPTIONAL - The time the pulsar enters the beam as a normalized fraction of beg and end. Default: 0
-    end: float
+    leave: float
         OPTIONAL - The time the pulsar enters the beam as a normalized fraction of beg and end. Default: 1
     nbins: int
         The number of bins to fold the pulsar over
     commands: list
         OPTIONAL - A list of commands. This list will be appended to by the function. Default = None
     use_mask: boolean
-        OPTIONAL - Whether or not to use a mask if it exists. Default = True
+        OPTIONAL - Whether or not to use a mask if it exists. Default: True
+    start: float
+        OPTIONAL - The normalized time that the pulsar enters the beam. Probably from snfe.pulsar_beam_coverage(). Default=None
+    end: float
+        OPTOINAL - The normalized time that the pulsar exits the beam. Probably from snfe.pulsar_beam_coverage(). Default=None
     nbins: int
         OPTIONAL - The number of bins to fold over. Default=100
     ntimechunk: int
@@ -146,11 +151,14 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
 
     comp_config = config.load_config_file()
     #Figure out whether or not to input a mask
-    mask = ""
     if use_mask == True:
         check_mask = glob.glob(os.path.join(comp_config['base_product_dir'], obsid, "incoh", "*mask"))
         if check_mask:
             mask = "-mask " + check_mask[0]
+        else:
+            mask = ""
+    else:
+        mask=""
 
     #make the prepfold command
     constants = "-pstep 1 -pdstep 2 -ndmfact 1 -noxwin -nosearch -runavg -noclip -nsub 256 1*fits "
@@ -324,19 +332,9 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands.append("fi")
     commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
 
-    if not os.path.exists(move_loc):
-        commands.append("mkdir {}".format(move_loc))
-
-    if run_params.pulsar[-1].isalpha(): #if last character is a letter, copy directory rather than move it
-        if glob.glob("{}".format(os.path.join(move_loc, "*fits"))): #if fits files already there, don't copy them again
-            commands.append("echo 'Copying files from {0} to location {1}'".format(run_params.pointing_dir, new_pointing_dir))
-            commands.append("cp -r {0}/!(*fits) {1}".format(run_params.pointing_dir, new_pointing_dir))
-        else:
-            commands.append("echo 'Copying {0} to new directory: {1}'".format(run_params.pointing_dir, new_pointing_dir))
-            commands.append("cp -r {0} {1}".format(run_params.pointing_dir, move_loc))
-    else:
-        commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
-        commands.append("mv {0} {1}".format(run_params.pointing_dir, move_loc))
+    commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
+    commands.append("mkdir {}".format(move_loc))
+    commands.append("mv {0} {1}".format(run_params.pointing_dir, new_pointing_dir))
 
     #submit job
     name = "Submit_db_{0}_{1}".format(run_params.pulsar, run_params.obsid)
@@ -778,8 +776,7 @@ if __name__ == '__main__':
                      ERROR = logging.ERROR)
 
     #Arguments
-    parser = argparse.ArgumentParser(description="A script that handles pulsar folding operations",\
-                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="A script that handles pulsar folding operations")
 
     required = parser.add_argument_group("Required Inputs:")
     required.add_argument("-d", "--pointing_dir", action="store", nargs="+", help="Pointing directory(s) that contains the spliced fits files.")
@@ -792,13 +789,11 @@ if __name__ == '__main__':
 
     other = parser.add_argument_group("Other Options:")
     other.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
-    other.add_argument("-t", "--threshold", type=float, default=10.0, help="The signal to noise threshold to stop at")
-    other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level.", choices=loglevels.keys())
+    other.add_argument("-t", "--threshold", type=float, default=10.0, help="The signal to noise threshold to stop at. Default = 10.0")
+    other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
     other.add_argument("-S", "--stop", action="store_true", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
-    other.add_argument("--int_beg", type=float, default=None, help="The normalized time for the folding to begin. If None, will calculate")
-    other.add_argument("--int_end", type=float, default=None, help="The normalized  time for the folding to end. If None, will calculate")
-    other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use")
-    other.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use")
+    other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
+    other.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use. Default: master")
 
     args = parser.parse_args()
     logger.setLevel(loglevels[args.loglvl])
@@ -825,8 +820,7 @@ if __name__ == '__main__':
                     (args.pointing_dir, args.cal_id, pulsar=args.pulsar,obsid=args.obsid,\
                     threshold=args.threshold, stop=args.stop,loglvl=args.loglvl,\
                     mwa_search=args.mwa_search, vcs_tools=args.vcs_tools,\
-                    beg=args.beg, end=args.end, freq=args.freq, int_beg=args.int_beg,\
-                    int_end=args.int_end)
+                    beg=args.beg, end=args.end, freq=args.freq)
 
     if run_params.freq is None:
         run_params.set_freq_from_metadata(run_params.obsid)
