@@ -171,6 +171,10 @@ def submit_RM_correct(run_params):
     commands.append("echo 'Wiritng result to text file\n'")
     commands.append("pdv -FTt {0}_subint_{1}.ar2 > {0}_archive.txt".\
     format(run_params.pulsar, run_params.subint))
+    #RVM fitting
+    commands.append("echo 'Fitting RVM\n'")
+    commands.append("psrmodel *.ar2 -resid -psi-resid -use_beta -s 18X18 &> {0}_{1}_RVM_fit.txt > {0}_{1}_chi_map.txt"\
+        .format(run_params.obsid, run_params.pulsar))
 
     #launch plotting
     commands.append(launch_line)
@@ -181,7 +185,7 @@ def submit_RM_correct(run_params):
                                        run_params.obsid)
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
-                slurm_kwargs={"time": "02:00:00"},\
+                slurm_kwargs={"time": "03:00:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),
                             "psrchive/master"],\
                 submit=True, vcstools_version=run_params.vcs_tools)
