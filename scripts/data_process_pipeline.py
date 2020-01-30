@@ -153,7 +153,7 @@ def binfind(run_params):
     #    p += " {}".format(pointing)
     if run_params.freq is None:
         run_params.set_freq_from_metadata(run_params.obsid)
-
+        
     p=run_params.pointing_dir
     commands = []
     commands.append("echo 'Launching binfinder in mode {0}'".format(run_params.mode))
