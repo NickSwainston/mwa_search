@@ -456,22 +456,22 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     names_ra_dec = fpio.grab_source_alog(source_type='POI')
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     
-    sp_name_list = []
-    sp_pointing_list = []
+    poi_name_list = []
+    poi_pointing_list = []
     for pulsar_line in obs_data[obsid]:
         jname = pulsar_line[0]
         for line in names_ra_dec:
             if jname == line[0]:
-                jname, raj, decj, pos_u = line
+                jname, raj, decj = line
         jname_temp_list = [jname]
 
         # grid the pointings to fill the position uncertaint (given in arcminutes)
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, float(pos_u)/60.)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 1./60.)
                
         # sort the pointings into the right groups
         for prd in pointing_list_list:
-            sp_name_list.append(jname_temp_list)
-            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+            poi_name_list.append(jname_temp_list)
+            poi_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
     
     print('\nSENDING OFF POINTS OF INTEREST SEARCHS')
     print('----------------------------------------------------------------------------------------')
@@ -488,8 +488,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
                               search=True, cand_type='POI')
-    search_pipe.beamform(search_opts, sp_pointing_list,
-                         pulsar_list_list=sp_name_list,
+    search_pipe.beamform(search_opts, poi_pointing_list,
+                         pulsar_list_list=poi_name_list,
                          code_comment="Points of interest candidate pulsar search",
                          relaunch=relaunch)
 
