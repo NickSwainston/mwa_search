@@ -261,7 +261,7 @@ if __name__ == '__main__':
         logger.error("Obsid not supplied. Please run again and specify a pointing directory")
         sys.exit(1)
     if not args.beg or not args.end:
-         logger.error("Beginning/end times not supplied. Please run again and specify times")
+        logger.error("Beginning/end times not supplied. Please run again and specify times")
         sys.exit(1)
 
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\

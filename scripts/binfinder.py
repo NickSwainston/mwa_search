@@ -13,7 +13,7 @@ import plotting_toolkit
 import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
 import psrqpy
-import check_known_pulsars as ckp
+import check_known_pulsars
 logger = logging.getLogger(__name__)
 
 #get ATNF db location
@@ -63,7 +63,7 @@ def move_to_product_dir(pulsar, pointing_dir, obsid):
         data_process_pipeline.copy_data(product, product_dir)
 
 #----------------------------------------------------------------------
-def find_fold_times(pulsar, obsid, beg, end, min_z_power=[0.3, 0.1]):
+def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
     """
     Finds the fractional time the pulsar is in the beam at some zenith normalized power
 
@@ -77,7 +77,7 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=[0.3, 0.1]):
         The beginning of the observation time in gps time
     end: int
         The end of the observation time in gps time
-    min_z_power: float
+    min_z_power: tuple
         OPTIONAL - evaluated the pulsar as 'in the beam' at this normalized zenith power. Default: 0.3
 
     Returns:
@@ -88,9 +88,9 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=[0.3, 0.1]):
             The time the pulsar leaves the beam as a normalized fraction of beg and end. None if pulsar not in beam
     """
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
-    pow_dict, _ = ckp.find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec)
+    pow_dict, _ = check_known_pulsars.find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec)
     for power in pow_dict.keys:
-        psr = pow_dict[key][obsid][0]
+        psr = pow_dict[power][obsid][0]
         if pulsar in psr: #if pulsar is in beam for this power coverage
             enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_power=power)
             break
@@ -540,7 +540,7 @@ def submit_prepfold(run_params, nbins):
     """
 
     #find enter and end times
-    enter, leave, power = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=0.3)
+    enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=0.3)
     if not enter or not leave:
         logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
 
