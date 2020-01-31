@@ -130,10 +130,10 @@ def submit_dspsr(run_params, dspsr_ops=''):
 
     commands=[]
     commands.append("cd {}".format(run_params.pointing_dir))
-    commands.append("psrcat -e {0} > {0}/{1}.eph".format(run_params.pointing_dir, run_params.pulsar))
-    commands.append("echo 'Running DSPSR folding...\n'")
+    commands.append("psrcat -e {1} > {0}/{1}.eph".format(run_params.pointing_dir, run_params.pulsar))
+    commands.append("echo 'Running DSPSR folding...'\n")
     commands.append("dspsr -cont -U 4000 -A -K {}".format(dspsr_ops))
-    commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt\n'"\
+    commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt'\n"\
                     .format(run_params.pointing_dir, run_params.pulsar))
     commands.append("rmfit {0}_subint_{1}.ar -t > {0}_rmfit.txt"\
                     .format(run_params.pulsar, run_params.subint))
@@ -179,15 +179,15 @@ def submit_RM_correct(run_params):
     commands = []
     #correct for RM
     commands.append("cd {}".format(run_params.pointing_dir))
-    commands.append("echo 'Correcting for input rotation measure\n'")
+    commands.append("echo 'Correcting for input rotation measure'\n")
     commands.append("pam -e ar2 -R {0} {1}_subint_{2}.ar"\
     .format(run_params.RM, run_params.pulsar, run_params.subint))
     #Turn the archive into a readable ascii file
-    commands.append("echo 'Wiritng result to text file\n'")
+    commands.append("echo 'Wiritng result to text file'\n")
     commands.append("pdv -FTt {0}_subint_{1}.ar2 > {0}_archive.txt".\
     format(run_params.pulsar, run_params.subint))
     #RVM fitting
-    commands.append("echo 'Fitting RVM\n'")
+    commands.append("echo 'Fitting RVM'\n")
     commands.append("psrmodel *.ar2 -resid -psi-resid -use_beta -s 18X18 &> {0}_{1}_RVM_fit.txt > {0}_{1}_chi_map.txt"\
         .format(run_params.obsid, run_params.pulsar))
 
