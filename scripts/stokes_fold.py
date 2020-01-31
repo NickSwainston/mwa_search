@@ -10,6 +10,7 @@ from job_submit import submit_slurm
 import config
 import data_process_pipeline
 import plotting_toolkit
+import binfinder
 
 import psrqpy
 
@@ -48,7 +49,6 @@ def find_RM_from_cat(pulsar):
     elif np.isnan(rm_err):
         rm_err = 0.15*rm
     return rm, rm_err
-
 
 def find_RM_from_file(fname):
     """
@@ -104,21 +104,36 @@ def submit_dspsr(run_params, dspsr_ops=''):
         logger.info("dspsr custom options: {}".format(dspsr_ops))
 
     launch_line = "stokes_fold.py -m f -d {0} -p {1} -b {2} -s {3} -o {4} -L {5} -f {6}\
-                    --mwa_search {7} --vcs_tools {8}"\
+                    --mwa_search {7} --vcs_tools {8} --beg {9} --end {10}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
                     run_params.subint, run_params.obsid, run_params.loglvl, run_params.freq,\
-                    run_params.mwa_search, run_params.vcs_tools)
+                    run_params.mwa_search, run_params.vcs_tools, run_params.beg, run_params.end)
     if run_params.stop==True:
         launch_line += " -S"
 
+    enter, leave, _ = binfinder.find_fold_times\
+                      (run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
+    if not enter or not leave:
+        logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
+    duration = run_params.end - run_params.beg
+    enter_sec = enter*duration
+    leave_sec = leave*duration
+
+    file_name = "{0}_subint_{1}".format(run_params.pulsar, run_params.subint)
+    dspsr_ops += " {0}/*.fits".format(run_params.pointing_dir)
+    dspsr_ops += " -O {}".format(os.path.join(run_params.pointing_dir, file_name))
+    dspsr_ops += " -b {}".format(run_params.stokes_bins)
+    dspsr_ops += " -E {}.eph".format(os.path.join(run_params.pointing_dir, run_params.pulsar))
+    dspsr_ops += " -L {}".format(run_params.subint)
+    dspsr_ops += " -S {}".format(enter_sec)
+    dspsr_ops += " -T {}".format(leave_sec - enter_sec)
 
     commands=[]
     commands.append("cd {}".format(run_params.pointing_dir))
-    commands.append("psrcat -e {0} > {0}.eph".format(run_params.pointing_dir))
-    commands.append("echo 'Running DSPSR folding...\n'")
-    commands.append("dspsr -cont -U 4000 -A -L {0} -E {3}/{1}.eph -K -b {2} -O {3}/{1}_subint_{0} {3}/*.fits {4}"\
-                    .format(run_params.subint, run_params.pulsar, run_params.stokes_bins, run_params.pointing_dir, dspsr_ops))
-    commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt\n'"\
+    commands.append("psrcat -e {1} > {0}/{1}.eph".format(run_params.pointing_dir, run_params.pulsar))
+    commands.append("echo 'Running DSPSR folding...'\n")
+    commands.append("dspsr -cont -U 4000 -A -K {}".format(dspsr_ops))
+    commands.append("echo 'Attempting to find rotation measure.\nOutputting result to {0}/{1}_rmfit.txt'\n"\
                     .format(run_params.pointing_dir, run_params.pulsar))
     commands.append("rmfit {0}_subint_{1}.ar -t > {0}_rmfit.txt"\
                     .format(run_params.pulsar, run_params.subint))
@@ -128,13 +143,13 @@ def submit_dspsr(run_params, dspsr_ops=''):
 
     name = "dspsr_RM_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     comp_config = config.load_config_file()
-    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
+    batch_dir = "{}".format(os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch"))
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
                 slurm_kwargs={"time": "08:00:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),\
                             "dspsr/master", "psrchive/master"],\
-                submit=True, vcstools_version=run_params.vcs_tools)
+                submit=True, vcstools_version=run_params.vcs_tools, mem="")
 
     logger.info("Job submitted for dspsr using\n\
                 pointing directory:         {0}\n\
@@ -153,10 +168,10 @@ def submit_RM_correct(run_params):
     """
 
     launch_line = "stokes_fold.py -m p -d {0} -p {1} -b {2} -s {3} -o {4} -L {5} -f {6}\
-                    --mwa_search {7} --vcs_tools {8}"\
+                    --mwa_search {7} --vcs_tools {8} --beg {9} --end {10}"\
                     .format(run_params.pointing_dir, run_params.pulsar, run_params.stokes_bins,\
                      run_params.subint, run_params.obsid, run_params.loglvl, run_params.freq,\
-                    run_params.mwa_search, run_params.vcs_tools)
+                    run_params.mwa_search, run_params.vcs_tools, run_params.beg, run_params.end)
 
     if run_params.stop==True:
         launch_line += " -S"
@@ -164,15 +179,15 @@ def submit_RM_correct(run_params):
     commands = []
     #correct for RM
     commands.append("cd {}".format(run_params.pointing_dir))
-    commands.append("echo 'Correcting for input rotation measure\n'")
+    commands.append("echo 'Correcting for input rotation measure'\n")
     commands.append("pam -e ar2 -R {0} {1}_subint_{2}.ar"\
     .format(run_params.RM, run_params.pulsar, run_params.subint))
     #Turn the archive into a readable ascii file
-    commands.append("echo 'Wiritng result to text file\n'")
+    commands.append("echo 'Wiritng result to text file'\n")
     commands.append("pdv -FTt {0}_subint_{1}.ar2 > {0}_archive.txt".\
     format(run_params.pulsar, run_params.subint))
     #RVM fitting
-    commands.append("echo 'Fitting RVM\n'")
+    commands.append("echo 'Fitting RVM'\n")
     commands.append("psrmodel *.ar2 -resid -psi-resid -use_beta -s 18X18 &> {0}_{1}_RVM_fit.txt > {0}_{1}_chi_map.txt"\
         .format(run_params.obsid, run_params.pulsar))
 
@@ -188,7 +203,7 @@ def submit_RM_correct(run_params):
                 slurm_kwargs={"time": "03:00:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),
                             "psrchive/master"],\
-                submit=True, vcstools_version=run_params.vcs_tools)
+                submit=True, vcstools_version=run_params.vcs_tools, mem="")
 
 
 if __name__ == '__main__':
@@ -207,6 +222,8 @@ if __name__ == '__main__':
     foldop.add_argument("-b", "--nbins", type=int, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
+    foldop.add_argument("--beg", type=int, help="The beginning of the observation time in gps time")
+    foldop.add_argument("--end", type=int, help="The end of the observation time in gps time")
     foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
                         eg: '-D 50.0 -c 506.25'. Defualt=''")
 
@@ -235,23 +252,27 @@ if __name__ == '__main__':
     logger.addHandler(ch)
     logger.propagate = False
 
-    if args.nbins is None:
+    if not args.nbins:
         logger.error("Please input an argument for the number of bins to use")
         sys.exit(1)
-    if args.pulsar is None:
+    if not args.pulsar:
         logger.error("Pulsar name not supplied. Please run again and specify puslar name")
         sys.exit(1)
-    if args.pointing_dir is None:
+    if not args.pointing_dir:
         logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
         sys.exit(1)
-    if args.obsid is None:
+    if not args.obsid:
         logger.error("Obsid not supplied. Please run again and specify a pointing directory")
+        sys.exit(1)
+    if not args.beg or not args.end:
+        logger.error("Beginning/end times not supplied. Please run again and specify times")
         sys.exit(1)
 
     run_params = data_process_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
                 pulsar=args.pulsar, stokes_bins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
                 mode=args.mode, vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
-                obsid=args.obsid, stop=args.stop, freq=args.freq, nocrop=args.nocrop)
+                obsid=args.obsid, stop=args.stop, freq=args.freq, nocrop=args.nocrop, beg=args.beg,\
+                end=args.end)
 
     if run_params.mode == "i":
         submit_dspsr(run_params, args.dspsr_ops)
