@@ -89,10 +89,10 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
     """
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
     pow_dict, _ = check_known_pulsars.find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec)
-    for power in pow_dict.keys:
+    for power in pow_dict.keys():
         psr = pow_dict[power][obsid][0]
         if pulsar in psr: #if pulsar is in beam for this power coverage
-            enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_power=power)
+            enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_z_power=power)
             break
         else:
             enter = None
