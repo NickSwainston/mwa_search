@@ -222,7 +222,7 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
 
     pulsar_power_dict = {}
     for pwr in powers:
-        obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100, min_power=pow)
+        obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100, min_power=pwr)
         pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data
@@ -259,7 +259,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     """
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
-    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=None)
+    names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
+    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
     channels = meta_data[-1][-1]
     obs_psrs = pow_dict[0.3][obsid]
     psrs_list_03 = [x[0] for x in obs_psrs]
@@ -267,7 +268,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     for psr in pow_dict[0.1][obsid]:
         if psr[0] not in psrs_list_03:
             sn, sn_err = snfe.est_pulsar_sn(psr[0], obsid,\
-                         beg=psrbeg, end=psrend, obs_metadata=meta_data, o_enter=psr[1], o_exit=psr[2])
+                         beg=psrbeg, end=psrend, obs_metadata=meta_data[0], o_enter=psr[1], o_exit=psr[2], min_z_power=0.1)
             if sn is not None and sn_err is not None:
                 if sn - sn_err >= 10.:
                     obs_psrs.append(psr)
