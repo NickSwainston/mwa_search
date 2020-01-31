@@ -139,7 +139,7 @@ def stokes_fold(run_params, nbins):
 
     submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
-                slurm_kwargs={"time": "00:02:00"},\
+                slurm_kwargs={"time": "00:10:00"},\
                 module_list=["mwa_search/{0}".format(run_params.mwa_search),\
                             "dspsr/master", "psrchive/master"],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
@@ -153,7 +153,7 @@ def binfind(run_params):
     #    p += " {}".format(pointing)
     if run_params.freq is None:
         run_params.set_freq_from_metadata(run_params.obsid)
-        
+
     p=run_params.pointing_dir
     commands = []
     commands.append("echo 'Launching binfinder in mode {0}'".format(run_params.mode))
