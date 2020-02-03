@@ -77,8 +77,8 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
         The beginning of the observation time in gps time
     end: int
         The end of the observation time in gps time
-    min_z_power: tuple
-        OPTIONAL - evaluated the pulsar as 'in the beam' at this normalized zenith power. Default: 0.3
+    min_z_power: tuple/list
+        OPTIONAL - evaluated the pulsar as 'in the beam' at this normalized zenith power. Default: (0.3, 0.1)
 
     Returns:
     [enter, leave]: list
@@ -539,7 +539,7 @@ def submit_prepfold(run_params, nbins):
     """
 
     #find enter and end times
-    enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=0.3)
+    enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3])
     if not enter or not leave:
         logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
 
