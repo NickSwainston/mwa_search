@@ -199,8 +199,8 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
     -----------
     obsid: int
         The observation ID
-    powers: list
-        OPTIONAL - A list of minimum beam powers to evaluate the pulsar coverage at. If none, will use [0.1, 0.3]. Default: None
+    powers: list/tuple
+        OPTIONAL - A list of minimum beam powers to evaluate the pulsar coverage at. If none, will use [0.3, 0.1]. Default: None
     names_ra_dec: list
         OPTIONAL - A list of puslars and their RA and Dec values to evaluate (generated from fpio.get_source_alog).
                    If none, will look for all pulsars. Default: None
@@ -215,7 +215,11 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
     meta_data: list
         A list of the output of get_common_obs_metadata for the input obsid
     """
-
+    if not powers:
+        powers = [0.3, 0.1]
+    elif not (isinstance(powers, list) or isinstance(powers, tuple)):
+        #try this if powers isn't iterable
+        powers=list(powers)
 
     if names_ra_dec is None:
         names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
