@@ -18,7 +18,8 @@ class run_params_class:
                 mode=None, mwa_search="master", vcs_tools="master",\
                 subint=10.0, RM=None, RM_err=None, stokes_bins=None,\
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
-                epndb_dir=None, beg=None, end=None, freq=None):
+                epndb_dir=None, beg=None, end=None, freq=None, stokes_dep=None,
+                no_ephem=False, dspsr_ops=""):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -37,7 +38,9 @@ class run_params_class:
         self.stop           = stop
         self.loglvl         = loglvl
         self.mode           = mode
-        self.stokes_bins    = stokes_bins
+        self.stokes_dep     = stokes_dep
+        self.no_ephem       = no_ephem
+        self.dspsr_ops      = dspsr_ops
 
         #Plotting Options
         self.nocrop         = nocrop
@@ -51,6 +54,8 @@ class run_params_class:
         self.subint         = subint
         self.RM             = RM
         self.RM_err         = RM_err
+        self.stokes_bins    = stokes_bins
+        self.ipfb_str       = ipfb_str
 
         if self.pointing_dir is not None:
             if isinstance(self.pointing_dir, list) and len(self.pointing_dir)==1:
@@ -84,6 +89,9 @@ class run_params_class:
 
     def set_freq_from_metadata(self, obsid):
         self.freq = get_common_obs_metadata(obsid)[5]
+
+    def clear_dependencies(self):
+        self.stokes_dep = None
 
 #----------------------------------------------------------------------
 def copy_data(data_path, target_directory):
@@ -200,7 +208,8 @@ if __name__ == '__main__':
 
     #Arguments
 
-    parser = argparse.ArgumentParser(description="""A pipeline for processing calibrated VCS data""")
+    parser = argparse.ArgumentParser(description="""A pipeline for processing calibrated VCS data""",\
+                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     obsop = parser.add_argument_group("Observation Options")
     obsop.add_argument("-d", "--pointing_dir", nargs='+', type=str, help="The location of the pointing directory/s")

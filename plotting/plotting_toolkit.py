@@ -12,6 +12,7 @@ import glob
 
 import prof_utils
 import binfinder
+import stokes_fold
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +311,7 @@ def calc_lin_pa(stokes_Q, stokes_U):
     return lin_pol, pa
 
 #--------------------------------------------------------------------------
-def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./"):
+def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./", rvm_fit=None):
     """
     Plots a polarimetry profile as a .png using a full-stokes ascii text file
 
@@ -336,17 +337,22 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     #make the title
     title = ""
     save_name = "Polarimetry_profile"
-    if pulsar is not None:
+    if pulsar:
         title += "{}".format(pulsar)
         save_name += "_{}".format(pulsar)
     title += " Polarimetry Profile"
-    if obsid is not None:
+    if obsid:
         title += " {}".format(obsid)
         save_name += "_{}".format(obsid)
-    if freq is not None:
+    if rvm_fit:
+        title += " RVM fit"
+        save_name += "_RVM_fit"
+    if freq:
         title += " - {}MHz".format(freq)
         save_name += "_{}MHz".format(freq)
+
     save_name += ".png"
+
 
     #Read the archive
     sI = []
@@ -398,9 +404,40 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     ax_1.plot(x, sI, color="k", label="Stokes I")
     ax_1.plot(x, lin_pol, color="r", label="Linear Polarization")
     ax_1.plot(x, sV, color="b", label="Circular Polarization")
-    ax_2.scatter(x, pa, color="k", label="Position Angle")
-
     ax_1.legend(loc="upper right", fontsize=18)
+
+    if rvm_fit:
+        idxs = np.array(lin_pol).argsort()[-rvm_fit["nbins"]:][::-1] #find the bins used in the rvm fit
+        clipped_x = []
+        clipped_pa = []
+        for i, val in enumerate(sorted(x)):
+            if i in idxs:
+                clipped_x.append(val)
+                clipped_pa.append(pa[i])
+        ax_2.scatter(clipped_x, clipped_pa, color="k", label="Position Angle", marker=".")
+
+        #plot the rvm fit
+        phi_range = np.linspace(0, 2*np.pi, 500)
+        alpha = rvm_fit["alpha"]*np.pi/180
+        zeta = rvm_fit["zeta"]*np.pi/180
+        psi_0 = rvm_fit["psi_0"]*np.pi/180
+        phi_0 = rvm_fit["phi_0"]*np.pi/180
+        x = np.linspace(-0.5, 0.5, 500)
+        pa_sweep = stokes_fold.analytic_pa(phi_range, alpha, zeta, psi_0, phi_0)
+        pa_sweep = roll_data(pa_sweep, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        #print("PA sweep: {}".format(pa_sweep))
+        print("alpha: {}".format(rvm_fit["alpha"]))
+        print("zeta: {}".format(rvm_fit["zeta"]))
+        print("psi_0: {}".format(rvm_fit["psi_0"]))
+        print("phi_0: {}".format(rvm_fit["phi_0"]))
+        ax_2.plot(x, pa_sweep, color="0.25", label="RVM fit")
+        plt.text(-0.45, 0.9*np.pi/4, "alpha = {0} +/- {1}".format(rvm_fit["alpha"], rvm_fit["alpha_e"]), fontsize = 12, color = "0.2")
+        plt.text(-0.45, 0.7*np.pi/4, "zeta  = {0} +/- {1}".format(rvm_fit["zeta"],  rvm_fit["zeta_e"]),  fontsize = 12, color = "0.2")
+        plt.text(-0.45, 0.5*np.pi/4, "phi_0 = {0} +/- {1}".format(rvm_fit["psi_0"], rvm_fit["psi_0_e"]), fontsize = 12, color = "0.2")
+        plt.text(-0.45, 0.3*np.pi/4, "psi_0 = {0} +/- {1}".format(rvm_fit["phi_0"], rvm_fit["phi_0_e"]), fontsize = 12, color = "0.2")
+    else:
+        ax_2.scatter(x, pa, color="k", label="Position Angle", marker=".")
+
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving polarimetry figure: {0}".format(fig_path))
     plt.savefig(fig_path)
@@ -589,7 +626,8 @@ if __name__ == '__main__':
                     ERROR = logging.ERROR)
 
     #Arguments
-    parser = argparse.ArgumentParser(description="""Plots pulse profiles for a given pulsar""")
+    parser = argparse.ArgumentParser(description="""Plots pulse profiles for a given pulsar""",\
+                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     obsop = parser.add_argument_group("Observation Options")
     obsop.add_argument("-p ", "--pulsar", type=str, help="J name of the pulsar. eg. J2241-5326")
