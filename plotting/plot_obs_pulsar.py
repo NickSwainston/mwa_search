@@ -529,21 +529,6 @@ if __name__ == "__main__":
         plt.colorbar(spacing='uniform', shrink = 0.65, #ticks=[2., 10., 20., 30., 40., 50.], 
                      label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
 
-    plt.xlabel("Right Ascension")
-    plt.ylabel("Declination")
-
-    #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
-    if args.ra_offset:
-        xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
-    else:
-        xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
-
-    ax.set_xticklabels(xtick_labels, zorder=150)
-    print("plotting grid")
-    plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
-
-
-
     #Add extra plot layers ---------------------------------------
 
     #shades only the selected colout
@@ -638,13 +623,17 @@ if __name__ == "__main__":
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
             if args.ra_offset:
-                if ra_temp > 180:
-                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+                if ra_temp > 180.:
+                    ra_temp -= 180.
                 else:
-                    ra_PCAT.append(-ra_temp/180.*np.pi)
+                    ra_temp += 180.
+            if args.square:
+                ra_PCAT.append(ra_temp)
+                dec_PCAT.append(dec_temp)
             else:
-                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
-            dec_PCAT.append(dec_temp/180.*np.pi)
+                ra_PCAT.append(-(ra_temp-180.)/180.*np.pi)
+                dec_PCAT.append(dec_temp/180.*np.pi)
+        print(min(ra_PCAT), max(ra_PCAT))
         ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color ='b', zorder=90)
 
 
@@ -664,6 +653,26 @@ if __name__ == "__main__":
                 ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
             dec_PCAT.append(dec_temp/180.*np.pi)
         ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
+
+    plt.xlabel("Right Ascension")
+    plt.ylabel("Declination")
+
+    #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
+    if args.ra_offset:
+        xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
+        xticks = [150., 120., 90., 60., 30., 0., 330., 300., 270., 240., 210. ]
+    else:
+        xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
+        xticks = [330., 300., 270., 240., 210., 180., 150., 120., 90., 60., 30.]
+
+    if args.square:
+        plt.xticks(xticks, tuple(xtick_labels))
+    else:
+        ax.set_xticklabels(xtick_labels, zorder=150)
+    print("plotting grid")
+    plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
+
+
 
 
     # Creates a plot name --------------------------

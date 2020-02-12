@@ -13,6 +13,7 @@ import plotting_toolkit
 import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
 import psrqpy
+import check_known_pulsars
 logger = logging.getLogger(__name__)
 
 #get ATNF db location
@@ -62,8 +63,50 @@ def move_to_product_dir(pulsar, pointing_dir, obsid):
         data_process_pipeline.copy_data(product, product_dir)
 
 #----------------------------------------------------------------------
-def add_prepfold_to_commands(commands, pointing, pulsar, obsid, beg, end, nbins,\
-                            use_mask=True, ntimechunk=120, dmstep=1, period_search_n=1):
+def find_fold_times(pulsar, obsid, beg, end, min_z_power=None):
+    """
+    Finds the fractional time the pulsar is in the beam at some zenith normalized power
+
+    Parameters:
+    -----------
+    pulsar: string
+        Pulsar J name
+    obsid: int
+        The observation ID
+    beg: int
+        The beginning of the observation time in gps time
+    end: int
+        The end of the observation time in gps time
+    min_z_power: tuple/list
+        OPTIONAL - evaluated the pulsar as 'in the beam' at this normalized zenith power. If None will use [0.3, 0.1] Default: None
+
+    Returns:
+    [enter, leave]: list
+        enter: float
+            The time the pulsar enters the beam as a normalized fraction of beg and end. None if pulsar not in beam
+        leave: float
+            The time the pulsar leaves the beam as a normalized fraction of beg and end. None if pulsar not in beam
+    """
+    if  not min_z_power:
+        min_z_power = [0.3, 0.1]
+
+    names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
+    pow_dict, _ = check_known_pulsars.find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec)
+    for power in pow_dict.keys():
+        psr = pow_dict[power][obsid][0]
+        if pulsar in psr: #if pulsar is in beam for this power coverage
+            enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_z_power=power)
+            break
+        else:
+            enter = None
+            leave = None
+            power = None
+
+    return [enter, leave, power]
+
+#----------------------------------------------------------------------
+def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
+                            enter=0, leave=1, commands=None, use_mask=True, ntimechunk=120, dmstep=1, period_search_n=1):
     """
     Adds prepfold commands to a list
 
@@ -77,10 +120,18 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, beg, end, nbins,
         The J name of the pulsar
     obisd: int
         The ID of the observation
+    enter: float
+        OPTIONAL - The time the pulsar enters the beam as a normalized fraction of beg and end. Default: 0
+    leave: float
+        OPTIONAL - The time the pulsar enters the beam as a normalized fraction of beg and end. Default: 1
+    nbins: int
+        The number of bins to fold the pulsar over
+    commands: list
+        OPTIONAL - A list of commands. This list will be appended to by the function. Default = None
     use_mask: boolean
-        Whether or not to use a mask if it exists
+        OPTIONAL - Whether or not to use a mask if it exists. Default: True
     start: float
-        OPTIONAL - The normalized time that the pulsar enters the beam. Probably from snfe.pulsar_beam_coverage()Default=None
+        OPTIONAL - The normalized time that the pulsar enters the beam. Probably from snfe.pulsar_beam_coverage(). Default=None
     end: float
         OPTOINAL - The normalized time that the pulsar exits the beam. Probably from snfe.pulsar_beam_coverage(). Default=None
     nbins: int
@@ -97,13 +148,10 @@ def add_prepfold_to_commands(commands, pointing, pulsar, obsid, beg, end, nbins,
     commands: list
         The commands list that was input with the prepfold commands appended
     """
-    #find the beginning and end of the pulsar's beam coverage for this obs
-    enter, leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end)
-    logger.info("start and end of pulsar beam coverage for beginng time: {0} and end time: {1}:"\
-                ":{2}, {3}".format(beg, end, enter, leave))
-    if enter is None or leave is None:
-        logger.error("pulsar is not in beam for any of the on-disk files. Ending...")
-        sys.exit(1)
+    if commands is None:
+        commands = []
+
+    logger.info("start and end of pulsar beam coverage for beginng time: {0} and end time: {1}".format(enter, leave))
 
     comp_config = config.load_config_file()
     #Figure out whether or not to input a mask
@@ -242,7 +290,6 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands.append("echo 'Submitting profile to database with {} bins'".format(best_bins))
     commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
     .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof, ppps))
-    commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
 
 
     #Make a nice plot
@@ -269,7 +316,7 @@ def submit_to_db_and_continue(run_params, best_bins):
         commands.append("echo 'Submitting profile to database with {} bins'".format(b_standard))
         commands.append('submit_to_database.py -o {0} --cal_id {1} -p {2} --bestprof {3} --ppps {4}'\
         .format(run_params.obsid, run_params.cal_id, run_params.pulsar, bestprof, ppps))
-        commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
+
 
     #Move the pointing directory
     comp_config = config.load_config_file()
@@ -287,6 +334,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands.append("   echo 'Submission Failure!'")
     commands.append("   exit $errorcode")
     commands.append("fi")
+    commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
 
     commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
     commands.append("mkdir {}".format(move_loc))
@@ -301,17 +349,17 @@ def submit_to_db_and_continue(run_params, best_bins):
 
     dep_id = submit_slurm(name, commands,\
                  batch_dir=batch_dir,\
-                 slurm_kwargs={"time": "01:00:00"},\
+                 slurm_kwargs={"time": "03:00:00"},\
                  module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
                  submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
     #Run stokes fold
     commands = []
     commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
-                    --mwa_search {6} --vcs_tools {7} -f {8} -m s"\
+                    --mwa_search {6} --vcs_tools {7} -f {8} --beg {9} --end {10} -m s"\
                     .format(new_pointing_dir, run_params.cal_id, run_params.pulsar,\
                     run_params.obsid, best_bins, run_params.loglvl, run_params.mwa_search,\
-                    run_params.vcs_tools, run_params.freq))
+                    run_params.vcs_tools, run_params.freq, run_params.beg, run_params.end))
 
     name = "dpp_stokes_{0}_{1}".format(run_params.pulsar, run_params.obsid)
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
@@ -435,11 +483,13 @@ def submit_multiple_pointings(run_params):
     #submit a job for each pointing
     for i, pointing in enumerate(run_params.pointing_dir):
 
-        #os.chdir(pointing)
+        #find enter and end times
+        enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
+        if not enter or not leave:
+            logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
+
         #create slurm job:
-        commands = []
-        commands = add_prepfold_to_commands(commands, pointing, run_params.pulsar, run_params.obsid,\
-                    run_params.beg, run_params.end, nbins)
+        commands = add_prepfold_to_commands(pointing, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave)
         name = "bf_multi_{0}_{1}_{2}_bins_{3}".format(run_params.pulsar, run_params.obsid, nbins, i)
         batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
         logger.info("Submitting pointing: {0}".format(pointing))
@@ -490,9 +540,15 @@ def submit_prepfold(run_params, nbins):
     nbins: int
         The number of bins to fold on
     """
+
+    #find enter and end times
+    enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3])
+    if not enter or not leave:
+        logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
+
     commands = []
     commands.append("echo '############### Prepfolding on {} bins ###############'".format(nbins))
-    commands = add_prepfold_to_commands(commands, run_params.pointing_dir, run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, nbins)
+    commands = add_prepfold_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave, commands=commands)
 
     #Check if prepfold worked:
     commands.append("errorcode=$?")
