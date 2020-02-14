@@ -518,7 +518,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     #-----------------------------------------------------------------------------------------------
     names_ra_dec = fpio.grab_source_alog(source_type='POI')
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    
+
     poi_name_list = []
     poi_pointing_list = []
     for pulsar_line in obs_data[obsid]:
@@ -530,12 +530,12 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
         # grid the pointings to fill the position uncertaint (given in arcminutes)
         pointing_list_list = get_pointings_required(raj, decj, fwhm, 1./60.)
-               
+
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             poi_name_list.append(jname_temp_list)
             poi_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
-    
+
     print('\nSENDING OFF POINTS OF INTEREST SEARCHS')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
