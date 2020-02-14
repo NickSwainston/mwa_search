@@ -8,7 +8,7 @@ import sys
 import config
 import psrqpy
 
-import data_process_pipeline
+import data_processing_pipeline
 from job_submit import submit_slurm
 import plotting_toolkit
 import find_pulsar_in_obs as fpio
@@ -61,7 +61,7 @@ def move_to_product_dir(pulsar, pointing_dir, obsid):
             data_products.append(afile)
 
     for product in data_products:
-        data_process_pipeline.copy_data(product, product_dir)
+        data_processing_pipeline.copy_data(product, product_dir)
 
 #----------------------------------------------------------------------
 def find_fold_times(pulsar, obsid, beg, end, min_z_power=None):
@@ -91,6 +91,7 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=None):
     if  not min_z_power:
         min_z_power = [0.3, 0.1]
 
+    min_z_power = sorted(min_z_power, reverse=True)
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
     pow_dict, _ = check_known_pulsars.find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec)
     for power in pow_dict.keys():
@@ -107,7 +108,8 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=None):
 
 #----------------------------------------------------------------------
 def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
-                            enter=0, leave=1, commands=None, use_mask=True, ntimechunk=120, dmstep=1, period_search_n=1):
+                            enter=0, leave=1, commands=None, use_mask=True, nosearch=False, ntimechunk=120, dmstep=1,\
+                            period_search_n=10, dm_search_n=3, prep_ops="", no_ephem=False):
     """
     Adds prepfold commands to a list
 
@@ -137,12 +139,16 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
         OPTOINAL - The normalized time that the pulsar exits the beam. Probably from snfe.pulsar_beam_coverage(). Default=None
     nbins: int
         OPTIONAL - The number of bins to fold over. Default=100
+    nosearch: boolean
+        OPTIONAL - Whether to search the dm/p/pdot parameter space. Default=False (will search)
     ntimechunk: int
         OPTIONAL - The ntimechunk option for prepfold. Default=120
     dmstep: float
         OPTIONAL - The dmstep option for prepfold. Default=1
     period_search_n: float
-        OPTIONAL - The period_search_n option for perpfold. Default=1
+        OPTIONAL - The npfact option for prepfold. Default=10
+    dm_search_n: float
+        OPTIONAL - The ndmfact option for prepfold. Default=3
 
     Returns:
     --------
@@ -156,32 +162,39 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
 
     comp_config = config.load_config_file()
     #Figure out whether or not to input a mask
+    mask=""
     if use_mask == True:
         check_mask = glob.glob(os.path.join(comp_config['base_product_dir'], obsid, "incoh", "*mask"))
         if check_mask:
-            mask = "-mask " + check_mask[0]
-        else:
-            mask = ""
-    else:
-        mask=""
+            mask = " -mask" + check_mask[0]
+    #search option
+    search = ""
+    if nosearch:
+        search = " -nosearch"
 
     #make the prepfold command
-    constants = "-pstep 1 -pdstep 2 -ndmfact 1 -noxwin -nosearch -runavg -noclip -nsub 256 1*fits "
-    variables = "-o {0}_{1}_bins ".format(obsid, nbins)
+    constants = "-pstep 1 -pdstep 2 -noxwin -runavg -noclip -nsub 256 1*fits"
+    variables = " -o {0}_{1}_bins".format(obsid, nbins)
     variables += mask
-    variables += "-n {0} ".format(nbins)
-    variables += "-start {0} -end {1} ".format(enter, leave)
-    variables += "-dmstep {0} ".format(dmstep)
-    variables += "-npart {0} ".format(ntimechunk)
-    variables += "-npfact {0} ".format(period_search_n)
+    variables += " -n {}".format(nbins)
+    variables += " -start {0} -end {1}".format(enter, leave)
+    variables += " -dmstep {}".format(dmstep)
+    variables += " -npart {}".format(ntimechunk)
+    variables += " -npfact {}".format(period_search_n)
+    variables += " -ndmfact {}".format(dm_search_n)
+    if no_ephem:
+        ephem = ""
+    else:
+        ephem = "{0}.eph".format(pulsar)
+    variables += " {}".format(prep_ops)
 
     #load presto module here because it uses python 2
     commands.append('cd {0}'.format(pointing))
     commands.append('echo "Folding on known pulsar {0}"'.format(pulsar))
     commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
     commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
-    commands.append("prepfold -timing {0}.eph {1} {2}"\
-                    .format(pulsar, variables, constants))
+    commands.append("prepfold -timing {0} {1} {2}"\
+                    .format(ephem, variables, constants))
     commands.append('errorcode=$?')
     commands.append('pulsar={}'.format(pulsar[1:]))
 
@@ -204,19 +217,22 @@ def submit_prepfold(run_params, nbins):
     Parameters:
     -----------
     run_params: object
-        The run_params object defined by data_process_pipeline
+        The run_params object defined by data_processing_pipeline
     nbins: int
         The number of bins to fold on
     """
 
     #find enter and end times
-    enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3])
+    enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
     if not enter or not leave:
         logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
+        enter=0
+        leave=1
 
     commands = []
     commands.append("echo '############### Prepfolding on {} bins ###############'".format(nbins))
-    commands = add_prepfold_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave, commands=commands)
+    commands = add_prepfold_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave,\
+                commands=commands, prep_ops=run_params.prep_ops, no_ephem=run_params.no_ephem)
 
     #Check if prepfold worked:
     commands.append("errorcode=$?")
@@ -228,13 +244,7 @@ def submit_prepfold(run_params, nbins):
 
     #binfinder relaunch:
     commands.append("echo '############### Relaunching binfinder script ###############'" )
-    bf_relaunch = "binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5}\
-                    --mwa_search {6} -b {7} -e {8} -f {9}"\
-                    .format(run_params.pointing_dir, run_params.cal_id, run_params.pulsar,\
-                    run_params.obsid, run_params.loglvl, run_params.vcs_tools, run_params.mwa_search,\
-                    run_params.beg, run_params.end, run_params.freq)
-    if run_params.stokes_dep:
-        bf_relaunch += " --stokes_dep {}".format(run_params.stokes_dep)
+    bf_relaunch = data_processing_pipeline.binfinder_launch_line(run_params)
     commands.append(bf_relaunch)
 
     comp_config = config.load_config_file()
@@ -287,6 +297,7 @@ def bestprof_info(filename):
     info_dict = {}
     f = open(filename, "r")
     lines = f.read()
+    f.close()
     lines = lines.split("\n")
     #info:
     info_dict["obsid"] = int(lines[0].split()[4].split("_")[0])
@@ -331,7 +342,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     Parameters:
     -----------
     run_params: object
-        The run_params object defined in data_process_pipeline
+        The run_params object defined in data_processing_pipeline
     best_bins: int
     """
     #Add path to filenames for submit script
@@ -379,19 +390,20 @@ def submit_to_db_and_continue(run_params, best_bins):
 
     if run_params.stokes_dep:
         #submit inverse pfb profile if it exists
-        ipfb_archive = "{0}_{1}_ipfb_archive.txt".format(run_params.obsid, run_params.pulsar)
-        commands.append("echo 'Submitting inverse PFB profile to database")
-        commands.append("submit_to_database.py -o {0} --cal_id {1} -p {2} --ascii {3}.txt --ppps {4}"\
-                        .format(run_params.obsid, run_params.cal_id, run_params.pulsar, ipfb_archive, ppps))
+        ipfb_archive = os.path.join(run_params.pointing_dir, "{0}_{1}_ipfb_archive.txt".format(run_params.obsid, run_params.pulsar))
+        commands.append("echo 'Submitting inverse PFB profile to database'")
+        commands.append("submit_to_database.py -o {0} --cal_id {1} -p {2} --ascii {3} --ppps {4} --start {5}\
+                        --stop {6}"
+                        .format(run_params.obsid, run_params.cal_id, run_params.pulsar, ipfb_archive, ppps,\
+                        run_params.beg, run_params.end))
 
     #Move the pointing directory
     comp_config = config.load_config_file()
     move_loc = os.path.join(comp_config["base_product_dir"], run_params.obsid, "data_products")
     pointing = run_params.pointing_dir.split("/")
     pointing = [i for i in pointing if i != ""]
-    print("pointing: {}".format(pointing))
     new_pointing_dir = os.path.join(move_loc, pointing[-1])
-    print("new_pointing_dir: {}".format(new_pointing_dir))
+    logger.info("New pointing directory: {}".format(new_pointing_dir))
 
     #in case the previous command fails. Don't move stuff around
     commands.append("errorcode=$?")
@@ -400,7 +412,7 @@ def submit_to_db_and_continue(run_params, best_bins):
     commands.append("   echo 'Submission Failure!'")
     commands.append("   exit $errorcode")
     commands.append("fi")
-    commands.append('echo "submitted profile to database: {0}"'.format(bestprof))
+    commands.append("echo 'submitted profile to database: {0}'".format(bestprof))
     commands.append("echo 'Moving directory {0} to location {1}'".format(run_params.pointing_dir, move_loc))
     commands.append("mkdir {}".format(move_loc))
     commands.append("mv {0} {1}".format(run_params.pointing_dir, new_pointing_dir))
@@ -413,35 +425,34 @@ def submit_to_db_and_continue(run_params, best_bins):
     logger.info("Job name: {}".format(name))
 
     dep_id = submit_slurm(name, commands,\
-                 batch_dir=batch_dir,\
-                 slurm_kwargs={"time": "03:00:00"},\
-                 module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
-                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
-
-    #Run stokes fold
-    commands = []
-    commands.append("data_process_pipeline.py -d {0} -O {1} -p {2} -o {3} -n {4} -L {5}\
-                    --mwa_search {6} --vcs_tools {7} -f {8} --beg {9} --end {10} -m s"\
-                    .format(new_pointing_dir, run_params.cal_id, run_params.pulsar,\
-                    run_params.obsid, best_bins, run_params.loglvl, run_params.mwa_search,\
-                    run_params.vcs_tools, run_params.freq, run_params.beg, run_params.end))
-
-    name = "dpp_stokes_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
-    logger.info("Submitting Stokes Fold script")
-    logger.info("Job Name: {}".format(name))
-
-    #wait for pfb inversion if it exists
-    dep_ids = [dep_id]
-    if run_params.stokes_dep:
-        dep_ids.append(stokes_dep)
-
-    submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
-                slurm_kwargs={"time": "00:20:00"},\
-                depend=dep_ids, depend_type="afterany",\
+                slurm_kwargs={"time": "03:00:00"},\
+                depend=run_params.stokes_dep,
                 module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
                 submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+
+    if not run_params.stop:
+        #Run stokes fold
+        run_params.stokes_bins = best_bins
+        launch_line = data_processing_pipeline.stokes_launch_line(run_params, dpp=True, custom_pointing=new_pointing_dir)
+        commands=[launch_line]
+
+        name = "dpp_stokes_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+        batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
+        logger.info("Submitting Stokes Fold script")
+        logger.info("Job Name: {}".format(name))
+
+        #wait for pfb inversion if it exists
+        dep_ids = [dep_id]
+        if run_params.stokes_dep:
+            dep_ids.append(run_params.stokes_dep)
+
+        submit_slurm(name, commands,\
+                    batch_dir=batch_dir,\
+                    slurm_kwargs={"time": "00:20:00"},\
+                    depend=dep_ids, depend_type="afterany",\
+                    module_list=['mwa_search/{0}'.format(run_params.mwa_search)],\
+                    submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
 
 #----------------------------------------------------------------------
 def get_best_profile_in_dir(pointing_dir, pulsar):
@@ -534,7 +545,7 @@ def submit_multiple_pointings(run_params):
     Parameters:
     -----------
     run_params: object
-        The run_params object defined in data_process_pipeline
+        The run_params object defined in data_processing_pipeline
     """
     job_ids = []
     comp_config=config.load_config_file()
@@ -557,9 +568,12 @@ def submit_multiple_pointings(run_params):
         enter, leave, _ = find_fold_times(run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
         if not enter or not leave:
             logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
+            enter=0
+            leave=1
 
         #create slurm job:
-        commands = add_prepfold_to_commands(pointing, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave)
+        commands =  add_prepfold_to_commands(pointing, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave,\
+                    prep_ops=run_params.prepfold_ops, no_ephem=run_params.no_ephem)
         name = "bf_multi_{0}_{1}_{2}_bins_{3}".format(run_params.pulsar, run_params.obsid, nbins, i)
         batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
         logger.info("Submitting pointing: {0}".format(pointing))
@@ -578,12 +592,8 @@ def submit_multiple_pointings(run_params):
     for pointing in run_params.pointing_dir:
         p += p + " "
 
-    commands=[]
-    commands.append("binfinder.py -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5}\
-                    --mwa_search {6} -p {7} -b {8} -e {9} -f {10}"\
-                    .format(p, run_params.cal_id, run_params.pulsar, run_params.obsid,\
-                    run_params.loglvl, run_params.vcs_tools, run_params.mwa_search, run_params.pulsar,\
-                    run_params.beg, run_params.end, run_params.freq))
+    launch_line = data_processing_pipeline.binfinder_launch_line(run_params, dpp=False, single_pointing=p)
+    commands = [launch_line]
 
     name="bf_post_multi_{0}".format(run_params.pulsar)
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
@@ -605,7 +615,7 @@ def find_best_pointing(run_params, nbins):
     Parameters:
     -----------
     run_params: object
-        The run_params object defined in data_process_pipeline
+        The run_params object defined in data_processing_pipeline
     nbins: int
         The number of bins that were folded on that the function will look through
     """
@@ -722,6 +732,8 @@ def work_out_what_to_do(run_params):
     run_params: object
         The run_params object defined by data_proces_pipeline
     """
+    hdr_files = glob.glob("{}/*.hdr".format(run_params.pointing_dir))
+    ipfb_archive = glob.glob("{}/*ipfb*.ar".format(run_params.pointing_dir))
     #Multiple pointings?
     if isinstance(run_params.pointing_dir, list):
         #Have these directories been folded on?
@@ -738,14 +750,11 @@ def work_out_what_to_do(run_params):
         bin_limit = bin_sampling_limit(run_params.pulsar)
         bins_in_dir = find_bins_in_dir(run_params.pointing_dir)
 
-        if glob.glob("{}/*.hdr".format(run_params.pointing_dir)) and not run_params.stokes_dep:
+        if hdr_files and not run_params.stokes_dep and not ipfb_archive:
             #.vdif files exist and dspsr job not already submitted
-            job_id = stokes_fold.submit_inverse_pfb(run_params)
+            logger.info(".vdif files available. Will fold on pfb inversion")
+            job_id = stokes_fold.submit_inverse_pfb_fold(run_params, stop=True)
             run_params.stokes_dep = job_id
-        else:
-            logger.info("No vdif files available. Not launching pfb inversion")
-            logger.info(glob.glob("{}/.*hdr".format(run_params.pointing_dir)))
-            logger.info(run_params.stokes_dep)
 
         if len(bins_in_dir)==0:
             #No folds done
@@ -808,14 +817,20 @@ if __name__ == '__main__':
     required.add_argument("-o", "--obsid", type=str, help="The observation ID")
     required.add_argument("-O", "--cal_id", type=str, help="The Obs ID of the calibrator")
     required.add_argument("-p", "--pulsar", type=str, help="The name of the pulsar. eg. J2241-5236")
-    required.add_argument("-b", "--beg", type=int, help="The beginning of the observation. Will try to find if unsupplied")
-    required.add_argument("-e", "--end", type=int, help="The end of the observation. Will try to find if unsupplied")
+    required.add_argument("--beg", type=int, help="The beginning of the observation. Will try to find if unsupplied")
+    required.add_argument("--end", type=int, help="The end of the observation. Will try to find if unsupplied")
+
+    foldop = parser.add_argument_group("Folding Options:")
+    foldop.add_argument("--prep_ops", type=str, default="", help="Any additional options to use with prepfold in string form\
+                        eg. ' -dm 20 -p 528'")
+    foldop.add_argument("--no_ephem", action="store_true", help="Use this to override the use of an ephemeris for foldign the pulsar")
 
     other = parser.add_argument_group("Other Options:")
     other.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
     other.add_argument("-t", "--threshold", type=float, default=10.0, help="The signal to noise threshold to stop at. Default = 10.0")
     other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
-    other.add_argument("-S", "--stop", action="store_true", help="Use this tag to tell binfinder to launch the next step in the data processing pipleline when finished")
+    other.add_argument("-S", "--stop", action="store_true", help="Use this tag to stop the data processing pipeline when finished binfinding")
+    other.add_argument("--dspsr_ops", type=str, default="", help="Any additional options to send to dspsr once binfinder is finished")
     other.add_argument("--stokes_dep", type=int, help="Job ID of a job that needs to be completed before the stokes_fold.py job can begin")
     other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use. Default: master")
     other.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use. Default: master")
@@ -839,33 +854,20 @@ if __name__ == '__main__':
     elif args.pulsar == None:
         logger.error("No pulsar name supplied. Please input a pulsar and rerun")
         sys.exit(1)
+    if args.end is None or args.beg is None:
+        logger.error("Beginning and end times not supplied. Please supply and rerun")
+        sys.exit(1)
 
-    run_params = data_process_pipeline.run_params_class\
+    run_params = data_processing_pipeline.run_params_class\
                     (args.pointing_dir, args.cal_id, pulsar=args.pulsar,obsid=args.obsid,\
                     threshold=args.threshold, stop=args.stop,loglvl=args.loglvl,\
                     mwa_search=args.mwa_search, vcs_tools=args.vcs_tools,\
-                    beg=args.beg, end=args.end, freq=args.freq, stokes_dep=args.stokes_dep)
+                    beg=args.beg, end=args.end, freq=args.freq, stokes_dep=args.stokes_dep,\
+                    prep_ops=args.prep_ops, no_ephem=args.no_ephem, dspsr_ops=args.dspsr_ops)
+
 
     if run_params.freq is None:
         run_params.set_freq_from_metadata(run_params.obsid)
 
-
-    #NOTE: for some reason, you need to run prepfold from the directory it outputs to if you want it to properly make an image. The script will make this work regardless by using os.chdir
     logger.info("Pointing Dir: {}".format(run_params.pointing_dir))
-    if isinstance(run_params.pointing_dir, str):
-        os.chdir(run_params.pointing_dir)
-
-    #Try to find the beginning and end using ondisk files
-    if run_params.end is None or run_params.beg is None:
-        logger.info("Attempting to find beg and end using on-disk files")
-        comp_config = config.load_config_file()
-        base_dir = comp_config['base_product_dir']
-        beg, end = fpio.find_combined_beg_end(run_params.obsid, base_path=base_dir)
-        if beg is None or end is None:
-            logger.error("Combined files not on disk. Please manually input beginning and end")
-            sys.exit(1)
-        else:
-            run_params.set_beg(beg)
-            run_params.set_end(end)
-
     work_out_what_to_do(run_params)
