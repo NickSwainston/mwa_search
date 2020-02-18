@@ -109,7 +109,7 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=None):
 #----------------------------------------------------------------------
 def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
                             enter=0, leave=1, commands=None, use_mask=True, nosearch=False, ntimechunk=120, dmstep=1,\
-                            period_search_n=10, dm_search_n=3, prep_ops="", no_ephem=False):
+                            period_search_n=4, dm_search_n=3, prep_ops="", no_ephem=False, ncpus=1):
     """
     Adds prepfold commands to a list
 
@@ -146,9 +146,11 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
     dmstep: float
         OPTIONAL - The dmstep option for prepfold. Default=1
     period_search_n: float
-        OPTIONAL - The npfact option for prepfold. Default=10
+        OPTIONAL - The npfact option for prepfold. Default=4
     dm_search_n: float
         OPTIONAL - The ndmfact option for prepfold. Default=3
+    ncpus: int
+        OPTIONAL - The number of cpus to use. Default=1
 
     Returns:
     --------
@@ -173,7 +175,7 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
         search = " -nosearch"
 
     #make the prepfold command
-    constants = "-pstep 1 -pdstep 2 -noxwin -runavg -noclip -nsub 256 1*fits"
+    constants = " *.fits -pstep 1 -pdstep 2 -noxwin -runavg -noclip -nsub 256"
     variables = " -o {0}_{1}_bins".format(obsid, nbins)
     variables += mask
     variables += " -n {}".format(nbins)
@@ -182,6 +184,7 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
     variables += " -npart {}".format(ntimechunk)
     variables += " -npfact {}".format(period_search_n)
     variables += " -ndmfact {}".format(dm_search_n)
+    variables += " -ncpus {}".format(ncpus)
     if no_ephem:
         ephem = ""
     else:
@@ -194,7 +197,7 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
     commands.append('psrcat -e {0} > {0}.eph'.format(pulsar))
     commands.append("sed -i '/UNITS           TCB/d' {0}.eph".format(pulsar))
     commands.append("prepfold -timing {0} {1} {2}"\
-                    .format(ephem, variables, constants))
+                    .format(ephem, variables, constants, files))
     commands.append('errorcode=$?')
     commands.append('pulsar={}'.format(pulsar[1:]))
 
@@ -210,7 +213,7 @@ def add_prepfold_to_commands(pointing, pulsar, obsid, nbins,\
     return commands
 
 #----------------------------------------------------------------------
-def submit_prepfold(run_params, nbins):
+def submit_prepfold(run_params, nbins, ncpus=1):
     """
     Submits a prepfold job for the given parameters
 
@@ -220,6 +223,8 @@ def submit_prepfold(run_params, nbins):
         The run_params object defined by data_processing_pipeline
     nbins: int
         The number of bins to fold on
+    ncpus: int
+        OPTIONAL - The number of cpus to use. Default: 1
     """
 
     #find enter and end times
@@ -232,7 +237,7 @@ def submit_prepfold(run_params, nbins):
     commands = []
     commands.append("echo '############### Prepfolding on {} bins ###############'".format(nbins))
     commands = add_prepfold_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave,\
-                commands=commands, prep_ops=run_params.prep_ops, no_ephem=run_params.no_ephem)
+                commands=commands, prep_ops=run_params.prep_ops, no_ephem=run_params.no_ephem, npfact=4, ndmfact=3, ncpus=8)
 
     #Check if prepfold worked:
     commands.append("errorcode=$?")
@@ -257,12 +262,16 @@ def submit_prepfold(run_params, nbins):
     logger.info("Number of bins to fold on: {}".format(nbins))
     logger.info("Job name: {}".format(name))
 
+    duration = (run_params.end - run_params.beg)*(leave - enter)
+    time = dpp.prepfold_time_alloc(duration, run_params.nbins, npfact=4, ndmfact=3, nosearch=run_params.nosearch)
+
     job_id = submit_slurm(name, commands,\
                 batch_dir=batch_dir,\
-                slurm_kwargs={"time": "2:00:00"},\
+                slurm_kwargs={"time": time},\
                 module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                             'presto/no-python'],\
-                submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+                submit=True, vcstools_version="{0}".format(run_params.vcs_tools),\
+                cpu_threads=ncpus)
     return job_id
 
 #----------------------------------------------------------------------
@@ -573,17 +582,21 @@ def submit_multiple_pointings(run_params):
 
         #create slurm job:
         commands =  add_prepfold_to_commands(pointing, run_params.pulsar, run_params.obsid, nbins, enter=enter, leave=leave,\
-                    prep_ops=run_params.prepfold_ops, no_ephem=run_params.no_ephem)
+                    prep_ops=run_params.prepfold_ops, no_ephem=run_params.no_ephem, npfact=4, ndmfact=3, ncpus=8)
         name = "bf_multi_{0}_{1}_{2}_bins_{3}".format(run_params.pulsar, run_params.obsid, nbins, i)
         batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
+
+        duration = (run_params.end - run_params.beg)*(leave - enter)
+        time = dpp.prepfold_time_alloc(duration, run_params.nbins, npfact=4, ndmfact=3, nosearch=run_params.nosearch)
         logger.info("Submitting pointing: {0}".format(pointing))
         logger.info("Job name: {}".format(name))
         myid = submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
-                    slurm_kwargs={"time": "2:00:00"},\
+                    slurm_kwargs={"time": time},\
                     module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
                                 'presto/no-python'],\
-                    submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+                    submit=True, vcstools_version="{0}".format(run_params.vcs_tools),\
+                    cpu_threads=8)
 
 
         job_ids.append(myid)
