@@ -6,6 +6,7 @@ import argparse
 import config
 import glob
 import sys
+import datetime
 
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
@@ -136,6 +137,42 @@ def binfinder_launch_line(run_params, dpp=False, single_pointing=None):
         launch_line += " --prep_ops '{}'".format(run_params.prep_ops)
 
     return launch_line
+
+#----------------------------------------------------------------------
+def prepfold_time_alloc(duration, nbins, npfact=2, ndmfact=3, nosearch=False):
+    """
+    Estimates the jobtime for prepfold jobs based on inputs
+
+    Parameters:
+    -----------
+    duration: float
+        The duration of the folding time in seconds
+    nbins: int
+        Then number of bins to fold over
+    npfact: int
+        OPTIONAL - prepfold's npfact option. Default: 2
+    ndmfact: int
+        OPTIONAL - prepfold's ndmfact option. Default: 3
+    nosearch: boolean
+        OPTIONAL - true if prepfold's nosearch tag is used. Default: False
+
+    Returns:
+    --------
+    time: string
+        The allocated time for the fold job as a string that can be passed to the slurm batch handler
+    """
+    time = 600
+    time += nbins
+    time += duration
+
+    if not nosearch:
+        time += (10*npfact)**2 * (10*ndmfact)**2 + 100*(nbins)**(1/2)
+    if time > 86400:
+        logger.warn("Estimation for prepfold time greater than one day")
+        time = 86400
+    time = str(datetime.timedelta(seconds = int(time)))
+
+    return time
 
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
