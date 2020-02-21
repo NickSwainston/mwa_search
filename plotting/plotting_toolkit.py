@@ -23,6 +23,11 @@ except KeyError:
     ATNF_LOC = None
 EPNDB_LOC = os.environ["EPNDB_LOC"]
 
+#---------------------------------------------------------------
+class NoEPNDBError(Exception):
+    """Raise when a pulsar has not been found on the EPNDB"""
+    pass
+
 #--------------------------------------------------------------------------
 def read_ascii_archive(archive):
     """
@@ -67,9 +72,9 @@ def read_ascii_archive(archive):
         sQ.append(float(thisline[4]))
         sU.append(float(thisline[5]))
         sV.append(float(thisline[6]))
-        if len(thisline)>7:
-            pa.append(float(thisline[7]))
-            pa_err.append(float(thisline[8]))
+        if len(thisline)==10:
+            pa.append(float(thisline[8]))
+            pa_err.append(float(thisline[9]))
 
     if len(pa)==0:
         lin_pol, pa = calc_lin_pa(sQ, sU)
@@ -85,7 +90,16 @@ def read_ascii_archive(archive):
     sV = np.array(sV)/max_I
     lin_pol = np.array(lin_pol)/max_I
 
-    return sI, sQ, sU, sV, lin_pol, pa, pa_err
+    roll_idx, roll_to, sI = roll_data(sI)
+    sQ = roll_data(sQ, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    sU = roll_data(sU, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    sV = roll_data(sV, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    lin_pol = roll_data(lin_pol, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    pa = roll_data(pa, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    if list(pa_err):
+        pa_err = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+
+    return sI, sQ, sU, sV, lin_pol, pa, pa_err, roll_idx, roll_to
 
 #--------------------------------------------------------------------------
 def roll_data(data, idx_to_roll=None, roll_to=None):
@@ -204,7 +218,10 @@ def get_data_from_epndb(pulsar):
                     pulsar_dict["Vy"].append(None)
 
     #sort by frequency
-    pulsar_dict = sort_pulsar_dict(pulsar_dict)
+    if len(pulsar_dict["freq"]) > 0:
+        pulsar_dict = sort_pulsar_dict(pulsar_dict)
+    else:
+        raise NoEPNDBError("Pulsar not on the EPNDB!")
 
     return pulsar_dict
 
@@ -391,17 +408,9 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
 
     save_name += ".png"
 
-    sI, sQ, sU, sV, lin_pol, pa, pa_err = read_ascii_archive(archive)
-
+    sI, sQ, sU, sV, lin_pol, pa, pa_err, roll_idx, roll_to = read_ascii_archive(archive)
     #normalize, aign and find linear polarization and position angle
     x = np.linspace(-0.5, 0.5, len(sI))
-    roll_idx, roll_to, sI = roll_data(sI)
-    sQ = roll_data(sQ, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    sU = roll_data(sU, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    sV = roll_data(sV, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    lin_pol = roll_data(lin_pol, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    pa = roll_data(pa, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    pa_err = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
 
     #get rid of zeros in pa. Need to be in python lists for this to work
     x_pa = x
@@ -414,8 +423,9 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
             rm_idxs.append(i)
     for i in sorted(rm_idxs, reverse=True):
         del pa[i]
-        del pa_err[i]
         del x_pa[i]
+        if pa_err:
+            del pa_err[i]
 
     #plot
     fig = plt.figure(figsize=(20, 12))
@@ -448,7 +458,7 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
 
     if rvm_fit:
         #plot the rvm fit
-        phi_range = np.linspace(-np.pi/2, np.pi/2, len(sI))
+        phi_range = np.linspace(0, 2*np.pi, len(sI))
         x = np.linspace(-0.5, 0.5, len(sI))
         alpha = rvm_fit["alpha"]*np.pi/180
         zeta = rvm_fit["zeta"]*np.pi/180
@@ -458,18 +468,25 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         zeta_e = rvm_fit["zeta_e"]*np.pi/180
         psi_0_e = rvm_fit["psi_0_e"]*np.pi/180
         phi_0_e = rvm_fit["phi_0_e"]*np.pi/180
+
         pa_sweep = stokes_fold.analytic_pa(phi_range, alpha, zeta, psi_0, phi_0)
-        #pa_sweep_minus = stokes_fold.analytic_pa(phi_range, alpha-alpha_e, zeta-zeta_e, psi_0-psi_0_e, phi_0-phi_0_e)
-        #pa_sweep_plus = stokes_fold.analytic_pa(phi_range, alpha+alpha_e, zeta+zeta_e, psi_0+psi_0_e, phi_0+phi_0_e)
+        ax_2.plot(-x, pa_sweep, color="orange", label="RVM fit")
+        ax_2.plot(-x, pa_sweep + np.pi, color="orange")
+        ax_2.plot(-x, pa_sweep - np.pi, color="orange")
+
+        pa_sweep_minus = stokes_fold.analytic_pa(phi_range, alpha-alpha_e, zeta-zeta_e, psi_0-psi_0_e, phi_0-phi_0_e)
+        pa_sweep_plus = stokes_fold.analytic_pa(phi_range, alpha+alpha_e, zeta+zeta_e, psi_0+psi_0_e, phi_0+phi_0_e)
         pa_sweep = roll_data(pa_sweep, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-        #pa_sweep_minus = roll_data(pa_sweep_minus, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-        #pa_sweep_plus = roll_data(pa_sweep_plus, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-        #ax_2.fill_between(phi_range, pa_sweep_minus, pa_sweep_plus, facecolor='gray')
-        ax_2.plot(x, pa_sweep, color="orange", label="RVM fit")
+        pa_sweep_minus = roll_data(pa_sweep_minus, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        pa_sweep_plus = roll_data(pa_sweep_plus, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        ax_2.fill_between(phi_range, pa_sweep_minus, pa_sweep_plus, facecolor='gray')
+        ax_2.fill_between(phi_range, pa_sweep_minus - np.pi, pa_sweep_plus - np.pi, facecolor='gray')
+        ax_2.fill_between(phi_range, pa_sweep_minus + np.pi, pa_sweep_plus + np.pi, facecolor='gray')
+
         ax_2.text(-0.48, 0.8*np.pi/2, "alpha = {0} +/- {1}".format(round(alpha, 3), round(alpha_e, 3)), fontsize = 12, color = "0.2")
         ax_2.text(-0.48, 0.6*np.pi/2, "zeta  = {0} +/- {1}".format(round(zeta, 3),  round(zeta_e, 3)),  fontsize = 12, color = "0.2")
-        ax_2.text(-0.48, 0.4*np.pi/2, "phi_0 = {0} +/- {1}".format(round(psi_0, 3), round(psi_0_e, 3)), fontsize = 12, color = "0.2")
-        ax_2.text(-0.48, 0.2*np.pi/2, "psi_0 = {0} +/- {1}".format(round(phi_0, 3), round(phi_0_e, 3)), fontsize = 12, color = "0.2")
+        ax_2.text(-0.48, 0.4*np.pi/2, "psi_0 = {0} +/- {1}".format(round(psi_0, 3), round(psi_0_e, 3)), fontsize = 12, color = "0.2")
+        ax_2.text(-0.48, 0.2*np.pi/2, "phi_0 = {0} +/- {1} (phase)".format(round(phi_0/(2*np.pi)-.5, 3), round(phi_0_e/(2*np.pi), 3)), fontsize = 12, color = "0.2")
         ax_2.set_ylim(-np.pi/2, np.pi/2)
         ax_2.legend(loc="upper right", fontsize=14)
 
@@ -528,8 +545,6 @@ def plot_stack(frequencies, profs_y, pulsar_name,\
         del frequencies[i]
         del profs_y[i]
 
-    print(len(frequencies))
-    print(len(profs_y))
     #roll the profiles to align the first maxima
     rolled_profs = []
     for profile in profs_y:
@@ -615,7 +630,11 @@ def clip_nopol_epn_data(pulsar_dict):
     """
     del_idxs=[]
     for i, Q, U, V, freq in zip(range(len(pulsar_dict["Qy"])), pulsar_dict["Qy"], pulsar_dict["Uy"], pulsar_dict["Vy"], pulsar_dict["freq"]):
-        if Q is None or U is None or V is None or freq is None:
+        Q = np.array(Q)
+        U = np.array(U)
+        V = np.array(V)
+        freq = np.array(freq)
+        if not bool(Q.any()) or not bool(U.any()) or not bool(V.any()) or not bool(freq.any()):
             del_idxs.append(i)
     for i in sorted(del_idxs, reverse=True):
         for key in pulsar_dict.keys():
@@ -685,7 +704,7 @@ def add_ascii_to_dict(pulsar_dict, ascii_archive, freq):
     lin_pol: list
         The linear poilarisation of the ascii archive
     """
-    I, Q, U, V, lin_pol, _, _ = read_ascii_archive(ascii_archive)
+    I, Q, U, V, lin_pol, _, _, _, _ = read_ascii_archive(ascii_archive)
     x = np.linspace(-0.5, 0.5, len(I))
     for key in pulsar_dict.keys():
         if key == "Ix":
@@ -706,7 +725,7 @@ def add_ascii_to_dict(pulsar_dict, ascii_archive, freq):
 
     return pulsar_dict, lin_pol
 
-def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png"):
+def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png", dof=None):
     """
     Plots a chi map generated from RVM fitting
 
@@ -720,17 +739,23 @@ def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png"):
         A list of the zeta values
     name: string
         OPTIONAL - The pathname of the output plot. Defalt: 'RVM_chi_map_plot.png'
+    dof: float
+        OPTIONAL - The degrees of freedom. Used to display a reduces chi
 
     Returns:
     --------
     name: string
         The pathname of the ouput plot
     """
+    if dof:
+        chis = np.array(chis)/dof
+
     plt.figure(figsize=(8, 12))
     plt.scatter(alphas, zetas, c=chis, s=500, cmap='viridis')
     plt.title("RVM Fit Chi Map")
     plt.xlabel("alpha")
     plt.ylabel("zeta")
+    plt.colorbar()
     plt.plot()
     plt.savefig(name)
     plt.close()
