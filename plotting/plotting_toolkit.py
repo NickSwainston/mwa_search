@@ -811,7 +811,6 @@ def plot_stack_pol(frequencies, I_y, lin_y, circ_y, pulsar_name,\
 
     for i in sorted(ignore_idxs, reverse=True):
         del frequencies[i]
-        del I_x[i]
         del I_y[i]
         del lin_y[i]
         del circ_y[i]
