@@ -23,6 +23,11 @@ except:
     logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
     ATNF_LOC = None
 
+#---------------------------------------------------------------
+class NotFoundError(Exception):
+    """Raise when a value is not found in a file"""
+    pass
+
 def plot_everything(pulsar, obsid, run_dir, freq, ascii_archive=None, rvm_dict=None, chi_map=None):
     """
     Plots polarimetry, RVM fits, chi map and stacked profiles
@@ -40,7 +45,7 @@ def plot_everything(pulsar, obsid, run_dir, freq, ascii_archive=None, rvm_dict=N
     ascii_archive: string
         OPTIONAL - The name of the archive. If none, will try to find it in run_dir
     rvm_dict: dictionary
-        OPTIONANL - The dictionary from read_rvm_fit_file. Used to plot RVM fits and chi_map. Default: None
+        OPTIONAL - The dictionary from read_rvm_fit_file. Used to plot RVM fits and chi_map. Default: None
     """
     if not ascii_archive:
         try:
@@ -50,43 +55,56 @@ def plot_everything(pulsar, obsid, run_dir, freq, ascii_archive=None, rvm_dict=N
 
     logger.info("Plotting dspsr archive {0} in {1}".format(ascii_archive, run_dir))
     ascii_path = os.path.join(run_params.pointing_dir, ascii_archive)
+    print(ascii_path)
 
     logger.info("Plotting polarimetry profile without RVM fit")
     fig_name = plotting_toolkit.plot_archive_stokes(ascii_path, obsid=obsid, pulsar=pulsar,\
                         freq=freq, out_dir=run_dir)
     if rvm_dict:
-        logger.info("Plotting polarimetry profile with RVM fit")
-        plotting_toolkit.plot_archive_stokes(ascii_path, obsid=obsid, pulsar=pulsar,\
-                        freq=freq, out_dir=run_dir, rvm_fit=rvm_dict)
+        if rvm_dict["nbins"]>=5:
+            logger.info("Plotting polarimetry profile with RVM fit")
+            plotting_toolkit.plot_archive_stokes(ascii_path, obsid=obsid, pulsar=pulsar,\
+                            freq=freq, out_dir=run_dir, rvm_fit=rvm_dict)
+        else:
+            logger.info("Not enough PA points to plot RVM fit")
 
     if chi_map:
         logger.info("Plotting RVM fit chi squared map")
-        chi_map_name = "{0}/{1}_{2}_RVM_chi_map.png".format(run_dir, obsid, pulsar)
+        if rvm_dict:
+            dof = rvm_dict["dof"]
+            chis = np.copy(chi_map["chis"])
+            chis = chis/dof
+            chi_map_name = "{0}/{1}_{2}_RVM_reduced_chi_map.png".format(run_dir, obsid, pulsar)
+        else:
+            chi_map_name = "{0}/{1}_{2}_RVM_chi_map.png".format(run_dir, obsid, pulsar)
         plotting_toolkit.plot_rvm_chi_map(chi_map["chis"][:], chi_map["alphas"][:], chi_map["zetas"][:], name=chi_map_name)
 
     logger.info("Plotting stacked archival profiles")
     #retrieve epn data
-    pulsar_dict = plotting_toolkit.get_data_from_epndb(pulsar)
-    #read my data
-    pulsar_dict, my_lin_pol = plotting_toolkit.add_ascii_to_dict(pulsar_dict, ascii_archive, freq)
-    #ignore any frequencies > 15 000 MHz
-    ignore_freqs = []
-    for f in pulsar_dict["freq"]:
-        if f>15000:
-            ignore_freqs.append(f)
-    #plot intensity stack
-    plotting_toolkit.plot_stack(pulsar_dict["freq"][:], pulsar_dict["Iy"][:], pulsar,\
-            out_dir=run_dir, special_freqs=[freq], ignore_freqs=ignore_freqs)
-    #clip anything without stokes
-    pulsar_dict = plotting_toolkit.clip_nopol_epn_data(pulsar_dict)
-    #get lin pol - but don't change ours because it could have been generated from psrchive
-    lin = plotting_toolkit.lin_pol_from_dict(pulsar_dict)
-    for i, f in enumerate(pulsar_dict["freq"]):
-        if f==freq:
-            lin[i]=my_lin_pol
-    #plot the polarimetry stack
-    plotting_toolkit.plot_stack_pol(pulsar_dict["freq"], pulsar_dict["Iy"], lin, pulsar_dict["Vy"], pulsar,\
-            out_dir=run_dir, ignore_freqs=ignore_freqs)
+    try:
+        pulsar_dict = plotting_toolkit.get_data_from_epndb(pulsar)
+        #read my data
+        pulsar_dict, my_lin_pol = plotting_toolkit.add_ascii_to_dict(pulsar_dict, ascii_archive, freq)
+        #ignore any frequencies > 15 000 MHz
+        ignore_freqs = []
+        for f in pulsar_dict["freq"]:
+            if f>15000:
+                ignore_freqs.append(f)
+        #plot intensity stack
+        plotting_toolkit.plot_stack(pulsar_dict["freq"][:], pulsar_dict["Iy"][:], pulsar,\
+                out_dir=run_dir, special_freqs=[freq], ignore_freqs=ignore_freqs)
+        #clip anything without stokes
+        pulsar_dict = plotting_toolkit.clip_nopol_epn_data(pulsar_dict)
+        #get lin pol - but don't change ours because it could have been generated from psrchive
+        lin = plotting_toolkit.lin_pol_from_dict(pulsar_dict)
+        for i, f in enumerate(pulsar_dict["freq"]):
+            if f==freq:
+                lin[i]=my_lin_pol
+        #plot the polarimetry stack
+        plotting_toolkit.plot_stack_pol(pulsar_dict["freq"], pulsar_dict["Iy"], lin, pulsar_dict["Vy"], pulsar,\
+                out_dir=run_dir, ignore_freqs=ignore_freqs)
+    except plotting_toolkit.NoEPNDBError:
+        logger.info("Pulsar not on the EPN database")
 
 
 def find_RM_from_cat(pulsar):
@@ -156,7 +174,8 @@ def find_RM_from_file(fname):
 
 def read_rvm_fit_file(filename):
     """
-    reads a file with the output from psrmodel and returns a dictionary of the results
+    Reads a file with the output from psrmodel and returns a dictionary of the results.
+    Raises NotFoundError if an expected value is not present in the file
 
     Parameters:
     -----------
@@ -185,16 +204,25 @@ def read_rvm_fit_file(filename):
                 The derived phi_0 parameter
             phi_0_e: float
                 The uncertainty in phi_0
+            redchisq: float
+                The reduced chi square of the best fit
+            dof: int
+                The degrees of freedom of the fit
     """
+    keylist = ("nbins", "redchisq", "dof", "psi_0", "psi_0_e", "zeta", "zeta_e",\
+                "alpha", "alpha_e", "phi_0",  "phi_0_e")
     rvm_dict={}
+    for key in keylist:
+        rvm_dict[key]=None
     f = open(filename)
     lines = f.readlines()
     f.close()
     for i, line in enumerate(lines):
-        if i == 5:
+        if line.endswith("bins\n"):
             rvm_dict["nbins"] = int(line.split()[-2])
         elif line[0:6] == "chisq=":
-            redchisq = float(line.split()[-1])
+            rvm_dict["redchisq"] = float(line.split()[-1])
+            rvm_dict["dof"] = int(line.split()[0].split("=")[-1])
         elif line[0:7] == "psi_0=(":
             psi_0_str = line.split()[0].split("=")[-1].split("(")[-1].split(")")[0].split("+")
             rvm_dict["psi_0"] = float(psi_0_str[0])
@@ -211,6 +239,10 @@ def read_rvm_fit_file(filename):
             phi_0_str = line.split()[0].split("(")[-1].split(")")[0].split("+")
             rvm_dict["phi_0"]  = float(phi_0_str[0])
             rvm_dict["phi_0_e"]  = abs(float(phi_0_str[-1]))
+
+    for key in keylist:
+        if not rvm_dict[key]:
+            raise NotFoundError("{0} not found in file: {1}".format(key, filename))
 
     return rvm_dict
 
@@ -258,7 +290,7 @@ def analytic_pa(phi, alpha, zeta, psi_0, phi_0):
     #Inputs should be in radians
     numerator = np.sin(alpha) * np.sin(phi - phi_0)
     denominator = np.sin(zeta) * np.cos(alpha) - np.cos(zeta) * np.sin(alpha) * np.cos(phi - phi_0)
-    return psi_0 + np.arctan(numerator/denominator)
+    return psi_0 + np.arctan2(numerator,denominator)
 
 def add_rvm_to_commands(run_dir, archive_name, out_name="RVM_fit.txt", commands=None):
     """
@@ -280,12 +312,12 @@ def add_rvm_to_commands(run_dir, archive_name, out_name="RVM_fit.txt", commands=
     """
     if not commands:
         commands = []
-    if not archive_name[-4:] == ".ar2" or not archive_name[-3:] == ".ar":
+    if not archive_name[-4:] == ".ar2" and not archive_name[-3:] == ".ar":
         archive_name += ".ar2"
 
     commands.append("cd {}".format(run_dir))
     commands.append("echo 'Fitting RVM'")
-    commands.append("psrmodel {0} -resid -psi-resid -x -s 18X18 &> {1} > chi_map.txt".format(archive_name, out_name))
+    commands.append("psrmodel {0} -resid -psi-resid -x -s 90X90 &> {1} > chi_map.txt".format(archive_name, out_name))
 
     return commands
 
@@ -315,15 +347,17 @@ def add_rm_cor_to_commands(run_dir, archive_name, RM, ascii_name="rm_fit_ascii_a
         commands = []
     if not archive_name[-3:] == ".ar":
         archive_name += ".ar"
+    if not RM:
+        raise ValueError("RM is not a valid value: {}".format(RM))
 
     #correct for RM
     commands.append("cd {}".format(run_dir))
     commands.append("echo 'Correcting for input rotation measure: {}'".format(RM))
     commands.append("pam -e ar2 -R {0} {1}".format(RM, archive_name))
+
     #Turn the archive into a readable ascii file
     commands.append("echo 'Wiritng result to text file'")
-    commands.append("pdv -FTtlZ {0} > {1}".\
-    format(archive_name+"2", ascii_name))
+    commands.append("pdv -FTtlZ {0} > {1}".format(archive_name+"2", ascii_name))
 
     return commands
 
@@ -364,7 +398,7 @@ def add_rm_fit_to_commands(pulsar, run_dir, archive_name, out_name=None, command
 
 #----------------------------------------------------------------------
 def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, \
-                                nbins=1024, seek=None, total=None, commands=None):
+                                nbins=1024, seek=None, total=None, commands=None, tscrunch=100, dm=None, period=None):
     """
     Adds a small dspsr folding pipeline to a list of commands.
     This will fold on each channel using .hdr files, combine all channels and then output the profile as an ascii text file.
@@ -381,6 +415,12 @@ def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, \
         OPTIONAL - The total number of seconds of data to fold. Default: None
     commands: list
         OPTIONAL - A list of commands to add the dspsr commands to. Default: None
+    tscrunch: int
+        OPTIONAL - The number of seconds to timescrunch. Default: 100
+    dm: float
+        OPTIONAL - The dm to fold around. Default=None
+    period: float
+        OPTIONAL - The period to fold around. Default=None
 
     Returns:
     --------
@@ -391,9 +431,14 @@ def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, \
     if commands is None:
         commands = []
 
-    dspsr_coms = "dspsr -U 4000 -A -L 10 -cont -no_dyn"
+    dspsr_coms = "dspsr -U 8000 -A -cont -no_dyn"
+    dspsr_coms += " -L {}".format(tscrunch)
     dspsr_coms += " -E {}.eph".format(pulsar)
     dspsr_coms += " -b {}".format(nbins)
+    if dm:
+        dspsr_coms += " -D {}".format(dm)
+    if period:
+        dspsr_coms += " -c {}".format(period)
     if seek and total:
         dspsr_coms += " -S {0} -T {1}".format(seek, total)
 
@@ -415,7 +460,8 @@ def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, \
     return commands
 
 def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
-                                out_name=None, commands=None, seek=None, total=None, subint=10., dspsr_ops="", no_ephem=False):
+                                out_name=None, commands=None, seek=None, total=None, subint=10., dspsr_ops="", no_ephem=False,\
+                                tscrunch=100, dm=None, period=None):
     """
     Adds a dspsr folding command to a list of commands
 
@@ -441,6 +487,10 @@ def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
         OPTIONAL - A string containing any custom options for dspsr to use. Default: ""
     no_ephem: boolean
         OPTIONAL - Whether to override the ephemeris with custom folding instructions. Default: False
+    dm: float
+        OPTIONAL - The dm to fold around. Default=None
+    period: float
+        OPTIONAL - The period to fold around. Default=None
 
     Returns:
     --------
@@ -458,6 +508,11 @@ def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
     dspsr_ops += " {}/*.fits".format(run_dir)
     dspsr_ops += " -O {}".format(os.path.join(run_dir, out_name))
     dspsr_ops += " -b {}".format(nbins)
+    dspsr_ops += " -L {}".format(tscrunch)
+    if dm:
+        dspsr_coms += " -D {}".format(dm)
+    if period:
+        dspsr_coms += " -c {}".format(period)
     if not no_ephem:
         dspsr_ops += " -E {}.eph".format(os.path.join(run_dir, pulsar))
     dspsr_ops += " -L {}".format(subint)
@@ -470,7 +525,7 @@ def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
     if not run_params.no_ephem:
         commands.append("psrcat -e {1} > {0}/{1}.eph".format(run_dir, pulsar))
     commands.append("echo 'Running DSPSR folding...'")
-    commands.append("dspsr -cont -U 4000 -A -K {}".format(dspsr_ops))
+    commands.append("dspsr -cont -U 8000 -A -K {}".format(dspsr_ops))
 
     return commands
 
@@ -507,7 +562,9 @@ def submit_inverse_pfb_fold(run_params, stop=False):
         logger.info("Integration time: {}".format(duration))
 
     #pfb inversion
-    commands = add_pfb_inversion_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, seek=enter_sec, total=duration)
+    duration = run_params.end - run_params.beg
+    commands = add_pfb_inversion_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, seek=enter_sec, total=duration,\
+                                            tscrunch=duration)
     #launch RM fitting
     archive_name = "{0}_{1}_ipfb_archive.ar".format(run_params.obsid, run_params.pulsar)
     rmfit_name = "{0}_{1}_ipfb_rmfit.txt".format(run_params.obsid, run_params.pulsar)
@@ -560,9 +617,10 @@ def submit_dspsr_rmfit(run_params):
 
     #dspsr command
     file_name = "{0}_{1}_archive".format(run_params.obsid, run_params.pulsar)
+    duration = run_params.end - run_params.beg
     commands = add_dspsr_fold_to_commands(run_params.pulsar, run_params.pointing_dir, run_params.stokes_bins, out_name=file_name,\
                                         seek=enter_sec, total=duration, subint=run_params.subint, dspsr_ops=run_params.dspsr_ops,\
-                                        no_ephem=run_params.no_ephem)
+                                        no_ephem=run_params.no_ephem, tscrunch=duration)
     #rmfit command
     out_name = "{0}_{1}_rmfit.txt".format(run_params.obsid, run_params.pulsar)
     commands = add_rm_fit_to_commands(run_params.pulsar, run_params.pointing_dir, file_name, out_name=out_name, commands=commands)
@@ -608,9 +666,18 @@ def submit_rm_cor_rvm(run_params, ipfb=False):
         ascii_name = "{0}_{1}_archive.txt".format(run_params.obsid, run_params.pulsar)
         rvm_name = "{0}_{1}_RVM_fit.txt".format(run_params.obsid, run_params.pulsar)
         job_name = "RMcor_RVM_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+    rm_fit_file = glob.glob(os.path.join(run_params.pointing_dir, "*{}*_rmfit.txt".format(run_params.pulsar)))[0]
 
     #Correct for RM
-    commands = add_rm_cor_to_commands(run_params.pointing_dir, archive_name, run_params.RM, ascii_name=ascii_name)
+    RM = find_RM_from_file(rm_fit_file)[0]
+    if not RM:
+        RM = find_RM_from_cat(run_params.pulsar)[0]
+    run_params.RM = RM
+    try:
+        commands = add_rm_cor_to_commands(run_params.pointing_dir, archive_name, run_params.RM, ascii_name=ascii_name)
+    except ValueError:
+        logger.info("RM could not be found from file or on ATNF for this pulsar. Cannot continue.")
+        sys.exit(0)
     #RVM fitting
     commands = add_rvm_to_commands(run_params.pointing_dir, archive_name+"2", out_name=rvm_name, commands=commands)
     #relaunch
@@ -622,7 +689,7 @@ def submit_rm_cor_rvm(run_params, ipfb=False):
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     job_id = submit_slurm(job_name, commands,\
                         batch_dir=batch_dir,\
-                        slurm_kwargs={"time": "06:00:00"},\
+                        slurm_kwargs={"time": "10:00:00"},\
                         module_list=["mwa_search/{0}".format(run_params.mwa_search),
                                     "psrchive/master"],\
                         submit=True, vcstools_version=run_params.vcs_tools, mem="")
@@ -640,10 +707,10 @@ def work_out_what_to_do(run_params):
     """
     fits_files_in_dir = glob.glob(run_params.pointing_dir + "/*.fits")
     hdr_files_in_dir = glob.glob(run_params.pointing_dir + "/*.hdr")
-    rm_fit_files = glob.glob(run_params.pointing_dir + "/*ipfb_rmfit.txt")
-    rvm_fit_files = glob.glob(run_params.pointing_dir + "/*ipfb_RVM_fit.txt")
-    ar_files = glob.glob(run_params.pointing_dir + "/*ipfb_archive.ar")
-    ar2_files = glob.glob(run_params.pointing_dir + "/*ipfb_archive.ar2")
+    rm_fit_files = glob.glob(run_params.pointing_dir + "/*{}*_rmfit.txt".format(run_params.pulsar))
+    rvm_fit_files = glob.glob(run_params.pointing_dir + "/*{}*_RVM_fit.txt".format(run_params.pulsar))
+    ar_files = glob.glob(run_params.pointing_dir + "/*{}*_archive.ar".format(run_params.pulsar))
+    ar2_files = glob.glob(run_params.pointing_dir + "/*{}*_archive.ar2".format(run_params.pulsar))
     chi_map_files = glob.glob(run_params.pointing_dir + "/*chi_map.txt")
 
     rm_and_ar_exist = (bool(rm_fit_files) and bool(ar_files))
@@ -689,7 +756,7 @@ def work_out_what_to_do(run_params):
             #plot results
             rvm_dict = read_rvm_fit_file(rvm_fit_files[0])
             chi_map = read_chi_map(chi_map_files[0])
-            plot_everything(run_params.pulsar, run_params.obsid, run_params.pointing_dir, frun_params.freq,\
+            plot_everything(run_params.pulsar, run_params.obsid, run_params.pointing_dir, run_params.freq,\
                             rvm_dict=rvm_dict, chi_map=chi_map)
             sys.exit(0)
         else:
@@ -717,11 +784,13 @@ if __name__ == '__main__':
     foldop = parser.add_argument_group("Folding Options:")
     foldop.add_argument("-d", "--pointing_dir", type=str, help="Pointing directory that contains the fits files")
     foldop.add_argument("-p", "--pulsar", type=str, default=None, help="The J name of the pulsar.")
-    foldop.add_argument("-b", "--nbins", type=int, help="The number of bins to fold the profile with")
+    foldop.add_argument("-b", "--nbins", type=int, default=0, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
     foldop.add_argument("--beg", type=int, help="The beginning of the observation time in gps time")
     foldop.add_argument("--end", type=int, help="The end of the observation time in gps time")
+    foldop.add_argument("--dm", type=float, default=None, help="The dispersion measure to fold around")
+    foldop.add_argument("--period", type=float, default=None, help="The period to fold around in milliseconds")
     foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
                         eg: '-D 50.0 -c 506.25'")
     foldop.add_argument("--no_ephem", action="store_true", help="Use this tag to override the use of the epehemeris")
@@ -743,9 +812,6 @@ if __name__ == '__main__':
     logger.addHandler(ch)
     logger.propagate = False
 
-    if not args.nbins:
-        logger.error("Please input an argument for the number of bins to use")
-        sys.exit(1)
     if not args.pulsar:
         logger.error("Pulsar name not supplied. Please run again and specify puslar name")
         sys.exit(1)
