@@ -19,6 +19,8 @@ import config
 from grid import get_grid
 import checks
 import sn_flux_est as snfe
+from mwa_pulsar_client import client
+import submit_to_database
 
 import logging
 logger = logging.getLogger(__name__)
@@ -29,6 +31,102 @@ try:
 except KeyError:
     logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
     ATNF_LOC = None
+
+def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_returns=False):
+    """
+    Given an obsid, searches common locations for the rts folder as well as the sourcelist
+
+    Parameters:
+    -----------
+    obsid: int
+        The observation ID
+
+    Returns:
+    --------
+    cal_path: string
+        The location of the calibrator path
+    srclist: string
+        The pathname of the sourcelist
+    """
+    comp_config = config.load_config_file()
+    base_dir = comp_config['base_product_dir']
+    cal_dir = os.path.join(base_dir, str(obsid), "cal", str(cal_id))
+    cal_dirs=[]
+    srclists=[]
+    #search all subdirectories
+    for root, dirs, files in os.walk(cal_dir):
+        if "rts" in dirs:
+            cal_dirs.append(os.path.join(root, "rts"))
+        for f in files:
+            if f.endswith(".txt") and "srclist" in f:
+                srclists.append(os.path.join(root, f))
+
+    #handle multiple rts foldes with user input
+    if not all_cal_returns and len(cal_dirs) > 1:
+        valid = False
+        while not valid:
+            print("Multiple RTS files found. Please choose one")
+            for i, a_dir in enumerate(cal_dirs):
+                print("{0}: {1}".format(i+1, a_dir))
+            choice = int(input("Choose a number between 1 and {0}: ".format(len(cal_dirs))))
+            if choice >= 1 and choice <= len(cal_dirs):
+                valid=True
+                my_cal_dir = cal_dirs[choice-1]
+                print("Using RTS directory: {}".format(my_cal_dir))
+                cal_dirs = [my_cal_dir]
+
+            else:
+                print("Not a valid choice")
+
+    #handle multiple sourcelist files with user input
+    if not all_srclist_returns and len(srclists) > 1:
+        valid = False
+        print("Multiple sourcelist files found. Please choose one")
+        while not valid:
+            for i, a_file in enumerate(srclists):
+                print("{0}: {1}".format(i+1, a_file))
+            choice = int(input("Choose a number between 1 and {0}: ".format(len(srclists))))
+            if choice >= 1 and choice <= len(srclists):
+                valid=True
+                my_srclist = srclists[choice-1]
+                print("Using sourcelist directory: {}".format(my_srclist))
+                srclists = [my_srclist]
+            else:
+                print("## Not a valid choice! ##")
+
+    return cal_dirs, srclists
+
+def upload_cal_files(obsid, cal_id, cal_dir_to_tar=None, srclist=None):
+
+
+    if not cal_dir_to_tar:
+        cal_dir_to_tar = search_for_cal_srclist(obsid, cal_id, all_srclist_returns=True)[0][0]
+    if not srclist:
+        srclist = search_for_cal_srclist(obsid, cal_id, all_cal_returns=True)[1][0]
+
+    #pulsar database
+    web_address = 'https://pulsar-cat.icrar.uwa.edu.au'
+
+    #Checks for MWA database usernames and passwords
+    if 'MWA_PULSAR_DB_USER' in os.environ and 'MWA_PULSAR_DB_PASS' in os.environ:
+        auth = (os.environ['MWA_PULSAR_DB_USER'],os.environ['MWA_PULSAR_DB_PASS'])
+    else:
+        auth = ('mwapulsar','veovys9OUTY=')
+        logging.warning("No MWA Pulsar Database username and password found so using the defaults.")
+        logging.warning('Please add the following to your .bashrc: ')
+        logging.warning('export MWA_PULSAR_DB_USER="<username>"')
+        logging.warning('export MWA_PULSAR_DB_PASS="<password>"')
+        logging.warning('replacing <username> <password> with your MWA Pulsar Database username and password.')
+
+    client_files_dict = client.calibration_file_by_observation_id(web_address, auth, obsid=cal_id)
+    if client_files_dict:
+        logger.info("This calibrator already has solutions on the database. Not uploading")
+    else:
+        zip_loc = submit_to_database.zip_calibration_files(cal_dir_to_tar, cal_id, srclist)
+        client.calibrator_create(web_address, auth, observationid = str(cal_id))
+        client.calibrator_file_upload(web_address, auth, observationid = str(cal_id), filepath = zip_loc)
+        os.system("rm " + zip_loc)
+        logger.info("Uploaded calibrator solutions from {} to the database".format(cal_id))
 
 
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
@@ -164,7 +262,7 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
     Returns
     -------
     pointing_list_list: list of lists
-        A list of pointings were each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss'
+        A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss'
         [[RA, Dec]]
     """
     #convert to radians
@@ -579,6 +677,12 @@ if __name__ == "__main__":
             help="Perform on entire observation span. Use instead of -b & -e")
     parser.add_argument("-n", "--no_comb_check", action="store_true",
             help="Don't do a recombined files check")
+    parser.add_argument("--cal_dir_to_tar", type=str, default=None,
+            help="The directory (usually rts) of the calibration solutions to upload. If unsupplied, will search for it.")
+    parser.add_argument("--srclist", type=str, default=None,
+            help="The pathname of the sourcelist to upload as part of the calibration solutions. If unsupplied, will search for it.")
+    parser.add_argument("--no_upload", action="store_true",
+            help="Use this tag if you don't want to upload calibration solutions to the pulsar database")
     parser.add_argument("-r", "--relaunch", action="store_true", default=False,
             help="Will relaunch searches is they have already completed")
     parser.add_argument('--mwa_search_version', type=str, default='master',
@@ -613,6 +717,9 @@ if __name__ == "__main__":
                                                     args.obsid, args.cal_obs)
         print("No DI_dir given so assuming {0} is the directory".format(args.DI_dir))
 
+    if not args.no_upload:
+        upload_cal_files(args.obsid, args.cal_obs)
+
     if args.begin and args.end:
         beg = args.begin
         end = args.end
@@ -630,6 +737,7 @@ if __name__ == "__main__":
             sys.exit(1)
         else:
             logger.info("Recombined check passed, all files present.")
+
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       product_dir=comp_config['base_product_dir'],
