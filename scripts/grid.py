@@ -365,7 +365,7 @@ if __name__ == "__main__":
     grid.py -o 1166459712 -p "06:25:31.20 -36:40:48.0" -d 0.6 -l 1
     """)
     parser.add_argument('-o', '--obsid',type=str,help='Observation ID')
-    parser.add_argument('-p', '--pointing',type=two_floats,help='Centre pointing in hh:mm:ss.ss dd\"mm\'ss.ss')
+    parser.add_argument('-p', '--pointing',type=str,help='Centre pointing in hh:mm:ss.ss_dd\"mm\'ss.ss')
     parser.add_argument('--aitoff',action="store_true",help='Plots the output in aitoff (may make it hard to analyise).')
     parser.add_argument('-f', '--fraction',type=float,help='Fraction of the full width half maximum to use as the distance between beam centres',default=0.85)
     parser.add_argument('-d', '--deg_fwhm',type=float,help='Sets the FWHM at zenith in degrees (best to test along dec). The script will not calculate the FWHM',default=0.3098)
@@ -438,7 +438,8 @@ if __name__ == "__main__":
         ra = coord.ra.radian #in radians
         dec = coord.dec.radian
     elif args.pointing:
-        coord = SkyCoord(args.pointing[0],args.pointing[1],unit=(u.hourangle,u.deg))
+        coord = SkyCoord(args.pointing.split("_")[0],args.pointing.split("_")[1],
+                         unit=(u.hourangle,u.deg))
         ra = coord.ra.radian #in radians
         dec = coord.dec.radian
     else:

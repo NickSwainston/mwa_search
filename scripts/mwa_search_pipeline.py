@@ -161,7 +161,7 @@ class search_options_class:
     def setPdir(self, value):
         self._pointing_dir = value
     pointing_dir = property(getPdir, setPdir)
-    
+
     def getSdir(self):
         return self._sub_dir
     def setSdir(self, value):
@@ -377,7 +377,7 @@ def process_vcs_wrapper(search_opts, pointings,
                       search_opts.begin, search_opts.end,
                       data_dir, search_opts.fits_dir_base,
                       "{0}/batch".format(search_opts.fits_dir_base),
-                      metafits_dir, 128, pointings, search_opts.args,
+                      metafits_dir, 128, pointings,
                       rts_flag_file=rts_flag_file, bf_formats=bf_formats,
                       DI_dir=search_opts.DI_dir,
                       calibration_type="rts", nice=search_opts.nice,
@@ -400,7 +400,7 @@ def process_vcs_wrapper(search_opts, pointings,
                 if pulsar_list is not None:
                     for pulsar in pulsar_list:
                         temp_pulsar_string = '{0} {1}'.format(temp_pulsar_string, pulsar)
-                
+
                 code_comment = "{0} {1} pn {2}".format(code_comment_in, temp_pulsar_string,
                                                        pointing_id[pn])
             if search_opts.data_process:
@@ -426,7 +426,7 @@ def process_vcs_wrapper(search_opts, pointings,
                                                          incoh_rfimask=incoh_rfimask)
         else:
             incoh_splice_job_id = None
-            
+
     return dep_job_id_list, incoh_splice_job_id
 
 def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglvl="INFO"):
@@ -494,7 +494,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
         commands.append('{0} -i -w {1}'.format(splice_command, incoh_dir))
     else:
         commands.append('{0} -w {1}'.format(splice_command, search_opts.pointing_dir))
-    
+
     if incoh_rfimask:
         #Calculates -numout for prepsubbands
         numout = (search_opts.end - search_opts.begin + 1) * 10000
@@ -514,7 +514,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
                         "{2}{1}.fits".format(numout, search_opts.obsid, incoh_dir))
 
 
-    
+
     #add search_opts.relaunch script
     if search_opts.relaunch_script is not None:
         relaunch_script = search_opts.relaunch_script
@@ -706,7 +706,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
         else:
             path_check = True
 
-        
+
         # Working out if we need start the database tracking
         database_start_check = False
         if (search_opts.search or search_opts.single_pulse) and searched_check and not relaunch:
@@ -772,17 +772,17 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #resubmit any search_opts.channels that are incomplete
             print("Some channels missing, beamforming on {0} for {1}".format(missing_chan_list,
                   search_opts.pointing))
-            
+
             # remove the missing channels
             for missing_chan in missing_chan_list:
                 for rm_file in glob.glob("{0}*_{1}_{2}_ch*{3}_00*.fits".format(
                                          search_opts.pointing_dir, search_opts.obsid,
                                          search_opts.pointing, missing_chan)):
                      os.remove(rm_file)
-            
+
             if len(pointing_list) > 1:
                 your_slurm_queue_check(queue=comp_config['gpuq_partition'], max_queue=gpu_max_job)
-            
+
             temp_pointing_id = [pointing_list.index(search_opts.pointing.replace("_", " ")) + 1]
             dep_job_id, incoh_splice_job_id = process_vcs_wrapper(search_opts,
                                 [search_opts.pointing],
@@ -791,7 +791,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                 code_comment=code_comment,
                                 pointing_id=temp_pointing_id,
                                 channels=missing_chan_list)
-            
+
             logger.debug(pulsar_list, search_opts.pointing, dep_job_id)
             pointing_dir_temp = '{0}/pointings/{1}'.format(search_opts.fits_dir_base,
                                                            search_opts.pointing)
@@ -937,8 +937,8 @@ def prepdata(search_opts):
         search_opts.dm_max = float(dm) + 2.0
         print("Searching DMs from {0} to {1}".format(search_opts.dm_min, search_opts.dm_max))
 
-    
-    
+
+
     #Get the centre freq channel and then run DDplan.py to work out the most effective DMs
     search_opts.channels = get_channels(search_opts.obsid, channels=search_opts.channels)
     minfreq = float(min(search_opts.channels))
@@ -1229,7 +1229,7 @@ def fold(search_opts):
 
         for c in cand_list:
             accel_file_name, cand_num, _, cand_DM, period = c
-            
+
             # Set up the prepfold options to match the ML candidate profiler
             if float(period) > 10.:
                 nbins = 100
@@ -1246,7 +1246,7 @@ def fold(search_opts):
             if numout < 6000000:
                 #if less then 10 mins use smaller amount of time chuncks
                 ntimechunk = 40
-                
+
             #the fold options that uses .fits files which is slower but more accurate
             if float(cand_DM) > 1.:
                 commands_list.append('-n {0} -noxwin -noclip -o {1}_{2}_{3} -p {4} -dm {5} '
@@ -1344,7 +1344,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     if prepsub_commands is None:
         prepsub_commands = search_database.database_script_check('Prepdata',
                                                 search_opts.bsd_row_num, 1)
-    
+
     if not search_opts.single_pulse:
         # Don't do fft or accel search if in single pulse search mode
         # Get fft commands
@@ -1430,7 +1430,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
             commands.append("srun --export=ALL -n 1 -c {0} bash {1}_accel_a{2}_{3}.bash".\
                             format(search_opts.n_omp_threads, search_opts.bsd_row_num,
                                    search_opts.attempt+1, dmi))
-            
+
                             #Remove accel files off ssd
             if hostname.startswith('john') or hostname.startswith('farnarkle'):
                 commands.append('cp $JOBFS/*ACCEL* {0}/{1}'.format(search_opts.work_dir,
@@ -1529,8 +1529,11 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         commands.append('module load python/3.6.3')
         commands.append('module load scipy')
         commands.append('module load matplotlib')
+    else:
+        commands.append('module load gcc/7.3.0')
     commands.append('module use {}'.format(comp_config['module_dir']))
     commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
+    commands.append('module load vcstools/{}'.format(search_opts.vcstools_ver))
     #TODO end temp sec
 
     if search_opts.single_pulse:
@@ -1655,7 +1658,10 @@ def error_check(search_opts, bash_job=False,
                 commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
                 commands.append('module load python/3.6.3')
                 commands.append('module load scipy')
+            else:
+                commands.append('module load gcc/7.3.0')
             commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
+            commands.append('module load vcstools/{}'.format(search_opts.vcstools_ver))
             commands.append("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(search_opts.bsd_row_num), commands,
                          batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
@@ -2083,7 +2089,7 @@ if __name__ == "__main__":
                  relaunch_script=relaunch_script, search=args.search,
                  single_pulse=args.single_pulse, downsample=args.downsample,
                  bsd_row_num=args.bsd_row_num, cold_storage_check=args.csc,
-                 table=args.table, attempt=args.attempt, 
+                 table=args.table, attempt=args.attempt,
                  search_ver=args.mwa_search_version, vcstools_ver=args.vcstools_version,
                  DI_dir=args.DI_dir)
 
