@@ -52,7 +52,7 @@ process gps_to_utc {
 
     from process_vcs import gps_to_utc
 
-    print(gps_to_utc($begin)),
+    print(gps_to_utc(${begin})),
     """
 }
 

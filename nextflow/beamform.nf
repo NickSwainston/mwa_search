@@ -36,16 +36,15 @@ process get_all_beg_end {
     from mwa_metadb_utils import obs_max_min
 
     beg, end = obs_max_min(${params.obsid})
-    print("{},{}".format(beg, end)),
+    print("{},{}".format(beg, end), end="")
     """
 }
 
 
 workflow {
     get_all_beg_end()
-    get_all_beg_end.out.view()
     if( params.all )
-        beamform_wf( get_all_beg_end.out  | map { it.split(",") } | flatten() | collect( ) | view(), pointings )
+        beamform_wf( get_all_beg_end.out.map{ it.split(",") }.flatten().collect(), pointings )
     else
         beamform_wf( Channel.from( params.begin, params.end ).collect() , pointings )
 }
