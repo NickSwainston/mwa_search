@@ -57,27 +57,6 @@ process gps_to_utc {
 }
 
 
-process get_channels {
-    //when:
-    //params.all == true
-
-    output:
-    file "${params.obsid}_channels.txt"
-
-    """
-    #!/usr/bin/env python3
-
-    from mwa_metadb_utils import get_channels
-    import csv
-
-    channels = get_channels($params.obsid)
-    with open("${params.obsid}_channels.txt", "w") as outfile:
-        spamwriter = csv.writer(outfile, delimiter=',')
-        spamwriter.writerow(channels)
-    """
-}
-
-
 process make_beam {
     label 'gpu'
     time '10h'
@@ -131,14 +110,14 @@ workflow beamform_wf {
     take: 
         obs_beg_end
         pointings
+        channels
     main:
         ensure_metafits()
         gps_to_utc( obs_beg_end )
-        get_channels()
-        make_beam( get_channels.out | splitCsv() | flatten() | merge(range),\
+        make_beam( channels | flatten() | merge(range),\
                    gps_to_utc.out,\
                    Channel.from(params.pointings.split(",")).collect().flatten().collate( 15 ),\
                    obs_beg_end )
-        splice( get_channels.out | splitCsv(),\
+        splice( channels,\
                 make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
 }

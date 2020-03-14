@@ -41,10 +41,36 @@ process get_all_beg_end {
 }
 
 
+process get_channels {
+    //when:
+    //params.all == true
+
+    output:
+    file "${params.obsid}_channels.txt"
+
+    """
+    #!/usr/bin/env python3
+
+    from mwa_metadb_utils import get_channels
+    import csv
+
+    channels = get_channels($params.obsid)
+    with open("${params.obsid}_channels.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow(channels)
+    """
+}
+
+
 workflow {
     get_all_beg_end()
+    get_channels()
     if( params.all )
-        beamform_wf( get_all_beg_end.out.map{ it.split(",") }.flatten().collect(), pointings )
+        beamform_wf( get_all_beg_end.out.map{ it.split(",") }.flatten().collect(),\
+                     pointings,\
+                     get_channels.out | splitCsv() )
     else
-        beamform_wf( Channel.from( params.begin, params.end ).collect() , pointings )
+        beamform_wf( Channel.from( params.begin, params.end ).collect(),\
+                     pointings,\
+                     get_channels.out | splitCsv() )
 }
