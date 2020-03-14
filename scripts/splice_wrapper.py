@@ -56,9 +56,9 @@ else:
 
 # Getting number of files list
 if args.incoh:
-    n_fits_file = glob.glob('{}/*{}_incoh_ch{}_*fits'.format(args.work_dir, obsid, channels[-1]))
+    n_fits_file = glob.glob('{}/*{}_incoh_ch{:03d}_*fits'.format(args.work_dir, obsid, channels[-1]))
 else:
-    n_fits_file = glob.glob('{}/*{}*_ch{}*fits'.format(args.work_dir, obsid, channels[-1]))
+    n_fits_file = glob.glob('{}/*{}*_ch{:03d}_*fits'.format(args.work_dir, obsid, channels[-1]))
 n_fits = []
 for file_name in n_fits_file:
     n_fits.append(int(file_name[-9:-5]))
