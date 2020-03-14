@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.colors as colors
 import logging
 import argparse
 import json
@@ -51,7 +53,7 @@ def read_ascii_archive(archive):
     lin_pol: list
         The linear polarisation of the stokes values
     pa: list
-        Tries to find in the archive, if not there calculates from stokes values
+        Tries to find in the archive, if not there calculates from stokes values. Returns are in radians
     pa_err: list
         If pa is in archive, this is the error in the pa. Otherwise empty
     """
@@ -89,7 +91,6 @@ def read_ascii_archive(archive):
     sU = np.array(sU)/max_I
     sV = np.array(sV)/max_I
     lin_pol = np.array(lin_pol)/max_I
-
     roll_idx, roll_to, sI = roll_data(sI)
     sQ = roll_data(sQ, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
     sU = roll_data(sU, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
@@ -265,6 +266,7 @@ def plot_bestprof(bestprof, freq=None, out_dir="./"):
     #plot
     _, ax = plt.subplots(figsize=(12, 8))
     plt.plot(x, y, color="black")
+    plt.xlim(-0.5, 0.5)
     plt.title(title)
     plt.text(0.05, 0.95,  "S/N:             {0}".format(info_dict["sn"]), fontsize=10, color="black", transform=ax.transAxes)
     plt.text(0.05, 0.925, "Chi Sq:          {0}".format(info_dict["chi"]), fontsize=10, color="black", transform=ax.transAxes)
@@ -274,7 +276,7 @@ def plot_bestprof(bestprof, freq=None, out_dir="./"):
 
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving bestprof figure: {0}".format(fig_path))
-    plt.savefig("{0}".format(fig_path))
+    plt.savefig("{0}".format(fig_path, bbox_inches="tight"))
     plt.close()
 
     return fig_path
@@ -335,7 +337,7 @@ def plot_ascii(archive, pulsar=None, freq=None, obsid=None, out_dir="./"):
 
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving ascii figure: {0}".format(fig_path))
-    plt.savefig(fig_path)
+    plt.savefig(fig_path, bbox_inches='tight')
     plt.close()
 
     return fig_path
@@ -367,7 +369,7 @@ def calc_lin_pa(stokes_Q, stokes_U):
     return lin_pol, pa
 
 #--------------------------------------------------------------------------
-def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./", rvm_fit=None):
+def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./", rvm_fit=None, rm=None, rm_e=None):
     """
     Plots a polarimetry profile as a .png using a full-stokes ascii text file
 
@@ -383,6 +385,12 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         OPTIONAL - The observation ID. Default: None
     out_dir: string
         OPTIONAL - The directory to ouput the .png to
+    rvm_fit: dictionary
+        OPTIONAL - A dictionary generated from stokes_fold.read_rvm_fit_file. Supplying this will plot the fitted RVM. Default: None
+    rm: float
+        OPTIONAL - The rm used to correct the plot. If supplied will create a stamp on the plot. Default: None
+    rm_e: float
+        OPTIONAL - The uncertainty in rm. Default: None
 
     Returns:
     --------
@@ -405,11 +413,11 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     if freq:
         title += " - {}MHz".format(freq)
         save_name += "_{}MHz".format(freq)
-
     save_name += ".png"
 
     sI, sQ, sU, sV, lin_pol, pa, pa_err, roll_idx, roll_to = read_ascii_archive(archive)
-    #normalize, aign and find linear polarization and position angle
+    pa = np.rad2deg(pa)
+    pa_err = np.rad2deg(pa_err)
     x = np.linspace(-0.5, 0.5, len(sI))
 
     #get rid of zeros in pa. Need to be in python lists for this to work
@@ -419,13 +427,22 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     pa_err = list(pa_err)
     x_pa = list(x_pa)
     for i, val in enumerate(pa):
-        if val<0.001:
+        if abs(val)<0.0000001:
             rm_idxs.append(i)
     for i in sorted(rm_idxs, reverse=True):
         del pa[i]
         del x_pa[i]
         if pa_err:
             del pa_err[i]
+
+    #FOR DEBUGGING
+    sI = roll_data(sI, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
+    sQ = roll_data(sQ, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
+    sU = roll_data(sU, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
+    sV = roll_data(sV, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
+    lin_pol = roll_data(lin_pol, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
+    #pa = roll_data(pa, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
+    print("ROLL IDX PHASE: {}".format(roll_idx/1024))
 
     #plot
     fig = plt.figure(figsize=(20, 12))
@@ -440,7 +457,7 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
 
     ax_2 = plt.subplot2grid((4,1),(3,0), colspan=1, rowspan=1)
     ax_2.tick_params(labelsize=14)
-    ax_2.set_yticks([-np.pi/2, -np.pi/4, 0, np.pi/4, np.pi/2])
+    ax_2.set_yticks([-90, 0, 90])
     ax_2.set_xticks(np.linspace(-0.5, 0.5, 11))
     ax_2.set_xlabel("Pulse Phase", fontsize=20)
     ax_2.set_ylabel("Position Angle", fontsize=20)
@@ -449,50 +466,96 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     ax_1.plot(x, sI, color="k", label="Stokes I")
     ax_1.plot(x, lin_pol, color="r", label="Linear Polarization")
     ax_1.plot(x, sV, color="b", label="Circular Polarization")
+    if rm:
+        if rm_e is None:
+            extension = ""
+        else:
+            extension = " +/- {}".format(round(rm_e, 4))
+        ax_1.text(-0.49, 0.95, "RM =  {0}{1}".format(round(rm, 4), extension), fontsize = 16, color = "0.1")
     ax_1.legend(loc="upper right", fontsize=18)
 
     if len(pa_err)>0:
-        ax_2.errorbar(x_pa, pa, yerr=pa_err, color="0.2", label="Position Angle", fmt="o")
+        ax_2.errorbar(x_pa, pa, yerr=pa_err, markersize=8, color="0.2", label="Position Angle", fmt=".")
     else:
-        ax_2.scatter(x_pa, pa, color="0.2", label="Position Angle", marker=".")
+        ax_2.scatter(x_pa, pa, s=6, color="0.2", label="Position Angle", marker=".")
 
     if rvm_fit:
         #plot the rvm fit
-        phi_range = np.linspace(0, 2*np.pi, len(sI))
-        x = np.linspace(-0.5, 0.5, len(sI))
-        alpha = rvm_fit["alpha"]*np.pi/180
-        zeta = rvm_fit["zeta"]*np.pi/180
-        psi_0 = rvm_fit["psi_0"]*np.pi/180
-        phi_0 = rvm_fit["phi_0"]*np.pi/180
-        alpha_e = rvm_fit["alpha_e"]*np.pi/180
-        zeta_e = rvm_fit["zeta_e"]*np.pi/180
-        psi_0_e = rvm_fit["psi_0_e"]*np.pi/180
-        phi_0_e = rvm_fit["phi_0_e"]*np.pi/180
+        res_upscale = 5120/len(sI)
+        phi_range = np.linspace(0, 360, int(res_upscale*len(sI)))
+        x = np.linspace(-0.5, 0.5, int(res_upscale*len(sI)))
+        alpha = 180 - rvm_fit["alpha"]
+        zeta = 180 - rvm_fit["zeta"]
+        psi_0 = rvm_fit["psi_0"]
+        phi_0 = rvm_fit["phi_0"]
+        alpha_e = rvm_fit["alpha_e"]
+        zeta_e = rvm_fit["zeta_e"]
+        psi_0_e = rvm_fit["psi_0_e"]
+        phi_0_e = rvm_fit["phi_0_e"]
 
-        pa_sweep = stokes_fold.analytic_pa(phi_range, alpha, zeta, psi_0, phi_0)
-        ax_2.plot(-x, pa_sweep, color="orange", label="RVM fit")
-        ax_2.plot(-x, pa_sweep + np.pi, color="orange")
-        ax_2.plot(-x, pa_sweep - np.pi, color="orange")
+        pa_sweep = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha), np.deg2rad(zeta), np.deg2rad(psi_0), np.deg2rad(phi_0)))
+        pa_sweep_minus = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha-alpha_e), np.deg2rad(zeta-zeta_e),\
+                         np.deg2rad(psi_0-psi_0_e), np.deg2rad(phi_0-phi_0_e)))
+        pa_sweep_plus = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha+alpha_e), np.deg2rad(zeta+zeta_e),\
+                        np.deg2rad(psi_0+psi_0_e), np.deg2rad(phi_0+phi_0_e)))
 
-        pa_sweep_minus = stokes_fold.analytic_pa(phi_range, alpha-alpha_e, zeta-zeta_e, psi_0-psi_0_e, phi_0-phi_0_e)
-        pa_sweep_plus = stokes_fold.analytic_pa(phi_range, alpha+alpha_e, zeta+zeta_e, psi_0+psi_0_e, phi_0+phi_0_e)
-        pa_sweep = roll_data(pa_sweep, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-        pa_sweep_minus = roll_data(pa_sweep_minus, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-        pa_sweep_plus = roll_data(pa_sweep_plus, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-        ax_2.fill_between(phi_range, pa_sweep_minus, pa_sweep_plus, facecolor='gray')
-        ax_2.fill_between(phi_range, pa_sweep_minus - np.pi, pa_sweep_plus - np.pi, facecolor='gray')
-        ax_2.fill_between(phi_range, pa_sweep_minus + np.pi, pa_sweep_plus + np.pi, facecolor='gray')
+        #roll the sweep
+        pa_sweep = roll_data(pa_sweep, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
+        pa_sweep_minus = roll_data(pa_sweep_minus, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
+        pa_sweep_plus = roll_data(pa_sweep_plus, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
 
-        ax_2.text(-0.48, 0.8*np.pi/2, "alpha = {0} +/- {1}".format(round(alpha, 3), round(alpha_e, 3)), fontsize = 12, color = "0.2")
-        ax_2.text(-0.48, 0.6*np.pi/2, "zeta  = {0} +/- {1}".format(round(zeta, 3),  round(zeta_e, 3)),  fontsize = 12, color = "0.2")
-        ax_2.text(-0.48, 0.4*np.pi/2, "psi_0 = {0} +/- {1}".format(round(psi_0, 3), round(psi_0_e, 3)), fontsize = 12, color = "0.2")
-        ax_2.text(-0.48, 0.2*np.pi/2, "phi_0 = {0} +/- {1} (phase)".format(round(phi_0/(2*np.pi)-.5, 3), round(phi_0_e/(2*np.pi), 3)), fontsize = 12, color = "0.2")
-        ax_2.set_ylim(-np.pi/2, np.pi/2)
-        ax_2.legend(loc="upper right", fontsize=14)
+        #plt.figure(figsize=(8, 12))
+        #plt.plot(pa_sweep)
+        #plt.savefig("debug4.png")
+        #plt.close()
+
+        #wrap the sweep
+        for i, o, m, p in zip(range(len(pa_sweep)), pa_sweep, pa_sweep_minus, pa_sweep_plus):
+            if o > 90:
+                pa_sweep[i] = o - 180
+            if m > 90:
+                pa_sweep_minus[i] = m - 180
+            if p > 90:
+                pa_sweep_plus[i] = p - 180
+            if o < -90:
+                pa_sweep[i] = o + 180
+            if m < -90:
+                pa_sweep_minus[i] = m + 180
+            if p < -90:
+                pa_sweep_plus[i] = p + 180
+
+        #remove discontinuities to make it look like it wraps over pi
+        x_minus = x[:]
+        x_plus = x[:]
+
+        pos = np.where(np.abs(np.diff(pa_sweep)) >= 160)[0]
+        pos_minus = np.where(np.abs(np.diff(pa_sweep_minus)) >= 170)[0]
+        pos_plus = np.where(np.abs(np.diff(pa_sweep_plus)) >= 170)[0]
+
+        x[pos] = np.nan
+        x_minus[pos_minus] = np.nan
+        x_plus[pos_plus] = np.nan
+        pa_sweep[pos] = np.nan
+        pa_sweep_minus[pos_minus] = np.nan
+        pa_sweep_plus[pos_plus] = np.nan
+
+        #plot everything
+        ax_2.plot(x, pa_sweep, color="orange", label="RVM fit")
+        ax_2.plot(x_minus, pa_sweep_minus, color="0.5", linestyle=":", label="Fit Uncertainty")
+        ax_2.plot(x_plus, pa_sweep_plus, color="0.5", linestyle=":")
+
+        ax_2.text(-0.49, 75, "alpha =  {0} +/- {1}".format(round(alpha, 3), round(alpha_e, 2)), fontsize = 16, color = "0.1")
+        ax_2.text(-0.49, 50, "zeta  =  {0} +/- {1}".format(round(zeta, 3),  round(zeta_e, 2)),  fontsize = 16, color = "0.1")
+        ax_2.text(-0.49, 25, "psi_0 =  {0} +/- {1}".format(round(psi_0, 3), round(psi_0_e, 2)), fontsize = 16, color = "0.1")
+        ax_2.text(-0.49, 0,"phi_0 =  {0} +/- {1} (phase)".format(round(phi_0/360, 4), round(phi_0_e/360, 2)), fontsize = 16, color = "0.1")
+    ax_2.set_ylim(-90, 90)
+    ax_2.legend(loc="upper right", fontsize=14)
+    ax_2.axvline(x=0, ls=":", lw=2, color="gray")
+    ax_1.axvline(x=0, ls=":", lw=2, color="gray")
 
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving polarimetry figure: {0}".format(fig_path))
-    plt.savefig(fig_path)
+    plt.savefig(fig_path, bbox_inches='tight')
 
     return fig_path
 
@@ -575,7 +638,7 @@ def plot_stack(frequencies, profs_y, pulsar_name,\
     plt.title(pulsar_name + " Pulse Profiles", fontsize=60)
     fig_name = os.path.join(out_dir, pulsar_name + "_stacked_profiles.png")
     logger.info("Saving stacked profiles: {}".format(fig_name))
-    plt.savefig(fig_name)
+    plt.savefig(fig_name, bbox_inches='tight')
     plt.close()
 
     return fig_name
@@ -725,7 +788,7 @@ def add_ascii_to_dict(pulsar_dict, ascii_archive, freq):
 
     return pulsar_dict, lin_pol
 
-def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png", dof=None):
+def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png", dof=None, my_chi=None, my_alpha=None, my_zeta=None):
     """
     Plots a chi map generated from RVM fitting
 
@@ -747,17 +810,45 @@ def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png", dof=None)
     name: string
         The pathname of the ouput plot
     """
+    plt.figure(figsize=(12, 8))
+
     if dof:
         chis = np.array(chis)/dof
+        frac_one = 1
+        cdict = {'red':     ((0.0, 0.0, 0.0),
+                            (0.25, 1.0, 1.0),
+                            (0.75, 0.0, 0.0),
+                            (1.0, 1.0, 1.0)),
+                'green':    ((0.0, 0.0, 0.0),
+                            (0.25, 0.1, 0.1),
+                            (0.75, 0.0, 0.0),
+                            (1.0, 1.0, 1.0)),
+                'blue':     ((0.0, 0.0, 0.0),
+                            (0.25, 0.1, 0.1),
+                            (0.75, 1.0, 1.0),
+                            (1.0, 1.0, 1.0))}
 
-    plt.figure(figsize=(8, 12))
-    plt.scatter(alphas, zetas, c=chis, s=500, cmap='viridis')
+        cmap = LinearSegmentedColormap('mycmap', cdict)
+
+    else:
+        cmap = "virdis"
+
+    plt.scatter(alphas, zetas, c=chis, s=8, marker="s", cmap=cmap)#, norm=colors.PowerNorm(gamma=0.1))
+    plt.axis('scaled')
     plt.title("RVM Fit Chi Map")
     plt.xlabel("alpha")
     plt.ylabel("zeta")
-    plt.colorbar()
+    plt.colorbar(fraction=0.046, pad=0.04)
+    if my_alpha is not None and my_zeta is not None:
+        mycircle = plt.Circle((my_alpha, my_zeta), 0.05, color='k', fill=False)
+        plt.gcf().gca().add_artist(mycircle)
+    if my_chi is not None:
+        plt.text(0.4, 0.1, "Best Chi: {}".format(round(my_chi, 4)), fontsize=12, color="0.25")
+    plt.xlim(min(alphas), max(alphas))
+    plt.ylim(min(zetas), max(zetas))
+    plt.clim(0, 4)
     plt.plot()
-    plt.savefig(name)
+    plt.savefig(name, bbox_inches='tight')
     plt.close()
 
     return name
@@ -855,7 +946,7 @@ def plot_stack_pol(frequencies, I_y, lin_y, circ_y, pulsar_name,\
     plt.title(pulsar_name + " Pulse Profiles", fontsize=60)
     fig_name = os.path.join(out_dir, pulsar_name + "_stacked_profiles_pol.png")
     logger.info("Saving stacked profiles: {}".format(fig_name))
-    plt.savefig(fig_name)
+    plt.savefig(fig_name, bbox_inches='tight')
     plt.close()
 
     return fig_name
