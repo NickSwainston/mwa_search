@@ -6,7 +6,6 @@ import argparse
 import config
 import glob
 import sys
-import datetime
 
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
@@ -15,17 +14,17 @@ import binfinder
 
 logger = logging.getLogger(__name__)
 
-
 #----------------------------------------------------------------------
 class run_params_class:
 
     def __init__(self, pointing_dir=None, cal_id=None, obsid=None, pulsar=None,\
-                threshold=10.0, stop=False, loglvl="INFO",\
+                threshold=8.0, stop=False, loglvl="INFO",\
                 mwa_search="master", vcs_tools="master",\
-                subint=10.0, RM=None, RM_err=None, stokes_bins=None,\
+                subint=None, RM=None, RM_err=None, stokes_bins=None,\
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
                 epndb_dir=None, beg=None, end=None, freq=None, stokes_dep=None,
-                no_ephem=False, dspsr_ops="", prep_ops=""):
+                no_ephem=False, dspsr_ops="", prep_ops="", dm=None, period=None,\
+                cand=False):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -45,8 +44,11 @@ class run_params_class:
         self.loglvl         = loglvl
         self.stokes_dep     = stokes_dep
         self.no_ephem       = no_ephem
+        self.dm             = dm
+        self.period         = period
         self.dspsr_ops      = dspsr_ops
         self.prep_ops       = prep_ops
+        self.cand           = cand
 
         #Plotting Options
         self.nocrop         = nocrop
@@ -101,24 +103,21 @@ class run_params_class:
         self.stokes_dep = None
 
 #----------------------------------------------------------------------
-def binfinder_launch_line(run_params, dpp=False, single_pointing=None):
+def binfinder_launch_line(run_params, dpp=False):
 
     if dpp:
         launch_line = "data_processing_pipeline.py"
     else:
         launch_line = "binfinder.py"
 
-    if single_pointing:
-        p = single_pointing
-    elif isinstance(run_params.pointing_dir, list):
+    if isinstance(run_params.pointing_dir, list):
         p = ""
         for pointing in run_params.pointing_dir:
                 p += "{} ".format(pointing)
     else:
         p=run_params.pointing_dir
 
-    launch_line += " -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5}\
-                    --mwa_search {6}"\
+    launch_line += " -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
                     .format(p, run_params.cal_id, run_params.pulsar,\
                     run_params.obsid, run_params.loglvl, run_params.vcs_tools, run_params.mwa_search)
     if run_params.freq:
@@ -127,6 +126,10 @@ def binfinder_launch_line(run_params, dpp=False, single_pointing=None):
        launch_line += " --beg {}".format(run_params.beg)
     if run_params.end:
         launch_line += " --end {}".format(run_params.end)
+    if run_params.dm:
+        launch_line += " --dm {}".format(run_params.dm)
+    if run_params.period:
+        launch_line += " --period {}".format(run_params.period)
     if run_params.stokes_dep:
         launch_line += " --stokes_dep {}".format(run_params.stokes_dep)
     if run_params.no_ephem:
@@ -139,7 +142,49 @@ def binfinder_launch_line(run_params, dpp=False, single_pointing=None):
     return launch_line
 
 #----------------------------------------------------------------------
-def prepfold_time_alloc(duration, nbins, npfact=2, ndmfact=3, nosearch=False):
+def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
+
+    if dpp:
+        launch_line = "data_processing_pipeline.py"
+    else:
+        launch_line = "stokes_fold.py"
+
+    if custom_pointing:
+        p = custom_pointing
+    else:
+        p = run_params.pointing_dir
+
+    launch_line += " -d {0} -p {1} -L {2} -o {3} --mwa_search {4} --vcs_tools {5}"\
+                    .format(p, run_params.pulsar, run_params.loglvl, run_params.obsid,
+                    run_params.mwa_search, run_params.vcs_tools)
+
+    if run_params.stokes_bins:
+        launch_line += " -b {}".format(run_params.stokes_bins)
+    if run_params.subint:
+        launch_line += " -s {}".format(run_params.subint)
+    if run_params.freq:
+        launch_line += " -f {}".format(run_params.freq)
+    if run_params.beg:
+       launch_line += " --beg {}".format(run_params.beg)
+    if run_params.end:
+        launch_line += " --end {}".format(run_params.end)
+    if run_params.dm:
+        launch_line += " --dm {}".format(run_params.dm)
+    if run_params.period:
+        launch_line += " --period {}".format(run_params.period)
+    if run_params.stop:
+        launch_line += " -S"
+    if run_params.no_ephem:
+        launch_line += " --no_ephem"
+    if run_params.dspsr_ops != "":
+        launch_line += " --dspsr_ops {}".format(run_params.dspsr_ops)
+    if run_params.cand:
+        launch_line += " --cand"
+
+    return launch_line
+
+#----------------------------------------------------------------------
+def prepfold_time_alloc(prepfold_dict, beg, end):
     """
     Estimates the jobtime for prepfold jobs based on inputs
 
@@ -161,51 +206,41 @@ def prepfold_time_alloc(duration, nbins, npfact=2, ndmfact=3, nosearch=False):
     time: string
         The allocated time for the fold job as a string that can be passed to the slurm batch handler
     """
+    nopsearch = False
+    nopdsearch = False
+    nodmsearch = False
+    nosearch = False
+    if "nopsearch" in prepfold_dict:
+        nopsearch = True
+    if "nodmsearch" in prepfold_dict:
+        nodmsearch = True
+    if "nopdsearch" in prepfold_dict:
+        nopdsearch = True
+    if "nosearch" in prepfold_dict:
+        nosearch = True
+    npfact = prepfold_dict["npfact"]
+    ndmfact = prepfold_dict["ndmfact"]
+    nbins = prepfold_dict["n"]
+    duration = (prepfold_dict["end"] - prepfold_dict["start"]) * (end - beg)
+
     time = 600
     time += nbins
     time += duration
 
     if not nosearch:
-        time += (10*npfact)**2 * (10*ndmfact)**2 + 100*(nbins)**(1/2)
-    if time > 86400:
-        logger.warn("Estimation for prepfold time greater than one day")
-        time = 86400
-    time = str(datetime.timedelta(seconds = int(time)))
+        ptime = 1
+        pdtime = 1
+        dmtime = 1
+        if not nopsearch:
+            ptime = npfact*nbins
+        if not nopdsearch:
+            pdtime = npfact*nbins
+        if not nodmsearch:
+            dmtime = ndmfact*nbins
+        time += ((ptime * pdtime * dmtime)/1e4)
+    time = time*2 #compute time is very sporadic so just give double the allocation time
 
     return time
-
-#----------------------------------------------------------------------
-def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
-
-    if dpp:
-        launch_line = "data_processing_pipeline.py"
-    else:
-        launch_line = "stokes_fold.py"
-
-    if custom_pointing:
-        p = custom_pointing
-    else:
-        p = run_params.pointing_dir
-
-    launch_line += " -d {0} -p {1} -b {2} -s {3} -o {4} -L {5}\
-                    --mwa_search {6} --vcs_tools {7}"\
-                    .format(p, run_params.pulsar, run_params.stokes_bins,\
-                    run_params.subint, run_params.obsid, run_params.loglvl,\
-                    run_params.mwa_search, run_params.vcs_tools)
-    if run_params.freq:
-        launch_line += " -f {}".format(run_params.freq)
-    if run_params.beg:
-       launch_line += " --beg {}".format(run_params.beg)
-    if run_params.end:
-        launch_line += " --end {}".format(run_params.end)
-    if run_params.stop:
-        launch_line += " -S"
-    if run_params.no_ephem:
-        launch_line += " --no_ephem"
-    if run_params.dspsr_ops != "":
-        launch_line += " --dspsr_ops {}".format(run_params.dspsr_ops)
-
-    return launch_line
 
 #----------------------------------------------------------------------
 def copy_data(data_path, target_directory):
@@ -335,17 +370,17 @@ if __name__ == '__main__':
     obsop.add_argument("--end", type=int, help="The end of the observation")
     obsop.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
 
-    binfindop = parser.add_argument_group("Binfinder Options")
-    binfindop.add_argument("-t", "--threshold", type=float, default=10.0, help="The presto sigma value\
+    foldop = parser.add_argument_group("Folding Options")
+    foldop.add_argument("-t", "--threshold", type=float, default=8.0, help="The presto sigma value\
                              above which is deemed a detection. If this value is not exceeded in any\
                              of the folds, the pipeline will terminate")
-    binfindop.add_argument("--prep_ops", type=str, default="", help="Provide as a string in quotes any prepfold command you would like to use for folding.\
+    foldop.add_argument("--prep_ops", type=str, default="", help="Provide as a string in quotes any prepfold command you would like to use for folding.\
                         eg: ' -dm 50.0 -p 0.50625' (make sure there is a space before the first argument))")
-
-    stokesop = parser.add_argument_group("Stokes Fold Options")
-    stokesop.add_argument("-b", "--nbins", type=int, help="The number of bins for to fold over for the stokes folding script")
-    stokesop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations (in seconds) used for dspsr.")
-    stokesop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
+    foldop.add_argument("--dm", type=float, default=None, help="The dispersion measure to fold around")
+    foldop.add_argument("--period", type=float, default=None, help="The period to fold around in milliseconds")
+    foldop.add_argument("-b", "--nbins", type=int, help="The number of bins for to fold over for the stokes folding script")
+    foldop.add_argument("-s", "--subint", type=float, default=None, help="The length of the integrations (in seconds) used for dspsr.")
+    foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
                         eg: ' -D 50.0 -c 506.25' (make sure there is a space before the first argument)")
 
     otherop = parser.add_argument_group("Other Options")
@@ -354,6 +389,7 @@ if __name__ == '__main__':
     otherop.add_argument("-S", "--stop", action="store_true", help="Use this mode to tell the pipeline not to continue processing data after finishing the desired task")
     otherop.add_argument("--mwa_search", type=str, default="master",  help="The version of mwa_search to use")
     otherop.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use")
+    otherop.add_argument("--cand", action="store_true", help="use this tag if this is not a kown pulsar")
 
     args = parser.parse_args()
 
@@ -379,14 +415,29 @@ if __name__ == '__main__':
         logger.error("Beginning and end times must be supplied")
         sys.exit(1)
 
-    run_params = run_params_class(pointing_dir=args.pointing_dir, cal_id=args.cal_id,\
-                                pulsar=args.pulsar, obsid=args.obsid, stop=args.stop,\
-                                mwa_search=args.mwa_search,\
-                                vcs_tools=args.vcs_tools, loglvl=args.loglvl,\
-                                threshold=args.threshold, stokes_bins=args.nbins,\
-                                subint=args.subint, beg=args.beg, end=args.end, freq=args.freq,
-                                dspsr_ops=args.dspsr_ops, prep_ops=args.prep_ops,\
-                                no_ephem=args.no_ephem)
+    rp={}
+    rp["pointing_dir"] = args.pointing_dir
+    rp["cal_id"] = args.cal_id
+    rp["pulsar"] = args.pulsar
+    rp["obsid"] = args.obsid
+    rp["stop"] = args.stop
+    rp["mwa_search"] = args.mwa_search
+    rp["vcs_tools"] = args.vcs_tools
+    rp["loglvl"] = args.loglvl
+    rp["threshold"] = args.threshold
+    rp["stokes_bins"] = args.nbins
+    rp["beg"] = args.beg
+    rp["end"] = args.end
+    rp["freq"] = args.freq
+    rp["dspsr_ops"] = args.dspsr_ops
+    rp["prep_ops"] = args.prep_ops
+    rp["no_ephem"] = args.no_ephem
+    rp["dm"] = args.dm
+    rp["period"] = args.period
+    rp["cand"] = args.cand
+    if args.subint:
+        rp["subint"] = args.subint
+    run_params = run_params_class(**rp)
 
     work_out_what_to_do(run_params)
 
