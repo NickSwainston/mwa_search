@@ -10,7 +10,7 @@ import config
 import psrqpy
 
 from job_submit import submit_slurm
-import data_processing_pipeline
+import data_processing_pipeline as dpp
 import plotting_toolkit
 import binfinder
 
@@ -23,12 +23,14 @@ except:
     logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
     ATNF_LOC = None
 
+comp_config = config.load_config_file()
+
 #---------------------------------------------------------------
 class NotFoundError(Exception):
     """Raise when a value is not found in a file"""
     pass
 
-def plot_everything(pulsar, obsid, run_dir, freq, ascii_archive=None, rvm_dict=None, chi_map=None):
+def plot_everything(pulsar, obsid, run_dir, freq, ascii_archive=None, rvm_dict=None, chi_map=None, rm=None, rm_e=None):
     """
     Plots polarimetry, RVM fits, chi map and stacked profiles
 
@@ -55,29 +57,27 @@ def plot_everything(pulsar, obsid, run_dir, freq, ascii_archive=None, rvm_dict=N
 
     logger.info("Plotting dspsr archive {0} in {1}".format(ascii_archive, run_dir))
     ascii_path = os.path.join(run_params.pointing_dir, ascii_archive)
-    print(ascii_path)
 
     logger.info("Plotting polarimetry profile without RVM fit")
     fig_name = plotting_toolkit.plot_archive_stokes(ascii_path, obsid=obsid, pulsar=pulsar,\
-                        freq=freq, out_dir=run_dir)
+                        freq=freq, out_dir=run_dir, rm=rm, rm_e=rm_e)
     if rvm_dict:
         if rvm_dict["nbins"]>=5:
             logger.info("Plotting polarimetry profile with RVM fit")
             plotting_toolkit.plot_archive_stokes(ascii_path, obsid=obsid, pulsar=pulsar,\
-                            freq=freq, out_dir=run_dir, rvm_fit=rvm_dict)
+                            freq=freq, out_dir=run_dir, rvm_fit=rvm_dict, rm=rm, rm_e=rm_e)
         else:
             logger.info("Not enough PA points to plot RVM fit")
 
-    if chi_map:
+    if chi_map and rvm_dict:
         logger.info("Plotting RVM fit chi squared map")
-        if rvm_dict:
-            dof = rvm_dict["dof"]
-            chis = np.copy(chi_map["chis"])
-            chis = chis/dof
-            chi_map_name = "{0}/{1}_{2}_RVM_reduced_chi_map.png".format(run_dir, obsid, pulsar)
-        else:
-            chi_map_name = "{0}/{1}_{2}_RVM_chi_map.png".format(run_dir, obsid, pulsar)
-        plotting_toolkit.plot_rvm_chi_map(chi_map["chis"][:], chi_map["alphas"][:], chi_map["zetas"][:], name=chi_map_name)
+        dof = rvm_dict["dof"]
+        chis = np.copy(chi_map["chis"])
+        chis = chis/dof
+        chi_map_name = "{0}/{1}_{2}_RVM_reduced_chi_map.png".format(run_dir, obsid, pulsar)
+        plotting_toolkit.plot_rvm_chi_map(chi_map["chis"][:], chi_map["alphas"][:], chi_map["zetas"][:],\
+                        name=chi_map_name, dof=dof, my_chi=rvm_dict["redchisq"], my_zeta=rvm_dict["zeta"]*np.pi/180,\
+                        my_alpha=rvm_dict["alpha"]*np.pi/180)
 
     logger.info("Plotting stacked archival profiles")
     #retrieve epn data
@@ -217,6 +217,7 @@ def read_rvm_fit_file(filename):
     f = open(filename)
     lines = f.readlines()
     f.close()
+    n_elements = 0
     for i, line in enumerate(lines):
         if line.endswith("bins\n"):
             rvm_dict["nbins"] = int(line.split()[-2])
@@ -230,18 +231,21 @@ def read_rvm_fit_file(filename):
         elif line[0:7] == "zeta =(":
             zeta_str = line.split()[1].split("(")[-1].split(")")[0].split("+")
             rvm_dict["zeta"]  = float(zeta_str[0])
-            rvm_dict["zeta_e"]  = abs(float(zeta_str[-1]))
         elif line[0:7] == "alpha=(":
             alpha_str = line.split()[0].split("(")[-1].split(")")[0].split("+")
             rvm_dict["alpha"]  = float(alpha_str[0])
-            rvm_dict["alpha_e"]  = abs(float(alpha_str[-1]))
         elif line[0:7] == "phi_0=(":
             phi_0_str = line.split()[0].split("(")[-1].split(")")[0].split("+")
             rvm_dict["phi_0"]  = float(phi_0_str[0])
             rvm_dict["phi_0_e"]  = abs(float(phi_0_str[-1]))
+        elif line[0:6] == "alpha=":
+            n_elements += 1
+
+    rvm_dict["alpha_e"]  = 180/np.sqrt(n_elements)/2
+    rvm_dict["zeta_e"]  = 180/np.sqrt(n_elements)/2
 
     for key in keylist:
-        if not rvm_dict[key]:
+        if rvm_dict[key] is None:
             raise NotFoundError("{0} not found in file: {1}".format(key, filename))
 
     return rvm_dict
@@ -283,14 +287,13 @@ def read_chi_map(map):
         alphas[i] = a*np.pi/180
         zetas[i] = z*np.pi/180
     chi_map = {"alphas":alphas, "zetas":zetas, "chis":chis}
-
     return chi_map
 
 def analytic_pa(phi, alpha, zeta, psi_0, phi_0):
     #Inputs should be in radians
     numerator = np.sin(alpha) * np.sin(phi - phi_0)
     denominator = np.sin(zeta) * np.cos(alpha) - np.cos(zeta) * np.sin(alpha) * np.cos(phi - phi_0)
-    return psi_0 + np.arctan2(numerator,denominator)
+    return np.arctan2(numerator,denominator) + psi_0
 
 def add_rvm_to_commands(run_dir, archive_name, out_name="RVM_fit.txt", commands=None):
     """
@@ -317,7 +320,7 @@ def add_rvm_to_commands(run_dir, archive_name, out_name="RVM_fit.txt", commands=
 
     commands.append("cd {}".format(run_dir))
     commands.append("echo 'Fitting RVM'")
-    commands.append("psrmodel {0} -resid -psi-resid -x -s 90X90 &> {1} > chi_map.txt".format(archive_name, out_name))
+    commands.append("psrmodel {0} -resid -psi-resid -x -s 180X180 &> {1} > chi_map.txt".format(archive_name, out_name))
 
     return commands
 
@@ -460,8 +463,8 @@ def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, \
     return commands
 
 def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
-                                out_name=None, commands=None, seek=None, total=None, subint=10., dspsr_ops="", no_ephem=False,\
-                                tscrunch=100, dm=None, period=None):
+                                out_name=None, commands=None, seek=None, total=None, subint=None, dspsr_ops="", no_ephem=False,\
+                                dm=None, period=None):
     """
     Adds a dspsr folding command to a list of commands
 
@@ -508,14 +511,14 @@ def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
     dspsr_ops += " {}/*.fits".format(run_dir)
     dspsr_ops += " -O {}".format(os.path.join(run_dir, out_name))
     dspsr_ops += " -b {}".format(nbins)
-    dspsr_ops += " -L {}".format(tscrunch)
     if dm:
-        dspsr_coms += " -D {}".format(dm)
+        dspsr_ops += " -D {}".format(dm)
     if period:
-        dspsr_coms += " -c {}".format(period)
+        dspsr_ops += " -c {}".format(period)
     if not no_ephem:
         dspsr_ops += " -E {}.eph".format(os.path.join(run_dir, pulsar))
-    dspsr_ops += " -L {}".format(subint)
+    if subint:
+        dspsr_ops += " -L {}".format(subint)
     if seek:
         dspsr_ops += " -S {}".format(seek)
     if total:
@@ -543,24 +546,28 @@ def submit_inverse_pfb_fold(run_params, stop=False):
     job_id: int
         The id of the submitted job
     """
-
-    enter, leave, _ = binfinder.find_fold_times\
-                      (run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
-    #if not enter or not leave:
-    #    logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
-    #duration = run_params.end - run_params.beg
-    #enter_sec = enter*duration
-    obs_int = run_params.end - run_params.beg
-    if not enter or not leave:
-        logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
-        enter_sec = 0
-        duration = obs_int
+    #Find beam coverage for known pulsars
+    if not run_params.cand:
+        enter, leave, _ = binfinder.find_fold_times\
+                        (run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
+        obs_int = run_params.end - run_params.beg
+        if enter is None or leave is None:
+            logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
+            logger.warn("Used the following parameters:")
+            logger.warn("pulsar: {}".format(run_params.pulsar))
+            logger.warn("obsid: {}".format(run_params.obsid))
+            logger.warn("beg: {}".format(run_params.beg))
+            logger.warn("end: {}".format(run_params.end))
+            enter_sec = 0
+            duration = obs_int
+        else:
+            duration = (leave - enter) * obs_int
+            enter_sec = enter * duration
+            logger.info("{0} enters beam at {1} and leaves at {2}".format(run_params.pulsar, enter, leave))
+            logger.info("Integration time: {}".format(duration))
     else:
-        duration = (leave - enter) * obs_int
-        enter_sec = enter * duration
-        logger.info("{0} enters beam at {1} and leaves at {2}".format(run_params.pulsar, enter, leave))
-        logger.info("Integration time: {}".format(duration))
-
+        enter_sec = None
+        duration = None
     #pfb inversion
     duration = run_params.end - run_params.beg
     commands = add_pfb_inversion_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, seek=enter_sec, total=duration,\
@@ -570,14 +577,16 @@ def submit_inverse_pfb_fold(run_params, stop=False):
     rmfit_name = "{0}_{1}_ipfb_rmfit.txt".format(run_params.obsid, run_params.pulsar)
     commands = add_rm_fit_to_commands(run_params.pulsar, run_params.pointing_dir, archive_name, out_name=rmfit_name, commands=commands)
 
-    if not run_params.stop or stop:
+    if not stop:
         #Relaunch stokes_fold.py
-        launch_line = data_processing_pipeline.stokes_launch_line(run_params)
-        commands.apend(launch_line)
+        launch_line = dpp.stokes_launch_line(run_params)
+        commands.append(launch_line)
+    elif not run_params.stop:
+        launch_line = dpp.stokes_launch_line(run_params)
+        commands.append(launch_line)
 
-    comp_config = config.load_config_file()
     batch_dir = os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch")
-    name = "inverse_pfb_{0}_{1}".format(run_params.obsid, run_params.pulsar)
+    name = "inverse_pfb_{0}_{1}_{2}".format(run_params.obsid, run_params.pulsar, run_params.stokes_bins)
 
     logger.info("Submitting inverse pfb job:")
     logger.info("Pointing directory: {}".format(run_params.pointing_dir))
@@ -602,35 +611,42 @@ def submit_dspsr_rmfit(run_params):
     run_params: object
         The run_params object from data_processing_pipeline.py
     """
-    enter, leave, _ = binfinder.find_fold_times\
-                      (run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
-    obs_int = run_params.end - run_params.beg
-    if not enter or not leave:
-        logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
-        enter_sec = 0
-        duration = obs_int
+    if not run_params.cand:
+        enter, leave, _ = binfinder.find_fold_times\
+                        (run_params.pulsar, run_params.obsid, run_params.beg, run_params.end, min_z_power=[0.3, 0.1])
+        obs_int = run_params.end - run_params.beg
+        if enter is None or leave is None:
+            logger.warn("{} not in beam for given times. Will use entire integration time to fold.".format(run_params.pulsar))
+            logger.warn("Used the following parameters:")
+            logger.warn("pulsar: {}".format(run_params.pulsar))
+            logger.warn("obsid: {}".format(run_params.obsid))
+            logger.warn("beg: {}".format(run_params.beg))
+            logger.warn("end: {}".format(run_params.end))
+            enter_sec = 0
+            duration = obs_int
+        else:
+            duration = (leave - enter) * obs_int
+            enter_sec = enter * duration
+            logger.info("{0} enters beam at {1} and leaves at {2}".format(run_params.pulsar, enter, leave))
+            logger.info("Integration time: {}".format(duration))
     else:
-        duration = (leave - enter) * obs_int
-        enter_sec = enter * duration
-        logger.info("{0} enters beam at {1} and leaves at {2}".format(run_params.pulsar, enter, leave))
-        logger.info("Integration time: {}".format(duration))
+        enter_sec = None
+        duration = None
 
     #dspsr command
     file_name = "{0}_{1}_archive".format(run_params.obsid, run_params.pulsar)
-    duration = run_params.end - run_params.beg
     commands = add_dspsr_fold_to_commands(run_params.pulsar, run_params.pointing_dir, run_params.stokes_bins, out_name=file_name,\
                                         seek=enter_sec, total=duration, subint=run_params.subint, dspsr_ops=run_params.dspsr_ops,\
-                                        no_ephem=run_params.no_ephem, tscrunch=duration)
+                                        no_ephem=run_params.no_ephem, dm=run_params.dm, period=run_params.period)
     #rmfit command
     out_name = "{0}_{1}_rmfit.txt".format(run_params.obsid, run_params.pulsar)
     commands = add_rm_fit_to_commands(run_params.pulsar, run_params.pointing_dir, file_name, out_name=out_name, commands=commands)
     #rerun the script
     if not run_params.stop:
-        launch_line = data_processing_pipeline.stokes_launch_line(run_params)
+        launch_line = dpp.stokes_launch_line(run_params)
         commands.append(launch_line)
 
-    name = "DSPSR_RMfit_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    comp_config = config.load_config_file()
+    name = "DSPSR_RMfit_{0}_{1}_{2}".format(run_params.pulsar, run_params.obsid, run_params.stokes_bins)
     batch_dir = "{}".format(os.path.join(comp_config['base_product_dir'], run_params.obsid, "batch"))
     job_id = submit_slurm(name, commands,\
                         batch_dir=batch_dir,\
@@ -665,7 +681,7 @@ def submit_rm_cor_rvm(run_params, ipfb=False):
         archive_name = "{0}_{1}_archive.ar".format(run_params.obsid, run_params.pulsar)
         ascii_name = "{0}_{1}_archive.txt".format(run_params.obsid, run_params.pulsar)
         rvm_name = "{0}_{1}_RVM_fit.txt".format(run_params.obsid, run_params.pulsar)
-        job_name = "RMcor_RVM_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+        job_name = "RMcor_RVM_{0}_{1}_{2}".format(run_params.pulsar, run_params.obsid, run_params.stokes_bins)
     rm_fit_file = glob.glob(os.path.join(run_params.pointing_dir, "*{}*_rmfit.txt".format(run_params.pulsar)))[0]
 
     #Correct for RM
@@ -682,14 +698,13 @@ def submit_rm_cor_rvm(run_params, ipfb=False):
     commands = add_rvm_to_commands(run_params.pointing_dir, archive_name+"2", out_name=rvm_name, commands=commands)
     #relaunch
     if not run_params.stop:
-        launch_line = data_processing_pipeline.stokes_launch_line(run_params)
+        launch_line = dpp.stokes_launch_line(run_params)
         commands.append(launch_line)
 
-    comp_config = config.load_config_file()
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     job_id = submit_slurm(job_name, commands,\
                         batch_dir=batch_dir,\
-                        slurm_kwargs={"time": "10:00:00"},\
+                        slurm_kwargs={"time": "24:00:00"},\
                         module_list=["mwa_search/{0}".format(run_params.mwa_search),
                                     "psrchive/master"],\
                         submit=True, vcstools_version=run_params.vcs_tools, mem="")
@@ -703,15 +718,15 @@ def work_out_what_to_do(run_params):
     Parameters:
     -----------
     run_params: object
-        The run_params object defined by data_proces_pipeline
+        The run_params object defined by data_procesing_pipeline
     """
-    fits_files_in_dir = glob.glob(run_params.pointing_dir + "/*.fits")
-    hdr_files_in_dir = glob.glob(run_params.pointing_dir + "/*.hdr")
-    rm_fit_files = glob.glob(run_params.pointing_dir + "/*{}*_rmfit.txt".format(run_params.pulsar))
-    rvm_fit_files = glob.glob(run_params.pointing_dir + "/*{}*_RVM_fit.txt".format(run_params.pulsar))
-    ar_files = glob.glob(run_params.pointing_dir + "/*{}*_archive.ar".format(run_params.pulsar))
-    ar2_files = glob.glob(run_params.pointing_dir + "/*{}*_archive.ar2".format(run_params.pulsar))
-    chi_map_files = glob.glob(run_params.pointing_dir + "/*chi_map.txt")
+    fits_files_in_dir = glob.glob(os.path.join(run_params.pointing_dir, "*.fits"))
+    hdr_files_in_dir = glob.glob(os.path.join(run_params.pointing_dir, "*.hdr"))
+    rm_fit_files = glob.glob(os.path.join(run_params.pointing_dir, "*{}*_rmfit.txt".format(run_params.pulsar)))
+    rvm_fit_files = glob.glob(os.path.join(run_params.pointing_dir, "*{}*_RVM_fit.txt".format(run_params.pulsar)))
+    ar_files = glob.glob(os.path.join(run_params.pointing_dir, "*{}*_archive.ar".format(run_params.pulsar)))
+    ar2_files = glob.glob(os.path.join(run_params.pointing_dir, "*{}*_archive.ar2".format(run_params.pulsar)))
+    chi_map_files = glob.glob(os.path.join(run_params.pointing_dir, "*chi_map*.txt"))
 
     rm_and_ar_exist = (bool(rm_fit_files) and bool(ar_files))
     ar2_and_rvm_exist = (bool(ar2_files) and bool(rvm_fit_files))
@@ -727,11 +742,21 @@ def work_out_what_to_do(run_params):
             submit_rm_cor_rvm(run_params, ipfb=True)
             sys.exit(0)
         elif ar2_and_rvm_exist:
-            #plot results
-            rvm_dict = read_rvm_fit_file(rvm_fit_files[0])
-            chi_map = read_chi_map(chi_map_files[0])
+            #get RVM dictionary + chi map
+            try:
+                rvm_dict = read_rvm_fit_file(rvm_fit_files[0])
+                chi_map = read_chi_map(chi_map_files[0])
+            except NotFoundError as e:
+                rvm_dict = None
+                chi_map = None
+
+            #get RM
+            rm, rm_e = find_RM_from_file(rm_fit_files[0])
+            if not rm:
+                rm, rm_e = find_RM_from_cat(run_params.pulsar)
+            #plot
             plot_everything(run_params.pulsar, run_params.obsid, run_params.pointing_dir, run_params.freq,\
-                            rvm_dict=rvm_dict, chi_map=chi_map)
+                            rvm_dict=rvm_dict, chi_map=chi_map, rm=rm, rm_e=rm_e)
             sys.exit(0)
         else:
             logger.error("Something has gone wrong trying to process the .vdif files :/")
@@ -739,7 +764,7 @@ def work_out_what_to_do(run_params):
             logger.info("RM fit files: {}".format(rm_fit_files))
             logger.info("RVM fit files: {}".format(rvm_fit_files))
             logger.info("archive files: {}".format(ar_files))
-            logger.info("RM correcgted archive files: {}".format(ar2_files))
+            logger.info("RM corrected archive files: {}".format(ar2_files))
             sys.exit(1)
 
     elif fits_files_in_dir:
@@ -753,11 +778,20 @@ def work_out_what_to_do(run_params):
             submit_rm_cor_rvm(run_params)
             sys.exit(0)
         elif ar2_and_rvm_exist:
-            #plot results
-            rvm_dict = read_rvm_fit_file(rvm_fit_files[0])
-            chi_map = read_chi_map(chi_map_files[0])
+            #get rvm dictionary
+            try:
+                rvm_dict = read_rvm_fit_file(rvm_fit_files[0])
+                chi_map = read_chi_map(chi_map_files[0])
+            except NotFoundError as e:
+                rvm_dict = None
+                chi_map = None
+            #get RM
+            rm, rm_e = find_RM_from_file(rm_fit_files[0])
+            if not rm:
+                rm, rm_e = find_RM_from_cat(run_params.pulsar)
+            #plot
             plot_everything(run_params.pulsar, run_params.obsid, run_params.pointing_dir, run_params.freq,\
-                            rvm_dict=rvm_dict, chi_map=chi_map)
+                            rvm_dict=rvm_dict, chi_map=chi_map, rm=rm, rm_e=rm_e)
             sys.exit(0)
         else:
             logger.error("Something has gone wrong :/")
@@ -768,7 +802,8 @@ def work_out_what_to_do(run_params):
             logger.info("RM correcgted archive files: {}".format(ar2_files))
             sys.exit(1)
     else:
-        logger.error("No valid files in directory, Exiting...")
+        logger.error("No valid files in directory: {}".format(os.path.join(run_params.pointing_dir, "*.fits")))
+        logger.debug("glob output: {}".format(fits_files_in_dir))
         sys.exit(1)
 
 if __name__ == '__main__':
@@ -785,15 +820,16 @@ if __name__ == '__main__':
     foldop.add_argument("-d", "--pointing_dir", type=str, help="Pointing directory that contains the fits files")
     foldop.add_argument("-p", "--pulsar", type=str, default=None, help="The J name of the pulsar.")
     foldop.add_argument("-b", "--nbins", type=int, default=0, help="The number of bins to fold the profile with")
-    foldop.add_argument("-s", "--subint", type=float, default=10.0, help="The length of the integrations in seconds. Default: 10.0")
+    foldop.add_argument("-s", "--subint", type=float, default=None, help="The length of the integrations in seconds")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
     foldop.add_argument("--beg", type=int, help="The beginning of the observation time in gps time")
     foldop.add_argument("--end", type=int, help="The end of the observation time in gps time")
     foldop.add_argument("--dm", type=float, default=None, help="The dispersion measure to fold around")
     foldop.add_argument("--period", type=float, default=None, help="The period to fold around in milliseconds")
     foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
-                        eg: '-D 50.0 -c 506.25'")
+                        eg: '-D 50.0 -c 0.50625'")
     foldop.add_argument("--no_ephem", action="store_true", help="Use this tag to override the use of the epehemeris")
+    foldop.add_argument("--cand", action="store_true", help="Use this tag if this is not a known pulsar")
 
     otherop = parser.add_argument_group("Other Options:")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
@@ -812,23 +848,54 @@ if __name__ == '__main__':
     logger.addHandler(ch)
     logger.propagate = False
 
-    if not args.pulsar:
-        logger.error("Pulsar name not supplied. Please run again and specify puslar name")
-        sys.exit(1)
+
+    if args.cand:
+        if not args.period or not args.dm:
+            logger.error("Period or DM not supplied. These need to be supplied for candidate folds")
+            sys.exit(1)
+        if not args.no_ephem:
+            logger.warn("no_ephem tag needs to be used for candidate folds, but is turned off. Overriding.")
+            args.no_ephem = True
+        rounded_period = round(args.period, 5)
+        rounded_dm = round(args.dm, 4)
+        args.pulsar="cand_{0}_{1}".format(rounded_period, rounded_dm)
+
+    else:
+        if not args.beg or not args.end:
+            logger.error("Beginning/end times not supplied. Please run again and specify times")
+            sys.exit(1)
+
     if not args.pointing_dir:
         logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
         sys.exit(1)
     if not args.obsid:
         logger.error("Obsid not supplied. Please run again and specify an observation ID")
         sys.exit(1)
-    if not args.beg or not args.end:
-        logger.error("Beginning/end times not supplied. Please run again and specify times")
+    if not args.pulsar:
+        logger.error("Pulsar name not supplied. Please run again and specify puslar name")
+        sys.exit(1)
+    if args.no_ephem and (args.period is None or args.dm is None):
+        logger.error("If no ephemeris is used, period and DM must be supplied")
         sys.exit(1)
 
-    run_params = data_processing_pipeline.run_params_class(pointing_dir=args.pointing_dir,\
-                pulsar=args.pulsar, stokes_bins=args.nbins, loglvl=args.loglvl, subint=args.subint,\
-                vcs_tools=args.vcs_tools, mwa_search=args.mwa_search,\
-                obsid=args.obsid, stop=args.stop, freq=args.freq, beg=args.beg,\
-                end=args.end, no_ephem=args.no_ephem, dspsr_ops=args.dspsr_ops)
+    rp={}
+    rp["pointing_dir"] = args.pointing_dir
+    rp["pulsar"] = args.pulsar
+    rp["obsid"] = args.obsid
+    rp["stop"] = args.stop
+    rp["mwa_search"] = args.mwa_search
+    rp["vcs_tools"] = args.vcs_tools
+    rp["loglvl"] = args.loglvl
+    rp["stokes_bins"] = args.nbins
+    rp["subint"] = args.subint
+    rp["beg"] = args.beg
+    rp["end"] = args.end
+    rp["freq"] = args.freq
+    rp["dspsr_ops"] = args.dspsr_ops
+    rp["no_ephem"] = args.no_ephem
+    rp["dm"] = args.dm
+    rp["period"] = args.period
+    rp["cand"] = args.cand
+    run_params = dpp.run_params_class(**rp)
 
     work_out_what_to_do(run_params)
