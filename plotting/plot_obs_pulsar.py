@@ -7,14 +7,14 @@ import numpy as np
 import csv
 from scipy.interpolate import UnivariateSpline
 
-#matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-
 #vcstools/mwapy
 import find_pulsar_in_obs as fpio
 import mwa_metadb_utils as meta
 from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
+
+#matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 def SMART_obs_calc(degree_overlap, manual_overlap):
     """
@@ -203,12 +203,17 @@ if __name__ == "__main__":
     add_group = parser.add_argument_group('Extra Plot Layers Options')
     add_group.add_argument('--pulsar', type=str, nargs='+',
                            help='A list of pulsar to mark on the plot.')
+    add_group.add_argument('--pulsar_detected', action='store_true',
+                           help='Plots all pulsars detected by the MWA and uploaded to the pulsar database.')
     add_group.add_argument('--pulsar_all', action='store_true',
                            help='Plots all known pulsars.')
     add_group.add_argument('--fill', action='store_true',
                            help='Shades the area the MWA can view.')
-    add_group.add_argument('--shade', type=str, choices=['red','green','purple','darkorange','blue'],
+    add_group.add_argument('--shade', type=str, nargs='+',
+                           choices=['red','green','purple','darkorange','blue'],
                            help='Shades the chosen colour observations group')
+    add_group.add_argument('--shade_temp', nargs='*', default='black',
+                           help='First input is the colour and then the observation IDs you want to shade')
 
     plot_group = parser.add_argument_group('Plotting Options')
     plot_group.add_argument('-f', '--fwhm', action='store_true',
@@ -276,8 +281,12 @@ if __name__ == "__main__":
 
 
     nz_sens_overlap = np.zeros(len(RA))
-    nz_shade_colour = np.zeros(len(RA))
-    nz_shade_colour_2 = np.zeros(len(RA))
+    nz_shade_colour = {'red'        : np.zeros(len(RA)),
+                       'green'      : np.zeros(len(RA)),
+                       'purple'     : np.zeros(len(RA)),
+                       'darkorange' : np.zeros(len(RA)),
+                       'blue'       : np.zeros(len(RA))}
+    nz_shade_colour_temp = np.zeros(len(RA))
     #nz_sens = np.full(len(RA), 50.)
     nz_sens = np.zeros(len(RA))
     nz_sens[:] = np.nan
@@ -464,12 +473,12 @@ if __name__ == "__main__":
                     ra_text = -max_ra/180.*np.pi+np.pi
                 dec_text = dec/180.*np.pi
 
-                #ax.text(ra_text, dec_text, str(i), fontsize=12)
-                
+                #ax.text(ra_text, dec_text, str(i), fontsize=12, ha='center', va='center')
+
                 if  c == (len(colour_groups)-1) and \
                        ( (min_lim <= max_ra and max_ra < 360.) or \
                          (0.      <= max_ra and max_ra < max_lim) ) or\
-                         ( min_lim < max_ra and max_ra <= max_lim ):
+                         (min_lim <= max_ra and max_ra < max_lim ):
                         colors = ['0.5' for _ in range(50)]
                         colors[0] = colour_groups[c]
 
@@ -479,27 +488,22 @@ if __name__ == "__main__":
                         #plt.scatter(-max_ra/180*np.pi + np.pi, dec/180*np.pi, 1.5,\
                         #            lw=0, marker='o', color=colour_groups[c])
 
-                
-                if args.shade and i in [0, 1, 2, 3, 4, 5, 10, 64, 65, 66, 67, 68, 69]:
-                    #sum powers for this colour to be shaded when plotting
-                    for zi in range(len(nz)):
-                        if nz[zi] >= levels[0]:
-                            nz_shade_colour[zi] = nz[zi]
-                # This is a temp feature that I'll delete to shade certain obs
-                if args.shade and (i == 11 or i == 18 or i == 16 or i == 8 or i == 7):#[18, 11]:#11
-                    for zi in range(len(nz)):
-                        if nz[zi] >= levels[0]:
-                            nz_shade_colour_2[zi] = nz[zi]
-                    #Temp shade second colour
-                    cs = plt.tricontour(nx, ny, nz_shade_colour_2, levels=levels[0],alpha=0.0)
-                    cs0 = cs.collections[0]
-                    cspaths = cs0.get_paths()
-                    spch_0 = patches.PathPatch(cspaths[0], facecolor='lightcoral',
-                                               edgecolor='gray',lw=0.5, alpha=0.35)
-                    ax.add_patch(spch_0)
-                    nz_shade_colour_2 = np.zeros(len(RA))
 
+                        if args.shade:
+                            if colour_groups[c] in args.shade or \
+                               ("blue" in args.shade and i in [0, 69]):
+                                #sum powers for this colour to be shaded when plotting
+                                for zi in range(len(nz)):
+                                    if nz[zi] >= levels[0]:
+                                        nz_shade_colour[colour_groups[c]][zi] = nz[zi]
 
+                        # This is a temp feature that I'll delete to shade certain obs
+                        if args.shade_temp and str(i) in args.shade_temp[1:]:
+                            #print(i, args.shade_temp[1:])
+                            for zi in range(len(nz)):
+                                if nz[zi] >= levels[0]:
+                                    #print(nz_shade_colour_temp[zi], nz[zi])
+                                    nz_shade_colour_temp[zi] = nz[zi]
 
         # plot contours ---------------------------------------
         if args.contour:
@@ -526,59 +530,42 @@ if __name__ == "__main__":
         nz[dec_limit_mask] = np.nan
         import matplotlib.colors as colors
         plt.pcolor(nx, ny, nz, cmap=colour_map, vmin=2., vmax=10.)
-        plt.colorbar(spacing='uniform', shrink = 0.65, #ticks=[2., 10., 20., 30., 40., 50.], 
+        plt.colorbar(spacing='uniform', shrink = 0.65, #ticks=[2., 10., 20., 30., 40., 50.],
                      label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
-
-    plt.xlabel("Right Ascension")
-    plt.ylabel("Declination")
-
-    #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
-    if args.ra_offset:
-        xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
-    else:
-        xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
-
-    ax.set_xticklabels(xtick_labels, zorder=150)
-    print("plotting grid")
-    plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
-
-
 
     #Add extra plot layers ---------------------------------------
 
     #shades only the selected colout
-    if args.shade and args.smart:
-        #choose lighter equivalent colour
-        if args.shade == 'red':
-            ecolour = 'lightcoral'
-        elif args.shade == 'blue':
-            ecolour = 'skyblue'
-        else:
-            ecolour = args.shade
-        cs = plt.tricontour(nx, ny, nz_shade_colour, levels=levels[0],alpha=0.0)
-        cs0 = cs.collections[0]
-        cspaths = cs0.get_paths()
-        spch_0 = patches.PathPatch(cspaths[0], facecolor=args.shade,
-                                   edgecolor='gray',lw=0.5, alpha=0.35)
-        ax.add_patch(spch_0)
+    if (args.shade or args.shade_temp) and args.smart:
+        for c in colour_groups:
+            # Use the correct shade
+            if c in args.shade:
+                nz = nz_shade_colour[c]
+            elif args.shade_temp:
+                if c == args.shade_temp[0]:
+                    nz = nz_shade_colour_temp
 
-        """
-        #Temp shade second colour
-        cs = plt.tricontour(nx, ny, nz_shade_colour_2, levels=levels[0],alpha=0.0)
-        cs0 = cs.collections[0]
-        cspaths = cs0.get_paths()
-        spch_0 = patches.PathPatch(cspaths[0], facecolor='red',
-                                   edgecolor='gray',lw=0.5, alpha=0.35)
-        ax.add_patch(spch_0)
-        """
+            if c in args.shade or c == args.shade_temp[0]:
+                #choose lighter equivalent colour
+                if   c == 'red':
+                    ecolour = 'lightcoral'
+                elif c == 'blue':
+                    ecolour = 'skyblue'
+                else:
+                    ecolour = c
+
+                cs = plt.tricontour(nx, ny, nz, levels=levels[0], alpha=0.0)
+                cs0 = cs.collections[0]
+                cspaths = cs0.get_paths()
+                for cspath in cspaths:
+                    spch_0 = patches.PathPatch(cspath, facecolor=ecolour,
+                                               edgecolor='gray',lw=0.5, alpha=0.45)
+                    ax.add_patch(spch_0)
 
 
     #add lines of other surveys
     if args.lines:
         """
-        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-                 np.full(len(map_ra_range),-40./180.*np.pi),
-                 '--g',label=r'GBT $\delta_{min}$', zorder=130)
         plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
                  np.full(len(map_ra_range),np.radians(-15.)),
                  '--b',label=r'FAST $\delta_{min}$', zorder=130)
@@ -588,10 +575,11 @@ if __name__ == "__main__":
         plt.plot(np.full(len(map_dec_range),-335./180.*np.pi + 2.*np.pi),#22.3 hours
                  np.array(map_dec_range)/180.*np.pi,
                  'y', zorder=130)
+        """
         plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
                  np.full(len(map_ra_range),np.radians(30.)),
                  'r',label=r'MWA $\delta_{max}$', zorder=130)
-        
+        """
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),0./180.*np.pi),
                  color='black', linestyle='-', zorder=120,
@@ -603,17 +591,21 @@ if __name__ == "__main__":
         """
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),0./180.*np.pi),
-                 '--m',label=r'LOTAS $\delta_{min}$', zorder=130)
+                 '--m',label=r'LOTAAS $\delta_{min}$', zorder=130)
+        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
+                 np.full(len(map_ra_range),-40./180.*np.pi),
+                 '--g',label=r'GBT $\delta_{min}$', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-55./180.*np.pi),
-                 '--g',label=r'GMRT $\delta_{min}$', zorder=130)
-        
+                 linestyle='--', color='orangered',
+                 label=r'GMRT $\delta_{min}$', zorder=130)
+
         handles, labels = ax.get_legend_handles_labels()
         plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
                    ncol=1, mode="expand", borderaxespad=0., fontsize=6)
 
 
-      
+
     if args.fill:
         import matplotlib.transforms as mtransforms
         trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
@@ -630,23 +622,27 @@ if __name__ == "__main__":
                    ncol=1, mode="expand", borderaxespad=0., fontsize=6)
 
 
+    # Add pulsars to plot
     if args.pulsar_all:
-        #add some pulsars
+        #add all pulsars on the antf catalogue
         ra_PCAT = []
         dec_PCAT = []
         pulsar_list = get_psrcat_ra_dec()
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
             if args.ra_offset:
-                if ra_temp > 180:
-                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+                if ra_temp > 180.:
+                    ra_temp -= 180.
                 else:
-                    ra_PCAT.append(-ra_temp/180.*np.pi)
+                    ra_temp += 180.
+            if args.square:
+                ra_PCAT.append(ra_temp)
+                dec_PCAT.append(dec_temp)
             else:
-                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
-            dec_PCAT.append(dec_temp/180.*np.pi)
+                ra_PCAT.append(-(ra_temp-180.)/180.*np.pi)
+                dec_PCAT.append(dec_temp/180.*np.pi)
+        #print(min(ra_PCAT), max(ra_PCAT))
         ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color ='b', zorder=90)
-
 
     if args.pulsar:
         #add some pulsars
@@ -665,20 +661,60 @@ if __name__ == "__main__":
             dec_PCAT.append(dec_temp/180.*np.pi)
         ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
 
+    if args.pulsar_detected:
+        #add some pulsars
+        ra_PCAT = []
+        dec_PCAT = []
+        from mwa_pulsar_client import client
+        auth = (os.environ['MWA_PULSAR_DB_USER'],os.environ['MWA_PULSAR_DB_PASS'])
+        pulsar_list_dict = client.pulsar_list('https://pulsar-cat.icrar.uwa.edu.au/', auth)
+        pulsar_list = []
+        for pulsar in pulsar_list_dict:
+            pulsar_list.append(pulsar[u'name'])
+        pulsar_pos_list = get_psrcat_ra_dec(pulsar_list=pulsar_list)
+        for pulsar in pulsar_pos_list:
+            ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+            if args.ra_offset:
+                if ra_temp > 180:
+                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+                else:
+                    ra_PCAT.append(-ra_temp/180.*np.pi)
+            else:
+                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+            dec_PCAT.append(dec_temp/180.*np.pi)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
+
+
+    plt.xlabel("Right Ascension")
+    plt.ylabel("Declination")
+
+    #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
+    if args.ra_offset:
+        xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
+        xticks = [150., 120., 90., 60., 30., 0., 330., 300., 270., 240., 210. ]
+    else:
+        xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
+        xticks = [330., 300., 270., 240., 210., 180., 150., 120., 90., 60., 30.]
+
+    if args.square:
+        plt.xticks(xticks, tuple(xtick_labels))
+    else:
+        ax.set_xticklabels(xtick_labels, zorder=150)
+    print("plotting grid")
+    plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
+
 
     # Creates a plot name --------------------------
     plot_name = 'tile_beam_t'+str(time)+'s_res' + str(res) + '_n'+str(pointing_count)
 
     if args.sens:
         plot_name += '_sens'
-
     if args.overlap:
         plot_name += '_overlap'
     if args.contour:
         plot_name += '_contour'
     if args.lines:
         plot_name += '_minlines'
-
     if args.obsid_list:
         plot_name += '_obslist'
     if args.manual:
@@ -686,15 +722,14 @@ if __name__ == "__main__":
         for m in args.manual:
             plot_name += str(m) + '-'
         plot_name = plot_name[:-1]
-
     if args.fwhm:
-      plot_name += '_ownFWHM'
+        plot_name += '_ownFWHM'
     else:
-      plot_name +='_zenithFWHM'
+        plot_name +='_zenithFWHM'
     plot_type = args.plot_type
     #plt.title(plot_name)
     print("saving {}.{}".format(plot_name, plot_type))
-    fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000)
+    fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000, bbox_inches='tight')
     #plt.show()
 
 
@@ -704,11 +739,11 @@ if __name__ == "__main__":
         from operator import itemgetter
         for g in glob.glob("./*group*"):
             with open(g) as f:
-              lines = [line.split("\t") for line in f]
-              lines = lines[1:]
-              lines = sorted(lines, key=itemgetter(0))
+                lines = [line.split("\t") for line in f]
+                lines = lines[1:]
+                lines = sorted(lines, key=itemgetter(0))
             with open(g, 'w') as csvfile:
-               spamwriter = csv.writer(csvfile, delimiter=',')
-               spamwriter.writerow(['RA','Dec'])
-               for l in lines:
-                   spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])
+                spamwriter = csv.writer(csvfile, delimiter=',')
+                spamwriter.writerow(['RA','Dec'])
+                for l in lines:
+                    spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])

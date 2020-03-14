@@ -1529,8 +1529,11 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
         commands.append('module load python/3.6.3')
         commands.append('module load scipy')
         commands.append('module load matplotlib')
+    else:
+        commands.append('module load gcc/7.3.0')
     commands.append('module use {}'.format(comp_config['module_dir']))
     commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
+    commands.append('module load vcstools/{}'.format(search_opts.vcstools_ver))
     #TODO end temp sec
 
     if search_opts.single_pulse:
@@ -1655,7 +1658,10 @@ def error_check(search_opts, bash_job=False,
                 commands.append('MAALI_PYTHON_LIB_VERSION=3.6')
                 commands.append('module load python/3.6.3')
                 commands.append('module load scipy')
+            else:
+                commands.append('module load gcc/7.3.0')
             commands.append('module load mwa_search/{}'.format(search_opts.search_ver))
+            commands.append('module load vcstools/{}'.format(search_opts.vcstools_ver))
             commands.append("{0} -m {1}".format(search_opts.relaunch_script, next_mode))
             submit_slurm("{0}_ACCEL_sift".format(search_opts.bsd_row_num), commands,
                          batch_dir="{0}/{1}/batch".format(search_opts.work_dir, search_opts.sub_dir),
