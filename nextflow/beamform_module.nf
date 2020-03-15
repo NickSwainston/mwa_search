@@ -30,6 +30,51 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
                        '019', '020', '021', '022', '023', '024'] )
 
 
+
+// Handling begin and end times
+process get_beg_end {
+    script:
+    if ( params.all )
+        """
+        #!/usr/bin/env python3
+
+        from mwa_metadb_utils import obs_max_min
+
+        beg, end = obs_max_min(${params.obsid})
+        print("{},{}".format(beg, end), end="")
+        """
+    else
+        """
+        #!/usr/bin/env python3
+
+        beg = "$params.begin"
+        end = "$params.end"
+        print("{},{}".format(beg, end), end="")
+        """
+}
+
+
+process get_channels {
+    //when:
+    //params.all == true
+
+    output:
+    file "${params.obsid}_channels.txt"
+
+    """
+    #!/usr/bin/env python3
+
+    from mwa_metadb_utils import get_channels
+    import csv
+
+    channels = get_channels($params.obsid)
+    with open("${params.obsid}_channels.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow(channels)
+    """
+}
+
+
 process ensure_metafits {
 
     """
@@ -106,18 +151,32 @@ process splice {
 }
 
 
-workflow beamform_wf {
+workflow pre_beamform {
+    main:
+        get_beg_end()
+        get_channels()
+        ensure_metafits()
+        gps_to_utc( get_beg_end.out.map{ it.split(",") }.flatten().collect() )
+    emit:
+        get_beg_end.out.map{ it.split(",") }.flatten().collect()
+        get_channels.out.splitCsv()
+        gps_to_utc.out
+}
+
+
+workflow beamform {
     take: 
         obs_beg_end
-        pointings
         channels
+        utc
+        pointings
     main:
-        ensure_metafits()
-        gps_to_utc( obs_beg_end )
         make_beam( channels | flatten() | merge(range),\
-                   gps_to_utc.out,\
-                   Channel.from(params.pointings.split(",")).collect().flatten().collate( 15 ),\
+                   utc,\
+                   pointings,\
                    obs_beg_end )
         splice( channels,\
                 make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+    emit:
+        splice.out
 }
