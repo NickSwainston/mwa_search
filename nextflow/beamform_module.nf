@@ -15,6 +15,7 @@ params.vcstools_version = 'master'
 params.basedir = '/group/mwaops/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
+params.publish_fits = false
 
 
 if ( params.summed ) {
@@ -131,8 +132,7 @@ ${bf_out} -z $utc
 
 
 process splice {
-    publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'move'
-
+    publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'move', enabled: params.publish_fits
     label 'cpu'
     time '1h'
 
@@ -142,6 +142,8 @@ process splice {
 
     output:
     file "${params.obsid}*fits"
+    val "${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}"
+
     """
     module use /group/mwa/software/modulefiles
     module load mwa_search
@@ -178,5 +180,6 @@ workflow beamform {
         splice( channels,\
                 make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
     emit:
-        splice.out
+        splice.out[0]
+        splice.out[1]
 }

@@ -15,7 +15,7 @@ params.vcstools_version = 'master'
 params.basedir = '/group/mwaops/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
-
+params.publish_fits = true
 
 pointings = Channel
     .from(params.pointings.split(","))
