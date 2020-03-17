@@ -13,7 +13,7 @@ params.summed = false
 params.vcstools_version = 'master'
 
 params.basedir = '/group/mwaops/vcs'
-params.stratch_basedir = '/astro/mwaops/vcs'
+params.scratch_basedir = '/astro/mwaops/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
 params.publish_fits = false
@@ -106,8 +106,12 @@ process gps_to_utc {
 
 
 process make_beam {
+    //Beamforming duration calc
+    //mb_dur = (bm_read + bm_cal + point.size() * (bm_beam +bm_write) + 20 ) * 1.2
+
     label 'gpu'
-    time '10h'
+    time '2h'
+    //time '${mb_dur}s'
     errorStrategy 'retry'
     maxRetries 3
 
@@ -134,8 +138,17 @@ ${bf_out} -z $utc
 
 
 process make_beam_ipfb {
+    //Beamforming ipfb duration calc
+    //mb_ipfb_dur = (bm_read + 2 * (bm_cal + bm_beam) + bm_write + 20 ) * 1.2
+
+    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*hdr"
+    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*vdif"
+    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*hdr"
+    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*vdif"
+
     label 'gpu'
-    time '10h'
+    time '2h'
+    //time '${mb_ipfb_dur}s'
     errorStrategy 'retry'
     maxRetries 3
 
@@ -147,6 +160,8 @@ process make_beam_ipfb {
 
     output:
     file "*fits"
+    file "*hdr"
+    file "*vdif"
 
     //TODO add other beamform options and flags -F
     """
@@ -156,7 +171,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]}\
 -r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -u -z $utc
+-p -u -z $utc
     """
 }
 
@@ -215,7 +230,7 @@ workflow beamform {
 }
 
 workflow beamform_ipfb {
-    take: 
+    take:
         obs_beg_end
         channels
         utc
@@ -226,7 +241,7 @@ workflow beamform_ipfb {
                         pointings.flatten(),\
                         obs_beg_end )
         splice( channels,\
-                make_beam_ipfb.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+                make_beam_ipfb.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
     emit:
         splice.out[0]
         splice.out[1]
