@@ -13,9 +13,11 @@ params.summed = false
 params.vcstools_version = 'master'
 
 params.basedir = '/group/mwaops/vcs'
+params.stratch_basedir = '/astro/mwaops/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
 params.publish_fits = true
+params.publish_fits_scratch = false
 
 pointings = Channel
     .from(params.pointings.split(","))
