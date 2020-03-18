@@ -191,6 +191,7 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
     pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
     return pointing_list_list
 
+
 def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
     """
     Finds the beam power information for pulsars in a specific obsid
@@ -230,6 +231,38 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
         pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data
+
+def get_sources_in_fov(obsid, source_type, fwhm):
+    """
+    Find all sources of the input type in the observations field-of-view
+
+    Parameters:
+    -----------
+    obsid: str
+        observation ID to search in
+    source_type: str
+        the source type input to fpio.grab_source_alog
+    """
+    names_ra_dec = fpio.grab_source_alog(source_type=source_type)
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    
+    name_list = []
+    pointing_list = []
+    for pulsar_line in obs_data[obsid]:
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj = line
+        jname_temp_list = [jname]
+
+        # grid the pointings to fill the position uncertaint (given in arcminutes)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 1./60.)
+               
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            name_list.append(jname_temp_list)
+            pointing_list.append("{0}_{1}".format(prd[0], prd[1]))
+    return [name_list, pointing_list]
 
 
 def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
@@ -390,26 +423,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
     #Get the rest of the singple pulse search canidates
     #-----------------------------------------------------------------------------------------------------------
-    orig_names_ra_dec = fpio.grab_source_alog(source_type='RRATs',
-                                              max_dm=250, include_dm=True)
-    # remove any RRATs without at least arc minute accuracy
-    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
-    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-
-    for pulsar_line in obs_data[obsid]:
-        jname = pulsar_line[0]
-        for line in names_ra_dec:
-            if jname == line[0]:
-                jname, raj, decj, _ = line
-        jname_temp_list = [jname]
-
-        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
-
-        # sort the pointings into the right groups
-        for prd in pointing_list_list:
-            sp_name_list.append(jname_temp_list)
-            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    temp = get_sources_in_fov(obsid, 'RRATs', fwhm)
+    sp_name_list = sp_name_list + temp[0]
+    sp_pointing_list = sp_pointing_list + temp[1]
 
     print('\nSENDING OFF RRAT SINGLE PULSE SEARCHES')
     print('----------------------------------------------------------------------------------------')
@@ -422,7 +438,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
-                              single_pulse=True, cand_type='RRATs')
+                              single_pulse=True, cand_type='RRATs', scratch=True)
     search_pipe.beamform(search_opts, sp_pointing_list,
                          pulsar_list_list=sp_name_list,
                          code_comment="RRATs single pulse search",
@@ -431,28 +447,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
     # Find all of the FRB candidates
     #-----------------------------------------------------------------------------------------------------------
-    orig_names_ra_dec = fpio.grab_source_alog(source_type='FRB',
-                                              max_dm=10000, include_dm=True)
-    # remove any RRATs without at least arc minute accuracy
-    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
-    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-
-    sp_name_list = []
-    sp_pointing_list = []
-    for pulsar_line in obs_data[obsid]:
-        jname = pulsar_line[0]
-        for line in names_ra_dec:
-            if jname == line[0]:
-                jname, raj, decj, dm = line
-        jname_temp_list = [jname]
-
-        # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
-
-        # sort the pointings into the right groups
-        for prd in pointing_list_list:
-            sp_name_list.append(jname_temp_list)
-            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    frb_name_list, frb_pointing_list = get_sources_in_fov(obsid, 'FRB', fwhm)
 
     print('\nSENDING OFF FRB SINGLE PULSE SEARCHES')
     print('----------------------------------------------------------------------------------------')
@@ -465,37 +460,16 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
-                              single_pulse=True, cand_type='FRB')
-    search_pipe.beamform(search_opts, sp_pointing_list,
-                         pulsar_list_list=sp_name_list,
+                              single_pulse=True, cand_type='FRB', scratch=True)
+    search_pipe.beamform(search_opts, frb_pointing_list,
+                         pulsar_list_list=frb_name_list,
                          code_comment="FRB single pulse search",
                          relaunch=relaunch)
 
 
     # Find all of the Fermi candidates
     #-----------------------------------------------------------------------------------------------------------
-    orig_names_ra_dec = fpio.grab_source_alog(source_type='Fermi',
-                                              max_dm=10000, include_dm=True)
-    # remove any RRATs without at least arc minute accuracy
-    names_ra_dec = np.array([s for s in orig_names_ra_dec if (len(s[1]) > 4 and len(s[2]) > 4)])
-    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-
-    sp_name_list = []
-    sp_pointing_list = []
-    for pulsar_line in obs_data[obsid]:
-        jname = pulsar_line[0]
-        for line in names_ra_dec:
-            if jname == line[0]:
-                jname, raj, decj, pos_u = line
-        jname_temp_list = [jname]
-
-        # grid the pointings to fill the position uncertaint (given in arcminutes)
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, float(pos_u)/60.)
-
-        # sort the pointings into the right groups
-        for prd in pointing_list_list:
-            sp_name_list.append(jname_temp_list)
-            sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    fermi_name_list, fermi_pointing_listt = get_sources_in_fov(obsid, 'Fermi', fwhm)
 
     print('\nSENDING OFF FERMI CANDIDATE SEARCHES')
     print('----------------------------------------------------------------------------------------')
@@ -508,33 +482,15 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
-                              search=True, cand_type='Fermi')
-    search_pipe.beamform(search_opts, sp_pointing_list,
-                         pulsar_list_list=sp_name_list,
+                              search=True, cand_type='Fermi', scratch=True)
+    search_pipe.beamform(search_opts, fermi_pointing_list,
+                         pulsar_list_list=fermi_name_list,
                          code_comment="Fermi candidate pulsar search",
                          relaunch=relaunch)
 
     # Find all of the points of interest candidates
     #-----------------------------------------------------------------------------------------------
-    names_ra_dec = fpio.grab_source_alog(source_type='POI')
-    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    
-    poi_name_list = []
-    poi_pointing_list = []
-    for pulsar_line in obs_data[obsid]:
-        jname = pulsar_line[0]
-        for line in names_ra_dec:
-            if jname == line[0]:
-                jname, raj, decj = line
-        jname_temp_list = [jname]
-
-        # grid the pointings to fill the position uncertaint (given in arcminutes)
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, 1./60.)
-               
-        # sort the pointings into the right groups
-        for prd in pointing_list_list:
-            poi_name_list.append(jname_temp_list)
-            poi_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+    poi_name_list, poi_pointing_list = get_sources_in_fov(obsid, 'POI', fwhm)
     
     print('\nSENDING OFF POINTS OF INTEREST SEARCHS')
     print('----------------------------------------------------------------------------------------')
@@ -550,7 +506,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
-                              search=True, cand_type='POI')
+                              search=True, cand_type='POI', scratch=True)
     search_pipe.beamform(search_opts, poi_pointing_list,
                          pulsar_list_list=poi_name_list,
                          code_comment="Points of interest candidate pulsar search",
