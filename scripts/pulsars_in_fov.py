@@ -41,6 +41,20 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
     -----------
     obsid: int
         The observation ID
+    psrbeg: int
+        The begining of the observation you are processing in GPS time
+    psrend: int
+        The end of the observation you are processing in GPS time
+
+    Returns:
+    --------
+    list of lists:
+           [pulsar_name_list,
+            pulsar_pointing_list,
+            vdif_name_list,
+            vdif_pointing_list,
+            sp_name_list,
+            sp_pointing_list]
     """
     
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
