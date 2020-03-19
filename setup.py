@@ -57,7 +57,7 @@ setup(name="mwa_search",
                'plotting/position_sn_heatmap_fwhm.py',
                'version.py',
                'nextflow/beamform.nf', 'nextflow/beamform_module.nf',
-               'nextflow/data_processing_pipeline.nf', 'nextflow/nextflow.config'],
+               'nextflow/beamform_fov_sources.nf', 'nextflow/nextflow.config'],
       #data_files=[('AegeanTools', [os.path.join(data_dir, 'MOC.fits')]) ],
       setup_requires=['pytest-runner'],
       tests_require=['pytest']#, 'nose']
