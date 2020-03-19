@@ -45,6 +45,7 @@ class search_options_class:
                  cand_name=None, cand_type='Blind',
                  relaunch_script=None, downsample=False,
                  search=False, single_pulse=False, data_process=False,
+                 scratch=False,
                  bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
                  nice=None,
@@ -82,7 +83,7 @@ class search_options_class:
         if pointing_dir is None:
             if incoh:
                 self._pointing_dir = '{0}incoh/'.format(self.fits_dir_base)
-            elif data_process and self.pointing is not None:
+            elif (scratch or data_process) and self.pointing is not None:
                 self._pointing_dir = '{0}dpp_pointings/{1}/'.format(self.fits_dir_base,
                                                                     self.pointing)
             elif self.pointing is not None:
@@ -111,6 +112,7 @@ class search_options_class:
         self.search             = search
         self.single_pulse       = single_pulse
         self.data_process       = data_process
+        self.scratch            = scratch
         self.downsample         = downsample
         self._bsd_row_num       = bsd_row_num
         self.cold_storage_check = cold_storage_check
@@ -383,7 +385,7 @@ def process_vcs_wrapper(search_opts, pointings,
                       calibration_type="rts", nice=search_opts.nice,
                       vcstools_version=search_opts.vcstools_ver,
                       channels_to_beamform=channels,
-                      dpp=search_opts.data_process)
+                      dpp=(search_opts.data_process or search_opts.scratch))
 
     code_comment_in = code_comment
     dep_job_id_list = []
@@ -601,10 +603,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #search_opts.pointing = search_opts.fits_dir_base.split("/")[-1]
             search_opts.setPoint(line)
         else:
-            ra, dec = line.split(" ")
-            if dec.endswith("\n"):
-                dec = dec[:-1]
-            search_opts.setPoint(ra + "_" + dec)
+            if line.endswith("\n"):
+                line = line[:-1]
+            line = line.replace(" ", "_")
+            search_opts.setPoint(line)
 
         #pulsar check parsing
         if pulsar_list_list is None:
@@ -629,7 +631,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             if search_opts.incoh:
                 search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
             else:
-                if search_opts.data_process:
+                if (search_opts.data_process or search_opts.scratch):
                     search_opts.setPdir('{0}dpp_pointings/{1}/'.format(search_opts.fits_dir_base,
                                                                    search_opts.pointing))
                 else:
@@ -851,7 +853,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                                              pointings_to_beamform,
                                                              dep_job_id_list):
                     logger.debug(pulsar_list, pointing, dep_job_id)
-                    if search_opts.data_process:
+                    if search_opts.data_process or search_opts.scratch:
                         # use the /astro dir if dataprocessing
                         pointing_dir_temp = '{0}/dpp_pointings/{1}'.format(\
                                              search_opts.fits_dir_base,
