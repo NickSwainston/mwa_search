@@ -342,6 +342,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
         the source type input to fpio.grab_source_alog
     """
     names_ra_dec = fpio.grab_source_alog(source_type=source_type)
+    print(names_ra_dec)
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     
     name_list = []
@@ -400,10 +401,11 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     obs_psrs = pow_dict[0.3][obsid]
     psrs_list_03 = [x[0] for x in obs_psrs]
     #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
+    psrs_01 = [x[0] for x in pow_dict[0.1][obsid]]
+    sn_dict_01 = snfe.multi_psr_snfe(psrs_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1)
     for psr in pow_dict[0.1][obsid]:
         if psr[0] not in psrs_list_03:
-            sn, sn_err = snfe.est_pulsar_sn(psr[0], obsid,\
-                         beg=psrbeg, end=psrend, obs_metadata=meta_data[0], o_enter=psr[1], o_exit=psr[2], min_z_power=0.1)
+            sn, sn_err = sn_dict_01[psr[0]]
             if sn is not None and sn_err is not None:
                 if sn - sn_err >= 10.:
                     obs_psrs.append(psr)
