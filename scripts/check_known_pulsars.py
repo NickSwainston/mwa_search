@@ -342,7 +342,6 @@ def get_sources_in_fov(obsid, source_type, fwhm):
         the source type input to fpio.grab_source_alog
     """
     names_ra_dec = fpio.grab_source_alog(source_type=source_type)
-    print(names_ra_dec)
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     
     name_list = []
