@@ -18,6 +18,7 @@ from mwa_metadb_utils import get_channels
 import process_vcs as pvcs
 from job_submit import submit_slurm
 import config
+import data_processing_pipeline
 
 import logging
 logger = logging.getLogger(__name__)
@@ -436,24 +437,23 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
     if pulsar.startswith("J"):
-        #pointing_str = " ".join(pointing_dir_list)
-        #logger.info("pointing string: {0}".format(pointing_str))
         p = ""
         for pointing in pointing_dir_list:
             p += "{} ".format(pointing)
-        commands = []
-        commands.append("echo 'Folding on multiple pointings'")
-        commands.append("data_process_pipeline.py -m f -d {0} -o {1} -O {2} -p {3} -L {4} "
-                        "--mwa_search {5} --vcs_tools {6} -b {7} -e {8}".format(p,\
-                        search_opts.obsid, search_opts.cal_id, pulsar, loglvl, search_opts.search_ver,\
-                        search_opts.vcstools_ver, search_opts.begin, search_opts.end))
+
+        commands=["echo 'Folding on multiple pointings'"]
+        run_params = data_processing_pipeline.run_params_class(pulsar=pulsar, obsid=search_opts.obsid, cal_id=search_opts.cal_id,\
+                        loglvl=loglvl, mwa_search=search_opts.search_ver, vcs_tools=search_opts.vcstools_ver,\
+                        pointing_dir=pointing_dir_list, beg=search_opts.begin, end=search_opts.end)
+        launch_line = data_processing_pipeline.binfinder_launch_line(run_params, dpp=True)
+        commands.append(launch_line)
 
         name="dpp_launch_{0}_{1}".format(pulsar, search_opts.obsid)
         logger.info("Submitting job: {}".format(name))
         batch_dir = os.path.join(search_opts.fits_dir_base, "batch")
         submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
-                    slurm_kwargs={"time": "00:05:00"},\
+                    slurm_kwargs={"time": "00:10:00"},\
                     module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
                                   'presto/no-python'],\
                     submit=True, vcstools_version=search_opts.vcstools_ver,\
