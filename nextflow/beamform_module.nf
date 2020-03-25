@@ -20,9 +20,15 @@ params.publish_fits = false
 params.publish_fits_scratch = false
 
 //Calculate the max pointings used in the launched jobs
-max_job_pointings = params.pointings.split(",").size()
-if ( max_job_pointings > 15 ) {
-    max_job_pointings = 15
+if ( params.pointings ) {
+    max_job_pointings = params.pointings.split(",").size()
+    if ( max_job_pointings > 15 ) {
+        max_job_pointings = params.max_pointings
+    }
+}
+else {
+    // No input pointings (this happens in beamform_fov_sources.nf) so assuming max
+    max_job_pointings = params.max_pointings
 }
 
 //Work out total obs time
