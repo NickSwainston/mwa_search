@@ -33,7 +33,7 @@ class NoEPNDBError(Exception):
 #--------------------------------------------------------------------------
 def read_ascii_archive(archive):
     """
-    Reads an ascii archive and calculates some stuff
+    Reads an ascii archive and calculates linear polarisation. Will also calculate PA if it's not in the archive.
 
     Parameters:
     -----------
