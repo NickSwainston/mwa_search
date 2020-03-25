@@ -343,7 +343,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     """
     names_ra_dec = fpio.grab_source_alog(source_type=source_type)
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
-    
+
     name_list = []
     pointing_list = []
     for pulsar_line in obs_data[obsid]:
@@ -355,7 +355,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
 
         # grid the pointings to fill the position uncertaint (given in arcminutes)
         pointing_list_list = get_pointings_required(raj, decj, fwhm, 1./60.)
-               
+
         # sort the pointings into the right groups
         for prd in pointing_list_list:
             name_list.append(jname_temp_list)
@@ -568,7 +568,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
     # Find all of the Fermi candidates
     #-----------------------------------------------------------------------------------------------------------
-    fermi_name_list, fermi_pointing_listt = get_sources_in_fov(obsid, 'Fermi', fwhm)
+    fermi_name_list, fermi_pointing_list = get_sources_in_fov(obsid, 'Fermi', fwhm)
 
     print('\nSENDING OFF FERMI CANDIDATE SEARCHES')
     print('----------------------------------------------------------------------------------------')
