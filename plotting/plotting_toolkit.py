@@ -435,15 +435,6 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         if pa_err:
             del pa_err[i]
 
-    #FOR DEBUGGING
-    sI = roll_data(sI, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
-    sQ = roll_data(sQ, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
-    sU = roll_data(sU, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
-    sV = roll_data(sV, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
-    lin_pol = roll_data(lin_pol, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
-    #pa = roll_data(pa, idx_to_roll=roll_to, roll_to=roll_idx)[-1]
-    print("ROLL IDX PHASE: {}".format(roll_idx/1024))
-
     #plot
     fig = plt.figure(figsize=(20, 12))
     fig.subplots_adjust(hspace=0)
@@ -504,11 +495,6 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         pa_sweep_minus = roll_data(pa_sweep_minus, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
         pa_sweep_plus = roll_data(pa_sweep_plus, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
 
-        #plt.figure(figsize=(8, 12))
-        #plt.plot(pa_sweep)
-        #plt.savefig("debug4.png")
-        #plt.close()
-
         #wrap the sweep
         for i, o, m, p in zip(range(len(pa_sweep)), pa_sweep, pa_sweep_minus, pa_sweep_plus):
             if o > 90:
@@ -550,8 +536,6 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         ax_2.text(-0.49, 0,"phi_0 =  {0} +/- {1} (phase)".format(round(phi_0/360, 4), round(phi_0_e/360, 2)), fontsize = 16, color = "0.1")
     ax_2.set_ylim(-90, 90)
     ax_2.legend(loc="upper right", fontsize=14)
-    ax_2.axvline(x=0, ls=":", lw=2, color="gray")
-    ax_1.axvline(x=0, ls=":", lw=2, color="gray")
 
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving polarimetry figure: {0}".format(fig_path))
