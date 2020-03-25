@@ -34,12 +34,18 @@ except KeyError:
 
 def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_returns=False):
     """
-    Given an obsid, searches common locations for the rts folder as well as the sourcelist
+    Given an obsid, searches common locations for the rts folder(s) as well as the sourcelist(s)
 
     Parameters:
     -----------
     obsid: int
         The observation ID
+    cal_id: int
+        The calibrator ID
+    all_cal_returns: boolean
+        OPTIONAL - If true, will return all RTS directories found. Default: False
+    all_srclist_returns: boolean
+        OPTIONAL - If true, will return all sourcelist files found. Default: False
 
     Returns:
     --------
@@ -61,7 +67,7 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
             if f.endswith(".txt") and "srclist" in f:
                 srclists.append(os.path.join(root, f))
 
-    #handle multiple rts foldes with user input
+    #handle multiple rts folders with user input
     if not all_cal_returns and len(cal_dirs) > 1:
         valid = False
         while not valid:
@@ -74,9 +80,8 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
                 my_cal_dir = cal_dirs[choice-1]
                 print("Using RTS directory: {}".format(my_cal_dir))
                 cal_dirs = [my_cal_dir]
-
             else:
-                print("Not a valid choice")
+                print("## Not a valid choice! ##")
 
     #handle multiple sourcelist files with user input
     if not all_srclist_returns and len(srclists) > 1:
@@ -97,13 +102,20 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
     return cal_dirs, srclists
 
 def upload_cal_files(obsid, cal_id, cal_dir_to_tar=None, srclist=None):
+    """
+    Uploads the calibrator solutions to the MWA pulsar database
 
-
-    if not cal_dir_to_tar:
-        cal_dir_to_tar = search_for_cal_srclist(obsid, cal_id, all_srclist_returns=True)[0][0]
-    if not srclist:
-        srclist = search_for_cal_srclist(obsid, cal_id, all_cal_returns=True)[1][0]
-
+    Parameters:
+    -----------
+    obsid: int
+        The observation ID
+    cal_id: int
+        The calibrator ID
+    cal_dir_to_tar: string
+        OPTIONAL - The location of the calibrator RTS directory. If None, will search for it. Default: None
+    sorclist: string
+        OPTIONAL - The path to the sourcelist. If None, will search for it. Default: None
+    """
     #pulsar database
     web_address = 'https://pulsar-cat.icrar.uwa.edu.au'
 
@@ -122,6 +134,10 @@ def upload_cal_files(obsid, cal_id, cal_dir_to_tar=None, srclist=None):
     if client_files_dict:
         logger.info("This calibrator already has solutions on the database. Not uploading")
     else:
+        if not cal_dir_to_tar:
+            cal_dir_to_tar = search_for_cal_srclist(obsid, cal_id, all_srclist_returns=True)[0][0]
+        if not srclist:
+            srclist = search_for_cal_srclist(obsid, cal_id, all_cal_returns=True)[1][0]
         zip_loc = submit_to_database.zip_calibration_files(cal_dir_to_tar, cal_id, srclist)
         client.calibrator_create(web_address, auth, observationid = str(cal_id))
         client.calibrator_file_upload(web_address, auth, observationid = str(cal_id), filepath = zip_loc)
