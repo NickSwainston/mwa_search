@@ -19,6 +19,28 @@ params.channels = null
 params.publish_fits = false
 params.publish_fits_scratch = false
 
+//Calculate the max pointings used in the launched jobs
+max_job_pointings = params.pointings.split(",").size()
+if ( max_job_pointings > 15 ) {
+    max_job_pointings = 15
+}
+
+//Work out total obs time
+if ( params.all ) {
+    // an estimation since there's no easy way to make this work
+    obs_length = 4800
+}
+else {
+    obs_length = params.end - params.begin + 1
+}
+
+
+//Beamforming ipfb duration calc
+mb_ipfb_dur = ( obs_length * (params.bm_read + 2 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 1.2
+
+//Beamforming duration calc
+mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 1.2
+
 
 if ( params.summed ) {
     bf_out = " -p -s "
@@ -105,13 +127,28 @@ process gps_to_utc {
 }
 
 
-process make_beam {
-    //Beamforming duration calc
-    //mb_dur = (bm_read + bm_cal + point.size() * (bm_beam +bm_write) + 20 ) * 1.2
+process make_directories {
+    """
+    #!/usr/bin/env python3
 
+    from mdir import mdir
+    from process_vcs import create_link
+
+    mdir("${params.basedir}/${params.obsid}", "Data")
+    mdir("${params.scratch_basedir}/${params.obsid}", "Products")
+    mdir("${params.basedir}/batch", "Batch")
+    mdir("${params.basedir}/${params.obsid}/pointings", "Pointings")
+    mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
+    create_link("${params.basedir}/${params.obsid}", "dpp_pointings",
+                "${params.scratch_basedir}/${params.obsid}", "dpp_pointings")
+    """
+}
+
+
+process make_beam {
     label 'gpu'
-    time '2h'
-    //time '${mb_dur}s'
+    //time '2h'
+    time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -138,17 +175,14 @@ ${bf_out} -z $utc
 
 
 process make_beam_ipfb {
-    //Beamforming ipfb duration calc
-    //mb_ipfb_dur = (bm_read + 2 * (bm_cal + bm_beam) + bm_write + 20 ) * 1.2
-
     publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*hdr"
     publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*vdif"
     publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*hdr"
     publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*vdif"
 
     label 'gpu'
-    time '2h'
-    //time '${mb_ipfb_dur}s'
+    //time '2h'
+    time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -167,6 +201,14 @@ process make_beam_ipfb {
     """
     module use /group/mwa/software/modulefiles
     module load vcstools/origbeam
+
+    if $params.publish_fits; then
+        mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
+    fi
+    if $params.publish_fits_scratch; then
+        mkdir -p -m 771 ${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}
+    fi
+
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]}\
@@ -204,6 +246,7 @@ workflow pre_beamform {
         get_channels()
         ensure_metafits()
         gps_to_utc( get_beg_end.out.map{ it.split(",") }.flatten().collect() )
+        make_directories()
     emit:
         get_beg_end.out.map{ it.split(",") }.flatten().collect()
         get_channels.out.splitCsv()
