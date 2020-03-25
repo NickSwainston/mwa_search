@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.colors as colors
 import logging
 import argparse
 import json
@@ -12,6 +14,7 @@ import glob
 
 import prof_utils
 import binfinder
+import stokes_fold
 
 logger = logging.getLogger(__name__)
 
@@ -22,29 +25,82 @@ except KeyError:
     ATNF_LOC = None
 EPNDB_LOC = os.environ["EPNDB_LOC"]
 
-#--------------------------------------------------------------------------
-def pulsar_db_search(pulsar=None, obsid=None):
-    #from mwa_pulsar_client import client
-    #address = "https://mwa-pawsey-volt01.pawsey.org.au"
-    #auth = ('mwapulsar','veovys9OUTY=')
-    #pul_list_dict = client.pulsar_list(address, auth)
-    #detection_list = client.detection_list(address, auth)
-    #return_stuff = client.detection_get(address, auth, observationid=obsid)
-    #print(client.pulsar_get(address, auth, name="J2241-5236"))
-
-    """
-    Pulsar list is a list of dictionaries. Each dictionary has the following keys:
-    {'name', 'ra', 'dec'}
-
-    Detection list is a list of dictionaries. Each dictionary is a detection with the following keys:
-    {'observationid', 'subband', 'observation_type', 'observation_type_str', 'startcchan', 'stopcchan', 'coherent', 'flux', 'flux_error', 'width', 'width_error', 'scattering', 'scattering_error', 'dm', 'dm_error', 'pulsar', 'calibrator', 'version'}
-
-    Detection get is a list of dictionaries. The list contains a dictionary for each detection in the OBSID. Each of these dictionaries has the folloing keys:
-    'observationid', 'subband', 'observation_type', 'observation_type_str', 'startcchan', 'stopcchan', 'coherent', 'flux', 'flux_error', 'width', 'width_error', 'scattering', 'scattering_error', 'dm', 'dm_error', 'pulsar', 'calibrator', 'detection_files'
-
-    Pulsar get returns a dict including pulsar's name, ra, dec and a list of detections. This includes all parameters listed above ^
-     """
+#---------------------------------------------------------------
+class NoEPNDBError(Exception):
+    """Raise when a pulsar has not been found on the EPNDB"""
     pass
+
+#--------------------------------------------------------------------------
+def read_ascii_archive(archive):
+    """
+    Reads an ascii archive and calculates linear polarisation. Will also calculate PA if it's not in the archive.
+
+    Parameters:
+    -----------
+    archive: string
+        The pathname of the ascii archive
+
+    Returns:
+    --------
+    sI: list
+        The stokes I values of the archive
+    sQ: list
+        The stokes Q values of the archive
+    sU: list
+        The stokes U values of the archive
+    sV: list
+        The stokes V values of the archive
+    lin_pol: list
+        The linear polarisation of the stokes values
+    pa: list
+        Tries to find in the archive, if not there calculates from stokes values. Returns are in radians
+    pa_err: list
+        If pa is in archive, this is the error in the pa. Otherwise empty
+    """
+    #Read the archive
+    sI = []
+    sQ = []
+    sU = []
+    sV = []
+    lin_pol = []
+    pa = []
+    pa_err = []
+    f = open(archive)
+    lines = f.readlines()
+    f.close()
+    for line in lines[1:]:
+        thisline=line.split()
+        sI.append(float(thisline[3]))
+        sQ.append(float(thisline[4]))
+        sU.append(float(thisline[5]))
+        sV.append(float(thisline[6]))
+        if len(thisline)==10:
+            pa.append(float(thisline[8]))
+            pa_err.append(float(thisline[9]))
+
+    if len(pa)==0:
+        lin_pol, pa = calc_lin_pa(sQ, sU)
+    else:
+        lin_pol, _ = calc_lin_pa(sQ, sU)
+        pa = np.array(pa)*np.pi/180
+        pa_err = np.array(pa_err)*np.pi/180
+
+    max_I = max(sI)
+    sI = np.array(sI)/max_I
+    sQ = np.array(sQ)/max_I
+    sU = np.array(sU)/max_I
+    sV = np.array(sV)/max_I
+    lin_pol = np.array(lin_pol)/max_I
+    roll_idx, roll_to, sI = roll_data(sI)
+    sQ = roll_data(sQ, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    sU = roll_data(sU, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    sV = roll_data(sV, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    lin_pol = roll_data(lin_pol, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    pa = roll_data(pa, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    if list(pa_err):
+        pa_err = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+
+    return sI, sQ, sU, sV, lin_pol, pa, pa_err, roll_idx, roll_to
 
 #--------------------------------------------------------------------------
 def roll_data(data, idx_to_roll=None, roll_to=None):
@@ -163,9 +219,10 @@ def get_data_from_epndb(pulsar):
                     pulsar_dict["Vy"].append(None)
 
     #sort by frequency
-    freq_list = pulsar_dict["freq"]
-    for key in pulsar_dict.keys():
-        _, pulsar_dict[key] = (list(t) for t in zip(*sorted(zip(freq_list, pulsar_dict[key]))))
+    if len(pulsar_dict["freq"]) > 0:
+        pulsar_dict = sort_pulsar_dict(pulsar_dict)
+    else:
+        raise NoEPNDBError("Pulsar not on the EPNDB!")
 
     return pulsar_dict
 
@@ -209,6 +266,7 @@ def plot_bestprof(bestprof, freq=None, out_dir="./"):
     #plot
     _, ax = plt.subplots(figsize=(12, 8))
     plt.plot(x, y, color="black")
+    plt.xlim(-0.5, 0.5)
     plt.title(title)
     plt.text(0.05, 0.95,  "S/N:             {0}".format(info_dict["sn"]), fontsize=10, color="black", transform=ax.transAxes)
     plt.text(0.05, 0.925, "Chi Sq:          {0}".format(info_dict["chi"]), fontsize=10, color="black", transform=ax.transAxes)
@@ -218,7 +276,8 @@ def plot_bestprof(bestprof, freq=None, out_dir="./"):
 
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving bestprof figure: {0}".format(fig_path))
-    plt.savefig("{0}".format(fig_path))
+    plt.savefig("{0}".format(fig_path, bbox_inches="tight"))
+    plt.close()
 
     return fig_path
 
@@ -278,7 +337,8 @@ def plot_ascii(archive, pulsar=None, freq=None, obsid=None, out_dir="./"):
 
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving ascii figure: {0}".format(fig_path))
-    plt.savefig(fig_path)
+    plt.savefig(fig_path, bbox_inches='tight')
+    plt.close()
 
     return fig_path
 
@@ -301,16 +361,15 @@ def calc_lin_pa(stokes_Q, stokes_U):
     pa: list
         The position angles
     """
-    lin_pol = []
-    pa = []
-    for q, u in zip(stokes_Q, stokes_U):
-        lin_pol.append(np.sqrt(q**2+u**2))
-        pa.append(0.5*np.arctan(q/u))
+    stokes_Q = np.array(stokes_Q)
+    stokes_U = np.array(stokes_U)
+    lin_pol = np.sqrt(stokes_Q**2 + stokes_U**2)
+    pa = 0.5 * np.arctan(stokes_Q/stokes_U)
 
     return lin_pol, pa
 
 #--------------------------------------------------------------------------
-def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./"):
+def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./", rvm_fit=None, rm=None, rm_e=None):
     """
     Plots a polarimetry profile as a .png using a full-stokes ascii text file
 
@@ -326,55 +385,55 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         OPTIONAL - The observation ID. Default: None
     out_dir: string
         OPTIONAL - The directory to ouput the .png to
+    rvm_fit: dictionary
+        OPTIONAL - A dictionary generated from stokes_fold.read_rvm_fit_file. Supplying this will plot the fitted RVM. Default: None
+    rm: float
+        OPTIONAL - The rm used to correct the plot. If supplied will create a stamp on the plot. Default: None
+    rm_e: float
+        OPTIONAL - The uncertainty in rm. Default: None
 
     Returns:
     --------
     fig_path: string
         The path of the output .png file
     """
-
     #make the title
     title = ""
     save_name = "Polarimetry_profile"
-    if pulsar is not None:
+    if pulsar:
         title += "{}".format(pulsar)
         save_name += "_{}".format(pulsar)
     title += " Polarimetry Profile"
-    if obsid is not None:
+    if obsid:
         title += " {}".format(obsid)
         save_name += "_{}".format(obsid)
-    if freq is not None:
+    if rvm_fit:
+        title += " RVM fit"
+        save_name += "_RVM_fit"
+    if freq:
         title += " - {}MHz".format(freq)
         save_name += "_{}MHz".format(freq)
     save_name += ".png"
 
-    #Read the archive
-    sI = []
-    sQ = []
-    sU = []
-    sV = []
-    f = open(archive)
-    lines = iter(f.readlines())
-    next(lines) #skip first line
-    for line in lines:
-        thisline=line.split()
-        sI.append(float(thisline[3]))
-        sQ.append(float(thisline[4]))
-        sU.append(float(thisline[5]))
-        sV.append(float(thisline[6]))
-
-    #normalize, aign and find linear polarization and position angle
-    max_I = max(sI)
-    sI = np.array(sI)/max_I
-    sQ = np.array(sQ)/max_I
-    sU = np.array(sU)/max_I
-    sV = np.array(sV)/max_I
-    roll_idx, roll_to, sI = roll_data(sI)
-    sQ = roll_data(sQ, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    sU = roll_data(sU, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    sV = roll_data(sV, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    lin_pol, pa = calc_lin_pa(sQ, sU)
+    sI, sQ, sU, sV, lin_pol, pa, pa_err, roll_idx, roll_to = read_ascii_archive(archive)
+    pa = np.rad2deg(pa)
+    pa_err = np.rad2deg(pa_err)
     x = np.linspace(-0.5, 0.5, len(sI))
+
+    #get rid of zeros in pa. Need to be in python lists for this to work
+    x_pa = x
+    rm_idxs=[]
+    pa = list(pa)
+    pa_err = list(pa_err)
+    x_pa = list(x_pa)
+    for i, val in enumerate(pa):
+        if abs(val)<0.0000001:
+            rm_idxs.append(i)
+    for i in sorted(rm_idxs, reverse=True):
+        del pa[i]
+        del x_pa[i]
+        if pa_err:
+            del pa_err[i]
 
     #plot
     fig = plt.figure(figsize=(20, 12))
@@ -389,7 +448,7 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
 
     ax_2 = plt.subplot2grid((4,1),(3,0), colspan=1, rowspan=1)
     ax_2.tick_params(labelsize=14)
-    ax_2.set_yticks([-0.5, 0.5])
+    ax_2.set_yticks([-90, 0, 90])
     ax_2.set_xticks(np.linspace(-0.5, 0.5, 11))
     ax_2.set_xlabel("Pulse Phase", fontsize=20)
     ax_2.set_ylabel("Position Angle", fontsize=20)
@@ -398,17 +457,94 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     ax_1.plot(x, sI, color="k", label="Stokes I")
     ax_1.plot(x, lin_pol, color="r", label="Linear Polarization")
     ax_1.plot(x, sV, color="b", label="Circular Polarization")
-    ax_2.scatter(x, pa, color="k", label="Position Angle")
-
+    if rm:
+        if rm_e is None:
+            extension = ""
+        else:
+            extension = " +/- {}".format(round(rm_e, 4))
+        ax_1.text(-0.49, 0.95, "RM =  {0}{1}".format(round(rm, 4), extension), fontsize = 16, color = "0.1")
     ax_1.legend(loc="upper right", fontsize=18)
+
+    if len(pa_err)>0:
+        ax_2.errorbar(x_pa, pa, yerr=pa_err, markersize=8, color="0.2", label="Position Angle", fmt=".")
+    else:
+        ax_2.scatter(x_pa, pa, s=6, color="0.2", label="Position Angle", marker=".")
+
+    if rvm_fit:
+        #plot the rvm fit
+        res_upscale = 5120/len(sI)
+        phi_range = np.linspace(0, 360, int(res_upscale*len(sI)))
+        x = np.linspace(-0.5, 0.5, int(res_upscale*len(sI)))
+        alpha = 180 - rvm_fit["alpha"]
+        zeta = 180 - rvm_fit["zeta"]
+        psi_0 = rvm_fit["psi_0"]
+        phi_0 = rvm_fit["phi_0"]
+        alpha_e = rvm_fit["alpha_e"]
+        zeta_e = rvm_fit["zeta_e"]
+        psi_0_e = rvm_fit["psi_0_e"]
+        phi_0_e = rvm_fit["phi_0_e"]
+
+        pa_sweep = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha), np.deg2rad(zeta), np.deg2rad(psi_0), np.deg2rad(phi_0)))
+        pa_sweep_minus = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha-alpha_e), np.deg2rad(zeta-zeta_e),\
+                         np.deg2rad(psi_0-psi_0_e), np.deg2rad(phi_0-phi_0_e)))
+        pa_sweep_plus = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha+alpha_e), np.deg2rad(zeta+zeta_e),\
+                        np.deg2rad(psi_0+psi_0_e), np.deg2rad(phi_0+phi_0_e)))
+
+        #roll the sweep
+        pa_sweep = roll_data(pa_sweep, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
+        pa_sweep_minus = roll_data(pa_sweep_minus, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
+        pa_sweep_plus = roll_data(pa_sweep_plus, idx_to_roll=int(res_upscale*roll_idx), roll_to=int(res_upscale*roll_to))[-1]
+
+        #wrap the sweep
+        for i, o, m, p in zip(range(len(pa_sweep)), pa_sweep, pa_sweep_minus, pa_sweep_plus):
+            if o > 90:
+                pa_sweep[i] = o - 180
+            if m > 90:
+                pa_sweep_minus[i] = m - 180
+            if p > 90:
+                pa_sweep_plus[i] = p - 180
+            if o < -90:
+                pa_sweep[i] = o + 180
+            if m < -90:
+                pa_sweep_minus[i] = m + 180
+            if p < -90:
+                pa_sweep_plus[i] = p + 180
+
+        #remove discontinuities to make it look like it wraps over pi
+        x_minus = x[:]
+        x_plus = x[:]
+
+        pos = np.where(np.abs(np.diff(pa_sweep)) >= 160)[0]
+        pos_minus = np.where(np.abs(np.diff(pa_sweep_minus)) >= 170)[0]
+        pos_plus = np.where(np.abs(np.diff(pa_sweep_plus)) >= 170)[0]
+
+        x[pos] = np.nan
+        x_minus[pos_minus] = np.nan
+        x_plus[pos_plus] = np.nan
+        pa_sweep[pos] = np.nan
+        pa_sweep_minus[pos_minus] = np.nan
+        pa_sweep_plus[pos_plus] = np.nan
+
+        #plot everything
+        ax_2.plot(x, pa_sweep, color="orange", label="RVM fit")
+        ax_2.plot(x_minus, pa_sweep_minus, color="0.5", linestyle=":", label="Fit Uncertainty")
+        ax_2.plot(x_plus, pa_sweep_plus, color="0.5", linestyle=":")
+
+        ax_2.text(-0.49, 75, "alpha =  {0} +/- {1}".format(round(alpha, 3), round(alpha_e, 2)), fontsize = 16, color = "0.1")
+        ax_2.text(-0.49, 50, "zeta  =  {0} +/- {1}".format(round(zeta, 3),  round(zeta_e, 2)),  fontsize = 16, color = "0.1")
+        ax_2.text(-0.49, 25, "psi_0 =  {0} +/- {1}".format(round(psi_0, 3), round(psi_0_e, 2)), fontsize = 16, color = "0.1")
+        ax_2.text(-0.49, 0,"phi_0 =  {0} +/- {1} (phase)".format(round(phi_0/360, 4), round(phi_0_e/360, 2)), fontsize = 16, color = "0.1")
+    ax_2.set_ylim(-90, 90)
+    ax_2.legend(loc="upper right", fontsize=14)
+
     fig_path = os.path.join(out_dir, save_name)
     logger.info("Saving polarimetry figure: {0}".format(fig_path))
-    plt.savefig(fig_path)
+    plt.savefig(fig_path, bbox_inches='tight')
 
     return fig_path
 
 #--------------------------------------------------------------------------
-def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
+def plot_stack(frequencies, profs_y, pulsar_name,\
                 out_dir="./", mybuffer=0.75, ignore_duplicates=True, special_freqs=None, ignore_freqs=None):
     """
     Plots multiple profiles stacked on top of one anothre in order of frequency. Saves as a .png
@@ -417,8 +553,6 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     -----------
     frequencies: list
         The frequencies of the profiles to plot
-    profs_x: list
-        The phases of the profiles to plot. Where one phsae rotation begins as -0.5 and ends at 0.5
     profs_y: list
         The Intesities of the profiles
     pulsar_name: string
@@ -456,14 +590,12 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
 
     for i in sorted(ignore_idxs, reverse=True):
         del frequencies[i]
-        del profs_x[i]
         del profs_y[i]
 
     #roll the profiles to align the first maxima
     rolled_profs = []
     for profile in profs_y:
-        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(profile)
-        rl_prof = roll_data(I, idx_to_roll=maxima[0])[-1]
+        rl_prof = roll_data(profile)[-1]
         rolled_profs.append(rl_prof)
 
     #Initialize figure
@@ -471,15 +603,15 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     #Loop over all frequencies
     for i, freq in enumerate(frequencies):
         if freq in special_freqs:
-            clr = "red"
+            clr = "magenta"
         else:
             clr = "black"
 
-        x = profs_x[i]
+        x = np.linspace(-0.5, 0.5, len(rolled_profs[i]))
         y = np.array(rolled_profs[i])/max(rolled_profs[i])
         y = np.array(y) + mybuffer*i
         plt.plot(x, y, color=clr)
-        plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = "black")
+        plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = clr)
 
     #Finalizing the plot and saving the figure
     plt.xlim(-0.5, 0.5)
@@ -490,18 +622,239 @@ def plot_stack(frequencies, profs_x, profs_y, pulsar_name,\
     plt.title(pulsar_name + " Pulse Profiles", fontsize=60)
     fig_name = os.path.join(out_dir, pulsar_name + "_stacked_profiles.png")
     logger.info("Saving stacked profiles: {}".format(fig_name))
-    plt.savefig(fig_name)
+    plt.savefig(fig_name, bbox_inches='tight')
+    plt.close()
 
     return fig_name
 
-def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
-                out_dir="./", mybuffer=1.1, ignore_duplicates=True, ignore_freqs=None):
+#--------------------------------------------------------------------------
+def add_intensity_to_dict(pulsar_dict, profile, freq):
+    """
+    Adds a stokes I profile to the pulsar dictionary
+
+    Parameters:
+    -----------
+    pulsar_dict: dictionary
+        A dictionary generated by get_data_from_epndb
+    profile: list
+        The stokes I profile to add to the pulsar dictionary
+    freq: float
+        The frequency of the profile being added in MHz
+
+    Returns:
+    --------
+    pulsar_dict: dictionary
+        The same dictionary but with the new profile added and sorted
+    """
+    x = np.linspace(-0.5, 0.5, len(profile))
+    for key in pulsar_dict.keys():
+        if key == "Ix":
+            pulsar_dict[key].append(x)
+        elif key == "Iy":
+            pulsar_dict[key].append(y)
+        elif key == "freq":
+            pulsar_dict[key].append(args.freq)
+        else:
+            pulsar_dict[key].append(None)
+
+    pulsar_dict = sort_pulsar_dict(pulsar_dict)
+    return pulsar_dict
+
+#--------------------------------------------------------------------------
+def clip_nopol_epn_data(pulsar_dict):
+    """
+    Deletes any profile without enough information for polarimetry
+
+    Parameters:
+    -----------
+    pulsar_dict: dictionary
+        A dictionary generated from get_data_from_epndb
+
+    Returns:
+    --------
+    pulsar_dict: dictionary
+        The same dictionary but with the insufficient profiles removed
+    """
+    del_idxs=[]
+    for i, Q, U, V, freq in zip(range(len(pulsar_dict["Qy"])), pulsar_dict["Qy"], pulsar_dict["Uy"], pulsar_dict["Vy"], pulsar_dict["freq"]):
+        Q = np.array(Q)
+        U = np.array(U)
+        V = np.array(V)
+        freq = np.array(freq)
+        if not bool(Q.any()) or not bool(U.any()) or not bool(V.any()) or not bool(freq.any()):
+            del_idxs.append(i)
+    for i in sorted(del_idxs, reverse=True):
+        for key in pulsar_dict.keys():
+            del pulsar_dict[key][i]
+
+    return pulsar_dict
+
+#--------------------------------------------------------------------------
+def sort_pulsar_dict(pulsar_dict):
+    """
+    Sorts a pulsar dict by frequency
+
+    Parameters:
+    -----------
+    pulsar_dict: dictionary
+        A dictionary of profiles from get_data_from_epndb
+
+    returns:
+    --------
+    pulsar_dict: dictionary
+        The same dictionary sorted by frequency
+    """
+    freq_list = pulsar_dict["freq"]
+    for key in pulsar_dict.keys():
+        _, pulsar_dict[key] = (list(t) for t in zip(*sorted(zip(freq_list, pulsar_dict[key]))))
+
+    return pulsar_dict
+
+#--------------------------------------------------------------------------
+def lin_pol_from_dict(pulsar_dict):
+    """
+    Calculates the linear polarisation of eachprofile in the pulsar dict
+
+    Parameters:
+    -----------
+    pulsar_dict: dictionary
+        A dictionary generated from get_data_from_epndb
+
+    Returns:
+    --------
+    lin: list
+        A list containing the linear polarisation profile for each profile in pulsar_dict
+    """
+    lin=[]
+    for Qy, Uy in zip(pulsar_dict["Qy"], pulsar_dict["Uy"]):
+        lin.append(calc_lin_pa(Qy, Uy)[0])
+    return lin
+
+#--------------------------------------------------------------------------
+def add_ascii_to_dict(pulsar_dict, ascii_archive, freq):
+    """
+    Adds an ascii archive to a pulsar dict generated from get_data_from_epndb
+
+    Parameters:
+    -----------
+    pulsar_dict: dictionary
+        A dictionary generated from get_data_from_epndb
+    ascii_archive: string
+        The pathname of the ascii archive to use
+    freq: float
+        The frequency of the observation in MHz
+
+    Returns:
+    --------
+    pulsar_dict: dictionary
+        The input dictionary with the new information added and sorted by frequency
+    lin_pol: list
+        The linear poilarisation of the ascii archive
+    """
+    I, Q, U, V, lin_pol, _, _, _, _ = read_ascii_archive(ascii_archive)
+    x = np.linspace(-0.5, 0.5, len(I))
+    for key in pulsar_dict.keys():
+        if key == "Ix":
+            pulsar_dict[key].append(x)
+        elif key == "Iy":
+            pulsar_dict[key].append(I)
+        elif key == "Qy":
+            pulsar_dict[key].append(Q)
+        elif key == "Uy":
+            pulsar_dict[key].append(U)
+        elif key == "Vy":
+            pulsar_dict[key].append(V)
+        elif key == "freq":
+            pulsar_dict[key].append(freq)
+        else:
+            pulsar_dict[key].append(None)
+    pulsar_dict = sort_pulsar_dict(pulsar_dict)
+
+    return pulsar_dict, lin_pol
+
+def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png", dof=None, my_chi=None, my_alpha=None, my_zeta=None):
+    """
+    Plots a chi map generated from RVM fitting
+
+    Parameters:
+    -----------
+    chi: list
+        A lsit of the chi values
+    alpha: list
+        A list of the alpha values
+    zeta: list
+        A list of the zeta values
+    name: string
+        OPTIONAL - The pathname of the output plot. Defalt: 'RVM_chi_map_plot.png'
+    dof: float
+        OPTIONAL - The degrees of freedom. Used to display a reduces chi
+
+    Returns:
+    --------
+    name: string
+        The pathname of the ouput plot
+    """
+    plt.figure(figsize=(12, 8))
+
+    if dof:
+        chis = np.array(chis)/dof
+        frac_one = 1
+        cdict = {'red':     ((0.0, 0.0, 0.0),
+                            (0.25, 1.0, 1.0),
+                            (0.75, 0.0, 0.0),
+                            (1.0, 1.0, 1.0)),
+                'green':    ((0.0, 0.0, 0.0),
+                            (0.25, 0.1, 0.1),
+                            (0.75, 0.0, 0.0),
+                            (1.0, 1.0, 1.0)),
+                'blue':     ((0.0, 0.0, 0.0),
+                            (0.25, 0.1, 0.1),
+                            (0.75, 1.0, 1.0),
+                            (1.0, 1.0, 1.0))}
+
+        cmap = LinearSegmentedColormap('mycmap', cdict)
+
+    else:
+        cmap = "virdis"
+
+    plt.scatter(alphas, zetas, c=chis, s=8, marker="s", cmap=cmap)#, norm=colors.PowerNorm(gamma=0.1))
+    plt.axis('scaled')
+    plt.title("RVM Fit Chi Map")
+    plt.xlabel("alpha")
+    plt.ylabel("zeta")
+    plt.colorbar(fraction=0.046, pad=0.04)
+    if my_alpha is not None and my_zeta is not None:
+        mycircle = plt.Circle((my_alpha, my_zeta), 0.05, color='k', fill=False)
+        plt.gcf().gca().add_artist(mycircle)
+    if my_chi is not None:
+        plt.text(0.4, 0.1, "Best Chi: {}".format(round(my_chi, 4)), fontsize=12, color="0.25")
+    plt.xlim(min(alphas), max(alphas))
+    plt.ylim(min(zetas), max(zetas))
+    plt.clim(0, 4)
+    plt.plot()
+    plt.savefig(name, bbox_inches='tight')
+    plt.close()
+
+    return name
+
+#--------------------------------------------------------------------------
+def plot_stack_pol(frequencies, I_y, lin_y, circ_y, pulsar_name,\
+                    out_dir="./", mybuffer=1.1, ignore_duplicates=True, ignore_freqs=None):
     """
     Plots multiple profiles stacked on top of one anothre in order of frequency. Saves as a .png
 
     Parameters:
     -----------
-
+    frequencies: list
+        The list of frequencies in MHz
+    I_y: list
+        A list containing the stokes I intensities for each frequency
+    lin_y: list
+        A list containing the linear polarisation for each frequency
+    circ_y: list
+        A list containing the circular polarisation for each frequency
+    pulsar_name: string
+        The J name of the pulsar
     out_dir: string
         OPTIONAL - The directory to output the .png to. Default: './'
     mybuffer: float
@@ -533,7 +886,6 @@ def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
 
     for i in sorted(ignore_idxs, reverse=True):
         del frequencies[i]
-        del I_x[i]
         del I_y[i]
         del lin_y[i]
         del circ_y[i]
@@ -543,8 +895,12 @@ def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
     rolled_lin = []
     rolled_circ = []
     for I, lin, circ in zip(I_y, lin_y, circ_y):
-        _, _, _, _, _, _, maxima, _ = prof_utils.prof_eval_gfit(I)
-        idx, roll_to, new_I = roll_data(I, idx_to_roll=maxima[0])
+        #try:
+        #    maxima = prof_utils.auto_gfit(I)["maxima"]
+        #    idx, roll_to, new_I = roll_data(I, idx_to_roll=maxima[0])
+        #except prof_utils.ProfileLengthError:
+        idx, roll_to, new_I = roll_data(I)
+
         new_lin = roll_data(lin, idx_to_roll=idx, roll_to=roll_to)[-1]
         new_circ = roll_data(circ, idx_to_roll=idx, roll_to=roll_to)[-1]
         rolled_I.append(new_I)
@@ -559,11 +915,10 @@ def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
         I_y = np.array(rolled_I[i])/max_I + mybuffer*i
         lin_y = np.array(rolled_lin[i])/max_I + mybuffer*i
         circ_y = np.array(rolled_circ[i])/max_I + mybuffer*i
-        #logger.info("I_x: {}".format(I_x))
-        #logger.info("I_y: {}".format(I_y))
-        plt.plot(I_x[i], I_y, color="black")
-        plt.plot(I_x[i], lin_y, color="red")
-        plt.plot(I_x[i], circ_y, color="blue")
+        x = np.linspace(-0.5, 0.5, len(I_y))
+        plt.plot(x, I_y, color="black")
+        plt.plot(x, lin_y, color="red")
+        plt.plot(x , circ_y, color="blue")
         plt.text(0.35, 0.2+mybuffer*i, "{}MHz".format(round(freq, 2)), fontsize = 30, color = "black")
 
     #Finalizing the plot and saving the figure
@@ -575,7 +930,8 @@ def plot_stack_pol(frequencies, I_x, I_y, lin_y, circ_y, pulsar_name,\
     plt.title(pulsar_name + " Pulse Profiles", fontsize=60)
     fig_name = os.path.join(out_dir, pulsar_name + "_stacked_profiles_pol.png")
     logger.info("Saving stacked profiles: {}".format(fig_name))
-    plt.savefig(fig_name)
+    plt.savefig(fig_name, bbox_inches='tight')
+    plt.close()
 
     return fig_name
 
@@ -589,7 +945,8 @@ if __name__ == '__main__':
                     ERROR = logging.ERROR)
 
     #Arguments
-    parser = argparse.ArgumentParser(description="""Plots pulse profiles for a given pulsar""")
+    parser = argparse.ArgumentParser(description="""Plots pulse profiles for a given pulsar""",\
+                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     obsop = parser.add_argument_group("Observation Options")
     obsop.add_argument("-p ", "--pulsar", type=str, help="J name of the pulsar. eg. J2241-5326")
@@ -657,101 +1014,46 @@ if __name__ == '__main__':
 
     if args.plt_stack:
         pulsar_dict = get_data_from_epndb(args.pulsar)
-        plot_stack(pulsar_dict["freq"], pulsar_dict["Ix"], pulsar_dict["Iy"], args.pulsar,\
+        plot_stack(pulsar_dict["freq"][:], pulsar_dict["Iy"][:], args.pulsar,\
             out_dir=args.out_dir, special_freqs=[args.freq])
 
     if args.plt_bp_stack or args.plt_ascii_stack:
+        #Read my data
         if args.plt_bp_stack:
             y = prof_utils.get_from_bestprof(args.bestprof)[-2]
         if args.plt_ascii_stack:
             y = prof_utils.get_from_ascii(args.ascii)[0]
-        x = np.linspace(-0.5, 0.5, len(y))
+        #Get the data
         pulsar_dict = get_data_from_epndb(args.pulsar)
-        for key in pulsar_dict.keys():
-            if key == "Ix":
-                pulsar_dict[key].append(x)
-            elif key == "Iy":
-                pulsar_dict[key].append(y)
-            elif key == "freq":
-                pulsar_dict[key].append(args.freq)
-            else:
-                pulsar_dict[key].append(None)
-
+        add_intensity_to_dict(pulsar_dict, y, freq)
         #sort by frequency
-        freq_list = pulsar_dict["freq"]
-        for key in pulsar_dict.keys():
-            _, pulsar_dict[key] = (list(t) for t in zip(*sorted(zip(freq_list, pulsar_dict[key]))))
+        pulsar_dict = sort_pulsar_dict(pulsar_dict)
         #plot
-        plot_stack(pulsar_dict["freq"], pulsar_dict["Ix"], pulsar_dict["Iy"], args.pulsar,\
+        plot_stack(pulsar_dict["freq"][:], pulsar_dict["Iy"][:], args.pulsar,\
             out_dir=args.out_dir, special_freqs=[args.freq])
 
     if args.plt_stack_pol:
+        #get the data
         pulsar_dict = get_data_from_epndb(args.pulsar)
-        #remove anything without pol. info
-        del_idxs=[]
-        for i, Q, U, V in zip(range(len(pulsar_dict["Qy"])), pulsar_dict["Qy"], pulsar_dict["Uy"], pulsar_dict["Vy"]):
-            if not Q or not U or not V:
-                del_idxs.append(i)
-        for i in sorted(del_idxs, reverse=True):
-            del pulsar_dict["Ix"][i]
-            del pulsar_dict["Iy"][i]
-            del pulsar_dict["Qy"][i]
-            del pulsar_dict["Uy"][i]
-            del pulsar_dict["Vy"][i]
-            del pulsar_dict["freq"][i]
-
+        #clip the useless stuff
+        pulsar_dict = clip_nopol_epn_data(pulsar_dict)
+        #sort the data
+        pulsar_dict = sort_pulsar_dict(pulsar_dict)
         #calc lin pol
-        lin=[]
-        for Qy, Uy in zip(pulsar_dict["Qy"], pulsar_dict["Uy"]):
-            lin.append(calc_lin_pa(Qy, Uy)[0])
-
+        lin=lin_pol_from_dict(pulsar_dict)
         #plot
-        plot_stack_pol(pulsar_dict["freq"], pulsar_dict["Ix"], pulsar_dict["Iy"], lin, pulsar_dict["Vy"], args.pulsar,\
+        plot_stack_pol(pulsar_dict["freq"][:], pulsar_dict["Ix"][:], pulsar_dict["Iy"][:], lin, pulsar_dict["Vy"][:], args.pulsar,\
             out_dir=args.out_dir)
 
     if args.plt_ascii_stack_pol:
+        #initialize the pulsar dict
         pulsar_dict = get_data_from_epndb(args.pulsar)
-        I, Q, U, V, length = prof_utils.get_stokes_from_ascii(args.ascii)
-        x = np.linspace(-0.5, 0.5, length)
-        for key in pulsar_dict.keys():
-            if key == "Ix":
-                pulsar_dict[key].append(x)
-            elif key == "Iy":
-                pulsar_dict[key].append(I)
-            elif key == "Qy":
-                pulsar_dict[key].append(Q)
-            elif key == "Uy":
-                pulsar_dict[key].append(U)
-            elif key == "Vy":
-                pulsar_dict[key].append(V)
-            elif key == "freq":
-                pulsar_dict[key].append(args.freq)
-            else:
-                pulsar_dict[key].append(None)
-
+        pulsar_dict, lin_pol = add_ascii_to_dict(pulsar_dict, args.ascii, args.freq)
         #remove anything without pol. info
-        del_idxs=[]
-        for i, Q, U, V in zip(range(len(pulsar_dict["Qy"])), pulsar_dict["Qy"], pulsar_dict["Uy"], pulsar_dict["Vy"]):
-            if not Q or not U or not V:
-                del_idxs.append(i)
-        for i in sorted(del_idxs, reverse=True):
-            del pulsar_dict["Ix"][i]
-            del pulsar_dict["Iy"][i]
-            del pulsar_dict["Qy"][i]
-            del pulsar_dict["Uy"][i]
-            del pulsar_dict["Vy"][i]
-            del pulsar_dict["freq"][i]
-
-        #sort by frequency
-        freq_list = pulsar_dict["freq"]
-        for key in pulsar_dict.keys():
-            _, pulsar_dict[key] = (list(t) for t in zip(*sorted(zip(freq_list, pulsar_dict[key]))))
-
+        pulsar_dict = clip_nopol_epn_data(pulsar_dict)
+        pulsar_dict = sort_pulsar_dict(pulsar_dict)
         #calc lin pol
-        lin=[]
-        for Qy, Uy in zip(pulsar_dict["Qy"], pulsar_dict["Uy"]):
-            lin.append(calc_lin_pa(Qy, Uy)[0])
-
+        lin=lin_pol_from_dict(pulsar_dict)
         #plot
-        plot_stack_pol(pulsar_dict["freq"], pulsar_dict["Ix"], pulsar_dict["Iy"], lin, pulsar_dict["Vy"], args.pulsar,\
+        plot_stack_pol(pulsar_dict["freq"][:], pulsar_dict["Ix"][:], pulsar_dict["Iy"][:], lin, pulsar_dict["Vy"][:], args.pulsar,\
             out_dir=args.out_dir)
