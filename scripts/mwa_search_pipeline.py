@@ -572,15 +572,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
     #work out maximum number of pointings
     hostname = socket.gethostname()
     if ( hostname.startswith('john') or hostname.startswith('farnarkle') ) and summed:
-        #temp_mem = int(5. * (float(stop) - float(start) + 1.) * \
-        #           float(len(pointing_list)) / 1000.) + 1
-        temp_mem_max = 300. #GB
-        # Use the maximum number of pointings that the SSD memory can handle
-        max_pointing = int(( temp_mem_max - 1 ) * 1000. / \
-                           (5. * (float(search_opts.end) - float(search_opts.begin) + 1.)))
-        if max_pointing > 29:
-            # More than 30 won't fit on the GPU mem
-            max_pointing = 29
+        max_pointing = 120
         gpu_max_job = 70
     else:
         max_pointing = 15
