@@ -702,7 +702,7 @@ if __name__ == "__main__":
         find_beg_end(args.obsid, base_path=comp_config['base_product_dir'])
 
     #Perform data checks
-    dur = end-beg
+    dur = end-beg + 1
     if not args.no_comb_check:
         check = check_data(args.obsid, beg=beg, dur=dur)
         if not check:
