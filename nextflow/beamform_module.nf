@@ -42,10 +42,10 @@ else {
 
 
 //Beamforming ipfb duration calc
-mb_ipfb_dur = ( obs_length * (params.bm_read + 2 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 1.2
+mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 1.5
 
 //Beamforming duration calc
-mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 1.2
+mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 1.5
 
 
 if ( params.summed ) {
@@ -217,7 +217,7 @@ process make_beam_ipfb {
 
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]}\
+-d ${params.basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]} \
 -r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
 -p -u -z $utc
     """
