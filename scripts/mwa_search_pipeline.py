@@ -493,8 +493,10 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
                      ' '.join(map(str, search_opts.channels)))
     if search_opts.incoh or incoh_rfimask:
         incoh_dir = '{0}{1}/incoh/'.format(comp_config['base_product_dir'], search_opts.obsid)
+        commands.append('cd {0}'.format(incoh_dir))
         commands.append('{0} -i -w {1}'.format(splice_command, incoh_dir))
     else:
+        commands.append('cd {0}'.format(search_opts.pointing_dir))
         commands.append('{0} -w {1}'.format(splice_command, search_opts.pointing_dir))
 
     if incoh_rfimask:
