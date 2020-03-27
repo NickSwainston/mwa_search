@@ -18,6 +18,8 @@ params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
 params.publish_fits = true
 
+params.no_combined_check = false
+
 
 
 process find_pointings {
