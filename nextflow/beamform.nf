@@ -11,6 +11,7 @@ params.all = false
 
 params.summed = false
 params.vcstools_version = 'master'
+params.mwa_search_version = 'master'
 params.channels = null
 
 params.basedir = '/group/mwaops/vcs'
