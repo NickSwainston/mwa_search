@@ -45,10 +45,11 @@ def categorize_classifier_files(out_dir):
     for key in pfd_files:
         pulsar_pfds[key]=0
     for model_num in class_cand_dict.keys():
-        f = open(class_cand_dict[model_num]["positive"][0], "r")
-        for line in f.readlines():
-            pulsar_pfds[line]+=1
-        f.close()
+        if class_cand_dict[model_num]["positive"]:
+            f = open(class_cand_dict[model_num]["positive"][0], "r")
+            for line in f.readlines():
+                pulsar_pfds[line]+=1
+            f.close()
 
     #For each pfd with >=3 positive IDs, write that pfd to 'positive' file, else write to 'negative' file
     pos_f = open(os.path.join(out_dir, "LOTAAS_positive_detections.txt"), "w+")
