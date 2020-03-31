@@ -7,5 +7,6 @@ params.out_dir = "${params.cand_dir}"
 workflow {
     classifier( Channel.fromPath("${params.cand_dir}/*pfd").toList( )
     publish:
-        classifier.out to: params.out_dir
+        classifier.out[0] to: params.out_dir
+        classifier.out[1] to: params.out_dir
 }
