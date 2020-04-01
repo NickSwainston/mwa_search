@@ -43,6 +43,12 @@ else {
     obs_length = params.end - params.begin + 1
 }
 
+//Calculate expected number of fits files
+n_fits = (int) (obs_length/200)
+if ( obs_length % 200 != 0 ) {
+    n_fits = n_fits + 1
+}
+
 
 //Beamforming ipfb duration calc
 mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 2
@@ -304,9 +310,9 @@ workflow beamform {
                    pointings,\
                    obs_beg_end )
         splice( channels,\
-                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: 24 * n_fits ) | map { it -> it[1] } )
     emit:
-        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] }
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: n_fits ) | map { it -> it[1] }
         splice.out[1]
 }
 
@@ -322,8 +328,8 @@ workflow beamform_ipfb {
                         pointings.flatten(),\
                         obs_beg_end )
         splice( channels,\
-                make_beam_ipfb.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+                make_beam_ipfb.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: 24 * n_fits ) | map { it -> it[1] } )
     emit:
-        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] }
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: n_fits ) | map { it -> it[1] }
         splice.out[1]
 }
