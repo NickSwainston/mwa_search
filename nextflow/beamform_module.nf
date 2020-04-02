@@ -11,6 +11,7 @@ params.all = false
 
 params.summed = false
 params.vcstools_version = 'master'
+params.mwa_search_version = 'master'
 params.channels = null
 
 params.basedir = '/group/mwaops/vcs'
@@ -24,7 +25,7 @@ params.no_combined_check = false
 //Calculate the max pointings used in the launched jobs
 if ( params.pointings ) {
     max_job_pointings = params.pointings.split(",").size()
-    if ( max_job_pointings > 15 ) {
+    if ( max_job_pointings > params.max_pointings ) {
         max_job_pointings = params.max_pointings
     }
 }
@@ -42,12 +43,24 @@ else {
     obs_length = params.end - params.begin + 1
 }
 
+//Calculate expected number of fits files
+n_fits = (int) (obs_length/200)
+if ( obs_length % 200 != 0 ) {
+    n_fits = n_fits + 1
+}
+
 
 //Beamforming ipfb duration calc
-mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 1.5
+mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 2
 
 //Beamforming duration calc
-mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 1.5
+mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 2
+
+//Required temp SSD mem required for gpu jobs
+temp_mem = (int) (0.0012 * obs_length * max_job_pointings + 1)
+if ( ! params.summed ) {
+    temp_mem = temp_mem * 4
+}
 
 
 if ( params.summed ) {
@@ -180,6 +193,10 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+        scratch '$JOBFS'
+    }
 
     input:
     each channel_pair
@@ -190,10 +207,10 @@ process make_beam {
     output:
     file "*/*fits"
 
+    beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
+
     //TODO add other beamform options and flags -F
     """
-    module use /group/mwa/software/modulefiles
-    module load vcstools/$params.vcstools_version
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.basedir}/${params.obsid}/combined -P ${point.join(",")} \
@@ -214,6 +231,10 @@ process make_beam_ipfb {
     time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+        scratch '$JOBFS'
+    }
 
     input:
     each channel_pair
@@ -226,11 +247,10 @@ process make_beam_ipfb {
     file "*hdr"
     file "*vdif"
 
+    beforeScript "module use $params.module_dir; module load vcstools/origbeam"
+
     //TODO add other beamform options and flags -F
     """
-    module use /group/mwa/software/modulefiles
-    module load vcstools/origbeam
-
     if $params.publish_fits; then
         mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
     fi
@@ -260,10 +280,9 @@ process splice {
     file "${params.obsid}*fits"
     val "${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}"
 
+    beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version; module load mwa_search/$params.mwa_search_version"
+
     """
-    module use /group/mwa/software/modulefiles
-    module load mwa_search
-    module load vcstools
     splice_wrapper.py -o ${params.obsid} -c ${chan.join(" ")}
     """
 }
@@ -296,9 +315,9 @@ workflow beamform {
                    pointings,\
                    obs_beg_end )
         splice( channels,\
-                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: 24 * n_fits ) | map { it -> it[1] } )
     emit:
-        splice.out[0]
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: n_fits ) | map { it -> it[1] }
         splice.out[1]
 }
 
@@ -314,8 +333,8 @@ workflow beamform_ipfb {
                         pointings.flatten(),\
                         obs_beg_end )
         splice( channels,\
-                make_beam_ipfb.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+                make_beam_ipfb.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: 24 * n_fits ) | map { it -> it[1] } )
     emit:
-        splice.out[0]
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: n_fits ) | map { it -> it[1] }
         splice.out[1]
 }

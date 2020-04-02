@@ -545,7 +545,7 @@ if __name__ == "__main__":
                             +str(phi[i])+" "+str(rads[i])+" "\
                             +str(decds[i])+"\n"
             else:
-                out_line = str(ras[i])+" "+str(decs[i])+"\n"
+                out_line = str(ras[i])+"_"+str(decs[i])+"\n"
             out_file.write(out_line)
 
     #matplotlib.use('Agg')

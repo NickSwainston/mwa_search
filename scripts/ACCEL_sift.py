@@ -4,7 +4,10 @@ import sifting, re, glob, argparse
 parser = argparse.ArgumentParser(description="""
 Finds candidates with DM paterns.
 """)
-parser.add_argument('dir',type=str,help="Work dir. Should be my search sub dirs, eg DM_000-002.")
+parser.add_argument('--dir', type=str, default="./",
+                    help="Work dir. Should be my search sub dirs, eg DM_000-002.")
+parser.add_argument('-f', '--file_name', type=str, default="",
+                    help="The filename to be used for the output file cand_<file_name>.txt")
 args=parser.parse_args()
 
 # Note:  You will almost certainly want to adjust
@@ -90,7 +93,13 @@ if len(cands) > 1:
     cands = sifting.remove_harmonics(cands)
 print("Number of candidates remaining {}".format(len(cands)))
 # Write candidates to STDOUT
-cands_file_name = 'cand_files/cands_'+ d.replace("/","_") +'.txt'
+if args.file_name:
+    cands_file_name = 'cands_{}.txt'.format(args.file_name)
+elif args.dir == "./":
+    cands_file_name = 'cands.txt'
+else:
+    cands_file_name = 'cand_files/cands_'+ d.replace("/","_") +'.txt'
+
 if len(cands):
     cands.sort(sifting.cmp_sigma)
     sifting.write_candlist(cands,cands_file_name)
