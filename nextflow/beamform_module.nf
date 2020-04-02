@@ -193,9 +193,10 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
-    scratch '$JOBFS'
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
-    //clusterOptions = clusterOptions + " --tmp=${temp_mem}GB"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+        scratch '$JOBFS'
+    }
 
     input:
     each channel_pair
@@ -230,6 +231,10 @@ process make_beam_ipfb {
     time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+        scratch '$JOBFS'
+    }
 
     input:
     each channel_pair
