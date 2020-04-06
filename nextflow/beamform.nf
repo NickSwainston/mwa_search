@@ -22,13 +22,25 @@ params.publish_fits_scratch = false
 
 params.no_combined_check = false
 
-pointings = Channel
-    .from(params.pointings.split(","))
-    .collect()
-    .flatten()
-    .collate( 15 )
-    //.view()
-
+if ( params.pointing_file ) {
+    pointings = Channel
+        .fromPath(params.pointing_file)
+        .splitCsv()
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else if ( params.pointings ) {
+    pointings = Channel
+        .from(params.pointings.split(","))
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else {
+    println "No pointings given. Either use --pointing_file or --pointings. Exiting"
+    exit(1)
+}
 
 workflow {
     pre_beamform()
