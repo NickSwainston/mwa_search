@@ -1,5 +1,5 @@
 nextflow.preview.dsl = 2
-include { pre_beamform; beamform } from './beamform_module'
+include { pre_beamform; beamform; beamform_ipfb } from './beamform_module'
 
 params.obsid = null
 params.pointings = null
@@ -10,6 +10,7 @@ params.end = null
 params.all = false
 
 params.summed = false
+params.ipfb = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 params.channels = null
@@ -44,8 +45,16 @@ else {
 
 workflow {
     pre_beamform()
-    beamform( pre_beamform.out[0],\
-              pre_beamform.out[1],\
-              pre_beamform.out[2],\
-              pointings )
+    if ( params.ipfb ) {
+        beamform_ipfb( pre_beamform.out[0],\
+                       pre_beamform.out[1],\
+                       pre_beamform.out[2],\
+                       pointings )
+    }
+    else {
+        beamform( pre_beamform.out[0],\
+                  pre_beamform.out[1],\
+                  pre_beamform.out[2],\
+                  pointings )
+    }
 }
