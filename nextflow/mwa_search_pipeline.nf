@@ -50,8 +50,7 @@ workflow {
               pre_beamform.out[1],\
               pre_beamform.out[2],\
               pointings )
-    pulsar_search( beamform.out[0],\
-                   beamform.out[1] )
+    pulsar_search( beamform.out[0] )
     classifier( pulsar_search.out[2].flatten().collate( 120 ) )
     publish:
         classifier.out to: params.out_dir

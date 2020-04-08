@@ -150,7 +150,6 @@ process prepfold {
 workflow pulsar_search {
     take:
         fits_files
-        pointing
     main:
         ddplan()
         search_dd_fft_acc( ddplan.out.splitCsv(),\
