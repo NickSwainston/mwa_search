@@ -70,8 +70,8 @@ def read_ascii_archive(archive):
         lin_pol, _  = calc_lin_pa(Q, U)
     else: #otherwise, generate PA (always generate lin_pol because psrchive sucks at it)
         lin_pol, pa = calc_lin_pa(Q, U)
-        pa          = pa*np.pi/180
-        pa_err      = None
+        pa          = pa
+        pa_err      = np.zeros(len(I))
 
     #Normalise
     max_I       = max(I)
@@ -88,8 +88,7 @@ def read_ascii_archive(archive):
     V                       = roll_data(V, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
     lin_pol                 = roll_data(lin_pol, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
     pa                      = roll_data(pa, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    if pa_err:
-        pa_err              = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    pa_err                  = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
 
     return I, Q, U, V, lin_pol, pa, pa_err, roll_idx, roll_to
 
@@ -402,8 +401,8 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     save_name += ".png"
 
     sI, sQ, sU, sV, lin_pol, pa, pa_err, roll_idx, roll_to = read_ascii_archive(archive)
-    pa = np.rad2deg(pa)
-    pa_err = np.rad2deg(pa_err)
+    pa = pa
+    pa_err = pa_err
     x = np.linspace(-0.5, 0.5, len(sI))
 
     #get rid of zeros in pa. Need to be in python lists for this to work
@@ -451,10 +450,11 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         ax_1.text(-0.49, 0.95, "RM =  {0}{1}".format(round(rm, 4), extension), fontsize = 16, color = "0.1")
     ax_1.legend(loc="upper right", fontsize=18)
 
-    if len(pa_err)>0:
-        ax_2.errorbar(x_pa, pa, yerr=pa_err, markersize=8, color="0.2", label="Position Angle", fmt=".")
-    else:
+    if all(i == 0 for i in pa_err):
         ax_2.scatter(x_pa, pa, s=6, color="0.2", label="Position Angle", marker=".")
+    else:
+        ax_2.errorbar(x_pa, pa, yerr=pa_err, markersize=8, color="0.2", label="Position Angle", fmt=".")
+        
 
     if rvm_fit:
         #plot the rvm fit
@@ -985,12 +985,12 @@ if __name__ == '__main__':
 
     #Assertions
     if args.plt_prof:
-        if not args.bestprof or not args.ascii or not args.archive:
+        if not args.bestprof and not args.ascii and not args.archive:
             logger.error("Please supply a profile file to plot")
             sys.exit(1)
 
     if args.plt_pol:
-        if not args.ascii or not args.archive:
+        if not args.ascii and not args.archive:
             logger.error("Please supply an ascii profile or archive file to plot")
             sys.exit(1)
 
@@ -1024,7 +1024,7 @@ if __name__ == '__main__':
 
     if args.plt_pol:
         if args.archive:
-            prof_utils.subprocess_pdv(args.archive, outfile="archive.txt", pdvops="-FTt")
+            prof_utils.subprocess_pdv(args.archive, outfile="archive.txt", pdvops="-FTtlZ")
             ascii_prof = "archive.txt"    
             plot_archive_stokes(ascii_prof, pulsar=args.pulsar, freq=args.freq, obsid=args.obsid, out_dir=args.out_dir)
             os.remove("archive.txt")
