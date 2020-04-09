@@ -1023,7 +1023,15 @@ if __name__ == '__main__':
             plot_profile(I, pulsar=args.pulsar, freq=args.freq, obsid=args.obsid, out_dir=args.out_dir)
 
     if args.plt_pol:
-        plot_archive_stokes(args.ascii, pulsar=args.pulsar, freq=args.freq, obsid=args.obsid, out_dir=args.out_dir)
+        if args.archive:
+            prof_utils.subprocess_pdv(args.archive, outfile="archive.txt", pdvops="-FTt")
+            I, Q, U, V, lin_pol, pa, pa_err, roll_idx, roll_to = read_ascii_archive("archive.txt")
+            ascii_prof = "archive.txt"    
+        else:
+            ascii_prof = args.ascii
+        plot_archive_stokes(ascii_prof, pulsar=args.pulsar, freq=args.freq, obsid=args.obsid, out_dir=args.out_dir)
+        if args.archive:
+            os.remove("archive.txt")
 
     if args.plt_stack:
         pulsar_dict = get_data_from_epndb(args.pulsar)
