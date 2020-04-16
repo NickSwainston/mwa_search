@@ -48,14 +48,16 @@ process search_dd_fft_acc {
     scratch '$JOBFS'
     clusterOptions "--tmp=100GB"
     label 'cpu'
-    time '2h'
+    time '4h'
+    //Will ignore errors for now because I have no idea why it dies sometimes
+    errorStrategy 'ignore'
     
     input:
     tuple val(lowdm), val(highdm), val(dmstep), val(ndms), val(timeres), val(downsamp)
     each file(fits_files)
 
     output:
-    file "*ACCEL_0"
+    file "*ACCEL_0" optional true
     file "*.inf"
     file "*.singlepulse"
     //Will have to change the ACCEL_0 if I do an accelsearch
@@ -76,7 +78,7 @@ process search_dd_fft_acc {
         accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
     done
     single_pulse_search.py -p *.dat
-    printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------/------\\n"
+    printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------------\\n"
     """
 }
 
@@ -148,7 +150,6 @@ process prepfold {
 workflow pulsar_search {
     take:
         fits_files
-        pointing
     main:
         ddplan()
         search_dd_fft_acc( ddplan.out.splitCsv(),\
