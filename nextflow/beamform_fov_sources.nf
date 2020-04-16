@@ -43,7 +43,7 @@ workflow {
               pre_beamform.out[2],\
               //Grab the pointigngs for slow pulsars and single pulses
               find_pointings.out.splitCsv(skip: 1, limit: 1).mix(\
-              find_pointings.out.splitCsv(skip: 5, limit: 1)).collect().unique().collate( 15 ) )
+              find_pointings.out.splitCsv(skip: 5, limit: 1)).collect().unique().flatten().collate( 15 ) )
     beamform_ipfb( pre_beamform.out[0],\
                    pre_beamform.out[1],\
                    pre_beamform.out[2],\

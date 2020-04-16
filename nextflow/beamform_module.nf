@@ -37,7 +37,7 @@ else {
 //Work out total obs time
 if ( params.all ) {
     // an estimation since there's no easy way to make this work
-    obs_length = 4800
+    obs_length = 4805
 }
 else {
     obs_length = params.end - params.begin + 1
@@ -315,7 +315,7 @@ workflow beamform {
                    pointings,\
                    obs_beg_end )
         splice( channels,\
-                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: 24 * n_fits ) | map { it -> it[1] } )
+                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: (24 * n_fits) ) | map { it -> it[1] } )
     emit:
         splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: n_fits ) | map { it -> it[1] }
         splice.out[1]
