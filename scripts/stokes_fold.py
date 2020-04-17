@@ -562,14 +562,13 @@ def submit_inverse_pfb_fold(run_params, stop=False):
             duration = obs_int
         else:
             duration = (leave - enter) * obs_int
-            enter_sec = enter * duration
+            enter_sec = enter * obs_int
             logger.info("{0} enters beam at {1} and leaves at {2}".format(run_params.pulsar, enter, leave))
             logger.info("Integration time: {}".format(duration))
     else:
         enter_sec = None
         duration = None
     #pfb inversion
-    duration = run_params.end - run_params.beg
     commands = add_pfb_inversion_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, seek=enter_sec, total=duration,\
                                             tscrunch=duration)
     #launch RM fitting
@@ -626,7 +625,7 @@ def submit_dspsr_rmfit(run_params):
             duration = obs_int
         else:
             duration = (leave - enter) * obs_int
-            enter_sec = enter * duration
+            enter_sec = enter * obs_int
             logger.info("{0} enters beam at {1} and leaves at {2}".format(run_params.pulsar, enter, leave))
             logger.info("Integration time: {}".format(duration))
     else:
