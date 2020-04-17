@@ -24,7 +24,7 @@ class run_params_class:
                 nocrop=False, bestprof=None, archive=None, out_dir=None,\
                 epndb_dir=None, beg=None, end=None, freq=None, stokes_dep=None,
                 no_ephem=False, dspsr_ops="", prep_ops="", dm=None, period=None,\
-                cand=False):
+                cand=False, rvmres=90):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -58,6 +58,7 @@ class run_params_class:
         self.epndb_dir      = epndb_dir
 
         #Other Parameters
+        self.rvmres         = rvmres
         self.threshold      = threshold
         self.subint         = subint
         self.RM             = RM
@@ -104,7 +105,21 @@ class run_params_class:
 
 #----------------------------------------------------------------------
 def binfinder_launch_line(run_params, dpp=False):
+    """
+    Creates a launch command using the run_params class 
 
+    Parameters:
+    -----------
+    run_params: object
+        The run_params object
+    dpp: boolean
+        OPTIONAL - If True, will launch the data_processing_pipeline with the run_params variables instead of binfinder.py. Default: False
+
+    Returns:
+    --------
+    launch_line: str
+        The launch command
+    """
     if dpp:
         launch_line = "data_processing_pipeline.py"
     else:
@@ -143,7 +158,23 @@ def binfinder_launch_line(run_params, dpp=False):
 
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
+    """
+    Creates a launch command using the run_params class 
 
+    Parameters:
+    -----------
+    run_params: object
+        The run_params object
+    dpp: boolean
+        OPTIONAL - If True, will launch the data_processing_pipeline with the run_params variables instead of stokes_fold.py. Default: False
+    custom_pointing: str
+        OPTIONAL - A custom pointing directory to run from
+
+    Returns:
+    --------
+    launch_line: str
+        The launch command
+    """
     if dpp:
         launch_line = "data_processing_pipeline.py"
     else:
@@ -180,6 +211,8 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
         launch_line += " --dspsr_ops {}".format(run_params.dspsr_ops)
     if run_params.cand:
         launch_line += " --cand"
+    if run_params.rvmres:
+        launch_line += " --rvmres {}".format(run_params.rvmres)
 
     return launch_line
 
