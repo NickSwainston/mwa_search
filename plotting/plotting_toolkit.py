@@ -32,7 +32,7 @@ class NoEPNDBError(Exception):
     pass
 
 #--------------------------------------------------------------------------
-def read_ascii_archive(archive):
+def read_ascii_archive(archive, roll=True, norm=True):
     """
     Reads an ascii archive and calculates linear polarisation. Will also calculate PA if it's not in the archive.
 
@@ -40,6 +40,10 @@ def read_ascii_archive(archive):
     -----------
     archive: string
         The pathname of the ascii archive
+    roll: boolean
+        If True, will align the archive at the centre
+    norm: boolean
+        If True, will normalise the archive wrt stokes I
 
     Returns:
     --------
@@ -74,22 +78,27 @@ def read_ascii_archive(archive):
         pa_err      = np.zeros(len(I))
 
     #Normalise
-    max_I       = max(I)
-    I           = I/max_I
-    Q           = Q/max_I
-    U           = U/max_I
-    V           = V/max_I
-    lin_pol     = lin_pol/max_I
+    if norm:
+        max_I       = max(I)
+        I           = I/max_I
+        Q           = Q/max_I
+        U           = U/max_I
+        V           = V/max_I
+        lin_pol     = lin_pol/max_I
 
     #Roll to centre
-    roll_idx, roll_to, I    = roll_data(I)
-    Q                       = roll_data(Q, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    U                       = roll_data(U, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    V                       = roll_data(V, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    lin_pol                 = roll_data(lin_pol, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    pa                      = roll_data(pa, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    pa_err                  = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-
+    if roll:
+        roll_idx, roll_to, I    = roll_data(I)
+        Q                       = roll_data(Q, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        U                       = roll_data(U, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        V                       = roll_data(V, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        lin_pol                 = roll_data(lin_pol, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        pa                      = roll_data(pa, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+        pa_err                  = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
+    else: 
+        roll_idx = 0
+        roll_to = 0
+        
     return I, Q, U, V, lin_pol, pa, pa_err, roll_idx, roll_to
 
 #--------------------------------------------------------------------------
