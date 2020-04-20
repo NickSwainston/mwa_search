@@ -408,6 +408,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vcstools_version: string
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
+    base_dir = "{0}/{1}/dpp_pointings/".format(product_dir, obsid)
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
     names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
@@ -519,8 +520,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
                               data_process=True)
-    search_pipe.beamform(search_opts, pulsar_pointing_list,
-                         pulsar_list_list=pulsar_name_list)
+    search_pipe.multibeam_binfind(search_opts, [s + base_dir for s in pulsar_pointing_list], [], pulsar_name_list)
 
     print('\nSENDING OFF VDIF PULSAR PROCESSING')
     print('----------------------------------------------------------------------------------------')
@@ -532,11 +532,10 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
                               vdif=True, data_process=True)
-    search_pipe.beamform(search_opts, vdif_pointing_list,
-                         pulsar_list_list=vdif_name_list)
+    search_pipe.multibeam_binfind(search_opts, [s + base_dir for s in vdif_pointing_list], [], vdif_name_list)
 
 
-    #Get the rest of the singple pulse search canidates
+    #Get the rest of the single pulse search canidates
     #-----------------------------------------------------------------------------------------------------------
     temp = get_sources_in_fov(obsid, 'RRATs', fwhm)
     sp_name_list = sp_name_list + temp[0]
@@ -545,6 +544,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     print('\nSENDING OFF RRAT SINGLE PULSE SEARCHES')
     print('----------------------------------------------------------------------------------------')
     # Send off pulsar search
+
     relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type RRATs --DI_dir {2} -b {3} -e {4} --single_pulse --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
     for ch in channels:
         relaunch_script = "{0} {1}".format(relaunch_script, ch)
@@ -713,7 +713,7 @@ if __name__ == "__main__":
 
 
     beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
-                      product_dir=comp_config['base_product_dir'],
+                      product_dir=comp_config['base_data_dir'],
                       mwa_search_version=args.mwa_search_version,
                       vcstools_version=args.vcstools_version,
                       relaunch=args.relaunch)
