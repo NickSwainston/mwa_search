@@ -1,7 +1,5 @@
 nextflow.preview.dsl = 2
 include { pre_beamform; beamform } from './beamform_module'
-include pulsar_search from './pulsar_search_module'
-include classifier    from './classifier_module'
 
 params.obsid = null
 params.calid = null
@@ -19,10 +17,13 @@ params.mwa_search_version = 'master'
 params.basedir = '/group/mwaops/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
-params.out_dir = "${params.obsid}_candidates"
+params.out_dir = "${params.basedir}/${params.obsid}/pointings"
 
-params.dm_min = 1
-params.dm_max = 250
+params.bins = 128
+params.period = 0.90004
+params.dm = 23.123
+params.subint = 60
+params.nchan = 48
 
 if ( params.pointing_file ) {
     pointings = Channel
@@ -44,15 +45,36 @@ else {
     exit(1)
 }
 
+process pdmp {
+    label 'cpu'
+    time '4h'
+
+    input:
+    file fits
+    val pointings
+
+    output:
+    file "*pdmp*"
+
+    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+
+    """
+    dspsr -b ${params.bins} -c ${params.period} -D ${params.dm} -L ${params.subint} -e subint -cont -U 4000 ${fits}
+    psradd *.subint -o ${params.obsid}_${pointings}.ar
+    pam --setnchn ${params.nchan} -m ${params.obsid}_${pointings}.ar
+    pdmp -g ${params.obsid}_${pointings}_pdmp.ps/cps ${obsid}_${pointings}.ar
+    """
+
+}
+
+
 workflow {
     pre_beamform()
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
               pointings )
-    pulsar_search( beamform.out[1] )
-    classifier( pulsar_search.out[2].flatten().collate( 120 ) )
+    pdmp( beamform.out[1], beamform.out[2] )
     publish:
-        classifier.out to: params.out_dir
-        pulsar_search.out to: params.out_dir, pattern: "*singlepulse*"
+        pdmp.out to: params.out_dir
 }
