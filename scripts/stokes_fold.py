@@ -373,7 +373,7 @@ def add_rm_fit_to_commands(pulsar, run_dir, archive_name, out_name=None, command
 
     Parameters:
     -----------
-    puslar: str
+    pulsar: str
         The J name of the pulsar
     run_dir: str
         The directory to run the commands in
@@ -452,7 +452,7 @@ def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, \
 
     run_dir: string
         The directory to work in. Typically the pointing directory.
-    puslar: string
+    pulsar: string
         The J name of the pulsar
     nbins: int
         OPTIONAL - The number of bins to fold with. Default: 1024
@@ -621,7 +621,7 @@ def submit_inverse_pfb_fold(run_params, stop=False):
     commands = add_rm_fit_to_commands(run_params.pulsar, run_params.pointing_dir, archive_name, out_name=rmfit_name, commands=commands)
 
     #launch RM synthesis
-    mylabel = "{0}_{1}".format(run_params.puslar, run_params.obsid)
+    mylabel = "{0}_{1}".format(run_params.pulsar, run_params.obsid)
     commands = add_rmsynth_to_commands(run_params.pointing_dir, archive_name, write=True, plot=True, keep_QUV=False, label=mylabel, commands=commands)
 
     if not stop:
@@ -915,7 +915,7 @@ if __name__ == '__main__':
         logger.error("Obsid not supplied. Please run again and specify an observation ID")
         sys.exit(1)
     if not args.pulsar:
-        logger.error("Pulsar name not supplied. Please run again and specify puslar name")
+        logger.error("Pulsar name not supplied. Please run again and specify pulsar name")
         sys.exit(1)
     if args.no_ephem and (args.period is None or args.dm is None):
         logger.error("If no ephemeris is used, period and DM must be supplied")
