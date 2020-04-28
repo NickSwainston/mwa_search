@@ -315,10 +315,11 @@ workflow beamform {
                    pointings,\
                    obs_beg_end )
         splice( channels,\
-                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: (24 * n_fits) ) | map { it -> it[1] } )
+                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
     emit:
-        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple( size: n_fits ) | map { it -> it[1] }
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] }
         splice.out[1]
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("_ch")[0].split("${params.obsid}_")[-1], it ] } | groupTuple()
 }
 
 workflow beamform_ipfb {
