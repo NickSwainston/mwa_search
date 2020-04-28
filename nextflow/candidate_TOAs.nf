@@ -26,6 +26,9 @@ params.nchan = 48
 params.ncchan = 1
 params.subint = 600
 
+params.no_beamform = false
+params.no_combined_check = false
+
 std_profile = Channel.fromPath("/group/mwaops/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
 
 if ( params.pointing_file ) {
@@ -94,8 +97,8 @@ process dspsr_ch {
     echo "chans: \$chans"
     DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     echo "DM: \$DM"
-    PERIOD=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
-    period="\$(echo "scale=10;\${PERIOD}/1000"  |bc)"
+    period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
+    period="\$(echo "scale=10;\${period}/1000"  |bc)"
     echo "period: \$period"
     dspsr -b ${params.bins} -c \${period} -D \${DM} -O ${params.obsid}_b${params.bins}_ch\${chans} -cont -U 4000 G*_${params.obsid}*ch\${chans}*.fits
     pam -pTF -e pTDF --name J0036-1033 *.ar
@@ -138,31 +141,33 @@ process dspsr_time {
     """
     DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     echo "DM: \$DM"
-    PERIOD=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
-    period="\$(echo "scale=10;\${PERIOD}/1000"  |bc)"
+    period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
+    period="\$(echo "scale=10;\${period}/1000"  |bc)"
     echo "period: \$period"
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -L ${params.subint} -e subint -cont -U 4000 ${params.obsid}*.fits
+    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
+    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
+    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
+    dspsr -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
     #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
     pam -pTF -e pTDF --name J0036-1033 *.subint
     """
 }
 
 process get_toas {
-    label 'cpu'
-    time '2h'
-
     input:
     each file(archive)
     file std_profile
 
     output:
     file "*tim"
+    file "*ps"
 
     beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
 
     """
     archive_name=${archive}
     pat -s ${std_profile} ${archive} -f tempo2 > \${archive_name%pTDF}tim
+    pav -CDFTp -g \${archive_name%pTDF}ps/cps ${archive}
     """
 }
 
@@ -182,10 +187,16 @@ process combine_toas {
 
 workflow {
     pre_beamform()
-    beamform( pre_beamform.out[0],\
-              pre_beamform.out[1],\
-              pre_beamform.out[2],\
-              pointings )
+    if ( params.no_beamform ) {
+        fits_files = Channel.fromPath("${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}*fits").collect()
+    }
+    else {
+        beamform( pre_beamform.out[0],\
+                  pre_beamform.out[1],\
+                  pre_beamform.out[2],\
+                  pointings )
+        beamform.out[1].set{ fits_files }
+    }
     if ( params.chan_split ) {
         prepfold_ch( beamform.out[0],\
                   pre_beamform.out[1].flatten().collate( params.ncchan ) )
@@ -195,13 +206,14 @@ workflow {
                   std_profile )
     }
     else if ( params.time_split ) {
-        prepfold_time( beamform.out[1].collect() )
+        prepfold_time( fits_files )
         dspsr_time( prepfold_time.out[0],\
-                    beamform.out[1].collect() )
+                    fits_files.collect() )
         get_toas( dspsr_time.out,\
                   std_profile )
     }
-    combine_toas( get_toas.out.collect() )
+    combine_toas( get_toas.out[0].collect() )
     publish:
-        combine_toas.out to: params.out_dir
+        combine_toas.out to: params.out_dir, mode: 'copy'
+        get_toas.out to: params.out_dir, pattern: "*ps", mode: 'copy'
 }
