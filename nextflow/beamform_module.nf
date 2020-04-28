@@ -156,7 +156,7 @@ process make_directories {
     mdir("${params.scratch_basedir}/${params.obsid}", "Products")
     mdir("${params.basedir}/batch", "Batch")
     mdir("${params.basedir}/${params.obsid}/pointings", "Pointings")
-    mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
+    #mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
     create_link("${params.basedir}/${params.obsid}", "dpp_pointings",
                 "${params.scratch_basedir}/${params.obsid}", "dpp_pointings")
     """
@@ -244,8 +244,8 @@ process make_beam_ipfb {
 
     output:
     file "*fits"
-    file "*hdr"
-    file "*vdif"
+    //file "*hdr"
+    //file "*vdif"
 
     beforeScript "module use $params.module_dir; module load vcstools/origbeam"
 
@@ -310,15 +310,15 @@ workflow beamform {
         utc
         pointings
     main:
-        make_beam( channels | flatten() | merge(range),\
+        make_beam( channels.flatten().merge(range),\
                    utc,\
                    pointings,\
                    obs_beg_end )
         splice( channels,\
-                make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+                make_beam.out.flatten().map { it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map { it -> it[1] } )
     emit:
-        make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] }
-        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] }
+        make_beam.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
+        splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[1]
 }
 
@@ -329,14 +329,14 @@ workflow beamform_ipfb {
         utc
         pointings
     main:
-        make_beam_ipfb( channels | flatten() | merge(range),\
+        make_beam_ipfb( channels.flatten().merge(range),\
                         utc,\
                         pointings.flatten(),\
                         obs_beg_end )
         splice( channels,\
-                make_beam_ipfb.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] } )
+                make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map { it -> it[1] } )
     emit:
-        make_beam.out | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] }
-        splice.out[0] | flatten() | map { it -> [it.baseName.split("ch")[0], it ] } | groupTuple() | map { it -> it[1] }
+        make_beam_ipfb.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
+        splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[1]
 }
