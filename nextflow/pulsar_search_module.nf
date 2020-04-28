@@ -26,35 +26,65 @@ max_f_harm = max_freq * params.nharm
 process ddplan {
     label 'ddplan'
 
+    input:
+    tuple val(name), val(fits_files) //fits_files is actauly files but I assume this will save me link
+
     output:
     file 'DDplan.txt'
     
     """
     #!/usr/bin/env python3
 
+    import find_pulsar_in_obs as fpio
     from lfDDplan import dd_plan
     import csv
     
-    output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max)
+    if '$name'.startswith('Blind'):
+        output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max)
+    else:
+        if '$name'.startswith('FRB'):
+            dm = fpio.grab_source_alog(source_type='FRB',
+                 pulsar_list=['$name'], include_dm=True)[0][-1]
+        else:
+            # Try RRAT first
+            rrat_temp = fpio.grab_source_alog(source_type='RRATs',
+                        pulsar_list=['$name'], include_dm=True)
+            if len(rrat_temp) == 0:
+                #No RRAT so must be pulsar
+                dm = fpio.grab_source_alog(source_type='Pulsar',
+                     pulsar_list=['$name'], include_dm=True)[0][-1]
+            else:
+                dm = rrat_temp[0][-1]
+        dm_min = float(dm) - 2.0
+        if dm_min < 1.0:
+            dm_min = 1.0
+        dm_max = float(dm) + 2.0
+        output = dd_plan(150., 30.72, 3072, 0.1, dm_min, dm_max)
     with open("DDplan.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
-            spamwriter.writerow(o)
+            spamwriter.writerow(['$name'] + o)
     """ 
 }
 
 
 process search_dd_fft_acc {
-    scratch '$JOBFS'
-    clusterOptions "--tmp=100GB"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        scratch '$JOBFS'
+        clusterOptions "--tmp=100GB"
+    }
+    else {
+        container = "nickswainston/presto"
+        stageInMode = 'copy'
+    }
     label 'cpu'
     time '4h'
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy 'ignore'
-    
+
     input:
-    tuple val(lowdm), val(highdm), val(dmstep), val(ndms), val(timeres), val(downsamp)
-    each file(fits_files)
+    tuple val(dm_values), file(fits_files)
+    //each file(fits_files)
 
     output:
     file "*ACCEL_0" optional true
@@ -62,13 +92,15 @@ process search_dd_fft_acc {
     file "*.singlepulse"
     //Will have to change the ACCEL_0 if I do an accelsearch
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/d6265c2"
+    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load singularity"
 
     """
+    echo "lowdm highdm dmstep ndms timeres downsamp"
+    echo ${dm_values}
     file_name=\$(ls *fits | head)
     file_name=\${file_name%%_ch*}
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm $lowdm -dmstep $dmstep -numdms $ndms -zerodm -o \${file_name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -o \${file_name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
     for i in \$(ls *.dat); do
         realfft \${i}
@@ -147,22 +179,102 @@ process prepfold {
     """
 }
 
+
+process search_dd_fft {
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        scratch '$JOBFS'
+        clusterOptions "--tmp=100GB"
+    }
+    else {
+        container = "nickswainston/presto"
+        stageInMode = 'copy'
+    }
+    label 'cpu'
+    time '4h'
+    //Will ignore errors for now because I have no idea why it dies sometimes
+    errorStrategy 'ignore'
+
+    input:
+    tuple val(dm_values), file(fits_files)
+    //each file(fits_files)
+
+    output:
+    file "*.inf"
+    file "*.singlepulse"
+    //Will have to change the ACCEL_0 if I do an accelsearch
+
+    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load singularity"
+
+    """
+    echo "lowdm highdm dmstep ndms timeres downsamp"
+    echo ${dm_values}
+    file_name=\$(ls *fits | head)
+    file_name=\${file_name%%_ch*}
+    printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -o \${file_name} ${params.obsid}_*.fits
+    printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
+    for i in \$(ls *.dat); do
+        realfft \${i}
+    done
+    single_pulse_search.py -p *.dat
+    printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------------\\n"
+    """
+}
+
+
+process assemble_single_pulse {
+    //container = '/group/mwaops/nswainston/.singularity/cache/oci-tmp/1bb06e133e447f4e70fb325fc6bd7f4dd80987fbfd5fe376dd547592e9b57846/accel_sift_latest.sif'
+    //singularity.enabled = true
+    label 'cpu'
+    time '1h'
+
+    input:
+    file accel_inf_single_pulse
+
+    output:
+    file "${params.obsid}_*_singlepulse.tar.gz"
+    file "${params.obsid}_*_singlepulse.ps"
+
+    beforeScript "module use $params.presto_module_dir; module load presto/d6265c2; module load python/2.7.14, matplotlib/2.2.2-python-2.7.14"
+
+    """
+    single_pulse_search.py *.singlepulse
+    tar -czvf singlepulse.tar.gz *DM*.singlepulse
+    mv singlepulse.tar.gz \${file_name}_singlepulse.tar.gz
+    """
+}
+
+
 workflow pulsar_search {
     take:
-        fits_files
+        name_fits_files
     main:
-        ddplan()
-        search_dd_fft_acc( ddplan.out.splitCsv(),\
-                           fits_files )
+        ddplan( name_fits_files )
+        search_dd_fft_acc( ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().\
+                           map{ it -> [it[1].init(), [it[1].last()]].combinations() }.flatMap() )
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same basename (obsid_pointing)
         accelsift( search_dd_fft_acc.out[0].concat(search_dd_fft_acc.out[1], search_dd_fft_acc.out[2]).\
-                   flatten().map{ it -> [it.baseName.split("DM")[0], it ] }.groupTuple().map{ it -> it[1] } )
+                   flatten().map{ it -> [it.baseName.split("DM")[0], it ] }.groupTuple() )
         // Make a pair of accelsift out lines and fits files that match
-        prepfold( fits_files.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().cross(\
+        prepfold( name_fits_files.map{ it -> it[1] }.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().cross(\
                   accelsift.out[0].splitText().flatten().map{ it -> [it.split()[0].split("DM")[0], it ] }).\
                   map{ it -> [ it[0][1], it[1][1] ]} )
     emit:
         accelsift.out[1]
         accelsift.out[2]
         prepfold.out
+}
+
+workflow single_pulse_search {
+    take:
+        name_fits_files
+    main:
+        ddplan( name_fits_files )
+        search_dd_fft( ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().map{ it -> it[1] } )
+        // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
+        assemble_single_pulse( search_dd_fft.out[0].concat(search_dd_fft.out[1]).\
+                               flatten().map{ it -> [it.baseName.split("DM")[0], it ] }.groupTuple().map{ it -> it[1] } )
+    emit:
+        assemble_single_pulse.out[0]
+        assemble_single_pulse.out[1]
 }
