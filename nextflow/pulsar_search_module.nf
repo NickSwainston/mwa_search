@@ -92,7 +92,7 @@ process search_dd_fft_acc {
     file "*.singlepulse"
     //Will have to change the ACCEL_0 if I do an accelsearch
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load singularity"
+    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load singularity/${params.singularity_module}"
 
     """
     echo "lowdm highdm dmstep ndms timeres downsamp"
@@ -129,7 +129,7 @@ process accelsift {
     file "${params.obsid}_*_singlepulse.tar.gz"
     file "${params.obsid}_*_singlepulse.ps"
 
-    beforeScript "module use $params.presto_module_dir; module load presto/d6265c2; module load python/2.7.14, matplotlib/2.2.2-python-2.7.14"
+    beforeScript "module use $params.presto_module_dir; module load presto/${params.presto_module}; module load python/2.7.14, matplotlib/2.2.2-python-2.7.14"
 
     """
     file_name=\$(ls *singlepulse | head)
@@ -153,7 +153,7 @@ process prepfold {
     output:
     file "*pfd*"
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/d6265c2"
+    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
 
     //no mask command currently
     """

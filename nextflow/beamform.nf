@@ -3,6 +3,7 @@ include { pre_beamform; beamform; beamform_ipfb } from './beamform_module'
 
 params.obsid = null
 params.pointings = null
+params.pointing_file = null
 params.calid = null
 
 params.begin = null
