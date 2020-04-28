@@ -183,6 +183,10 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
     pulsar_search_name_list = pulsar_name_list + poi_list[0]
     pulsar_search_pointing_list = pulsar_pointing_list + poi_list[1]
 
+    # Sometimes we get redundant RRATs that are found in RRAT and ANTF catalogues so they need to be removed
+    sp_name_list     = list(dict.fromkeys([ ";".join(s) for s in sp_name_list]))
+    sp_pointing_list = list(dict.fromkeys(sp_pointing_list))
+
     # Changing the format of the names list to make it easier to format
     return [[ ";".join(s) for s in pulsar_name_list],
             pulsar_pointing_list,
@@ -190,7 +194,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
             vdif_pointing_list,
             [ ";".join(s) for s in pulsar_search_name_list],
             pulsar_search_pointing_list,
-            [ ";".join(s) for s in sp_name_list],
+            sp_name_list,
             sp_pointing_list]
 
 if __name__ == "__main__":
