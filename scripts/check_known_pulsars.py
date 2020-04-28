@@ -534,7 +534,8 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               vdif=True, data_process=True)
     search_pipe.multibeam_binfind(search_opts, [s + base_dir for s in vdif_pointing_list], [], vdif_name_list)
 
-
+    # Commenting off this section as it is now done in the nextflow pipeline beamform_fov_sources.nf
+    """
     #Get the rest of the single pulse search canidates
     #-----------------------------------------------------------------------------------------------------------
     temp = get_sources_in_fov(obsid, 'RRATs', fwhm)
@@ -626,7 +627,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                          pulsar_list_list=poi_name_list,
                          code_comment="Points of interest candidate pulsar search",
                          relaunch=relaunch)
-
+    """
     return
 
 if __name__ == "__main__":
