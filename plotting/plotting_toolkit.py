@@ -202,20 +202,20 @@ def get_data_from_epndb(pulsar):
                     pulsar_dict["Qx"].append([k[0] for k in series["Q"]])
                     pulsar_dict["Qy"].append([k[1] for k in series["Q"]])
                 else:
-                    pulsar_dict["Qx"].append(None)
-                    pulsar_dict["Qy"].append(None)
+                    pulsar_dict["Qx"].append([])
+                    pulsar_dict["Qy"].append([])
                 if "U" in series:
                     pulsar_dict["Ux"].append([k[0] for k in series["U"]])
                     pulsar_dict["Uy"].append([k[1] for k in series["U"]])
                 else:
-                    pulsar_dict["Ux"].append(None)
-                    pulsar_dict["Uy"].append(None)
+                    pulsar_dict["Ux"].append([])
+                    pulsar_dict["Uy"].append([])
                 if "V" in series:
                     pulsar_dict["Vx"].append([k[0] for k in series["V"]])
                     pulsar_dict["Vy"].append([k[1] for k in series["V"]])
                 else:
-                    pulsar_dict["Vx"].append(None)
-                    pulsar_dict["Vy"].append(None)
+                    pulsar_dict["Vx"].append([])
+                    pulsar_dict["Vy"].append([])
 
     #sort by frequency
     if len(pulsar_dict["freq"]) > 0:
