@@ -1,27 +1,59 @@
+#!/usr/bin/env nextflow
+
 nextflow.preview.dsl = 2
 include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
 include { pulsar_search; single_pulse_search } from './pulsar_search_module'
 include classifier from './classifier_module'
 
 params.obsid = null
-params.pointings = null
 params.calid = null
 
 params.begin = null
 params.end = null
 params.all = false
 
-params.summed = false
 params.vcstools_version = 'master'
+params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwaops/vcs'
-params.scratch_basedir = '/astro/mwaops/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.publish_fits = true
+params.publish_fits = false
+params.publish_fits_scratch = true
 
 params.out_dir = "${params.basedir}/${params.obsid}/${params.obsid}_candidates"
 
 params.no_combined_check = false
+
+params.help = false
+if ( params.help ) {
+    help = """beamform_fov_sources.nf: A pipeline that will beamform on all pulsars in the FOV
+             |                        and perform a search on all pulsar candidates.
+             |Required argurments:
+             |  --obsid     Observation ID you want to process [no default]
+             |  --calid     Observation ID of calibrator you want to process [no default]
+             |  --begin     First GPS time to process [no default]
+             |  --end       Last GPS time to process [no default]
+             |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
+             |  --publish_fits_scratch
+             |              Publish to the scratch fits directory (/astro on Galaxy). Include
+             |              this option.
+             |
+             |Optional arguments:
+             |  --publish_fits
+             |              Publish to the fits directory (/group on Galaxy). Use this instead
+             |              of --publish_fits_scratch
+             |  --vcstools_version
+             |              The vcstools module version to use [default: master]
+             |  --mwa_search_version
+             |              The mwa_search module bersion to use [default: master]
+             |  --no_combined_check
+             |              Don't check if all the combined files are available [default: false]
+             |  --out_dir   Where the search candidates will be output
+             |              [default: /group/mwaops/vcs/<obsid>/<obsid>_candidates]
+             |  -w          The Nextflow work directory. Delete the directory once the processs
+             |              is finished [default: ${workDir}]""".stripMargin()
+    println(help)
+    exit(0)
+}
 
 
 

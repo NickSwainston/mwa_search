@@ -5,14 +5,13 @@ params.obsid = null
 params.pointings = null
 params.calid = null
 
-params.begin = null
-params.end = null
+params.begin = 0
+params.end = 0
 params.all = false
 
 params.summed = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
-params.channels = null
 
 params.basedir = '/group/mwaops/vcs'
 params.scratch_basedir = '/astro/mwaops/vcs'

@@ -6,6 +6,10 @@ params.fitsdir = "/group/mwaops/vcs/${params.obsid}/pointings"
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
+params.begin = 0
+params.end = 0
+params.all = false
+
 params.dm_min = 1
 params.dm_max = 250
 
