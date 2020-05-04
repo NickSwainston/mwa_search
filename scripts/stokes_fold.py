@@ -620,7 +620,7 @@ def submit_inverse_pfb_fold(run_params, stop=False):
 
     #pfb inversion
     filenames_dict = create_filenames(run_params)
-    commands = add_pfb_inversion_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, filnames_dict["archive1"], filnames_dict["ascii"],\
+    commands = add_pfb_inversion_to_commands(run_params.pointing_dir, run_params.pulsar, run_params.obsid, filenames_dict["archive1"], filenames_dict["ascii"],\
                seek=enter_sec, total=duration, tscrunch=duration, dm=run_params.dm, period=run_params.period)
 
     #launch RM fitting
