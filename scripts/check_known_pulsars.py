@@ -139,10 +139,20 @@ def upload_cal_files(obsid, cal_id, cal_dir_to_tar=None, srclist=None):
         if not srclist:
             srclist = search_for_cal_srclist(obsid, cal_id, all_cal_returns=True)[1][0]
         zip_loc = submit_to_database.zip_calibration_files(cal_dir_to_tar, cal_id, srclist)
-        client.calibrator_create(web_address, auth, observationid = str(cal_id))
-        client.calibrator_file_upload(web_address, auth, observationid = str(cal_id), filepath = zip_loc)
+
+        # Check if calibrator has to be made
+        cal_list = client.calibrator_list(web_address, auth)
+        if not cal_id in [c['observationid'] for c in cal_list]:
+            client.calibrator_create(web_address, auth, observationid=str(cal_id))
+
+        # Upload Calibration file
+        try:
+            client.calibrator_file_upload(web_address, auth, observationid=str(cal_id), filepath=str(zip_loc), caltype=2)
+            logger.info("Uploaded calibrator solutions from {} to the database".format(cal_id))
+        except:
+            print("Failed to upload calibration files")
+
         os.system("rm " + zip_loc)
-        logger.info("Uploaded calibrator solutions from {} to the database".format(cal_id))
 
 
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
@@ -409,6 +419,9 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
     base_dir = "{0}/{1}/dpp_pointings/".format(product_dir, obsid)
+    nfiles = ( psrend - psrbeg + 1 ) // 200
+    if ( ( psrend - psrbeg + 1 )%200 != 0 ):
+        nfiles += 1
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
     names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
@@ -500,13 +513,13 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         for prd in pointing_list_list:
             if vdif_check:
                 vdif_name_list.append(jname_temp_list)
-                vdif_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+                vdif_pointing_list.append("{0}_{1}".format(prd[0], prd[1]))
             elif sp_check:
                 sp_name_list.append(jname_temp_list)
-                sp_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+                sp_pointing_list.append("{0}_{1}".format(prd[0], prd[1]))
             else:
                 pulsar_name_list.append(jname_temp_list)
-                pulsar_pointing_list.append("{0} {1}".format(prd[0], prd[1]))
+                pulsar_pointing_list.append("{0}_{1}".format(prd[0], prd[1]))
 
     print('\nSENDING OFF PULSAR PROCESSING')
     print('----------------------------------------------------------------------------------------')
@@ -520,7 +533,16 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
                               data_process=True)
-    search_pipe.multibeam_binfind(search_opts, [s + base_dir for s in pulsar_pointing_list], [], pulsar_name_list)
+    pulsar_pointing_dirs = [base_dir + s for s in pulsar_pointing_list]
+    for pdir in pulsar_pointing_dirs:
+        # Check if fits files are there
+        if len(glob.glob("{0}/{1}_*fits".format(pdir, obsid))) < nfiles:
+            logger.error("Can not find the {0} expected files in {1}. Exiting".format(nfiles, pdir))
+            exit(1)
+    for ppd, pnl in zip(pulsar_pointing_dirs, pulsar_name_list):
+        for pulsar_name in pnl:
+            # Not sure if this works with extended array obs with gridded pointings
+            search_pipe.multibeam_binfind(search_opts, [ppd], None, pulsar_name)
 
     print('\nSENDING OFF VDIF PULSAR PROCESSING')
     print('----------------------------------------------------------------------------------------')
@@ -532,7 +554,16 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
                               vdif=True, data_process=True)
-    search_pipe.multibeam_binfind(search_opts, [s + base_dir for s in vdif_pointing_list], [], vdif_name_list)
+    vdif_pointing_dirs = [base_dir + s for s in vdif_pointing_list]
+    for pdir in vdif_pointing_dirs:
+        # Check if fits files are there
+        if len(glob.glob("{0}/{1}_*fits".format(pdir, obsid))) < nfiles:
+            print("Can not find the {0} expected files in {1}. Exiting".format(nfiles, pdir))
+            exit(1)
+    for vpd, vnl in zip(vdif_pointing_dirs, vdif_name_list):
+        for vdif_name in vnl:
+            # Not sure if this works with extended array obs with gridded pointings
+            search_pipe.multibeam_binfind(search_opts, [vpd], None, vdif_name)
 
     # Commenting off this section as it is now done in the nextflow pipeline beamform_fov_sources.nf
     """
