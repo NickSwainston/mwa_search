@@ -418,7 +418,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vcstools_version: string
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
-    base_dir = "{0}/{1}/dpp_pointings/".format(product_dir, obsid)
+    base_dir = os.path.join(product_dir, obsid, "dpp_pointings")
     nfiles = ( psrend - psrbeg + 1 ) // 200
     if ( ( psrend - psrbeg + 1 )%200 != 0 ):
         nfiles += 1
@@ -533,7 +533,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
                               data_process=True)
-    pulsar_pointing_dirs = [base_dir + s for s in pulsar_pointing_list]
+    pulsar_pointing_dirs = [os.path.join(base_dir, s) for s in pulsar_pointing_list]
     for pdir in pulsar_pointing_dirs:
         # Check if fits files are there
         if len(glob.glob("{0}/{1}_*fits".format(pdir, obsid))) < nfiles:
@@ -554,7 +554,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                               search_ver=mwa_search_version,
                               vcstools_ver=vcstools_version,
                               vdif=True, data_process=True)
-    vdif_pointing_dirs = [base_dir + s for s in vdif_pointing_list]
+    vdif_pointing_dirs = [os.path.join(base_dir, s) for s in vdif_pointing_list]
     for pdir in vdif_pointing_dirs:
         # Check if fits files are there
         if len(glob.glob("{0}/{1}_*fits".format(pdir, obsid))) < nfiles:
