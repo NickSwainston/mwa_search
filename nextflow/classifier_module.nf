@@ -2,11 +2,10 @@ nextflow.preview.dsl = 2
 
 process feature_extract {
     //container = "cirapulsarsandtransients/pulsarfeaturelab:V1.3.2"
+    label 'cpu'
+    
     input:
-    //each file(pfd_files)
     file pfd_files
-
-
 
     output:
     file "*.arff"

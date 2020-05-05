@@ -578,7 +578,7 @@ if __name__ == "__main__":
         """
         plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
                  np.full(len(map_ra_range),np.radians(30.)),
-                 'r',label=r'MWA $\delta_{max}$', zorder=130)
+                 'r',label=r'MWA limit', zorder=130)
         """
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),0./180.*np.pi),
@@ -591,14 +591,14 @@ if __name__ == "__main__":
         """
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),0./180.*np.pi),
-                 '--m',label=r'LOTAAS $\delta_{min}$', zorder=130)
+                 '--m',label=r'LOFAR limit', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-40./180.*np.pi),
-                 '--g',label=r'GBT $\delta_{min}$', zorder=130)
+                 '--g',label=r'GBT limit', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-55./180.*np.pi),
-                 linestyle='--', color='orangered',
-                 label=r'GMRT $\delta_{min}$', zorder=130)
+                 linestyle='--', color='orange',
+                 label=r'GMRT limit', zorder=130)
 
         handles, labels = ax.get_legend_handles_labels()
         plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,

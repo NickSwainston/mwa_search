@@ -1,3 +1,5 @@
+#!/usr/bin/env nextflow
+
 nextflow.preview.dsl = 2
 include { pre_beamform; beamform } from './beamform_module'
 

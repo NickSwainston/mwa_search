@@ -1,3 +1,5 @@
+#!/usr/bin/env nextflow
+
 nextflow.preview.dsl = 2
 include { pre_beamform; beamform } from './beamform_module'
 
@@ -25,6 +27,7 @@ params.dm = 23.123
 params.nchan = 48
 params.ncchan = 1
 params.subint = 600
+params.eph = ""
 
 params.no_beamform = false
 params.no_combined_check = false
@@ -153,6 +156,31 @@ process dspsr_time {
     """
 }
 
+process dspsr_time_eph {
+    label 'cpu'
+    time '6h'
+
+    input:
+    file bestprof
+    file fits_files
+    file eph
+
+    output:
+    file "*pTDF"
+
+    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+
+    //may need to add some channel names
+    """
+    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
+    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
+    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
+    dspsr -b ${params.bins} -E ${eph} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
+    #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
+    pam -pTF -e pTDF --name J0036-1033 *.subint
+    """
+}
+
 process get_toas {
     input:
     each file(archive)
@@ -207,10 +235,20 @@ workflow {
     }
     else if ( params.time_split ) {
         prepfold_time( fits_files )
-        dspsr_time( prepfold_time.out[0],\
-                    fits_files.collect() )
-        get_toas( dspsr_time.out,\
-                  std_profile )
+        if ( params.eph == "" ) {
+            dspsr_time( prepfold_time.out[0],\
+                        fits_files.collect() )
+            get_toas( dspsr_time.out,\
+                      std_profile )
+        }
+        else {
+            eph_channel = Channel.fromPath( params.eph )
+            dspsr_time_eph( prepfold_time.out[0],\
+                            fits_files.collect(),\
+                            eph_channel )
+            get_toas( dspsr_time_eph.out.flatten(),\
+                      std_profile )
+        }
     }
     combine_toas( get_toas.out[0].collect() )
     publish:

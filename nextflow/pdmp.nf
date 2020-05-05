@@ -1,3 +1,5 @@
+#!/usr/bin/env nextflow
+
 nextflow.preview.dsl = 2
 include pdmp_wf from './dspsr_module'
 
