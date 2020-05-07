@@ -931,7 +931,7 @@ if __name__ == '__main__':
         logger.error("Pulsar name not supplied. Please run again and specify pulsar name")
         sys.exit(1)
     if args.no_ephem and (args.period is None or args.dm is None):
-        logger.warn("Period or DM not explicitly supplied and no Ephemeris given")
+        logger.warn("Period/DM not explicitly supplied and no ephemeris being used")
 
     os.chdir(args.pointing_dir)
     ipfb = bool(glob.glob("*hdr"))
