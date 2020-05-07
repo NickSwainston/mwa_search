@@ -85,10 +85,9 @@ def plot_everything(run_params):
         logger.info("Plotting RVM fit chi squared map")
         dof = rvm_dict["dof"]
         chis = np.copy(chi_map["chis"])
-        chis = chis/dof
-        chi_map_name = "{0}_{1}_RVM_reduced_chi_map.png".format(run_params.obsid, run_params.pulsar)
-        plotting_toolkit.plot_rvm_chi_map(chi_map["chis"][:], chi_map["alphas"][:], chi_map["zetas"][:],\
-            name=chi_map_name, dof=dof, my_chi=rvm_dict["redchisq"], my_zeta=rvm_dict["zeta"]*np.pi/180, my_alpha=rvm_dict["alpha"]*np.pi/180)
+        chi_map_name = "{}_RVM_reduced_chi_map.png".format(run_params.file_prefix)
+        plotting_toolkit.plot_rvm_chi_map(chi_map["chis"][:], chi_map["alphas"][:], chi_map["betas"][:],\
+            name=chi_map_name, my_chi=rvm_dict["redchisq"], my_beta=rvm_dict["beta"], my_alpha=rvm_dict["alpha"])
 
     #retrieve epn data
     try:
@@ -98,6 +97,7 @@ def plot_everything(run_params):
         pulsar_dict, my_lin_pol = plotting_toolkit.add_ascii_to_dict(pulsar_dict, filenames_dict["ascii"], run_params.freq)
         #ignore any frequencies > 15 000 MHz
         ignore_freqs = []
+
         for f in pulsar_dict["freq"]:
             if f>15000:
                 ignore_freqs.append(f)
@@ -203,10 +203,10 @@ def read_rvm_fit_file(filename):
                 The derived psi_0 parameter
             psi_0_e: float
                 The uncertainty in psi_0
-            zeta: float
-                The derived zeta parameter
-            zeta_e: float
-                The uncertainty in zeta
+            beta: float
+                The derived beta parameter
+            beta_e: float
+                The uncertainty in beta
             alpha: float
                 The derived alpha parameter
             alpha_e:
@@ -220,7 +220,7 @@ def read_rvm_fit_file(filename):
             dof: int
                 The degrees of freedom of the fit
     """
-    keylist = ("nbins", "redchisq", "dof", "psi_0", "psi_0_e", "zeta", "zeta_e",\
+    keylist = ("nbins", "redchisq", "dof", "psi_0", "psi_0_e", "beta", "beta_e",\
                 "alpha", "alpha_e", "phi_0",  "phi_0_e")
     rvm_dict={}
     for key in keylist:
@@ -239,9 +239,9 @@ def read_rvm_fit_file(filename):
             psi_0_str = line.split()[0].split("=")[-1].split("(")[-1].split(")")[0].split("+")
             rvm_dict["psi_0"] = float(psi_0_str[0])
             rvm_dict["psi_0_e"] = abs(float(psi_0_str[-1]))
-        elif line[0:7] == "zeta =(":
-            zeta_str = line.split()[1].split("(")[-1].split(")")[0].split("+")
-            rvm_dict["zeta"]  = float(zeta_str[0])
+        elif line[0:7] == "beta =(":
+            beta_str = line.split()[1].split("(")[-1].split(")")[0].split("+")
+            rvm_dict["beta"]  = float(beta_str[0])
         elif line[0:7] == "alpha=(":
             alpha_str = line.split()[0].split("(")[-1].split(")")[0].split("+")
             rvm_dict["alpha"]  = float(alpha_str[0])
@@ -253,7 +253,7 @@ def read_rvm_fit_file(filename):
             n_elements += 1
 
     rvm_dict["alpha_e"]  = 180/np.sqrt(n_elements)/2
-    rvm_dict["zeta_e"]  = 180/np.sqrt(n_elements)/2
+    rvm_dict["beta_e"]  = 180/np.sqrt(n_elements)/2
 
     for key in keylist:
         if rvm_dict[key] is None:
@@ -275,35 +275,36 @@ def read_chi_map(map):
     chi_map: dictionary
         contains keys:
             alphas: list
-                The alpha values in radians
-            zetas: list
-                The zeta values in radians
-            chis: list
-                The chi values corresponding to the alpha/zeta pairs
+                The alpha values in degrees
+            betas: list
+                The beta values in degrees
+            chis: list x list
+                The chi values corresponding to the alpha/beta pairs
     """
     f = open(map)
     lines = f.readlines()
     f.close()
     alphas = []
-    zetas = []
+    betas = []
     chis = []
-    for line in lines:
+    for i, line in enumerate(lines):
         if not line == "\n":
-            alphas.append(float(line.split()[0]))
-            zetas.append(float(line.split()[1]))
             chis.append(float(line.split()[2]))
+            if len(alphas)==0:
+                betas.append(float(line.split()[1]))
+        else:
+            alphas.append(float(lines[i-1].split()[0]))
+    f.close()
+    chis = np.reshape(chis, (len(alphas), len(betas)))
+    chis = np.transpose(chis)
+    chi_map = {"alphas":alphas, "betas":betas, "chis":chis}
 
-    #convert to radians
-    for i, a, z in zip(range(len(alphas)), alphas, zetas):
-        alphas[i] = a*np.pi/180
-        zetas[i] = z*np.pi/180
-    chi_map = {"alphas":alphas, "zetas":zetas, "chis":chis}
     return chi_map
 
-def analytic_pa(phi, alpha, zeta, psi_0, phi_0):
+def analytic_pa(phi, alpha, beta, psi_0, phi_0):
     #Inputs should be in radians
     numerator = np.sin(alpha) * np.sin(phi - phi_0)
-    denominator = np.sin(zeta) * np.cos(alpha) - np.cos(zeta) * np.sin(alpha) * np.cos(phi - phi_0)
+    denominator = np.sin(beta + alpha) * np.cos(alpha) - np.cos(beta + alpha) * np.sin(alpha) * np.cos(phi - phi_0)
     return np.arctan2(numerator,denominator) + psi_0
 
 def add_rvm_to_commands(run_dir, archive_name, rvmfile="RVM_fit.txt", chimap="chimap.txt", commands=None, res=90):
@@ -330,10 +331,13 @@ def add_rvm_to_commands(run_dir, archive_name, rvmfile="RVM_fit.txt", chimap="ch
     """
     if not commands:
         commands = []
-
     commands.append("cd {}".format(run_dir))
     commands.append("echo 'Fitting RVM'")
-    commands.append("psrmodel {0} -resid -psi-resid -x -s {1}X{1} &> {2} > {3}".format(archive_name, res, rvmfile, chimap))
+    modelcom = "psrmodel {} -resid -psi-resid -x -use_beta -beta -45:45".format(archive_name)
+    modelcom += " -s {0}X{0}".format(res)
+    modelcom += " &> {}".format(rvmfile)
+    modelcom += " > {}".format(chimap)
+    commands.append(modelcom)
 
     return commands
 
