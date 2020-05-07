@@ -909,15 +909,12 @@ if __name__ == '__main__':
 
 
     if args.cand:
-        if not args.period or not args.dm:
-            logger.error("Period or DM not supplied. These need to be supplied for candidate folds")
-            sys.exit(1)
         if not args.no_ephem:
             logger.warn("no_ephem tag needs to be used for candidate folds, but is turned off. Overriding.")
             args.no_ephem = True
         rounded_period = round(args.period, 5)
         rounded_dm = round(args.dm, 4)
-        args.pulsar="cand_{0}_{1}".format(rounded_period, rounded_dm)
+        args.pulsar="cand".format(rounded_period, rounded_dm)
 
     else:
         if not args.beg or not args.end:
@@ -934,8 +931,7 @@ if __name__ == '__main__':
         logger.error("Pulsar name not supplied. Please run again and specify pulsar name")
         sys.exit(1)
     if args.no_ephem and (args.period is None or args.dm is None):
-        logger.error("If no ephemeris is used, period and DM must be supplied")
-        sys.exit(1)
+        logger.warn("Period or DM not explicitly supplied and no Ephemeris given")
 
     os.chdir(args.pointing_dir)
     ipfb = bool(glob.glob("*hdr"))
