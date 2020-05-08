@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as colors
 import logging
 import argparse
@@ -202,20 +202,20 @@ def get_data_from_epndb(pulsar):
                     pulsar_dict["Qx"].append([k[0] for k in series["Q"]])
                     pulsar_dict["Qy"].append([k[1] for k in series["Q"]])
                 else:
-                    pulsar_dict["Qx"].append(None)
-                    pulsar_dict["Qy"].append(None)
+                    pulsar_dict["Qx"].append([])
+                    pulsar_dict["Qy"].append([])
                 if "U" in series:
                     pulsar_dict["Ux"].append([k[0] for k in series["U"]])
                     pulsar_dict["Uy"].append([k[1] for k in series["U"]])
                 else:
-                    pulsar_dict["Ux"].append(None)
-                    pulsar_dict["Uy"].append(None)
+                    pulsar_dict["Ux"].append([])
+                    pulsar_dict["Uy"].append([])
                 if "V" in series:
                     pulsar_dict["Vx"].append([k[0] for k in series["V"]])
                     pulsar_dict["Vy"].append([k[1] for k in series["V"]])
                 else:
-                    pulsar_dict["Vx"].append(None)
-                    pulsar_dict["Vy"].append(None)
+                    pulsar_dict["Vx"].append([])
+                    pulsar_dict["Vy"].append([])
 
     #sort by frequency
     if len(pulsar_dict["freq"]) > 0:
@@ -470,19 +470,19 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         res_upscale = 5120/len(sI)
         phi_range = np.linspace(0, 360, int(res_upscale*len(sI)))
         x = np.linspace(-0.5, 0.5, int(res_upscale*len(sI)))
-        alpha = 180 - rvm_fit["alpha"]
-        zeta = 180 - rvm_fit["zeta"]
+        alpha = rvm_fit["alpha"]
+        beta = rvm_fit["beta"]
         psi_0 = rvm_fit["psi_0"]
         phi_0 = rvm_fit["phi_0"]
         alpha_e = rvm_fit["alpha_e"]
-        zeta_e = rvm_fit["zeta_e"]
+        beta_e = rvm_fit["beta_e"]
         psi_0_e = rvm_fit["psi_0_e"]
         phi_0_e = rvm_fit["phi_0_e"]
 
-        pa_sweep = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha), np.deg2rad(zeta), np.deg2rad(psi_0), np.deg2rad(phi_0)))
-        pa_sweep_minus = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha-alpha_e), np.deg2rad(zeta-zeta_e),\
+        pa_sweep = -np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha), np.deg2rad(beta), np.deg2rad(psi_0), np.deg2rad(phi_0)))
+        pa_sweep_minus = -np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha-alpha_e), np.deg2rad(beta-beta_e),\
                          np.deg2rad(psi_0-psi_0_e), np.deg2rad(phi_0-phi_0_e)))
-        pa_sweep_plus = np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha+alpha_e), np.deg2rad(zeta+zeta_e),\
+        pa_sweep_plus = -np.rad2deg(stokes_fold.analytic_pa(np.deg2rad(phi_range), np.deg2rad(alpha+alpha_e), np.deg2rad(beta+beta_e),\
                         np.deg2rad(psi_0+psi_0_e), np.deg2rad(phi_0+phi_0_e)))
 
         #roll the sweep
@@ -526,7 +526,7 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         ax_2.plot(x_plus, pa_sweep_plus, color="0.5", linestyle=":")
 
         ax_2.text(-0.49, 75, "alpha =  {0} +/- {1}".format(round(alpha, 3), round(alpha_e, 2)), fontsize = 16, color = "0.1")
-        ax_2.text(-0.49, 50, "zeta  =  {0} +/- {1}".format(round(zeta, 3),  round(zeta_e, 2)),  fontsize = 16, color = "0.1")
+        ax_2.text(-0.49, 50, "beta  =  {0} +/- {1}".format(round(beta, 3),  round(beta_e, 2)),  fontsize = 16, color = "0.1")
         ax_2.text(-0.49, 25, "psi_0 =  {0} +/- {1}".format(round(psi_0, 3), round(psi_0_e, 2)), fontsize = 16, color = "0.1")
         ax_2.text(-0.49, 0,"phi_0 =  {0} +/- {1} (phase)".format(round(phi_0/360, 4), round(phi_0_e/360, 2)), fontsize = 16, color = "0.1")
     ax_2.set_ylim(-90, 90)
@@ -684,18 +684,18 @@ def add_ascii_to_dict(pulsar_dict, ascii_archive, freq):
 
     return pulsar_dict, lin_pol
 
-def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png", dof=None, my_chi=None, my_alpha=None, my_zeta=None):
+def plot_rvm_chi_map(chis, alphas, betas, name="RVM_chi_map_plot.png", my_chi=None, my_alpha=None, my_beta=None):
     """
     Plots a chi map generated from RVM fitting
 
     Parameters:
     -----------
     chi: list
-        A lsit of the chi values
+        A lsit of the chisquare values
     alpha: list
         A list of the alpha values
-    zeta: list
-        A list of the zeta values
+    beta: list
+        A list of the beta values
     name: string
         OPTIONAL - The pathname of the output plot. Defalt: 'RVM_chi_map_plot.png'
     dof: float
@@ -706,44 +706,37 @@ def plot_rvm_chi_map(chis, alphas, zetas, name="RVM_chi_map_plot.png", dof=None,
     name: string
         The pathname of the ouput plot
     """
-    plt.figure(figsize=(12, 8))
+    #first find and ignore the largest chi values because they throw off the colour map
+    chilen = len(chis)
+    chiflat = np.array(chis).flatten()
+    chiflat.sort()
+    fifth_percentile = int(0.05*chilen)
+    maxcolour = (chiflat[-fifth_percentile] + 9 ) // 10 * 10 #round up to nearest 10
 
-    if dof:
-        chis = np.array(chis)/dof
-        frac_one = 1
-        cdict = {'red':     ((0.0, 0.0, 0.0),
-                            (0.25, 1.0, 1.0),
-                            (0.75, 0.0, 0.0),
-                            (1.0, 1.0, 1.0)),
-                'green':    ((0.0, 0.0, 0.0),
-                            (0.25, 0.1, 0.1),
-                            (0.75, 0.0, 0.0),
-                            (1.0, 1.0, 1.0)),
-                'blue':     ((0.0, 0.0, 0.0),
-                            (0.25, 0.1, 0.1),
-                            (0.75, 1.0, 1.0),
-                            (1.0, 1.0, 1.0))}
-
-        cmap = LinearSegmentedColormap('mycmap', cdict)
-
-    else:
-        cmap = "virdis"
-
-    plt.scatter(alphas, zetas, c=chis, s=8, marker="s", cmap=cmap)#, norm=colors.PowerNorm(gamma=0.1))
-    plt.axis('scaled')
+    #create colourscale
+    levels=np.linspace(0,maxcolour,1000)
+    fig=plt.figure(figsize=(12, 12))
+    ax=fig.add_subplot(1, 1, 1, aspect="equal")
+    
+    #Make circle
+    if my_alpha is not None and my_beta is not None:
+        mycircle = plt.Circle((my_alpha, my_beta), 2, color='r', fill=False)
+        plt.gcf().gca().add_artist(mycircle)
+    
+    #plot data
+    plt.contourf(alphas, betas, chis, levels=levels, cmap="gnuplot")
+    plt.xlim(min(alphas), max(alphas))
+    plt.ylim(min(betas), max(betas))
     plt.title("RVM Fit Chi Map")
     plt.xlabel("alpha")
-    plt.ylabel("zeta")
-    plt.colorbar(fraction=0.046, pad=0.04)
-    if my_alpha is not None and my_zeta is not None:
-        mycircle = plt.Circle((my_alpha, my_zeta), 0.05, color='k', fill=False)
-        plt.gcf().gca().add_artist(mycircle)
-    if my_chi is not None:
-        plt.text(0.4, 0.1, "Best Chi: {}".format(round(my_chi, 4)), fontsize=12, color="0.25")
-    plt.xlim(min(alphas), max(alphas))
-    plt.ylim(min(zetas), max(zetas))
-    plt.clim(0, 4)
-    plt.plot()
+    plt.ylabel("beta")
+
+    #plot colourbar
+    divider = make_axes_locatable(ax)
+    cax1 = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(cax = cax1)   
+    
+    #save & close
     plt.savefig(name, bbox_inches='tight')
     plt.close()
 

@@ -21,10 +21,9 @@ class run_params_class:
                 threshold=8.0, stop=False, loglvl="INFO",\
                 mwa_search="master", vcs_tools="master",\
                 subint=None, RM=None, RM_err=None, stokes_bins=None,\
-                nocrop=False, bestprof=None, archive=None, out_dir=None,\
-                epndb_dir=None, beg=None, end=None, freq=None, stokes_dep=None,
+                beg=None, end=None, freq=None, stokes_dep=None,
                 no_ephem=False, dspsr_ops="", prep_ops="", dm=None, period=None,\
-                cand=False, rvmres=90):
+                cand=False, rvmres=90, ipfb=False):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -42,20 +41,16 @@ class run_params_class:
         #Run Options
         self.stop           = stop
         self.loglvl         = loglvl
-        self.stokes_dep     = stokes_dep
         self.no_ephem       = no_ephem
         self.dm             = dm
         self.period         = period
         self.dspsr_ops      = dspsr_ops
         self.prep_ops       = prep_ops
         self.cand           = cand
+        self.ipfb           = ipfb
 
-        #Plotting Options
-        self.nocrop         = nocrop
-        self.bestprof       = bestprof
-        self.archive        = archive
-        self.out_dir        = out_dir
-        self.epndb_dir      = epndb_dir
+        #Run Utilities
+        self.stokes_dep     = stokes_dep
 
         #Other Parameters
         self.rvmres         = rvmres
@@ -70,7 +65,8 @@ class run_params_class:
                 self.pointing_dir=self.pointing_dir[0]
         if not self.freq and self.obsid:
             self.set_freq_from_metadata(obsid)
-
+        self.generate_file_prefix()
+        
 
     def set_beg(self, beg):
         self.beg = beg
@@ -102,6 +98,17 @@ class run_params_class:
 
     def clear_dependencies(self):
         self.stokes_dep = None
+
+    def generate_file_prefix(self):
+        pref = "{0}_{1}".format(self.obsid, self.pulsar)
+        if self.dm:
+            pref += "_dm{}".format(self.dm)
+        if self.period:
+            pref += "_p{}".format(self.period)
+        if self.stokes_bins:
+            pref += "_b{}".format(self.stokes_bins)
+        self.file_prefix = pref
+
 
 #----------------------------------------------------------------------
 def binfinder_launch_line(run_params, dpp=False):
