@@ -93,7 +93,7 @@ process accelsift {
     file accel_inf_single_pulse
 
     output:
-    file "cands_*greped.txt"
+    file "cands_*greped.txt" optional true
     file "${params.obsid}_*_singlepulse.tar.gz"
     file "${params.obsid}_*_singlepulse.ps"
 
@@ -103,7 +103,9 @@ process accelsift {
     file_name=\$(ls *singlepulse | head)
     file_name=\${file_name%%_DM*}
     python /home/nswainst/code/mwa_search/$params.mwa_search_version/ACCEL_sift.py --file_name \${file_name}
-    grep \${file_name} cands_\${file_name}.txt > cands_\${file_name}_greped.txt
+    if [ -f  "cands_\${file_name}.txt" ]; then
+        grep \${file_name} cands_\${file_name}.txt > cands_\${file_name}_greped.txt
+    fi
     single_pulse_search.py *.singlepulse
     tar -czvf singlepulse.tar.gz *DM*.singlepulse
     mv singlepulse.tar.gz \${file_name}_singlepulse.tar.gz

@@ -24,6 +24,8 @@ params.out_dir = "${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
 
+params.no_combined_check = false
+
 if ( params.pointing_file ) {
     pointings = Channel
         .fromPath(params.pointing_file)
