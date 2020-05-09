@@ -912,8 +912,9 @@ def work_out_what_to_do(run_params):
     run_params: object
         The run_params object defined by data_proces_pipeline
     """
-    hdr_files = glob.glob("{}/*.hdr".format(run_params.pointing_dir))
-    ipfb_archive = glob.glob("{}/*ipfb*.ar".format(run_params.pointing_dir))
+    os.chdir(run_params.pointing_dir)
+    hdr_files = glob.glob("*.hdr".format(run_params.pointing_dir))
+    ipfb_archive = glob.glob("*ipfb*.ar".format(run_params.pointing_dir))
     #Multiple pointings?
     if isinstance(run_params.pointing_dir, list):
         logger.debug("More than one pointing to be folded on")
@@ -982,18 +983,18 @@ def work_out_what_to_do(run_params):
                 else:
                     logger.info("Minimum bin count hit")
                     if bin_limit<50:
-                        sub_bins = bins_in_dir[1]
+                        sub_bins = bins_in_dir[0] 
                     else:
-                        sub_bins = bins_in_dir[0]
+                        sub_bins = bins_in_dir[2] #the number after the standard 64 and 100 bin trials (usually 128)
                     submit_to_db_and_continue(run_params, sub_bins)
             else:
                 info_dict = bestprof_info(test_dir)
                 run_params.period = info_dict["period"]
                 run_params.dm = info_dict["dm"]
-                logger.info("Pulsar detected: {0}".format(run_params.pulsar))
+                logger.info("Pulsar detected:   {}".format(run_params.pulsar))
                 logger.info("Submitting to database with {0} bins".format(last_fold_bins))
-                logger.info("Period:    {}".format(run_params.period))
-                logger.info("DM:        {}".format(run_params.dm))
+                logger.info("Period:            {}".format(run_params.period))
+                logger.info("DM:                {}".format(run_params.dm))
                 submit_to_db_and_continue(run_params, last_fold_bins)
                 return
 

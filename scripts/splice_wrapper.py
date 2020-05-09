@@ -73,14 +73,14 @@ for ch in channels:
     for file_num in max_fits_order:
         if args.incoh:
             if not glob.glob('{}/*{}_incoh_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, file_num)):
-                missing_files.append(glob.glob('{}/*{}_incoh_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, file_num)))
+                missing_files.append('{}/*{}_incoh_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, file_num))
         else:
             if not glob.glob('{}/*{}*_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, file_num)):
-                missing_files.append(glob.glob('{}/*{}*_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, file_num)))
+                missing_files.append('{}/*{}*_ch{:03d}_{:04d}.fits'.format(args.work_dir, obsid, ch, file_num))
 if len(missing_files) != 0:
     print("Missing the following files:")
     for mf in missing_files:
-        print(mf[0])
+        print(mf)
     print("Exiting")
     sys.exit(1)
 

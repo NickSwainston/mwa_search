@@ -21,10 +21,9 @@ class run_params_class:
                 threshold=8.0, stop=False, loglvl="INFO",\
                 mwa_search="master", vcs_tools="master",\
                 subint=None, RM=None, RM_err=None, stokes_bins=None,\
-                nocrop=False, bestprof=None, archive=None, out_dir=None,\
-                epndb_dir=None, beg=None, end=None, freq=None, stokes_dep=None,
+                beg=None, end=None, freq=None, stokes_dep=None,
                 no_ephem=False, dspsr_ops="", prep_ops="", dm=None, period=None,\
-                cand=False):
+                cand=False, rvmres=90, ipfb=False):
 
         #Obs inormation
         self.pointing_dir   = pointing_dir
@@ -42,22 +41,19 @@ class run_params_class:
         #Run Options
         self.stop           = stop
         self.loglvl         = loglvl
-        self.stokes_dep     = stokes_dep
         self.no_ephem       = no_ephem
         self.dm             = dm
         self.period         = period
         self.dspsr_ops      = dspsr_ops
         self.prep_ops       = prep_ops
         self.cand           = cand
+        self.ipfb           = ipfb
 
-        #Plotting Options
-        self.nocrop         = nocrop
-        self.bestprof       = bestprof
-        self.archive        = archive
-        self.out_dir        = out_dir
-        self.epndb_dir      = epndb_dir
+        #Run Utilities
+        self.stokes_dep     = stokes_dep
 
         #Other Parameters
+        self.rvmres         = rvmres
         self.threshold      = threshold
         self.subint         = subint
         self.RM             = RM
@@ -69,7 +65,8 @@ class run_params_class:
                 self.pointing_dir=self.pointing_dir[0]
         if not self.freq and self.obsid:
             self.set_freq_from_metadata(obsid)
-
+        self.generate_file_prefix()
+        
 
     def set_beg(self, beg):
         self.beg = beg
@@ -102,9 +99,34 @@ class run_params_class:
     def clear_dependencies(self):
         self.stokes_dep = None
 
+    def generate_file_prefix(self):
+        pref = "{0}_{1}".format(self.obsid, self.pulsar)
+        if self.dm:
+            pref += "_dm{}".format(self.dm)
+        if self.period:
+            pref += "_p{}".format(self.period)
+        if self.stokes_bins:
+            pref += "_b{}".format(self.stokes_bins)
+        self.file_prefix = pref
+
+
 #----------------------------------------------------------------------
 def binfinder_launch_line(run_params, dpp=False):
+    """
+    Creates a launch command using the run_params class 
 
+    Parameters:
+    -----------
+    run_params: object
+        The run_params object
+    dpp: boolean
+        OPTIONAL - If True, will launch the data_processing_pipeline with the run_params variables instead of binfinder.py. Default: False
+
+    Returns:
+    --------
+    launch_line: str
+        The launch command
+    """
     if dpp:
         launch_line = "data_processing_pipeline.py"
     else:
@@ -143,7 +165,23 @@ def binfinder_launch_line(run_params, dpp=False):
 
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
+    """
+    Creates a launch command using the run_params class 
 
+    Parameters:
+    -----------
+    run_params: object
+        The run_params object
+    dpp: boolean
+        OPTIONAL - If True, will launch the data_processing_pipeline with the run_params variables instead of stokes_fold.py. Default: False
+    custom_pointing: str
+        OPTIONAL - A custom pointing directory to run from
+
+    Returns:
+    --------
+    launch_line: str
+        The launch command
+    """
     if dpp:
         launch_line = "data_processing_pipeline.py"
     else:
@@ -180,6 +218,8 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
         launch_line += " --dspsr_ops {}".format(run_params.dspsr_ops)
     if run_params.cand:
         launch_line += " --cand"
+    if run_params.rvmres:
+        launch_line += " --rvmres {}".format(run_params.rvmres)
 
     return launch_line
 
@@ -370,7 +410,7 @@ if __name__ == '__main__':
     obsop.add_argument("--end", type=int, help="The end of the observation")
     obsop.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
 
-    foldop = parser.add_argument_group("Folding Options")
+    foldop = parser.add_argument_group("Folding/processing Options")
     foldop.add_argument("-t", "--threshold", type=float, default=8.0, help="The presto sigma value\
                              above which is deemed a detection. If this value is not exceeded in any\
                              of the folds, the pipeline will terminate")
@@ -382,6 +422,7 @@ if __name__ == '__main__':
     foldop.add_argument("-s", "--subint", type=float, default=None, help="The length of the integrations (in seconds) used for dspsr.")
     foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
                         eg: ' -D 50.0 -c 506.25' (make sure there is a space before the first argument)")
+    foldop.add_argument("--rvmres", type=int, default=90, help="The number of degree samples to try for alpha and beta.")
 
     otherop = parser.add_argument_group("Other Options")
     otherop.add_argument("--no_ephem", action="store_true", help="Use this to override the use of an ephemeris for foldign the pulsar")
@@ -416,25 +457,26 @@ if __name__ == '__main__':
         sys.exit(1)
 
     rp={}
-    rp["pointing_dir"] = args.pointing_dir
-    rp["cal_id"] = args.cal_id
-    rp["pulsar"] = args.pulsar
-    rp["obsid"] = args.obsid
-    rp["stop"] = args.stop
-    rp["mwa_search"] = args.mwa_search
-    rp["vcs_tools"] = args.vcs_tools
-    rp["loglvl"] = args.loglvl
-    rp["threshold"] = args.threshold
-    rp["stokes_bins"] = args.nbins
-    rp["beg"] = args.beg
-    rp["end"] = args.end
-    rp["freq"] = args.freq
-    rp["dspsr_ops"] = args.dspsr_ops
-    rp["prep_ops"] = args.prep_ops
-    rp["no_ephem"] = args.no_ephem
-    rp["dm"] = args.dm
-    rp["period"] = args.period
-    rp["cand"] = args.cand
+    rp["pointing_dir"]      = args.pointing_dir
+    rp["cal_id"]            = args.cal_id
+    rp["pulsar"]            = args.pulsar
+    rp["obsid"]             = args.obsid
+    rp["stop"]              = args.stop
+    rp["mwa_search"]        = args.mwa_search
+    rp["vcs_tools"]         = args.vcs_tools
+    rp["loglvl"]            = args.loglvl
+    rp["threshold"]         = args.threshold
+    rp["stokes_bins"]       = args.nbins
+    rp["beg"]               = args.beg
+    rp["end"]               = args.end
+    rp["freq"]              = args.freq
+    rp["dspsr_ops"]         = args.dspsr_ops
+    rp["prep_ops"]          = args.prep_ops
+    rp["no_ephem"]          = args.no_ephem
+    rp["dm"]                = args.dm
+    rp["period"]            = args.period
+    rp["cand"]              = args.cand
+    rp["rvmres"]            = args.rvmres
     if args.subint:
         rp["subint"] = args.subint
     run_params = run_params_class(**rp)
