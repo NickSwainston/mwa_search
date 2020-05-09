@@ -58,6 +58,9 @@ process ddplan {
     from lfDDplan import dd_plan
     import csv
     
+    #obsid_pointing = "${fits_files[0]}".split("/")[-1].split("_ch")[0]
+    #print(obsid_pointing)
+
     if '$name'.startswith('Blind'):
         output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max)
     else:
@@ -82,7 +85,7 @@ process ddplan {
     with open("DDplan.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
-            spamwriter.writerow(['$name'] + o)
+            spamwriter.writerow(['${name}'] + o)
     """ 
 }
 
@@ -94,7 +97,7 @@ process search_dd_fft_acc {
     }
     else {
         container = "nickswainston/presto"
-        stageInMode = 'copy'
+        //stageInMode = 'copy'
     }
     label 'cpu'
     time '4h'
@@ -102,12 +105,11 @@ process search_dd_fft_acc {
     errorStrategy 'ignore'
 
     input:
-    tuple val(dm_values), file(fits_files), val(chan)
+    tuple val(name), val(dm_values), file(fits_files), val(chan)
 
     output:
-    file "*ACCEL_0" optional true
-    file "*.inf"
-    file "*.singlepulse"
+    tuple val(name), file("*ACCEL_0"), file("*.inf"). file("*.singlepulse")
+    //file "*ACCEL_0" optional true
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     beforeScript "module load singularity/${params.singularity_module}"
@@ -137,18 +139,16 @@ process search_dd_fft_acc {
 process accelsift {
     if ( "$HOSTNAME".startsWith("galaxy") ) {
         container = "nickswainston/presto"
-        stageInMode = 'copy'
+        //stageInMode = 'copy'
     }
     label 'cpu'
     time '1h'
 
     input:
-    file accel_inf_single_pulse
+    tuple val(name), file(accel_inf_single_pulse)
 
     output:
-    file "cands_*greped.txt"
-    file "${params.obsid}_*_singlepulse.tar.gz"
-    file "${params.obsid}_*_singlepulse.ps"
+    tuple val(name), file("cands_*greped.txt"), file("${params.obsid}_*_singlepulse.tar.gz"), file("${params.obsid}_*_singlepulse.ps")
 
     if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module load singularity/${params.singularity_module}"
@@ -213,7 +213,7 @@ process search_dd {
     }
     else {
         container = "nickswainston/presto"
-        stageInMode = 'copy'
+        //stageInMode = 'copy'
     }
     label 'cpu'
     time '4h'
@@ -246,7 +246,7 @@ process search_dd {
 process assemble_single_pulse {
     if ( "$HOSTNAME".startsWith("galaxy") ) {
         container = "nickswainston/presto"
-        stageInMode = 'copy'
+        //stageInMode = 'copy'
     }
     label 'cpu'
     time '1h'
@@ -277,20 +277,25 @@ process assemble_single_pulse {
 
 workflow pulsar_search {
     take:
-        name_fits_files
-        channels
+        name_fits_files // [val(candidateName_obsid_pointing), file(fits_files)]
+        channels // channels from get_channels process
     main:
         ddplan( name_fits_files )
-        search_dd_fft_acc( ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().\
-                           map{ it -> [it[1].init(), [it[1].last()]].combinations() }.flatMap().\
-                           combine(channels.map{ it -> [it]}) )
-        // Get all the inf, ACCEL and single pulse files and sort them into groups with the same basename (obsid_pointing)
-        accelsift( search_dd_fft_acc.out[0].concat(search_dd_fft_acc.out[1], search_dd_fft_acc.out[2]).\
-                   flatten().map{ it -> [it.baseName.split("DM")[0], it ] }.groupTuple().map{ it -> it[1] } )
+        search_dd_fft_acc( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)
+                           ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().\
+                           // Find for each ddplan match that with the fits files and the name key
+                           map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().\
+                           // Put channels on the end of the tuple then change the format to [val(name), val(dm_values), file(fits_files), val(chan)]
+                           combine(channels.map{ it -> [it]}).map{ it -> [it[1][0], it[0], it[1][1], it[2]]} )
+        // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
+        accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple() )
+                   //search_dd_fft_acc.out[0].concat(search_dd_fft_acc.out[1], search_dd_fft_acc.out[2]).\
+                   //flatten().map{ it -> [it.baseName.split("DM")[0], it ] }.groupTuple().map{ it -> it[1] } )
         // Make a pair of accelsift out lines and fits files that match
-        prepfold( name_fits_files.map{ it -> it[1] }.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().cross(\
-                  accelsift.out[0].splitText().flatten().map{ it -> [it.split()[0].split("DM")[0], it ] }).\
-                  map{ it -> [ it[0][1], it[1][1] ]} )
+        prepfold( accelsift.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple().cross(name_fits_files).view() )
+                  //name_fits_files.map{ it -> it[1] }.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().cross(\
+                  //accelsift.out[0].splitText().flatten().map{ it -> [it.split()[0].split("DM")[0], it ] }).\
+                  //map{ it -> [ it[0][1], it[1][1] ]} )
     emit:
         accelsift.out[1]
         accelsift.out[2]

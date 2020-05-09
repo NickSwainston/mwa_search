@@ -70,7 +70,7 @@ include get_channels from './beamform_module'
 
 workflow {
     get_channels()
-    pulsar_search( fits_files.toSortedList().view().map { it -> [ 'Blind', it ] }.view(),\
+    pulsar_search( fits_files.toSortedList().map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },\
                    get_channels.out.splitCsv() )
     publish:
         pulsar_search.out to: "/group/mwaops/vcs/${params.obsid}/pointings/${pointing}" //Change maybe
