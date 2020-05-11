@@ -47,6 +47,8 @@ process classify {
 }
 
 process sort_detections {
+    publishDir params.out_dir
+
     input:
     file classifier_files
     file pfd_files

@@ -94,10 +94,7 @@ workflow {
               pre_beamform.out[1],\
               pre_beamform.out[2],\
               pointings )
-    pulsar_search( beamform.out[1],
+    pulsar_search( beamform.out[1].map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },
                    pre_beamform.out[1] )
-    classifier( pulsar_search.out[2].flatten().collate( 120 ) )
-    publish:
-        classifier.out to: params.out_dir
-        pulsar_search.out to: params.out_dir, pattern: "*singlepulse*"
+    classifier( pulsar_search.out[1].flatten().collate( 120 ) )
 }

@@ -3,32 +3,36 @@
 nextflow.preview.dsl = 2
 
 params.obsid = null
-params.pointing = null
+params.pointings = null
 params.fitsdir = "/group/mwaops/vcs/${params.obsid}/pointings"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
 
 params.scratch = false
 params.fits_file_dir = false
 
+params.cand = "Blind"
+params.sp = false
+
 //Defaults for the accelsearch command
 params.nharm = 16 // number of harmonics to search
 params.min_period = 0.001 // min period to search for in sec (ANTF min = 0.0013)
 params.max_period = 30 // max period to search for in sec  (ANTF max = 23.5)
 
-pointing = Channel.from( params.pointing )
+pointing = Channel.from( params.pointings )
 if ( params.fits_file_dir ) {
     fits_files = Channel.fromPath( "${params.fits_file_dir}/${params.obsid}_*.fits", checkIfExists: true )
         nfiles = new File("${params.fits_file_dir}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
 }
 else {
     if ( params.scratch ) {
-        fits_files = Channel.fromPath( "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${params.pointing}/${params.obsid}_*.fits", checkIfExists: true )
-        nfiles = new File("${params.scratch_basedir}/${params.obsid}/dpp_pointings/${params.pointing}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+        fits_files = Channel.fromPath( "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${params.pointings}/${params.obsid}_*.fits", checkIfExists: true )
+        nfiles = new File("${params.scratch_basedir}/${params.obsid}/dpp_pointings/${params.pointings}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
     }
     else {
-        fits_files = Channel.fromPath( "${params.basedir}/${params.obsid}/pointings/${params.pointing}/${params.obsid}_*.fits", checkIfExists: true )
-        nfiles = new File("${params.basedir}/${params.obsid}/pointings/${params.pointing}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+        fits_files = Channel.fromPath( "${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}_*.fits", checkIfExists: true )
+        nfiles = new File("${params.basedir}/${params.obsid}/pointings/${params.pointings}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
     }
 }
 
@@ -43,16 +47,18 @@ if ( params.help ) {
              |                  <obsid>_<pointing>_ch<min_chan>-<max_chan>_00??.fits
              |Required argurments:
              |  --obsid     Observation ID you want to process [no default]
-             |  --pointing  The pointing to search in with the RA and Dec seperated
+             |  --pointings The pointing to search in with the RA and Dec seperated
              |              by _ in the format HH:MM:SS_+DD:MM:SS
              |
              |Optional arguments:
+             |  --cand      Candidate name to do a targeted search [default: Blind]
+             |  --sp        Perform a single pulse search [default false]
              |  --fits_file_dir
              |              Directory containing the fits files. Use this if the fits files
              |              are not in the default directory :
-             |              ${params.basedir}/<obsid>/pointings/${params.pointing}
+             |              ${params.basedir}/<obsid>/pointings/${params.pointings}
              |  --scratch   Change the default directory to:
-             |              ${params.stratch_basedir}/<obsid>/pointings/${params.pointing}
+             |              ${params.stratch_basedir}/<obsid>/pointings/${params.pointings}
              |  --dm_min    Minimum DM to search over [default: 1]
              |  --dm_max    Maximum DM to search over [default: 250]
              |  --out_dir   Output directory for the candidates files
@@ -65,14 +71,19 @@ if ( params.help ) {
     exit(0)
 }
 
-include pulsar_search from './pulsar_search_module'
+include {pulsar_search; single_pulse_search} from './pulsar_search_module'
 include get_channels from './beamform_module'
+include classifier    from './classifier_module'
 
 workflow {
     get_channels()
-    pulsar_search( fits_files.toSortedList().map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },\
-                   get_channels.out.splitCsv() )
-    publish:
-        pulsar_search.out to: "/group/mwaops/vcs/${params.obsid}/pointings/${pointing}" //Change maybe
+    if ( params.sp ) {
+        single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },\
+                             get_channels.out.splitCsv() )
+    }
+    else {
+        pulsar_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },\
+                       get_channels.out.splitCsv() )
+        classifier( pulsar_search.out[1].flatten().collate( 120 ) )
+    }
 }
-
