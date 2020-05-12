@@ -89,7 +89,8 @@ process search_dd_fft_acc {
         clusterOptions "--tmp=100GB"
     }
     else {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
@@ -137,7 +138,8 @@ process search_dd_fft_acc {
 
 process accelsift {
     if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
@@ -213,7 +215,8 @@ process search_dd {
         clusterOptions "--tmp=100GB"
     }
     else {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
@@ -250,7 +253,8 @@ process search_dd {
 
 process assemble_single_pulse {
     if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
