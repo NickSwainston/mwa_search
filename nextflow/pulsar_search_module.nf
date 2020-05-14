@@ -36,8 +36,9 @@ else {
 
 // Work out some estimated job times
 if ( "$HOSTNAME".startsWith("galaxy") ) {
-    search_dd_fft_acc_dur = '4h'
-    prepfold_dur = '2h'
+    // In seconds
+    search_dd_fft_acc_dur = 14400
+    prepfold_dur = 7200
 }
 else{
     search_dd_fft_acc_dur = obs_length * 40.0
