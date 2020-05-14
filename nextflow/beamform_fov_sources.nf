@@ -1,9 +1,6 @@
 #!/usr/bin/env nextflow
 
 nextflow.preview.dsl = 2
-include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
-include { pulsar_search; single_pulse_search } from './pulsar_search_module'
-include classifier from './classifier_module'
 
 params.obsid = null
 params.calid = null
@@ -68,6 +65,10 @@ process find_pointings {
     pulsars_in_fov.py -o $params.obsid -b $begin -e $end
     """
 }
+
+include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
+include { pulsar_search; single_pulse_search } from './pulsar_search_module'
+include classifier from './classifier_module'
 
 workflow {
     get_beg_end()

@@ -1,7 +1,6 @@
 #!/usr/bin/env nextflow
 
 nextflow.preview.dsl = 2
-include { pre_beamform; beamform; beamform_ipfb } from './beamform_module'
 
 params.obsid = null
 params.calid = null
@@ -83,6 +82,8 @@ else {
     println "No pointings given. Either use --pointing_file or --pointings. Exiting"
     exit(1)
 }
+
+include { pre_beamform; beamform; beamform_ipfb } from './beamform_module'
 
 workflow {
     pre_beamform()

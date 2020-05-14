@@ -223,7 +223,7 @@ workflow {
                   pre_beamform.out[1],\
                   pre_beamform.out[2],\
                   pointings )
-        beamform.out[1].set{ fits_files }
+        beamform.out[1].collect().set{ fits_files }
     }
     if ( params.chan_split ) {
         prepfold_ch( beamform.out[0],\

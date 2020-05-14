@@ -1,5 +1,8 @@
 nextflow.preview.dsl = 2
 
+
+params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
+
 process feature_extract {
     //container = "cirapulsarsandtransients/pulsarfeaturelab:V1.3.2"
     label 'cpu'
@@ -47,6 +50,8 @@ process classify {
 }
 
 process sort_detections {
+    publishDir params.out_dir
+
     input:
     file classifier_files
     file pfd_files

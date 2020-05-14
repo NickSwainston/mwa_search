@@ -1,9 +1,6 @@
 #!/usr/bin/env nextflow
 
 nextflow.preview.dsl = 2
-include { pre_beamform; beamform } from './beamform_module'
-include pulsar_search from './pulsar_search_module'
-include classifier    from './classifier_module'
 
 params.obsid = null
 params.calid = null
@@ -90,16 +87,17 @@ else {
     exit(1)
 }
 
+include { pre_beamform; beamform } from './beamform_module'
+include pulsar_search from './pulsar_search_module'
+include classifier    from './classifier_module'
+
 workflow {
     pre_beamform()
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
               pointings )
-    pulsar_search( beamform.out[1],
+    pulsar_search( beamform.out[1].map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },
                    pre_beamform.out[1] )
-    classifier( pulsar_search.out[2].flatten().collate( 120 ) )
-    publish:
-        classifier.out to: params.out_dir
-        pulsar_search.out to: params.out_dir, pattern: "*singlepulse*"
+    classifier( pulsar_search.out[1].flatten().collate( 120 ) )
 }
