@@ -2,6 +2,7 @@ nextflow.preview.dsl = 2
 
 params.obsid = 1253471952
 params.fitsdir = "/group/mwaops/vcs/${params.obsid}/pointings"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
@@ -26,13 +27,23 @@ max_freq = 1 / params.min_period
 min_f_harm = min_freq
 max_f_harm = max_freq * params.nharm
 
-//Work out total obs time
+// Work out total obs time
 if ( params.all ) {
     // an estimation since there's no easy way to make this work
     obs_length = 4805
 }
 else {
     obs_length = params.end - params.begin + 1
+}
+
+// Work out some estimated job times
+if ( "$HOSTNAME".startsWith("galaxy") ) {
+    search_dd_fft_acc_dur = '4h'
+    prepfold_dur = '2h'
+}
+else{
+    search_dd_fft_acc_dur = obs_length * 40.0
+    prepfold_dur = obs_length * 1.5
 }
 
 process ddplan {
@@ -93,7 +104,7 @@ process search_dd_fft_acc {
         //stageInMode = 'copy'
     }
     label 'cpu'
-    time '4h'
+    time "${search_dd_fft_acc_dur}s"
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy 'ignore'
 
@@ -141,7 +152,7 @@ process accelsift {
         //stageInMode = 'copy'
     }
     label 'cpu'
-    time '1h'
+    time '10m'
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz"
     publishDir params.out_dir, pattern: "*_singlepulse.ps"
 
@@ -162,7 +173,12 @@ process accelsift {
 
     """
     ACCEL_sift.py --file_name ${name}
-    grep ${name} cands_${name}.txt > cands_${name}_greped.txt
+    if [ -f cands_${name}.txt ]; then
+        grep ${name} cands_${name}.txt > cands_${name}_greped.txt
+    else
+        #No candidates so make an empty file
+        touch cands_${name}_greped.txt
+    fi
     single_pulse_search.py *.singlepulse
     tar -czvf singlepulse.tar.gz *DM*.singlepulse
     mv singlepulse.tar.gz ${name}_singlepulse.tar.gz
@@ -172,7 +188,7 @@ process accelsift {
 
 process prepfold {
     label 'cpu'
-    time '2h'
+    time "${prepfold_dur}s"
 
     input:
     tuple file(fits_files), val(cand_line)
@@ -254,7 +270,7 @@ process assemble_single_pulse {
         //stageInMode = 'copy'
     }
     label 'cpu'
-    time '1h'
+    time '10m'
     publishDir params.out_dir
 
     input:
@@ -292,7 +308,7 @@ workflow pulsar_search {
                            // Put channels on the end of the tuple then change the format to [val(name), val(dm_values), file(fits_files), val(chan)]
                            combine(channels.map{ it -> [it]}).map{ it -> [it[1][0], it[0], it[1][1], it[2]]} )
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
-        accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple().map{ it -> [it[0], it[1][0]]} )
+        accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()]} )//
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.join(accelsift.out[0].map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
                   map{ it -> [it[1], it[2]] } )
@@ -314,7 +330,7 @@ workflow single_pulse_search {
                     // Put channels on the end of the tuple then change the format to [val(name), val(dm_values), file(fits_files), val(chan)]
                     combine(channels.map{ it -> [it]}).map{ it -> [it[1][0], it[0], it[1][1], it[2]]} )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
-        assemble_single_pulse( search_dd.out.map{ it -> [it[0], it[1] + it[2]] }.groupTuple().map{ it -> [it[0], it[1][0]] } )
+        assemble_single_pulse( search_dd.out.map{ it -> [it[0], it[1] + it[2]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()] } )
     emit:
         assemble_single_pulse.out
 }
