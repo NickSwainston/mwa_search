@@ -36,3 +36,4 @@ fi
 
 # Updates to the project version are explained in CHANGELOG.md
 python3 setup.py build --build-scripts=$ROOT/$VERSION/
+find $ROOT/$VERSION/ -type d -exec chmod 775 {} \;
