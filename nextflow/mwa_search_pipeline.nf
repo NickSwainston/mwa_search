@@ -21,6 +21,8 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
 
+params.no_combined_check = false
+
 params.help = false
 if ( params.help ) {
     help = """mwa_search_pipeline.nf: A pipeline that will beamform and perform a pulsar search

@@ -46,6 +46,7 @@ def categorize_classifier_files(out_dir):
         pulsar_pfds[key]=0
     for model_num in class_cand_dict.keys():
         if class_cand_dict[model_num]["positive"]:
+            print(class_cand_dict[model_num]["positive"])
             f = open(class_cand_dict[model_num]["positive"][0], "r")
             for line in f.readlines():
                 pulsar_pfds[line]+=1
