@@ -156,8 +156,8 @@ process make_directories {
     mdir("${params.basedir}/batch", "Batch")
     mdir("${params.basedir}/${params.obsid}/pointings", "Pointings")
     mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
-    create_link("${params.basedir}/${params.obsid}", "dpp_pointings",
-                "${params.scratch_basedir}/${params.obsid}", "dpp_pointings")
+    create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
+                "${params.basedir}/${params.obsid}", "dpp_pointings")
     """
 }
 

@@ -1,7 +1,5 @@
 nextflow.preview.dsl = 2
 
-params.obsid = 1253471952
-params.fitsdir = "/group/mwaops/vcs/${params.obsid}/pointings"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.vcstools_version = 'master'
@@ -100,7 +98,8 @@ process search_dd_fft_acc {
         clusterOptions "--tmp=100GB"
     }
     else {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
@@ -116,10 +115,7 @@ process search_dd_fft_acc {
     //file "*ACCEL_0" optional true
     //Will have to change the ACCEL_0 if I do an accelsearch
 
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module load singularity/${params.singularity_module}"
-    }
-    else {
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
@@ -148,7 +144,8 @@ process search_dd_fft_acc {
 
 process accelsift {
     if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
@@ -162,10 +159,7 @@ process accelsift {
     output:
     tuple val(name), file("cands_*greped.txt"), file("*_singlepulse.tar.gz"), file("*_singlepulse.ps")
 
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module load singularity/${params.singularity_module}"
-    }
-    else {
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
@@ -229,7 +223,8 @@ process search_dd {
         clusterOptions "--tmp=100GB"
     }
     else {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
@@ -244,10 +239,7 @@ process search_dd {
     tuple val(name), file("*.inf"), file("*.singlepulse")
     //Will have to change the ACCEL_0 if I do an accelsearch
 
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module load singularity/${params.singularity_module}"
-    }
-    else {
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
@@ -266,7 +258,8 @@ process search_dd {
 
 process assemble_single_pulse {
     if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "nickswainston/presto"
+        //container = "nickswainston/presto"
+        container = "presto.sif"
         //stageInMode = 'copy'
     }
     label 'cpu'
@@ -279,10 +272,7 @@ process assemble_single_pulse {
     output:
     tuple val(name), file("*_singlepulse.tar.gz"), file("*_singlepulse.ps")
 
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module load singularity/${params.singularity_module}"
-    }
-    else {
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
     }
