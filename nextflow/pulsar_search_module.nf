@@ -96,7 +96,7 @@ process ddplan {
 process search_dd_fft_acc {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions "--tmp=100GB"
+        clusterOptions { "--tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
         //container = "nickswainston/presto"
@@ -106,7 +106,7 @@ process search_dd_fft_acc {
     label 'cpu'
     time "${search_dd_fft_acc_dur}s"
     //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy 'ignore'
+    //errorStrategy 'ignore'
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
@@ -149,7 +149,7 @@ process accelsift {
         //stageInMode = 'copy'
     }
     label 'cpu'
-    time '10m'
+    time '15m'
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz"
     publishDir params.out_dir, pattern: "*_singlepulse.ps"
 
@@ -210,9 +210,8 @@ process prepfold {
         period_search_n=2
     fi
 
-    prepfold  -o ${cand_line.split()[0]} \
--n \$nbins -noxwin -noclip -p \$period -dm ${cand_line.split()[1]} -nsub 256 -npart \$ntimechunk \
--dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
+    prepfold  -o ${cand_line.split()[0]} -n \$nbins -noxwin -noclip -p \$period -dm ${cand_line.split()[1]} -nsub 256 \
+-npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
     """
 }
 
@@ -220,7 +219,7 @@ process prepfold {
 process search_dd {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions "--tmp=100GB"
+        clusterOptions "--tmp=20GB"
     }
     else {
         //container = "nickswainston/presto"
@@ -297,8 +296,8 @@ workflow pulsar_search {
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
         accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()]} )//
         // Make a pair of accelsift out lines and fits files that match
-        prepfold( name_fits_files.join(accelsift.out[0].map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
-                  map{ it -> [it[1], it[2]] } )
+        prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
+                  map{ it -> [it[0][1], it[1][1]] } )
     emit:
         accelsift.out 
         prepfold.out
