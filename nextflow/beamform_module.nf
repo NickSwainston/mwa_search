@@ -204,7 +204,7 @@ process make_beam {
     tuple val(begin), val(end)
 
     output:
-    file "*/*fits"
+    file "*fits"
 
     beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
 
@@ -215,15 +215,16 @@ process make_beam {
 -d ${params.basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
 ${bf_out} -z $utc
+    mv */*fits .
     """
 }
 
 
 process make_beam_ipfb {
-    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*hdr"
-    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*vdif"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*hdr"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*vdif"
+    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*hdr"
+    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*vdif"
+    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*hdr"
+    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*vdif"
 
     label 'gpu'
     //time '2h'
