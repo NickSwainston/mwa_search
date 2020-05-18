@@ -109,7 +109,7 @@ process search_dd_fft_acc {
     errorStrategy 'ignore'
 
     input:
-    tuple val(name), val(dm_values), file(fits_files), val(chan)
+    tuple val(name), val(dm_values), file(fits_files)
 
     output:
     tuple val(name), file("*ACCEL_0"), file("*.inf"), file("*.singlepulse")
@@ -118,17 +118,16 @@ process search_dd_fft_acc {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
-                     "module use $params.module_dir; module load mwa_search/py2_scripts"
+                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
     }
 
 
     """
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
-    nsub=\$(calc_nsub.py -f ${(Float.valueOf(chan[0]) + Float.valueOf(chan[-1]))/2*1.28} -dm ${dm_values[1]})
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub \$nsub -numout ${obs_length*10000} -o ${name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm
+-nsub ${dm_values[6]} --downsample ${dm_values[5]} -numout ${obs_length*10000/dm_values[5]} -o ${name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
     for i in \$(ls *.dat); do
         realfft \${i}
@@ -234,7 +233,7 @@ process search_dd {
     errorStrategy 'ignore'
 
     input:
-    tuple val(name), val(dm_values), file(fits_files), val(chan)
+    tuple val(name), val(dm_values), file(fits_files)
 
     output:
     tuple val(name), file("*.inf"), file("*.singlepulse")
@@ -242,16 +241,15 @@ process search_dd {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
-                     "module use $params.module_dir; module load mwa_search/py2_scripts"
+                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
     }
 
     """
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
-    nsub=\$(calc_nsub.py -f ${(Float.valueOf(chan[0]) + Float.valueOf(chan[-1]))/2*1.28} -dm ${dm_values[1]})
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub \$nsub -numout ${obs_length*10000} -o ${name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm
+-nsub ${dm_values[6]} --downsample ${dm_values[5]} -numout ${obs_length*10000/dm_values[5]} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
     single_pulse_search.py -p *.dat
     """
 }
@@ -293,11 +291,9 @@ workflow pulsar_search {
     main:
         ddplan( name_fits_files )
         search_dd_fft_acc( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)
-                           ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().\
-                           // Find for each ddplan match that with the fits files and the name key
-                           map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().\
-                           // Put channels on the end of the tuple then change the format to [val(name), val(dm_values), file(fits_files), val(chan)]
-                           combine(channels.map{ it -> [it]}).map{ it -> [it[1][0], it[0], it[1][1], it[2]]} )
+                           ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
+                           // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
+                           map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
         accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()]} )//
         // Make a pair of accelsift out lines and fits files that match
@@ -315,11 +311,9 @@ workflow single_pulse_search {
     main:
         ddplan( name_fits_files )
         search_dd( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)
-                    ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().\
-                    // Find for each ddplan match that with the fits files and the name key
-                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().\
-                    // Put channels on the end of the tuple then change the format to [val(name), val(dm_values), file(fits_files), val(chan)]
-                    combine(channels.map{ it -> [it]}).map{ it -> [it[1][0], it[0], it[1][1], it[2]]} )
+                   ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
+                   // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
+                   map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
         assemble_single_pulse( search_dd.out.map{ it -> [it[0], it[1] + it[2]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()] } )
     emit:
