@@ -39,10 +39,12 @@ if ( "$HOSTNAME".startsWith("galaxy") ) {
     // In seconds
     search_dd_fft_acc_dur = 14400
     prepfold_dur = 7200
+    presto_python_load = ""
 }
 else{
     search_dd_fft_acc_dur = obs_length * 40.0
     prepfold_dur = obs_length * 1.5
+    presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
 }
 
 process ddplan {
@@ -96,7 +98,7 @@ process ddplan {
 process search_dd_fft_acc {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions { "--tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
         //container = "nickswainston/presto"
@@ -106,7 +108,7 @@ process search_dd_fft_acc {
     label 'cpu'
     time "${search_dd_fft_acc_dur}s"
     //Will ignore errors for now because I have no idea why it dies sometimes
-    //errorStrategy 'ignore'
+    errorStrategy 'ignore'
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
@@ -117,8 +119,7 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+        beforeScript "module use ${params.module_dir}; module load presto/min_path"
     }
 
 
@@ -126,8 +127,8 @@ process search_dd_fft_acc {
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm
--nsub ${dm_values[6]} --downsample ${dm_values[5]} -numout ${obs_length*10000/dm_values[5]} -o ${name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
+-downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
     for i in \$(ls *.dat); do
         realfft \${i}
@@ -136,6 +137,7 @@ process search_dd_fft_acc {
     for i in \$(ls *.dat); do
         accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
     done
+    ${presto_python_load}
     single_pulse_search.py -p *.dat
     printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------------\\n"
     """
@@ -219,7 +221,7 @@ process prepfold {
 process search_dd {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions "--tmp=20GB"
+        clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
         //container = "nickswainston/presto"
@@ -247,8 +249,8 @@ process search_dd {
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm
--nsub ${dm_values[6]} --downsample ${dm_values[5]} -numout ${obs_length*10000/dm_values[5]} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
+-downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
     single_pulse_search.py -p *.dat
     """
 }
