@@ -143,7 +143,11 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         nDM_step = int((D_DM - previous_DM) / DM_step)
         if D_DM > lowDM:
             nsub = calc_nsub(centrefreq, D_DM)
-            DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, downsample, nsub ])
+            if downsample > 16:
+                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, 16, nsub ])
+            else:
+                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, downsample, nsub ])
+
             previous_DM = D_DM
 
         #Double time res to account for incoherent dedispersion
