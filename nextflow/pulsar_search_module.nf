@@ -130,9 +130,7 @@ process search_dd_fft_acc {
     prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
 -downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
-    for i in \$(ls *.dat); do
-        realfft \${i}
-    done
+    realfft *dat
     printf "\\n#Performing the periodic search at \$(date +"%Y-%m-%d_%H:%m:%S") ------------------------------------------\\n"
     for i in \$(ls *.dat); do
         accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
