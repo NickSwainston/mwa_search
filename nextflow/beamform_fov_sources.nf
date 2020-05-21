@@ -16,7 +16,7 @@ params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = true
 
-params.out_dir = "${params.basedir}/${params.obsid}/${params.obsid}_candidates"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.no_combined_check = false
 
@@ -73,7 +73,6 @@ include classifier from './classifier_module'
 workflow {
     get_beg_end()
     find_pointings( get_beg_end.out.map{ it.split(",") }.flatten().collect() )
-    find_pointings.out.splitCsv().view()
     pre_beamform()
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\

@@ -108,7 +108,7 @@ process search_dd_fft_acc {
     label 'cpu'
     time "${search_dd_fft_acc_dur}s"
     //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy 'ignore'
+    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
@@ -231,7 +231,7 @@ process search_dd {
     label 'cpu'
     time '4h'
     //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy 'ignore'
+    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
@@ -280,7 +280,7 @@ process assemble_single_pulse {
     """
     single_pulse_search.py *.singlepulse
     tar -czvf singlepulse.tar.gz *DM*.singlepulse
-    mv singlepulse.tar.gz ${name}_singlepulse.tar.gz
+    mv singlepulse.tar.gz ${name.replaceAll("\\*","")}_singlepulse.tar.gz
     """
 }
 
@@ -295,7 +295,10 @@ workflow pulsar_search {
                            // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                            map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
-        accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()]} )//
+        accelsift( search_dd_fft_acc.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + \
+                                                            [it[2]].flatten().findAll { it != null } + \
+                                                            [it[3]].flatten().findAll { it != null }] }.\
+                   groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
                   map{ it -> [it[0][1], it[1][1]] } )
@@ -315,7 +318,8 @@ workflow single_pulse_search {
                    // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
-        assemble_single_pulse( search_dd.out.map{ it -> [it[0], it[1] + it[2]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()] } )
+        assemble_single_pulse( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
+                               groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] } )
     emit:
         assemble_single_pulse.out
 }
