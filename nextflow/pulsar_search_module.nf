@@ -39,10 +39,12 @@ if ( "$HOSTNAME".startsWith("galaxy") ) {
     // In seconds
     search_dd_fft_acc_dur = 14400
     prepfold_dur = 7200
+    presto_python_load = ""
 }
 else{
     search_dd_fft_acc_dur = obs_length * 40.0
     prepfold_dur = obs_length * 1.5
+    presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
 }
 
 process ddplan {
@@ -96,7 +98,7 @@ process ddplan {
 process search_dd_fft_acc {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions "--tmp=100GB"
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
         //container = "nickswainston/presto"
@@ -117,8 +119,7 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+        beforeScript "module use ${params.module_dir}; module load presto/min_path"
     }
 
 
@@ -126,8 +127,8 @@ process search_dd_fft_acc {
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm \
--nsub ${dm_values[6]} -downsamp ${dm_values[5]} -numout ${obs_length*10000/Float.valueOf(dm_values[5])} -o ${name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
+-downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
     for i in \$(ls *.dat); do
         realfft \${i}
@@ -136,6 +137,7 @@ process search_dd_fft_acc {
     for i in \$(ls *.dat); do
         accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
     done
+    ${presto_python_load}
     single_pulse_search.py -p *.dat
     printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------------\\n"
     """
@@ -149,7 +151,7 @@ process accelsift {
         //stageInMode = 'copy'
     }
     label 'cpu'
-    time '10m'
+    time '15m'
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz"
     publishDir params.out_dir, pattern: "*_singlepulse.ps"
 
@@ -210,9 +212,8 @@ process prepfold {
         period_search_n=2
     fi
 
-    prepfold  -o ${cand_line.split()[0]} \
--n \$nbins -noxwin -noclip -p \$period -dm ${cand_line.split()[1]} -nsub 256 -npart \$ntimechunk \
--dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
+    prepfold  -o ${cand_line.split()[0]} -n \$nbins -noxwin -noclip -p \$period -dm ${cand_line.split()[1]} -nsub 256 \
+-npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
     """
 }
 
@@ -220,7 +221,7 @@ process prepfold {
 process search_dd {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions "--tmp=100GB"
+        clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
         //container = "nickswainston/presto"
@@ -248,8 +249,8 @@ process search_dd {
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm \
--nsub ${dm_values[6]} -downsamp ${dm_values[5]} -numout ${obs_length*10000/Float.valueOf(dm_values[5])} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
+-downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
     single_pulse_search.py -p *.dat
     """
 }
@@ -296,8 +297,8 @@ workflow pulsar_search {
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
         accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()]} )//
         // Make a pair of accelsift out lines and fits files that match
-        prepfold( name_fits_files.join(accelsift.out[0].map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
-                  map{ it -> [it[1], it[2]] } )
+        prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
+                  map{ it -> [it[0][1], it[1][1]] } )
     emit:
         accelsift.out 
         prepfold.out
