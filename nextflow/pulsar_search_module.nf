@@ -126,8 +126,8 @@ process search_dd_fft_acc {
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm
--nsub ${dm_values[6]} --downsample ${dm_values[5]} -numout ${obs_length*10000/dm_values[5]} -o ${name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm \
+-nsub ${dm_values[6]} -downsamp ${dm_values[5]} -numout ${obs_length*10000/Float.valueOf(dm_values[5])} -o ${name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
     for i in \$(ls *.dat); do
         realfft \${i}
@@ -248,8 +248,8 @@ process search_dd {
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm
--nsub ${dm_values[6]} --downsample ${dm_values[5]} -numout ${obs_length*10000/dm_values[5]} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm \
+-nsub ${dm_values[6]} -downsamp ${dm_values[5]} -numout ${obs_length*10000/Float.valueOf(dm_values[5])} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
     single_pulse_search.py -p *.dat
     """
 }
@@ -287,7 +287,6 @@ process assemble_single_pulse {
 workflow pulsar_search {
     take:
         name_fits_files // [val(candidateName_obsid_pointing), file(fits_files)]
-        channels // channels from get_channels process
     main:
         ddplan( name_fits_files )
         search_dd_fft_acc( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)

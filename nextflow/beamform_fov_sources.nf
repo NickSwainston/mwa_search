@@ -73,6 +73,7 @@ include classifier from './classifier_module'
 workflow {
     get_beg_end()
     find_pointings( get_beg_end.out.map{ it.split(",") }.flatten().collect() )
+    find_pointings.out.splitCsv().view()
     pre_beamform()
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
@@ -89,15 +90,10 @@ workflow {
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
     pulsar_search( find_pointings.out.splitCsv(skip: 5, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 4, limit: 1).flatten()).\
-                   concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> [ 'Blind_'+it[0], it[1][1] ] },\
-                   pre_beamform.out[1] )
-    classifier( pulsar_search.out[2].flatten().collate( 600 ) )
+                   concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> [ 'Blind_'+it[0].getBaseName().split("/")[-1].split("_ch")[0], it[1][1] ] }.view() )
+    classifier( pulsar_search.out[1].flatten().collate( 600 ) )
     // Perform a single pulse search on all single pulse candidates
     single_pulse_search( find_pointings.out.splitCsv(skip: 7, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 6, limit: 1).flatten()).\
                          concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> it[1] },\
                          pre_beamform.out[1] )
-    publish:
-        classifier.out to: params.out_dir
-        pulsar_search.out to: params.out_dir, pattern: "*singlepulse*"
-        single_pulse_search.out to: params.out_dir
 }
