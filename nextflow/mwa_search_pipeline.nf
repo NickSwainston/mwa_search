@@ -97,7 +97,6 @@ workflow {
               pre_beamform.out[1],\
               pre_beamform.out[2],\
               pointings )
-    pulsar_search( beamform.out[1].map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },
-                   pre_beamform.out[1] )
+    pulsar_search( beamform.out[1].map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
     classifier( pulsar_search.out[1].flatten().collate( 120 ) )
 }
