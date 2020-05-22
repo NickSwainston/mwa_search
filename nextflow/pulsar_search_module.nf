@@ -174,7 +174,7 @@ process accelsift {
         touch cands_${name}_greped.txt
     fi
     single_pulse_search.py *.singlepulse
-    tar -czvf singlepulse.tar.gz *DM*.singlepulse
+    tar -czvfh singlepulse.tar.gz *DM*.singlepulse
     mv singlepulse.tar.gz ${name}_singlepulse.tar.gz
     """
 }
@@ -277,7 +277,7 @@ process assemble_single_pulse {
 
     """
     single_pulse_search.py *.singlepulse
-    tar -czvf singlepulse.tar.gz *DM*.singlepulse
+    tar -czvfh singlepulse.tar.gz *DM*.singlepulse
     mv singlepulse.tar.gz ${name}_singlepulse.tar.gz
     """
 }
