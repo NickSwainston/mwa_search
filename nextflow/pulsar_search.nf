@@ -72,7 +72,6 @@ if ( params.help ) {
 }
 
 include {pulsar_search; single_pulse_search} from './pulsar_search_module'
-include get_channels from './beamform_module'
 include classifier    from './classifier_module'
 
 workflow {
@@ -80,8 +79,7 @@ workflow {
         single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
     }
     else {
-        pulsar_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },\
-                       get_channels.out.splitCsv() )
+        pulsar_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
         classifier( pulsar_search.out[1].flatten().collate( 120 ) )
     }
 }

@@ -150,8 +150,8 @@ process accelsift {
     }
     label 'cpu'
     time '15m'
-    publishDir params.out_dir, pattern: "*_singlepulse.tar.gz"
-    publishDir params.out_dir, pattern: "*_singlepulse.ps"
+    publishDir params.out_dir, pattern: "*_singlepulse.tar.gz", mode: 'copy'
+    publishDir params.out_dir, pattern: "*_singlepulse.ps", mode: 'copy'
 
     input:
     tuple val(name), file(accel_inf_single_pulse)
@@ -262,7 +262,7 @@ process assemble_single_pulse {
     }
     label 'cpu'
     time '10m'
-    publishDir params.out_dir
+    publishDir params.out_dir, mode: 'move'
 
     input:
     tuple val(name), file(inf_single_pulse)
@@ -288,10 +288,12 @@ workflow pulsar_search {
         name_fits_files // [val(candidateName_obsid_pointing), file(fits_files)]
     main:
         ddplan( name_fits_files )
-        search_dd_fft_acc( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)
-                           ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
+        search_dd_fft_acc( // combine the fits files and ddplan with the matching name key (candidateName_obsid_pointing)
+                           ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.\
+                           concat(name_fits_files).groupTuple().\
                            // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
-                           map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
+                           map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().\
+                           map{ it -> [it[1][0], it[0], it[1][1]]} )
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
         accelsift( search_dd_fft_acc.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + \
                                                             [it[2]].flatten().findAll { it != null } + \
@@ -308,7 +310,6 @@ workflow pulsar_search {
 workflow single_pulse_search {
     take:
         name_fits_files
-        channels
     main:
         ddplan( name_fits_files )
         search_dd( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)

@@ -238,6 +238,9 @@ process make_beam_ipfb {
         scratch '$JOBFS'
     }
 
+    when:
+    point != " " //Don't run if blank pointing given
+
     input:
     each channel_pair
     val utc
