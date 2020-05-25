@@ -379,6 +379,7 @@ if __name__ == "__main__":
     parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 390', default=[0,360])
     parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
     parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
+    parser.add_argument('-n', '--n_pointings', type=int, default=None, help='Number of pointings per output file.')
 
     args=parser.parse_args()
 
@@ -534,19 +535,30 @@ if __name__ == "__main__":
                                                 args.deg_fwhm, args.loop)
 
     #Writing file
-    print("Recording the dec limited positons in {0}.txt".format(out_file_name))
-    with open('{0}.txt'.format(out_file_name),'w') as out_file:
-        if args.verbose_file:
-            out_line = "#ra   dec    az     za\n"
-            out_file.write(out_line)
-        for i in range(len(rads)):
+    if args.n_pointings is None:
+        print("Recording the dec limited positons in {0}.txt".format(out_file_name))
+        with open('{0}.txt'.format(out_file_name),'w') as out_file:
             if args.verbose_file:
-                out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
-                            +str(phi[i])+" "+str(rads[i])+" "\
-                            +str(decds[i])+"\n"
-            else:
-                out_line = str(ras[i])+"_"+str(decs[i])+"\n"
-            out_file.write(out_line)
+                out_line = "#ra   dec    az     za\n"
+                out_file.write(out_line)
+            for i in range(len(rads)):
+                if args.verbose_file:
+                    out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
+                                +str(phi[i])+" "+str(rads[i])+" "\
+                                +str(decds[i])+"\n"
+                else:
+                    out_line = str(ras[i])+"_"+str(decs[i])+"\n"
+                out_file.write(out_line)
+    else:
+        ra_chunks = [ras[x:x+args.n_pointings] for x in range(0, len(ras), args.n_pointings)]
+        dec_chunks = [decs[x:x+args.n_pointings] for x in range(0, len(decs), args.n_pointings)]
+        for ci in range(len(ra_chunks)):
+            first_id = ci * args.n_pointings + 1
+            last_id  = ci * args.n_pointings + len(ra_chunks[ci])
+            print("Recording the dec limited positons in {0}_{1}_{2}.txt".format(out_file_name, first_id, last_id))
+            with open('{0}_{1}_{2}.txt'.format(out_file_name, first_id, last_id),'w') as out_file:
+                for i in range(len(ra_chunks[ci])):
+                    out_file.write("{0}_{1}\n".format(ra_chunks[ci][i], dec_chunks[ci][i]))
 
     #matplotlib.use('Agg')
     print("Plotting")
