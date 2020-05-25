@@ -109,6 +109,7 @@ process search_dd_fft_acc {
     time "${search_dd_fft_acc_dur}s"
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
+    maxForks 800
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
@@ -148,7 +149,7 @@ process accelsift {
         container = "presto.sif"
         //stageInMode = 'copy'
     }
-    label 'cpu'
+    label 'cpu_backup'
     time '15m'
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz", mode: 'copy'
     publishDir params.out_dir, pattern: "*_singlepulse.ps", mode: 'copy'
@@ -161,7 +162,6 @@ process accelsift {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
     }
 
@@ -181,7 +181,7 @@ process accelsift {
 
 
 process prepfold {
-    label 'cpu'
+    label 'cpu_backup'
     time "${prepfold_dur}s"
 
     input:
@@ -240,7 +240,7 @@ process search_dd {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
     }
 
     """
@@ -260,7 +260,7 @@ process assemble_single_pulse {
         container = "presto.sif"
         //stageInMode = 'copy'
     }
-    label 'cpu'
+    label 'cpu_backup'
     time '10m'
     publishDir params.out_dir, mode: 'move'
 
@@ -272,7 +272,7 @@ process assemble_single_pulse {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
     }
 
     """
