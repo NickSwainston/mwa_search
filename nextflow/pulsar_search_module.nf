@@ -39,10 +39,12 @@ if ( "$HOSTNAME".startsWith("galaxy") ) {
     // In seconds
     search_dd_fft_acc_dur = 14400
     prepfold_dur = 7200
+    presto_python_load = ""
 }
 else{
     search_dd_fft_acc_dur = obs_length * 40.0
     prepfold_dur = obs_length * 1.5
+    presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
 }
 
 process ddplan {
@@ -96,7 +98,7 @@ process ddplan {
 process search_dd_fft_acc {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions { "--tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
         //container = "nickswainston/presto"
@@ -106,10 +108,11 @@ process search_dd_fft_acc {
     label 'cpu'
     time "${search_dd_fft_acc_dur}s"
     //Will ignore errors for now because I have no idea why it dies sometimes
-    //errorStrategy 'ignore'
+    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
+    maxForks 800
 
     input:
-    tuple val(name), val(dm_values), file(fits_files), val(chan)
+    tuple val(name), val(dm_values), file(fits_files)
 
     output:
     tuple val(name), file("*ACCEL_0"), file("*.inf"), file("*.singlepulse")
@@ -117,27 +120,23 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
-                     "module use $params.module_dir; module load mwa_search/py2_scripts"
+        beforeScript "module use ${params.module_dir}; module load presto/min_path"
     }
 
 
     """
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
-    nsub=\$(calc_nsub.py -f ${(Float.valueOf(chan[0]) + Float.valueOf(chan[-1]))/2*1.28} -dm ${dm_values[1]})
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub \$nsub \
--numout ${obs_length*10000} -downsample ${dm_values[5]} -o ${name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
+-downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
-    for i in \$(ls *.dat); do
-        realfft \${i}
-    done
+    realfft *dat
     printf "\\n#Performing the periodic search at \$(date +"%Y-%m-%d_%H:%m:%S") ------------------------------------------\\n"
     for i in \$(ls *.dat); do
         accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
     done
+    ${presto_python_load}
     single_pulse_search.py -p *.dat
     printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------------\\n"
     """
@@ -150,10 +149,10 @@ process accelsift {
         container = "presto.sif"
         //stageInMode = 'copy'
     }
-    label 'cpu'
+    label 'cpu_backup'
     time '15m'
-    publishDir params.out_dir, pattern: "*_singlepulse.tar.gz"
-    publishDir params.out_dir, pattern: "*_singlepulse.ps"
+    publishDir params.out_dir, pattern: "*_singlepulse.tar.gz", mode: 'copy'
+    publishDir params.out_dir, pattern: "*_singlepulse.ps", mode: 'copy'
 
     input:
     tuple val(name), file(accel_inf_single_pulse)
@@ -163,7 +162,6 @@ process accelsift {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
     }
 
@@ -176,14 +174,14 @@ process accelsift {
         touch cands_${name}_greped.txt
     fi
     single_pulse_search.py *.singlepulse
-    tar -czvf singlepulse.tar.gz *DM*.singlepulse
+    tar -czvhf singlepulse.tar.gz *DM*.singlepulse
     mv singlepulse.tar.gz ${name}_singlepulse.tar.gz
     """
 }
 
 
 process prepfold {
-    label 'cpu'
+    label 'cpu_backup'
     time "${prepfold_dur}s"
 
     input:
@@ -221,7 +219,7 @@ process prepfold {
 process search_dd {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions "--tmp=20GB"
+        clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
         //container = "nickswainston/presto"
@@ -231,10 +229,10 @@ process search_dd {
     label 'cpu'
     time '4h'
     //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy 'ignore'
+    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
 
     input:
-    tuple val(name), val(dm_values), file(fits_files), val(chan)
+    tuple val(name), val(dm_values), file(fits_files)
 
     output:
     tuple val(name), file("*.inf"), file("*.singlepulse")
@@ -242,16 +240,15 @@ process search_dd {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14;"+\
-                     "module use $params.module_dir; module load mwa_search/py2_scripts"
+                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
     }
 
     """
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
-    nsub=\$(calc_nsub.py -f ${(Float.valueOf(chan[0]) + Float.valueOf(chan[-1]))/2*1.28} -dm ${dm_values[1]})
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
-    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub \$nsub -numout ${obs_length*10000} -o ${name} ${params.obsid}_*.fits
+    prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
+-downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
     single_pulse_search.py -p *.dat
     """
 }
@@ -263,9 +260,9 @@ process assemble_single_pulse {
         container = "presto.sif"
         //stageInMode = 'copy'
     }
-    label 'cpu'
+    label 'cpu_backup'
     time '10m'
-    publishDir params.out_dir
+    publishDir params.out_dir, mode: 'move'
 
     input:
     tuple val(name), file(inf_single_pulse)
@@ -275,13 +272,13 @@ process assemble_single_pulse {
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
     }
 
     """
     single_pulse_search.py *.singlepulse
-    tar -czvf singlepulse.tar.gz *DM*.singlepulse
-    mv singlepulse.tar.gz ${name}_singlepulse.tar.gz
+    tar -czvhf singlepulse.tar.gz *DM*.singlepulse
+    mv singlepulse.tar.gz ${name.replaceAll("\\*","")}_singlepulse.tar.gz
     """
 }
 
@@ -289,17 +286,19 @@ process assemble_single_pulse {
 workflow pulsar_search {
     take:
         name_fits_files // [val(candidateName_obsid_pointing), file(fits_files)]
-        channels // channels from get_channels process
     main:
         ddplan( name_fits_files )
-        search_dd_fft_acc( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)
-                           ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().\
-                           // Find for each ddplan match that with the fits files and the name key
+        search_dd_fft_acc( // combine the fits files and ddplan with the matching name key (candidateName_obsid_pointing)
+                           ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.\
+                           concat(name_fits_files).groupTuple().\
+                           // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                            map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().\
-                           // Put channels on the end of the tuple then change the format to [val(name), val(dm_values), file(fits_files), val(chan)]
-                           combine(channels.map{ it -> [it]}).map{ it -> [it[1][0], it[0], it[1][1], it[2]]} )
+                           map{ it -> [it[1][0], it[0], it[1][1]]} )
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
-        accelsift( search_dd_fft_acc.out.map{ it -> [it[0], it[1] + it[2] + it[3]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()]} )//
+        accelsift( search_dd_fft_acc.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + \
+                                                            [it[2]].flatten().findAll { it != null } + \
+                                                            [it[3]].flatten().findAll { it != null }] }.\
+                   groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
                   map{ it -> [it[0][1], it[1][1]] } )
@@ -311,17 +310,15 @@ workflow pulsar_search {
 workflow single_pulse_search {
     take:
         name_fits_files
-        channels
     main:
         ddplan( name_fits_files )
         search_dd( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)
-                    ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6] ] ] }.concat(name_fits_files).groupTuple().\
-                    // Find for each ddplan match that with the fits files and the name key
-                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().\
-                    // Put channels on the end of the tuple then change the format to [val(name), val(dm_values), file(fits_files), val(chan)]
-                    combine(channels.map{ it -> [it]}).map{ it -> [it[1][0], it[0], it[1][1], it[2]]} )
+                   ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
+                   // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
+                   map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
-        assemble_single_pulse( search_dd.out.map{ it -> [it[0], it[1] + it[2]] }.groupTuple( size: 6 ).map{ it -> [it[0], it[1].flatten()] } )
+        assemble_single_pulse( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
+                               groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] } )
     emit:
         assemble_single_pulse.out
 }

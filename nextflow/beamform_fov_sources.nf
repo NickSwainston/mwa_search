@@ -16,7 +16,7 @@ params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = true
 
-params.out_dir = "${params.basedir}/${params.obsid}/${params.obsid}_candidates"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.no_combined_check = false
 
@@ -89,15 +89,9 @@ workflow {
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
     pulsar_search( find_pointings.out.splitCsv(skip: 5, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 4, limit: 1).flatten()).\
-                   concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> [ 'Blind_'+it[0], it[1][1] ] },\
-                   pre_beamform.out[1] )
-    classifier( pulsar_search.out[2].flatten().collate( 600 ) )
+                   concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> [ "Blind_${params.obsid}_${it[0]}".toString(), it[1][1] ] } )
+    classifier( pulsar_search.out[1].flatten().collate( 600 ) )
     // Perform a single pulse search on all single pulse candidates
     single_pulse_search( find_pointings.out.splitCsv(skip: 7, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 6, limit: 1).flatten()).\
-                         concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> it[1] },\
-                         pre_beamform.out[1] )
-    publish:
-        classifier.out to: params.out_dir
-        pulsar_search.out to: params.out_dir, pattern: "*singlepulse*"
-        single_pulse_search.out to: params.out_dir
+                         concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> it[1] } )
 }

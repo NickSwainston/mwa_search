@@ -57,6 +57,18 @@ def plot_sensitivity(DD_plan_array, time, centrefreq, freqres, bandwidth):
     plt.savefig("DM_step_sens_mDMs_{0}.png".format(DD_plan_array[0][2]))
 
 
+def calc_nsub(centrefreq, dm):
+    #work out how many subbands to use based on the dm smear over a subband
+    nsub = 2
+    #time_res and dm_smear are in ms
+    time_res = 0.1
+    dm_smear = dm * 0.01 / nsub * 8.3 * 10.**6 / centrefreq**3
+    while dm_smear > time_res:
+        nsub *= 2.
+        dm_smear = dm * 0.01 / nsub * 8.3 * 10.**6 / centrefreq**3
+    return int(nsub)
+
+
 def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_step=0.02):
     """
     Work out the dedisperion plan
@@ -82,7 +94,7 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
     -------
     DD_plan_array: list list
         dedispersion plan format:
-        [[low_DM, high_DM, DM_step, nDM_step, timeres, downsample]]
+        [[low_DM, high_DM, DM_step, nDM_step, timeres, downsample, nsub ]]
     """
 
     DD_plan_array = []
@@ -130,7 +142,12 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         D_DM = round(D_DM, 2)
         nDM_step = int((D_DM - previous_DM) / DM_step)
         if D_DM > lowDM:
-            DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, downsample ])
+            nsub = calc_nsub(centrefreq, D_DM)
+            if downsample > 16:
+                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, 16, nsub ])
+            else:
+                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, downsample, nsub ])
+
             previous_DM = D_DM
 
         #Double time res to account for incoherent dedispersion
@@ -177,11 +194,11 @@ if __name__ == "__main__":
 
 
     DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM, min_DM_step=args.min_DM_step)
-    print(" low DM | high DM | DeltaDM | Nsteps | Downsamp | Effective time resolution (ms)")
+    print(" low DM | high DM | DeltaDM | Nsteps | Downsamp | nsub | Effective time resolution (ms) ")
     total_steps = 0
     for d in DD_plan_array:
-        print("{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:8d} | {5:7.3f}".\
-               format(d[0], d[1], d[2], d[3], d[5], d[4]))
+        print("{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:8d} | {5:4d} | {6:7.3f}".\
+               format(d[0], d[1], d[2], d[3], d[5], d[6], d[4]))
         total_steps += d[3]
     print("Total DM steps required: {}".format(total_steps))
 
