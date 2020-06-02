@@ -153,7 +153,7 @@ process accelsift {
         //stageInMode = 'copy'
     }
     label 'cpu'
-    time '20m'
+    time '25m'
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz", mode: 'copy'
     publishDir params.out_dir, pattern: "*_singlepulse.ps", mode: 'copy'
 
