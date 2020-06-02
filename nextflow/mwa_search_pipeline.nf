@@ -20,6 +20,7 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.dm_min = 1
 params.dm_max = 250
+params.dm_min_step = 0.02
 
 params.no_combined_check = false
 
@@ -47,6 +48,8 @@ if ( params.help ) {
              |Optional arguments:
              |  --dm_min    Minimum DM to search over [default: 1]
              |  --dm_max    Maximum DM to search over [default: 250]
+             |  --dm_min_step
+             |              Minimum DM step size (Delta DM) [default: 0.1]
              |  --out_dir   Output directory for the candidates files
              |              [default: ${params.search_dir}/<obsid>_candidates]
              |  --ipfb      Perform an the inverse PFB to produce high time resolution beamformed

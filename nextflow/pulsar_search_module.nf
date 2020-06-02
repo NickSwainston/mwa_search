@@ -11,6 +11,7 @@ params.all = false
 
 params.dm_min = 1
 params.dm_max = 250
+params.dm_min_step = 0.02
 
 //Defaults for the accelsearch command
 params.nharm = 16 // number of harmonics to search
@@ -42,8 +43,8 @@ if ( "$HOSTNAME".startsWith("galaxy") ) {
     presto_python_load = ""
 }
 else{
-    search_dd_fft_acc_dur = obs_length * 40.0
-    prepfold_dur = obs_length * 1.5
+    search_dd_fft_acc_dur = obs_length * 5.0
+    prepfold_dur = obs_length * 2.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
 }
 
@@ -67,7 +68,8 @@ process ddplan {
     #print(obsid_pointing)
 
     if '$name'.startswith('Blind'):
-        output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max)
+        output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max,
+                         min_DM_step=$params.dm_min_step)
     else:
         if '$name'.startswith('FRB'):
             dm = fpio.grab_source_alog(source_type='FRB',
@@ -86,7 +88,8 @@ process ddplan {
         if dm_min < 1.0:
             dm_min = 1.0
         dm_max = float(dm) + 2.0
-        output = dd_plan(150., 30.72, 3072, 0.1, dm_min, dm_max)
+        output = dd_plan(150., 30.72, 3072, 0.1, dm_min, dm_max,
+                         min_DM_step=$params.dm_min_step)
     with open("DDplan.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
@@ -106,7 +109,7 @@ process search_dd_fft_acc {
         //stageInMode = 'copy'
     }
     label 'cpu'
-    time "${search_dd_fft_acc_dur}s"
+    time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
     maxForks 800
@@ -149,8 +152,8 @@ process accelsift {
         container = "presto.sif"
         //stageInMode = 'copy'
     }
-    label 'cpu_backup'
-    time '15m'
+    label 'cpu'
+    time '25m'
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz", mode: 'copy'
     publishDir params.out_dir, pattern: "*_singlepulse.ps", mode: 'copy'
 
@@ -181,7 +184,7 @@ process accelsift {
 
 
 process prepfold {
-    label 'cpu_backup'
+    label 'cpu'
     time "${prepfold_dur}s"
 
     input:
