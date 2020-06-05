@@ -130,9 +130,13 @@ process search_dd_fft_acc {
     """
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
+    numout=${(int)(obs_length*10000/Float.valueOf(dm_values[5]))}
+    if (( \$numout % 2 != 0 )) ; then
+        numout=\$(expr \$numout + 1)
+    fi
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
     prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
--downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name} ${params.obsid}_*.fits
+-downsamp ${dm_values[5]} -numout \${numout} -o ${name} ${params.obsid}_*.fits
     printf "\\n#Performing the FFTs at \$(date +"%Y-%m-%d_%H:%m:%S") -----------------------------------------------------\\n"
     realfft *dat
     printf "\\n#Performing the periodic search at \$(date +"%Y-%m-%d_%H:%m:%S") ------------------------------------------\\n"
@@ -213,7 +217,7 @@ process prepfold {
         period_search_n=2
     fi
 
-    prepfold  -o ${cand_line.split()[0]} -n \$nbins -noxwin -noclip -p \$period -dm ${cand_line.split()[1]} -nsub 256 \
+    prepfold -ncpus $task.cpus -o ${cand_line.split()[0]} -n \$nbins -noxwin -noclip -p \$period -dm ${cand_line.split()[1]} -nsub 256 \
 -npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
     """
 }

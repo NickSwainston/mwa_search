@@ -39,7 +39,7 @@ else {
 
 // Work out length of obs, may over estimate up to 200 seconds
 params.end = obs_length = nfiles * 200
-params.begin = 0
+params.begin = 1
 
 params.help = false
 if ( params.help ) {
