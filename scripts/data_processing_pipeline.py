@@ -192,9 +192,9 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     else:
         p = run_params.pointing_dir
 
-    launch_line += " -d {0} -p {1} -L {2} -o {3} --mwa_search {4} --vcs_tools {5}"\
+    launch_line += " -d {0} -p {1} -L {2} -o {3} -O {4} --mwa_search {5} --vcs_tools {5}"\
                     .format(p, run_params.pulsar, run_params.loglvl, run_params.obsid,
-                    run_params.mwa_search, run_params.vcs_tools)
+                    run_params.cal_id, run_params.mwa_search, run_params.vcs_tools)
 
     if run_params.stokes_bins:
         launch_line += " -b {}".format(run_params.stokes_bins)
@@ -300,6 +300,47 @@ def copy_data(data_path, target_directory):
     except RuntimeError as error:
         logger.warning("File:{0} could not be copied to {1}".format(data_path, target_directory))
         logger.warning("Error message: {0}".format(error))
+
+def upload_formatted_file(filename, obsid, pulsar, bins, cal_id, filetype, name_info="", extension=""):
+    """
+    Creates a new filename and uploads an archive file to the pulsar database if the same named
+    file does not already exist on the database
+
+    Parameters:
+    -----------
+    archive: string
+        The name of the archive file to upload
+    obsid: int
+        The observation ID
+    pulsar: string
+        Then name of the pulsar
+    bins: int
+        The Number of bins
+    cal_id: int
+        The calibrator ID
+    filetype: int
+        The type of file to upload: 1: Archive, 2: Timeseries, 3: Diagnostics, 4: Calibration Solution, 5: Bestprof
+    name_info: str
+        OPTIONAL - additional info to add to the name of the uploaded file. Default: ''
+    extention: str
+        OPTIONAL - The file extension of the uploaded file. Default: ''
+    """
+    all_ftypes = std.get_filetypes_from_db(obsid, pulsar, filetypes)
+    fname_pref = std.filename_prefix(args.obsid, args.pulsar, bins=bins, cal=cal_id)
+    upname = "{}".format(fname_pref)
+    upname += name_info
+    upname += extension
+
+    metadata = mwa_metadb_utils.get_common_obs_metadata(obsid)
+    subbands = std.get_subbands(metadata)
+
+    if os.path.basename(upname) not in all_ftypes:
+        logger.info("Archive file not on databse. Uploading...")
+        cp(filename, upname)
+        upload_file_to_db(obsid, pulsar, upname, filetype, metadata=metadata, coh=True):
+        os.remove(upname)
+    else:
+        logger.info("file on database. Not uploading")
 
 #----------------------------------------------------------------------
 def stokes_fold(run_params):
