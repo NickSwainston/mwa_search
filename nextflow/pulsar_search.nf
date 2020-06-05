@@ -4,10 +4,11 @@ nextflow.preview.dsl = 2
 
 params.obsid = null
 params.pointings = null
-params.fitsdir = "/group/mwaops/vcs/${params.obsid}/pointings"
+params.fitsdir = "/group/mwavcs/vcs/${params.obsid}/pointings"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
+params.dm_min_step = 0.02
 
 params.scratch = false
 params.fits_file_dir = false
@@ -38,7 +39,7 @@ else {
 
 // Work out length of obs, may over estimate up to 200 seconds
 params.end = obs_length = nfiles * 200
-params.begin = 0
+params.begin = 1
 
 params.help = false
 if ( params.help ) {
@@ -61,6 +62,8 @@ if ( params.help ) {
              |              ${params.stratch_basedir}/<obsid>/pointings/${params.pointings}
              |  --dm_min    Minimum DM to search over [default: 1]
              |  --dm_max    Maximum DM to search over [default: 250]
+             |  --dm_min_step
+             |              Minimum DM step size (Delta DM) [default: 0.1]
              |  --out_dir   Output directory for the candidates files
              |              [default: ${params.search_dir}/<obsid>_candidates]
              |  --mwa_search_version
@@ -72,18 +75,14 @@ if ( params.help ) {
 }
 
 include {pulsar_search; single_pulse_search} from './pulsar_search_module'
-include get_channels from './beamform_module'
 include classifier    from './classifier_module'
 
 workflow {
-    get_channels()
     if ( params.sp ) {
-        single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },\
-                             get_channels.out.splitCsv() )
+        single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
     }
     else {
-        pulsar_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] },\
-                       get_channels.out.splitCsv() )
+        pulsar_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
         classifier( pulsar_search.out[1].flatten().collate( 120 ) )
     }
 }

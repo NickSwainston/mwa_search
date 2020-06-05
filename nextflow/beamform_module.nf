@@ -13,8 +13,8 @@ params.summed = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwaops/vcs'
-params.scratch_basedir = '/astro/mwaops/vcs'
+params.basedir = '/group/mwavcs/vcs'
+params.scratch_basedir = '/astro/mwavcs/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = false
@@ -192,6 +192,7 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
+    maxForks 120
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '$JOBFS'
@@ -204,7 +205,7 @@ process make_beam {
     tuple val(begin), val(end)
 
     output:
-    file "*/*fits"
+    file "*fits"
 
     beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
 
@@ -215,25 +216,30 @@ process make_beam {
 -d ${params.basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
 ${bf_out} -z $utc
+    mv */*fits .
     """
 }
 
 
 process make_beam_ipfb {
-    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*hdr"
-    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'move', enabled: params.publish_fits, pattern: "*vdif"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*hdr"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'move', enabled: params.publish_fits_scratch, pattern: "*vdif"
+    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*hdr"
+    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*vdif"
+    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*hdr"
+    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*vdif"
 
     label 'gpu'
     //time '2h'
     time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
     maxRetries 3
+    maxForks 120
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '$JOBFS'
     }
+
+    when:
+    point != " " //Don't run if blank pointing given
 
     input:
     each channel_pair
@@ -270,6 +276,7 @@ process splice {
     publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
     time '1h'
+    maxForks 300
 
     input:
     val chan

@@ -235,7 +235,21 @@ if __name__ == "__main__":
         beg, end = obs_max_min(args.obsid)
 
     output_list = find_pulsars_in_fov(args.obsid, beg, end)
-    with open('{}_fov_sources.csv'.format(args.obsid), 'w', newline='') as csvfile:
+    with open('{}_fov_sources_temp.csv'.format(args.obsid), 'w', newline='') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter=',')
         for ol in output_list:
-            spamwriter.writerow(ol)
+            if len(ol) == 0:
+                # Print a space to the line which prevents Nextflow formatting erorrs
+                spamwriter.writerow([" "])
+            else:
+                spamwriter.writerow(ol)
+
+    with open('{}_fov_sources_temp.csv'.format(args.obsid), 'r') as readfile:
+        csv_read = readfile.readlines()
+
+    with open('{}_fov_sources.csv'.format(args.obsid), 'w') as csvfile:
+        for line in csv_read:
+            if len(line) == 0:
+                csvfile.write(" \n")
+            else:
+                csvfile.write(line)

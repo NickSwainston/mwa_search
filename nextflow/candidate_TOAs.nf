@@ -16,7 +16,7 @@ params.summed = true
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwaops/vcs'
+params.basedir = '/group/mwavcs/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
 params.out_dir = "${params.obsid}_toas"
@@ -32,7 +32,7 @@ params.eph = ""
 params.no_beamform = false
 params.no_combined_check = false
 
-std_profile = Channel.fromPath("/group/mwaops/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
+std_profile = Channel.fromPath("/group/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
 
 if ( params.pointing_file ) {
     pointings = Channel
