@@ -3,6 +3,8 @@
 import argparse
 import math
 import numpy as np
+from matplotlib import use
+use('Agg')
 import matplotlib.pyplot as plt
 
 def plot_sensitivity(DD_plan_array, time, centrefreq, freqres, bandwidth):
@@ -25,7 +27,7 @@ def plot_sensitivity(DD_plan_array, time, centrefreq, freqres, bandwidth):
         sensitivties = []
         DMs = []
         for dm_row in DD_plan_array:
-            DM_start, D_DM, DM_step, _, timeres = dm_row
+            DM_start, D_DM, DM_step, _, timeres, _, _ = dm_row
             for DM in np.arange(DM_start, D_DM, DM_step):
                 # For each DM you're going to search do a sensitivy cal based on how
                 # a pulse will get
@@ -113,8 +115,7 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
 
         #Dm smear over a frequency channel
         dm_smear = previous_DM * freqres * 8.3 * 10.**6 / centrefreq**3
-        total_smear = math.sqrt(timeres**2 +
-                                dm_smear**2)
+        total_smear = math.sqrt(timeres**2 + dm_smear**2)
 
 
         D_DM = smear_fact * timeres * centrefreq**3 /\
