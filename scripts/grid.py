@@ -380,6 +380,7 @@ if __name__ == "__main__":
     parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
     parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
     parser.add_argument('-n', '--n_pointings', type=int, default=None, help='Number of pointings per output file.')
+    parser.add_argument('--out_file_name', type=str, help='The output file name.')
 
     args=parser.parse_args()
 
@@ -522,17 +523,20 @@ if __name__ == "__main__":
         theta.append(az)
         phi.append(za)
 
-    if args.obsid:
-        out_file_name = str(args.obsid)
+    if args.out_file_name:
+        out_file_name = args.out_file_name
     else:
-        out_file_name = ''
-    if args.pulsar:
-        out_file_name = '{0}_{1}'.format(out_file_name, args.pulsar[0])
-    out_file_name += '_grid_positions'
-    if args.dec_range != [-90,90] or args.ra_range != [0, 360]:
-        out_file_name += '_ra_dec_limited'
-    out_file_name = '{0}_f{1}_d{2}_l{3}'.format(out_file_name, args.fraction,
-                                                args.deg_fwhm, args.loop)
+        if args.obsid:
+            out_file_name = str(args.obsid)
+        else:
+            out_file_name = ''
+        if args.pulsar:
+            out_file_name = '{0}_{1}'.format(out_file_name, args.pulsar[0])
+        out_file_name += '_grid_positions'
+        if args.dec_range != [-90,90] or args.ra_range != [0, 360]:
+            out_file_name += '_ra_dec_limited'
+        out_file_name = '{0}_f{1}_d{2}_l{3}'.format(out_file_name, args.fraction,
+                                                    args.deg_fwhm, args.loop)
 
     #Writing file
     if args.n_pointings is None:
