@@ -2,12 +2,63 @@
 
 import argparse
 import numpy as np
+import math
 
 #matplotlib
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+
+#astropy
+from astropy.coordinates import SkyCoord
+from astropy import units as u
+
+def sex2deg(ra, dec):
+    """
+    Convert sexagesimal coordinates to degrees.
+    sex2deg( ra, dec)
+    Args:
+        ra: the right ascension in HH:MM:SS
+        dec: the declination in DD:MM:SS
+    """
+    c = SkyCoord( ra, dec, frame='icrs', unit=(u.hourangle,u.deg))
+
+    # return RA and DEC in degrees in degrees
+    return [c.ra.deg, c.dec.deg]
+
+
+def get_psrcat_ra_dec(pulsar_list=None, max_dm=1000., include_dm=False, query=None):
+    """
+    Uses PSRCAT to return a list of pulsar names, ras and decs. Not corrected for proper motion.
+    Removes pulsars without any RA or DEC recorded
+    If no pulsar_list given then returns all pulsar on the catalogue
+    If include_dm is True then also ouput DM
+    get_psrcat_ra_dec(pulsar_list = None)
+    Args:
+        pulsar_list: A space list of pulsar names eg: [J0534+2200, J0538+2817].
+               (default: uses all pulsars)
+    return [[Jname, RAJ, DecJ]]
+    """
+    import psrqpy
+
+    #params = ['JNAME', 'RAJ', 'DECJ', 'DM']
+    if query is None:
+        query = psrqpy.QueryATNF(params = ['PSRJ', 'RAJ', 'DECJ', 'DM'], psrs=pulsar_list).pandas
+
+    pulsar_ra_dec = []
+    for i, _ in enumerate(query["PSRJ"]):
+        # Only record if under the max_dm
+        dm = query["DM"][i]
+        if not math.isnan(dm):
+            if float(dm) < max_dm:
+                if include_dm:
+                    pulsar_ra_dec.append([query["PSRJ"][i], query["RAJ"][i], query["DECJ"][i], dm])
+                else:
+                    pulsar_ra_dec.append([query["PSRJ"][i], query["RAJ"][i], query["DECJ"][i]])
+
+
+    return pulsar_ra_dec
 
 
 if __name__ == "__main__":
@@ -17,8 +68,12 @@ if __name__ == "__main__":
     """)
     parser.add_argument('--shade', type=int, nargs='+',
                            help='The space seperated obsIDs to be shaded.')
-    parser.add_argument('--shade_light', type=int, nargs='+',
+    parser.add_argument('--shade_light', type=int, nargs='*',
                            help='The space seperated obsIDs to be shaded lightly. Used for observations in progress.')
+    parser.add_argument('--pulsar', type=str, nargs='+',
+                           help='A list of pulsar J names to mark on the plot.')
+    parser.add_argument('--pulsar_cand', type=str, nargs='+',
+                           help='A list of pulsar cands in the format "HH:MM:SS +DD:MM:SS HH:MM:SS +DD:MM:SS".')
     parser.add_argument('-r', '--resolution', type=int, default=1,
                             help='The resolution in degrees of the final plot (must be an integer). Default = 1')
     parser.add_argument('-p', '--plot_type', type=str,
@@ -149,28 +204,61 @@ if __name__ == "__main__":
         # plot the contour
         plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha = 0.6,
                         colors=smart_colours[sname[0]]['dark'],
-                        linewidths=linewidths)
+                        linewidths=linewidths, zorder=0.25)
         
         #Shade selected obs
-        if sobsid in args.shade_light:
-            cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
-            cs0 = cs.collections[0]
-            cspaths = cs0.get_paths()
-            for cspath in cspaths:
-                spch_0 = patches.PathPatch(cspath, facecolor=smart_colours[sname[0]]['dark'],
-                                            edgecolor='gray', lw=0.5, alpha=0.3)
-                ax.add_patch(spch_0)
+        if args.shade_light:
+            if sobsid in args.shade_light:
+                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs0 = cs.collections[0]
+                cspaths = cs0.get_paths()
+                for cspath in cspaths:
+                    spch_0 = patches.PathPatch(cspath, facecolor=smart_colours[sname[0]]['dark'],
+                                                edgecolor='gray', lw=0.5, alpha=0.3, zorder=0.5)
+                    ax.add_patch(spch_0)
 
-        if sobsid in args.shade:
-            cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
-            cs0 = cs.collections[0]
-            cspaths = cs0.get_paths()
-            for cspath in cspaths:
-                spch_0 = patches.PathPatch(cspath, facecolor=smart_colours[sname[0]]['dark'],
-                                            edgecolor=smart_colours[sname[0]]['dark'], lw=0.5, alpha=0.7, zorder=130)
-                ax.add_patch(spch_0)
+        if args.shade:
+            if sobsid in args.shade:
+                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs0 = cs.collections[0]
+                cspaths = cs0.get_paths()
+                for cspath in cspaths:
+                    spch_0 = patches.PathPatch(cspath, facecolor=smart_colours[sname[0]]['dark'],
+                                                edgecolor=smart_colours[sname[0]]['dark'], lw=0.5, alpha=0.85, zorder=0.5)
+                    ax.add_patch(spch_0)
 
+    # Add pulsars
+    if args.pulsar:
+        ra_PCAT = []
+        dec_PCAT = []
+        pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
+        for pulsar in pulsar_list:
+            ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+            if args.ra_offset:
+                if ra_temp > 180:
+                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+                else:
+                    ra_PCAT.append(-ra_temp/180.*np.pi)
+            else:
+                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+            dec_PCAT.append(dec_temp/180.*np.pi)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=2)
 
+    if args.pulsar_cand:
+        ra_PCAT = []
+        dec_PCAT = []
+        for pulsar in args.pulsar_cand:
+            pulsar = pulsar.split('_')
+            ra_temp, dec_temp = sex2deg(pulsar[0], pulsar[1])
+            if args.ra_offset:
+                if ra_temp > 180:
+                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+                else:
+                    ra_PCAT.append(-ra_temp/180.*np.pi)
+            else:
+                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+            dec_PCAT.append(dec_temp/180.*np.pi)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=2)
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
