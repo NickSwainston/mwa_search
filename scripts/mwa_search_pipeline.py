@@ -18,6 +18,7 @@ from mwa_metadb_utils import get_channels
 import process_vcs as pvcs
 from job_submit import submit_slurm
 import config
+import data_processing_pipeline
 
 import logging
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class search_options_class:
                  cand_name=None, cand_type='Blind',
                  relaunch_script=None, downsample=False,
                  search=False, single_pulse=False, data_process=False,
+                 scratch=False,
                  bsd_row_num=None, cold_storage_check=False,
                  table='Prepdata', attempt=0,
                  nice=None,
@@ -82,7 +84,7 @@ class search_options_class:
         if pointing_dir is None:
             if incoh:
                 self._pointing_dir = '{0}incoh/'.format(self.fits_dir_base)
-            elif data_process and self.pointing is not None:
+            elif (scratch or data_process) and self.pointing is not None:
                 self._pointing_dir = '{0}dpp_pointings/{1}/'.format(self.fits_dir_base,
                                                                     self.pointing)
             elif self.pointing is not None:
@@ -111,6 +113,7 @@ class search_options_class:
         self.search             = search
         self.single_pulse       = single_pulse
         self.data_process       = data_process
+        self.scratch            = scratch
         self.downsample         = downsample
         self._bsd_row_num       = bsd_row_num
         self.cold_storage_check = cold_storage_check
@@ -383,7 +386,7 @@ def process_vcs_wrapper(search_opts, pointings,
                       calibration_type="rts", nice=search_opts.nice,
                       vcstools_version=search_opts.vcstools_ver,
                       channels_to_beamform=channels,
-                      dpp=search_opts.data_process)
+                      dpp=(search_opts.data_process or search_opts.scratch))
 
     code_comment_in = code_comment
     dep_job_id_list = []
@@ -434,24 +437,23 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
     Takes many pointings and launches data_processing_pipeline which folds on all of the pointings and finds the best one. This will by default continue running the processing pipeline
     """
     if pulsar.startswith("J"):
-        #pointing_str = " ".join(pointing_dir_list)
-        #logger.info("pointing string: {0}".format(pointing_str))
         p = ""
         for pointing in pointing_dir_list:
             p += "{} ".format(pointing)
-        commands = []
-        commands.append("echo 'Folding on multiple pointings'")
-        commands.append("data_process_pipeline.py -m f -d {0} -o {1} -O {2} -p {3} -L {4} "
-                        "--mwa_search {5} --vcs_tools {6} -b {7} -e {8}".format(p,\
-                        search_opts.obsid, search_opts.cal_id, pulsar, loglvl, search_opts.search_ver,\
-                        search_opts.vcstools_ver, search_opts.begin, search_opts.end))
+
+        commands=["echo 'Folding on multiple pointings'"]
+        run_params = data_processing_pipeline.run_params_class(pulsar=pulsar, obsid=search_opts.obsid, cal_id=search_opts.cal_id,\
+                        loglvl=loglvl, mwa_search=search_opts.search_ver, vcs_tools=search_opts.vcstools_ver,\
+                        pointing_dir=pointing_dir_list, beg=search_opts.begin, end=search_opts.end)
+        launch_line = data_processing_pipeline.binfinder_launch_line(run_params, dpp=True)
+        commands.append(launch_line)
 
         name="dpp_launch_{0}_{1}".format(pulsar, search_opts.obsid)
         logger.info("Submitting job: {}".format(name))
         batch_dir = os.path.join(search_opts.fits_dir_base, "batch")
         submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
-                    slurm_kwargs={"time": "00:05:00"},\
+                    slurm_kwargs={"time": "00:10:00"},\
                     module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
                                   'presto/no-python'],\
                     submit=True, vcstools_version=search_opts.vcstools_ver,\
@@ -491,8 +493,10 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
                      ' '.join(map(str, search_opts.channels)))
     if search_opts.incoh or incoh_rfimask:
         incoh_dir = '{0}{1}/incoh/'.format(comp_config['base_product_dir'], search_opts.obsid)
+        commands.append('cd {0}'.format(incoh_dir))
         commands.append('{0} -i -w {1}'.format(splice_command, incoh_dir))
     else:
+        commands.append('cd {0}'.format(search_opts.pointing_dir))
         commands.append('{0} -w {1}'.format(splice_command, search_opts.pointing_dir))
 
     if incoh_rfimask:
@@ -572,15 +576,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
     #work out maximum number of pointings
     hostname = socket.gethostname()
     if ( hostname.startswith('john') or hostname.startswith('farnarkle') ) and summed:
-        #temp_mem = int(5. * (float(stop) - float(start) + 1.) * \
-        #           float(len(pointing_list)) / 1000.) + 1
-        temp_mem_max = 300. #GB
-        # Use the maximum number of pointings that the SSD memory can handle
-        max_pointing = int(( temp_mem_max - 1 ) * 1000. / \
-                           (5. * (float(search_opts.end) - float(search_opts.begin) + 1.)))
-        if max_pointing > 29:
-            # More than 30 won't fit on the GPU mem
-            max_pointing = 29
+        max_pointing = 120
         gpu_max_job = 70
     else:
         max_pointing = 15
@@ -601,10 +597,10 @@ def beamform(search_opts, pointing_list, code_comment=None,
             #search_opts.pointing = search_opts.fits_dir_base.split("/")[-1]
             search_opts.setPoint(line)
         else:
-            ra, dec = line.split(" ")
-            if dec.endswith("\n"):
-                dec = dec[:-1]
-            search_opts.setPoint(ra + "_" + dec)
+            if line.endswith("\n"):
+                line = line[:-1]
+            line = line.replace(" ", "_")
+            search_opts.setPoint(line)
 
         #pulsar check parsing
         if pulsar_list_list is None:
@@ -629,7 +625,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
             if search_opts.incoh:
                 search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
             else:
-                if search_opts.data_process:
+                if (search_opts.data_process or search_opts.scratch):
                     search_opts.setPdir('{0}dpp_pointings/{1}/'.format(search_opts.fits_dir_base,
                                                                    search_opts.pointing))
                 else:
@@ -851,7 +847,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                                              pointings_to_beamform,
                                                              dep_job_id_list):
                     logger.debug(pulsar_list, pointing, dep_job_id)
-                    if search_opts.data_process:
+                    if search_opts.data_process or search_opts.scratch:
                         # use the /astro dir if dataprocessing
                         pointing_dir_temp = '{0}/dpp_pointings/{1}'.format(\
                                              search_opts.fits_dir_base,
