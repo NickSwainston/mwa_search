@@ -16,7 +16,7 @@ params.summed = true
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwaops/vcs'
+params.basedir = '/group/mwavcs/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
 params.out_dir = "${params.basedir}/${params.obsid}/pointings"
