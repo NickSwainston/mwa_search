@@ -13,8 +13,8 @@ params.summed = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwaops/vcs'
-params.scratch_basedir = '/astro/mwaops/vcs'
+params.basedir = '/group/mwavcs/vcs'
+params.scratch_basedir = '/astro/mwavcs/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = false

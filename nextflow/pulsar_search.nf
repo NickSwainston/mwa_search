@@ -4,7 +4,7 @@ nextflow.preview.dsl = 2
 
 params.obsid = null
 params.pointings = null
-params.fitsdir = "/group/mwaops/vcs/${params.obsid}/pointings"
+params.fitsdir = "/group/mwavcs/vcs/${params.obsid}/pointings"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250

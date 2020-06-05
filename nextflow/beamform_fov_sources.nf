@@ -45,7 +45,7 @@ if ( params.help ) {
              |  --no_combined_check
              |              Don't check if all the combined files are available [default: false]
              |  --out_dir   Where the search candidates will be output
-             |              [default: /group/mwaops/vcs/<obsid>/<obsid>_candidates]
+             |              [default: /group/mwavcs/vcs/<obsid>/<obsid>_candidates]
              |  -w          The Nextflow work directory. Delete the directory once the processs
              |              is finished [default: ${workDir}]""".stripMargin()
     println(help)
