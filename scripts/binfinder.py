@@ -5,7 +5,7 @@ import glob
 import logging
 import argparse
 import sys
-import config
+from config_vcs import load_config_file
 import psrqpy
 import datetime
 import numpy as np
@@ -27,7 +27,7 @@ except KeyError:
     ATNF_LOC = None
 
 #load config
-comp_config = config.load_config_file()
+comp_config = load_config_file()
 
 #----------------------------------------------------------------------
 def move_to_product_dir(pulsar, pointing_dir, obsid):

@@ -17,7 +17,7 @@ import mwa_metadb_utils as meta
 from mwa_metadb_utils import get_channels
 import process_vcs as pvcs
 from job_submit import submit_slurm
-import config
+from config_vcs import load_config_file
 import data_processing_pipeline
 
 import logging
@@ -53,7 +53,7 @@ class search_options_class:
                  search_ver='master', vcstools_ver='master',
                  DI_dir=None, pointing_dir=None, n_omp_threads=None):
         hostname = socket.gethostname()
-        comp_config = config.load_config_file()
+        comp_config = load_config_file()
 
         #obs/beamforming options
         self.obsid    = obsid
@@ -339,7 +339,7 @@ def process_vcs_wrapper(search_opts, pointings,
     if args.pulsar_file:
         code_comment += using beamforming from process_vcs.py
     """
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     #check queue
     hostname = socket.gethostname()
     if ( hostname.startswith('john') or hostname.startswith('farnarkle') ):
@@ -365,7 +365,7 @@ def process_vcs_wrapper(search_opts, pointings,
         bf_formats += " -s"
 
     #set up and launch beamfroming
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     data_dir = '{0}{1}'.format(comp_config['base_data_dir'], search_opts.obsid)
     metafits_dir = "{0}/{1}_metafits_ppds.fits".format(data_dir, search_opts.obsid)
     rts_flag_file = '{0}/cal/{1}/rts/flagged_tiles.txt'.\
@@ -469,7 +469,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
     Launches a script that splices the beamformed files and, where approriate,
     launches the search pipeline or folds on known pulsars.
     """
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
 
     #create a split wrapper dependancy
     splice_wrapper_batch = 'splice_wrapper_{0}_{1}'.format(search_opts.obsid, search_opts.pointing)
@@ -620,7 +620,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                                                       search_opts.pointing, search_opts.sub_dir)
 
         #fits dir parsing
-        comp_config = config.load_config_file()
+        comp_config = load_config_file()
         if pointing_dir_input is None:
             if search_opts.incoh:
                 search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
@@ -1274,7 +1274,7 @@ def wrap_up(search_opts):
 
 
     #update final database logs
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     wrap_batch = str(search_opts.bsd_row_num) + "_wrap_up"
     commands = []
     commands.append(add_database_function())
@@ -1328,7 +1328,7 @@ def presto_single_job(search_opts, dm_list_list, prepsub_commands=None,
     commands one after the other to take advantage of Ozstars SSDs
     """
     hostname = socket.gethostname()
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     if hostname.startswith('john') or hostname.startswith('farnarkle'):
         #If on ozstar use their SSD to improve I/O
         SSD_file_dir = '$JOBFS/'
@@ -1556,7 +1556,7 @@ def error_check(search_opts, bash_job=False,
     Checkes the database for any jobs that didn't complete (or didn't even start)
     and reruns any errors before continuing to the next step
     """
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     hostname = socket.gethostname()
 
     sub_sub_dir = ''
@@ -1919,7 +1919,7 @@ if __name__ == "__main__":
         help="If option used will check if the pointing is being stored in Galaxy's "
              "cold storage HSM.")
     args=parser.parse_args()
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
 
     # set up the logger for stand-alone execution
     logger.setLevel(loglevels[args.loglvl])
