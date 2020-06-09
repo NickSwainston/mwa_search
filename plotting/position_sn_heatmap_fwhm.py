@@ -12,12 +12,12 @@ import math
 from scipy.interpolate import UnivariateSpline
 import glob
 
-import config
+from config_vcs import load_config_file
 
 def find_fwhm_and_plot(obsid, pointing):
     pointing_list = []
     sn = []
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     for d in glob.glob("{0}/{1}/pointings/*".format(comp_config['base_product_dir'],
                                 obsid)):
         bestprof_file = glob.glob("{0}/{1}*_PSR_2330-2005.pfd.bestprof".format(d, obsid))

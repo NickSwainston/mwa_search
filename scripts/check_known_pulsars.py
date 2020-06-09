@@ -15,7 +15,7 @@ import find_pulsar_in_obs as fpio
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min, get_obs_array_phase
-import config
+from config_vcs import load_config_file
 from grid import get_grid
 import checks
 import sn_flux_est as snfe
@@ -54,7 +54,7 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
     srclist: string
         The pathname of the sourcelist
     """
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     base_dir = comp_config['base_product_dir']
     cal_dir = os.path.join(base_dir, str(obsid), "cal", str(cal_id))
     cal_dirs=[]
@@ -210,7 +210,7 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
         True - all files are on disk. False - not all files are on disk
     """
     if base_dir is None:
-        comp_config = config.load_config_file()
+        comp_config = load_config_file()
         base_dir = comp_config['base_data_dir']
     comb_dir = "{0}{1}/combined".format(base_dir, obsid)
 
@@ -716,7 +716,7 @@ if __name__ == "__main__":
         print("Please input calibration observation id by setting -O or --cal_obs. Exiting")
         quit()
 
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     if not args.DI_dir:
         args.DI_dir = "{0}/{1}/cal/{2}/rts/".format(comp_config['base_product_dir'],
                                                     args.obsid, args.cal_obs)
