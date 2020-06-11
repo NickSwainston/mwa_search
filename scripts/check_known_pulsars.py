@@ -583,7 +583,7 @@ if __name__ == "__main__":
         print("No DI_dir given so assuming {0} is the directory".format(args.DI_dir))
 
     if not args.no_upload:
-        cal_path, srclist = search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_returns=False)
+        cal_path, srclist = search_for_cal_srclist(args.obsid, args.cal_obs, all_cal_returns=False, all_srclist_returns=False)
         std.upload_cal_files(args.obsid, args.cal_obs, cal_path, srclist)
 
     if args.begin and args.end:

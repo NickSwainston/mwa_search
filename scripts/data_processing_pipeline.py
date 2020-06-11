@@ -66,7 +66,7 @@ class run_params_class:
         if not self.freq and self.obsid:
             self.set_freq_from_metadata(obsid)
         self.generate_file_prefix()
-        
+
 
     def set_beg(self, beg):
         self.beg = beg
@@ -113,7 +113,7 @@ class run_params_class:
 #----------------------------------------------------------------------
 def binfinder_launch_line(run_params, dpp=False):
     """
-    Creates a launch command using the run_params class 
+    Creates a launch command using the run_params class
 
     Parameters:
     -----------
@@ -166,7 +166,7 @@ def binfinder_launch_line(run_params, dpp=False):
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     """
-    Creates a launch command using the run_params class 
+    Creates a launch command using the run_params class
 
     Parameters:
     -----------
@@ -337,7 +337,7 @@ def upload_formatted_file(filename, obsid, pulsar, bins, cal_id, filetype, name_
     if os.path.basename(upname) not in all_ftypes:
         logger.info("Archive file not on databse. Uploading...")
         cp(filename, upname)
-        upload_file_to_db(obsid, pulsar, upname, filetype, metadata=metadata, coh=True):
+        upload_file_to_db(obsid, pulsar, upname, filetype, metadata=metadata, coh=True)
         os.remove(upname)
     else:
         logger.info("file on database. Not uploading")
