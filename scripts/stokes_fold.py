@@ -8,7 +8,7 @@ from os.path import join as ospj
 from os.path import isfile as isfile
 import numpy as np
 import glob
-import config
+from config_vcs import load_config_file
 import psrqpy
 from shutil import copyfile as cp
 
@@ -30,7 +30,7 @@ except:
     logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
     ATNF_LOC = None
 
-comp_config = config.load_config_file()
+comp_config = load_config_file()
 
 #---------------------------------------------------------------
 class NotFoundError(Exception):

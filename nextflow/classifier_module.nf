@@ -50,7 +50,7 @@ process classify {
 }
 
 process sort_detections {
-    publishDir params.out_dir, mode: 'move'
+    publishDir params.out_dir, mode: 'copy'
 
     input:
     file classifier_files

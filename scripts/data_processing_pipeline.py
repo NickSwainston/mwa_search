@@ -3,7 +3,7 @@
 import os
 import logging
 import argparse
-import config
+from config_vcs import load_config_file
 import glob
 import sys
 
@@ -355,7 +355,7 @@ def stokes_fold(run_params):
     launch_line = stokes_launch_line(run_params)
     commands=[launch_line]
     name="Stokes_Fold_init_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
 
     job_id = submit_slurm(name, commands,\
@@ -394,7 +394,7 @@ def binfind(run_params):
     logger.info("Submitting binfinder script:")
     logger.info("")
     logger.info("Job Name: {}".format(name))
-    comp_config = config.load_config_file()
+    comp_config = load_config_file()
     batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
     job_id = submit_slurm(name, commands,\
                         batch_dir=batch_dir,\
