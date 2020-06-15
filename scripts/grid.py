@@ -478,6 +478,8 @@ if __name__ == "__main__":
         obs_metadata = [obs, ra, dec, duration, xdelays, centrefreq, channels]
         names_ra_dec = []
         for ni in range(len(rads)):
+            if float(decds[ni]) < -90.:
+                continue
             names_ra_dec.append(["name", rads[ni], decds[ni]])
         names_ra_dec = np.array(names_ra_dec)
         power = fpio.get_beam_power_over_time(obs_metadata,
@@ -487,7 +489,7 @@ if __name__ == "__main__":
         radls = []
         decdls = []
         tFWHM = np.amax(power)/2. #assumed half power point of the tile beam
-        for ni in range(len(rads)):
+        for ni in range(len(names_ra_dec)):
             if max(power[ni]) > tFWHM:
                 radls.append(rads[ni])
                 decdls.append(decds[ni])
