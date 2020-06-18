@@ -6,11 +6,13 @@ import argparse
 from config_vcs import load_config_file
 import glob
 import sys
+import shutil
 
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
 import stokes_fold
 import binfinder
+import submit_to_database as std
 
 logger = logging.getLogger(__name__)
 
@@ -296,7 +298,7 @@ def copy_data(data_path, target_directory):
     """
     os.makedirs(target_directory, exist_ok=True)
     try:
-        os.popen("cp {0} {1}".format(data_path, target_directory))
+        shutil.copy(data_path, target_directory)
     except RuntimeError as error:
         logger.warning("File:{0} could not be copied to {1}".format(data_path, target_directory))
         logger.warning("Error message: {0}".format(error))
@@ -325,19 +327,19 @@ def upload_formatted_file(filename, obsid, pulsar, bins, cal_id, filetype, name_
     extention: str
         OPTIONAL - The file extension of the uploaded file. Default: ''
     """
-    all_ftypes = std.get_filetypes_from_db(obsid, pulsar, filetypes)
-    fname_pref = std.filename_prefix(args.obsid, args.pulsar, bins=bins, cal=cal_id)
+    all_ftypes = std.get_filetypes_from_db(obsid, pulsar, filetype)
+    fname_pref = std.filename_prefix(obsid, pulsar, bins=bins, cal=cal_id)
     upname = "{}".format(fname_pref)
     upname += name_info
     upname += extension
 
-    metadata = mwa_metadb_utils.get_common_obs_metadata(obsid)
+    metadata = get_common_obs_metadata(obsid)
     subbands = std.get_subbands(metadata)
 
     if os.path.basename(upname) not in all_ftypes:
         logger.info("Archive file not on databse. Uploading...")
-        cp(filename, upname)
-        upload_file_to_db(obsid, pulsar, upname, filetype, metadata=metadata, coh=True)
+        shutil.copy(filename, upname)
+        std.upload_file_to_db(obsid, pulsar, upname, filetype, metadata=metadata, coh=True)
         os.remove(upname)
     else:
         logger.info("file on database. Not uploading")
