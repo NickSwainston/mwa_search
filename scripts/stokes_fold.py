@@ -779,12 +779,12 @@ def create_filenames(run_params):
     """
     Creates a dictionary of filenames to use. This is here to ensure the filenames are identical between fucntions and runs
     Note: these are file names only and do not contain the path
-    
+
     Parameters:
     -----------
     run_params: object
         The run_params object defined by data_procesing_pipeline
-    
+
     Returns:
     --------
     filenames_dict: dictionary
@@ -810,7 +810,7 @@ def create_filenames(run_params):
         filenames_dict["ascii"]     = "{0}.txt".format(run_params.file_prefix)
         filenames_dict["rvmfit"]    = "{0}_RVM_fit.txt".format(run_params.file_prefix)
     filenames_dict["rmfit"]         = "{}_rmfit.txt".format(run_params.file_prefix)
-    filenames_dict["rmsynth"]       = "{}_RMsynthesis.txt".format(run_params.file_prefix)  
+    filenames_dict["rmsynth"]       = "{}_RMsynthesis.txt".format(run_params.file_prefix)
     filenames_dict["chimap"]        = "{}_chi_map.txt".format(run_params.file_prefix)
 
     return filenames_dict
@@ -834,10 +834,10 @@ def work_out_what_to_do(run_params):
     #Try uploads
     try:
         if is_ar_rm:
-            upload_formatted_file(filenames_dict["archive1"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
+            dpp.upload_formatted_file(filenames_dict["archive1"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
                                   extension=".ar")
-        if is_ar2_rm:
-            upload_formatted_file(filenames_dict["archive2"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
+        if is_ar2_rvm:
+            dpp.upload_formatted_file(filenames_dict["archive2"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
                                   extension=".ar2", name_info="RMcorrected")
     except std.NoAuthError as e:
         logger.warn(e)
