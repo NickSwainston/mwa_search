@@ -84,6 +84,9 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
             else:
                 print("## Not a valid choice! ##")
 
+    if not all_cal_returns and len(cal_dirs) == 1:
+        cal_dirs = cal_dirs[0]
+
     #handle multiple sourcelist files with user input
     if not all_srclist_returns and len(srclists) > 1:
         valid = False
@@ -99,6 +102,9 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
                 srclists = [my_srclist]
             else:
                 print("## Not a valid choice! ##")
+
+    if not all_srclist_returns and len(srclists) == 1:
+        srclists = srclists[0]
 
     return cal_dirs, srclists
 
