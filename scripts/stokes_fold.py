@@ -940,10 +940,10 @@ if __name__ == '__main__':
         logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
         sys.exit(1)
     if not args.obsid:
-        logger.error("Obsid not supplied. Please run again and specify an observation ID")
+        logger.error("Obs ID not supplied. Please run again and specify an observation ID")
         sys.exit(1)
     if not args.cal_id:
-        logger.error("Obsid not supplied. Please run again and specify an observation ID")
+        logger.error("Cal ID not supplied. Please run again and specify an observation ID")
         sys.exit(1)
     if not args.pulsar:
         logger.error("Pulsar name not supplied. Please run again and specify pulsar name")

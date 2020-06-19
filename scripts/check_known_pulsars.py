@@ -9,7 +9,6 @@ import numpy as np
 import psrqpy
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-import config
 
 # vcstools and mwa_search imports
 import find_pulsar_in_obs as fpio
