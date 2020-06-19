@@ -20,7 +20,7 @@ from grid import get_grid
 import checks
 import sn_flux_est as snfe
 from mwa_pulsar_client import client
-import submit_to_database
+import submit_to_database as std
 
 import logging
 logger = logging.getLogger(__name__)
@@ -83,6 +83,9 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
             else:
                 print("## Not a valid choice! ##")
 
+    if not all_cal_returns and len(cal_dirs) == 1:
+        cal_dirs = cal_dirs[0]
+
     #handle multiple sourcelist files with user input
     if not all_srclist_returns and len(srclists) > 1:
         valid = False
@@ -99,61 +102,10 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
             else:
                 print("## Not a valid choice! ##")
 
+    if not all_srclist_returns and len(srclists) == 1:
+        srclists = srclists[0]
+
     return cal_dirs, srclists
-
-def upload_cal_files(obsid, cal_id, cal_dir_to_tar=None, srclist=None):
-    """
-    Uploads the calibrator solutions to the MWA pulsar database
-
-    Parameters:
-    -----------
-    obsid: int
-        The observation ID
-    cal_id: int
-        The calibrator ID
-    cal_dir_to_tar: string
-        OPTIONAL - The location of the calibrator RTS directory. If None, will search for it. Default: None
-    sorclist: string
-        OPTIONAL - The path to the sourcelist. If None, will search for it. Default: None
-    """
-    #pulsar database
-    web_address = 'https://pulsar-cat.icrar.uwa.edu.au'
-
-    #Checks for MWA database usernames and passwords
-    if 'MWA_PULSAR_DB_USER' in os.environ and 'MWA_PULSAR_DB_PASS' in os.environ:
-        auth = (os.environ['MWA_PULSAR_DB_USER'],os.environ['MWA_PULSAR_DB_PASS'])
-    else:
-        auth = ('mwapulsar','veovys9OUTY=')
-        logging.warning("No MWA Pulsar Database username and password found so using the defaults.")
-        logging.warning('Please add the following to your .bashrc: ')
-        logging.warning('export MWA_PULSAR_DB_USER="<username>"')
-        logging.warning('export MWA_PULSAR_DB_PASS="<password>"')
-        logging.warning('replacing <username> <password> with your MWA Pulsar Database username and password.')
-
-    client_files_dict = client.calibration_file_by_observation_id(web_address, auth, obsid=cal_id)
-    if client_files_dict:
-        logger.info("This calibrator already has solutions on the database. Not uploading")
-    else:
-        if not cal_dir_to_tar:
-            cal_dir_to_tar = search_for_cal_srclist(obsid, cal_id, all_srclist_returns=True)[0][0]
-        if not srclist:
-            srclist = search_for_cal_srclist(obsid, cal_id, all_cal_returns=True)[1][0]
-        zip_loc = submit_to_database.zip_calibration_files(cal_dir_to_tar, cal_id, srclist)
-
-        # Check if calibrator has to be made
-        cal_list = client.calibrator_list(web_address, auth)
-        if not cal_id in [c['observationid'] for c in cal_list]:
-            client.calibrator_create(web_address, auth, observationid=str(cal_id))
-
-        # Upload Calibration file
-        try:
-            client.calibrator_file_upload(web_address, auth, observationid=str(cal_id), filepath=str(zip_loc), caltype=2)
-            logger.info("Uploaded calibrator solutions from {} to the database".format(cal_id))
-        except:
-            print("Failed to upload calibration files")
-
-        os.system("rm " + zip_loc)
-
 
 def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
     """
@@ -315,7 +267,6 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
     pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
     return pointing_list_list
 
-
 def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
     """
     Finds the beam power information for pulsars in a specific obsid
@@ -366,6 +317,17 @@ def get_sources_in_fov(obsid, source_type, fwhm):
         observation ID to search in
     source_type: str
         the source type input to fpio.grab_source_alog
+    fwhm: float
+        FWHM of the tied-array beam in degrees.
+        Can be calculated in the calc_ta_fwhm function
+
+    Returns:
+    --------
+    list:
+        name_list: list
+            A list of pulsars in the FOV
+        pointing_list: list
+            A list of pointings corresponding to the pulsars in name_list
     """
     names_ra_dec = fpio.grab_source_alog(source_type=source_type)
     obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
@@ -389,7 +351,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     return [name_list, pointing_list]
 
 
-def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
+def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                       product_dir='/group/mwaops/vcs',
                       mwa_search_version='master',
                       vcstools_version='master',
@@ -446,7 +408,6 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     periods = psrqpy.QueryATNF(params=["P0"], psrs=pulsar_list,
                                loadfromdb=ATNF_LOC).pandas["P0"]
 
-
     oap = get_obs_array_phase(obsid)
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
     fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
@@ -466,11 +427,10 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
 
         PSRJ = pulsar_line[0]
         #See if pulsar is in beam for times
-        #enter, exit = snfe.pulsar_beam_coverage(obsid, PSRJ, beg=psrbeg, end=psrend)
-        #if enter is None or exit is None:
-        #    print("{0} is not in beam for time range. Not beamforming".format(PSRJ))
-        #    continue
-        #TODO: uncomment this section when sn_flux_est is pulled to vcstools master
+        enter, leave = snfe.pulsar_beam_coverage(obsid, PSRJ, beg=psrbeg, end=psrend)
+        if enter is None or leave is None:
+            print("{0} is not in beam for time range. Not folding".format(PSRJ))
+            continue
 
         if not (len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa'):
             continue
@@ -538,7 +498,7 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         # Check if fits files are there
         if len(glob.glob("{0}/{1}_*fits".format(pdir, obsid))) < nfiles:
             logger.error("Can not find the {0} expected files in {1}. Exiting".format(nfiles, pdir))
-            exit(1)
+            sys.exit(1)
     for ppd, pnl in zip(pulsar_pointing_dirs, pulsar_name_list):
         for pulsar_name in pnl:
             # Not sure if this works with extended array obs with gridded pointings
@@ -559,106 +519,12 @@ def beamform_and_fold(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         # Check if fits files are there
         if len(glob.glob("{0}/{1}_*fits".format(pdir, obsid))) < nfiles:
             print("Can not find the {0} expected files in {1}. Exiting".format(nfiles, pdir))
-            exit(1)
+            sys.exit(1)
     for vpd, vnl in zip(vdif_pointing_dirs, vdif_name_list):
         for vdif_name in vnl:
             # Not sure if this works with extended array obs with gridded pointings
             search_pipe.multibeam_binfind(search_opts, [vpd], None, vdif_name)
 
-    # Commenting off this section as it is now done in the nextflow pipeline beamform_fov_sources.nf
-    """
-    #Get the rest of the single pulse search canidates
-    #-----------------------------------------------------------------------------------------------------------
-    temp = get_sources_in_fov(obsid, 'RRATs', fwhm)
-    sp_name_list = sp_name_list + temp[0]
-    sp_pointing_list = sp_pointing_list + temp[1]
-
-    print('\nSENDING OFF RRAT SINGLE PULSE SEARCHES')
-    print('----------------------------------------------------------------------------------------')
-    # Send off pulsar search
-
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type RRATs --DI_dir {2} -b {3} -e {4} --single_pulse --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
-    for ch in channels:
-        relaunch_script = "{0} {1}".format(relaunch_script, ch)
-    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
-                              begin=psrbeg, end=psrend, channels=channels,
-                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version,
-                              vcstools_ver=vcstools_version,
-                              single_pulse=True, cand_type='RRATs', scratch=True)
-    search_pipe.beamform(search_opts, sp_pointing_list,
-                         pulsar_list_list=sp_name_list,
-                         code_comment="RRATs single pulse search",
-                         relaunch=relaunch)
-
-
-    # Find all of the FRB candidates
-    #-----------------------------------------------------------------------------------------------------------
-    frb_name_list, frb_pointing_list = get_sources_in_fov(obsid, 'FRB', fwhm)
-
-    print('\nSENDING OFF FRB SINGLE PULSE SEARCHES')
-    print('----------------------------------------------------------------------------------------')
-    # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type FRB --DI_dir {2} -b {3} -e {4} --single_pulse --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
-    for ch in channels:
-        relaunch_script = "{0} {1}".format(relaunch_script, ch)
-    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
-                              begin=psrbeg, end=psrend, channels=channels,
-                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version,
-                              vcstools_ver=vcstools_version,
-                              single_pulse=True, cand_type='FRB', scratch=True)
-    search_pipe.beamform(search_opts, frb_pointing_list,
-                         pulsar_list_list=frb_name_list,
-                         code_comment="FRB single pulse search",
-                         relaunch=relaunch)
-
-
-    # Find all of the Fermi candidates
-    #-----------------------------------------------------------------------------------------------------------
-    fermi_name_list, fermi_pointing_list = get_sources_in_fov(obsid, 'Fermi', fwhm)
-
-    print('\nSENDING OFF FERMI CANDIDATE SEARCHES')
-    print('----------------------------------------------------------------------------------------')
-    # Send off pulsar search
-    relaunch_script = 'mwa_search_pipeline.py -o {0} -O {1} --cand_type Fermi --DI_dir {2} -b {3} -e {4} --search --vcstools_version {5} --mwa_search_version {6} --channels'.format(obsid, cal_obs, DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
-    for ch in channels:
-        relaunch_script = "{0} {1}".format(relaunch_script, ch)
-    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
-                              begin=psrbeg, end=psrend, channels=channels,
-                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version,
-                              vcstools_ver=vcstools_version,
-                              search=True, cand_type='Fermi', scratch=True)
-    search_pipe.beamform(search_opts, fermi_pointing_list,
-                         pulsar_list_list=fermi_name_list,
-                         code_comment="Fermi candidate pulsar search",
-                         relaunch=relaunch)
-
-    # Find all of the points of interest candidates
-    #-----------------------------------------------------------------------------------------------
-    poi_name_list, poi_pointing_list = get_sources_in_fov(obsid, 'POI', fwhm)
-
-    print('\nSENDING OFF POINTS OF INTEREST SEARCHES')
-    print('----------------------------------------------------------------------------------------')
-    # Send off pulsar search
-    relaunch_script = "mwa_search_pipeline.py -o {0} -O {1} --cand_type POI " \
-                      "--DI_dir {2} -b {3} -e {4} --search --vcstools_version {5} " \
-                      "--mwa_search_version {6} --channels".format(obsid, cal_obs,
-                        DI_dir, psrbeg, psrend, vcstools_version, mwa_search_version)
-    for ch in channels:
-        relaunch_script = "{0} {1}".format(relaunch_script, ch)
-    search_opts = search_pipe.search_options_class(obsid, cal_id=cal_obs,
-                              begin=psrbeg, end=psrend, channels=channels,
-                              args=args, DI_dir=DI_dir, relaunch_script=relaunch_script,
-                              search_ver=mwa_search_version,
-                              vcstools_ver=vcstools_version,
-                              search=True, cand_type='POI', scratch=True)
-    search_pipe.beamform(search_opts, poi_pointing_list,
-                         pulsar_list_list=poi_name_list,
-                         code_comment="Points of interest candidate pulsar search",
-                         relaunch=relaunch)
-    """
     return
 
 if __name__ == "__main__":
@@ -710,11 +576,11 @@ if __name__ == "__main__":
     #option parsing
     if not args.obsid:
         print("Please input observation id by setting -o or --obsid. Exiting")
-        quit()
+        sys.exit(1)
 
     if not args.cal_obs:
         print("Please input calibration observation id by setting -O or --cal_obs. Exiting")
-        quit()
+        sys.exit(1)
 
     comp_config = load_config_file()
     if not args.DI_dir:
@@ -723,7 +589,8 @@ if __name__ == "__main__":
         print("No DI_dir given so assuming {0} is the directory".format(args.DI_dir))
 
     if not args.no_upload:
-        upload_cal_files(args.obsid, args.cal_obs)
+        cal_path, srclist = search_for_cal_srclist(args.obsid, args.cal_obs, all_cal_returns=False, all_srclist_returns=False)
+        std.upload_cal_files(args.obsid, args.cal_obs, cal_path, srclist)
 
     if args.begin and args.end:
         beg = args.begin
@@ -734,7 +601,7 @@ if __name__ == "__main__":
         find_beg_end(args.obsid, base_path=comp_config['base_product_dir'])
 
     #Perform data checks
-    dur = end-beg + 1
+    dur = end - beg + 1
     if not args.no_comb_check:
         check = check_data(args.obsid, beg=beg, dur=dur)
         if not check:
@@ -743,8 +610,7 @@ if __name__ == "__main__":
         else:
             logger.info("Recombined check passed, all files present.")
 
-
-    beamform_and_fold(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
+    submit_folds(args.obsid, args.DI_dir, args.cal_obs, args, beg, end,
                       product_dir=comp_config['base_data_dir'],
                       mwa_search_version=args.mwa_search_version,
                       vcstools_version=args.vcstools_version,
