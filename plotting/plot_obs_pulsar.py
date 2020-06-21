@@ -183,6 +183,8 @@ if __name__ == "__main__":
                            help='Instead of calculating which positions to use the script will use the input obsids. eg: "1088850560 1090249472"')
     obs_group.add_argument('--all_obsids', action='store_true',
                            help='Uses all VCS obsids on the MWA metadatabase.')
+    obs_group.add_argument('--incoh', action='store_true',
+                           help='Calculates the sensitivity assuming thast all observations are incoherent')
     obs_group.add_argument('--smart', action='store_true',
                            help='Cover the Southern sky with observations for the SMART survey.')
     obs_group.add_argument('-m', '--manual', nargs='+', type=int,
@@ -256,11 +258,22 @@ if __name__ == "__main__":
     res = args.resolution
     map_dec_range = range(-90,91,res)
     map_ra_range = range(0,361,res)
-    RA=[] ; Dec=[]
+    RA=[]; Dec=[]; x = []; y = []
     for i in map_dec_range:
         for j in map_ra_range:
             Dec.append(i)
             RA.append(j)
+    for c in range(len(RA)):
+        if args.ra_offset:
+            if RA[c] > 180:
+                x.append(-RA[c]/180.*np.pi+2*np.pi)
+            else:
+                x.append(-RA[c]/180.*np.pi)
+        else:
+            x.append(-RA[c]/180.*np.pi +np.pi)
+        y.append(Dec[c]/180.*np.pi)
+    ny = np.array(y)
+    nx = np.array(x)
 
     #Working out the observations required -----------------------------------------------
     if args.all_obsids:
@@ -350,7 +363,7 @@ if __name__ == "__main__":
         delays = delays_list[i]
 
         cord = [ob, ra, dec, time, delays, centrefreq, channels]
-        z=[] ; z_sens =[] ; x=[] ; y=[]
+        z=[] ; z_sens =[]
 
         #print(max(Dec), min(RA), Dec.dtype)
         time_intervals = 600 # seconds
@@ -365,21 +378,13 @@ if __name__ == "__main__":
             for t in range(powout.shape[1]):
                 power_ra = powout[c,t,0]
                 temppower_sense += power_ra #average power kinds
-                nz_sens_overlap[c] += power_ra * math.cos(Dec[c]/180.*np.pi)
+                nz_sens_overlap[c] += power_ra * math.cos(ny[c])
                 if power_ra > temppower:
                     temppower = power_ra
             z_sens.append(temppower_sense)
             z.append(temppower)
-            if args.ra_offset:
-                if RA[c] > 180:
-                    x.append(-RA[c]/180.*np.pi+2*np.pi)
-                else:
-                    x.append(-RA[c]/180.*np.pi)
-            else:
-                x.append(-RA[c]/180.*np.pi +np.pi)
-            y.append(Dec[c]/180.*np.pi)
 
-        nx=np.array(x) ; ny=np.array(y); nz=np.array(z)
+        nz=np.array(z)
 
         #calculates sensitiviy and removes zeros -------------------------
         nz_sense_obs = []
@@ -521,7 +526,10 @@ if __name__ == "__main__":
             nz = 1.5*4.96/np.sqrt(nz_sens_overlap)
             #nz = nz_sens_overlap
         else:
-            nz = nz_sens
+            if args.incoh:
+                nz = nz_sens * 11.3 #(sqrt128)
+            else:
+                nz = nz_sens
         colour_map = 'plasma_r'
         nx.shape = (len(map_dec_range),len(map_ra_range))
         ny.shape = (len(map_dec_range),len(map_ra_range))
@@ -529,7 +537,10 @@ if __name__ == "__main__":
         dec_limit_mask = ny > np.radians(30)
         nz[dec_limit_mask] = np.nan
         import matplotlib.colors as colors
-        plt.pcolor(nx, ny, nz, cmap=colour_map, vmin=2., vmax=10.)
+        if args.incoh:
+            plt.pcolor(nx, ny, nz, cmap=colour_map, vmin=2.* 11.3, vmax=10.* 11.3)
+        else:
+            plt.pcolor(nx, ny, nz, cmap=colour_map, vmin=2., vmax=10.)
         plt.colorbar(spacing='uniform', shrink = 0.65, #ticks=[2., 10., 20., 30., 40., 50.],
                      label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
 

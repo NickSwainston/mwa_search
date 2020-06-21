@@ -10,6 +10,7 @@ params.end = 0
 params.all = false
 
 params.summed = false
+params.channels = null
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
@@ -109,7 +110,10 @@ process get_channels {
     from mwa_metadb_utils import get_channels
     import csv
 
-    channels = get_channels($params.obsid)
+    if "$params.channels" is "null":
+        channels = get_channels($params.obsid)
+    else:
+        channels = [$params.channels]
     with open("${params.obsid}_channels.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         spamwriter.writerow(channels)

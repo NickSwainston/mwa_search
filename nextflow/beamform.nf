@@ -12,6 +12,7 @@ params.end = null
 params.all = false
 
 params.summed = false
+params.channels = null
 params.ipfb = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
