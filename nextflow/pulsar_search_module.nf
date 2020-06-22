@@ -101,15 +101,14 @@ process ddplan {
 process search_dd_fft_acc {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
-        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
-        //container = "nickswainston/presto"
+        scratch '/nvmetmp'
         container = "presto.sif"
-        //stageInMode = 'copy'
     }
     label 'cpu'
     time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
+    clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
     maxForks 800

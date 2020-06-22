@@ -197,9 +197,13 @@ process make_beam {
     errorStrategy 'retry'
     maxRetries 3
     maxForks 120
+    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '$JOBFS'
+    }
+    else {
+        scratch '/nvmetmp'
+        container = 'docker://cirapulsarsandtransients/vcstools:master'
     }
 
     input:
