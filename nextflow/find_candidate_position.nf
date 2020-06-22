@@ -153,7 +153,7 @@ process pdmp {
     val pointings
 
     output:
-    file "*ps"
+    file "*ps" optional true
 
     beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
 
@@ -164,13 +164,17 @@ process pdmp {
     period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
     echo "period: \$period"
-    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
     samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
-    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
-    psradd *.subint -o ${params.obsid}_${pointings}.ar
-    pam --setnchn ${params.nchan} -m ${params.obsid}_${pointings}.ar
-    pdmp -g ${params.obsid}_${pointings}_pdmp.ps/cps ${params.obsid}_${pointings}.ar
+    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
+    if [ "\$sn" == "0.0" ]; then
+        echo "0 signal to noise so not performing pdmp"
+    else
+        subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
+        dspsr -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
+        psradd *.subint -o ${params.obsid}_${pointings}.ar
+        pam --setnchn ${params.nchan} -m ${params.obsid}_${pointings}.ar
+        pdmp -g ${params.obsid}_${pointings}_pdmp.ps/cps ${params.obsid}_${pointings}.ar
+    fi
     """
 }
 
