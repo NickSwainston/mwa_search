@@ -190,7 +190,7 @@ process accelsift {
 
 
 process single_pulse_searcher {
-    container = "presto.sif"
+    container = "docker://nickswainston/sps:latest"
     publishDir params.out_dir, pattern: "*pdf", mode: 'copy'
 
     input:
