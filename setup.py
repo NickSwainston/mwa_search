@@ -52,6 +52,7 @@ setup(name="mwa_search",
                'scripts/mwa_search_pipeline.py', 'scripts/pulsars_in_fov.py',
                'scripts/splice_wrapper.py', 'scripts/stokes_fold.py', 'scripts/LOTAAS_wrapper.py',
                'scripts/search_launch_loop.sh', 'scripts/rsync_rm_loop.sh',
+               'scripts/bestgridpos.py',
                'database/init_search_database.py', 'database/search_database.py',
                'database/cold_storage_mover.py',
                'plotting/plot_obs_pulsar.py', 'plotting/plotting_toolkit.py',
@@ -70,3 +71,4 @@ setup(name="mwa_search",
 )
 
 os.remove('version.py')
+
