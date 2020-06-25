@@ -16,7 +16,7 @@ params.mwa_search_version = 'master'
 
 params.basedir = '/group/mwavcs/vcs'
 params.scratch_basedir = '/astro/mwavcs/vcs'
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = false
 
@@ -195,15 +195,16 @@ process make_beam {
     //time '2h'
     time "${mb_dur}s"
     errorStrategy 'retry'
-    maxRetries 3
+    maxRetries 1
     maxForks 120
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB -M garrawarla"
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
+        beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
     }
     else {
         scratch '/nvmetmp'
-        container = 'docker://cirapulsarsandtransients/vcstools:master'
+        container = 'vcstools_master.sif'
     }
 
     input:
@@ -215,14 +216,13 @@ process make_beam {
     output:
     file "*fits"
 
-    beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
 
     //TODO add other beamform options and flags -F
     """
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.basedir}/${params.obsid}/combined -P ${point.join(",")} \
--r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
+-d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
+-r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
 ${bf_out} -z $utc
     mv */*fits .
     """
@@ -239,7 +239,7 @@ process make_beam_ipfb {
     //time '2h'
     time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
-    maxRetries 3
+    maxRetries 1
     maxForks 120
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -273,8 +273,8 @@ process make_beam_ipfb {
 
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]} \
--r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
+-d ${params.scratch_basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]} \
+-r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
 -p -u -z $utc
     """
 }
@@ -285,6 +285,7 @@ process splice {
     label 'cpu'
     time '1h'
     maxForks 300
+    clusterOptions = " -M garrawarla"
 
     input:
     val chan
