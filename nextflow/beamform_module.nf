@@ -54,7 +54,8 @@ if ( obs_length % 200 != 0 ) {
 mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 2
 
 //Beamforming duration calc
-mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 2
+//mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 2
+mb_dur = 599
 
 //Required temp SSD mem required for gpu jobs
 temp_mem = (int) (0.0012 * obs_length * max_job_pointings + 1)
@@ -196,7 +197,7 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 1
-    maxForks 120
+    maxForks 1
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB -M garrawarla"
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
