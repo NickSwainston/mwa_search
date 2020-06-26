@@ -45,7 +45,6 @@ else if ( params.pointings ) {
         .collate( params.max_pointings )
 }
 else if ( params.pointing_grid ) {
-    println params.pointing_grid
     pointing_grid = Channel.from(params.pointing_grid).view()
 }
 else {
@@ -154,6 +153,7 @@ process pdmp {
 
     output:
     file "*ps"
+    file "*posn"
 
     beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
 
@@ -166,22 +166,55 @@ process pdmp {
     echo "period: \$period"
     sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
     samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
-    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
+    #One subint per 30 seconds
+    subint=\$(python -c "print('{:d}'.format(int(\$samples/300000)))")
+    dspsr -t $task.cpus -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
     psradd *.subint -o ${params.obsid}_${pointings}.ar
     pam --setnchn ${params.nchan} -m ${params.obsid}_${pointings}.ar
     pdmp -g ${params.obsid}_${pointings}_pdmp.ps/cps ${params.obsid}_${pointings}.ar
+    mv pdmp.posn ${params.obsid}_${pointings}_pdmp.posn
     """
 }
 
-workflow {
-    pre_beamform()
-    if ( params.pointing_grid ) {
+process bestgridpos {
+    input:
+    file posn
+
+    output:
+    file "*txt"
+
+    """
+    bestgridpos.py -o ${params.obsid} -p ./ -w
+    """
+}
+
+workflow find_pos {
+    take:
+        pointing_grid
+    main:
+        pre_beamform()
         grid( pointing_grid )
         beamform( pre_beamform.out[0],\
                 pre_beamform.out[1],\
                 pre_beamform.out[2],\
                 grid.out.splitCsv().collect().flatten().collate( params.max_pointings ) )
+        prepfold( beamform.out[3] )
+        pdmp( prepfold.out[0],
+            beamform.out[1],
+            beamform.out[2] )
+        bestgridpos( pdmp.out[1].collect() )
+    emit:
+        bestgridpos.out.splitCsv().collect()
+}
+
+workflow {
+    pre_beamform()
+    if ( params.pointing_grid ) {
+        find_pos( pointing_grid )
+        beamform( pre_beamform.out[0],\
+                pre_beamform.out[1],\
+                pre_beamform.out[2],\
+                find_pos.out )
     }
     else {
         beamform( pre_beamform.out[0],\
