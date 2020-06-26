@@ -191,13 +191,15 @@ process bestgridpos {
 workflow find_pos {
     take:
         pointing_grid
+        pre_beamform_1
+        pre_beamform_2
+        pre_beamform_3
     main:
-        pre_beamform()
         grid( pointing_grid )
-        beamform( pre_beamform.out[0],\
-                pre_beamform.out[1],\
-                pre_beamform.out[2],\
-                grid.out.splitCsv().collect().flatten().collate( params.max_pointings ) )
+        beamform( pre_beamform_1,\
+                  pre_beamform_2,\
+                  pre_beamform_3,\
+                  grid.out.splitCsv().collect().flatten().collate( params.max_pointings ) )
         prepfold( beamform.out[3] )
         pdmp( prepfold.out[0],
             beamform.out[1],
@@ -210,7 +212,10 @@ workflow find_pos {
 workflow {
     pre_beamform()
     if ( params.pointing_grid ) {
-        find_pos( pointing_grid )
+        find_pos( pointing_grid,\
+                  pre_beamform.out[0],\
+                  pre_beamform.out[1],\
+                  pre_beamform.out[2] )
         beamform( pre_beamform.out[0],\
                 pre_beamform.out[1],\
                 pre_beamform.out[2],\
@@ -218,9 +223,9 @@ workflow {
     }
     else {
         beamform( pre_beamform.out[0],\
-                pre_beamform.out[1],\
-                pre_beamform.out[2],\
-                pointings )
+                  pre_beamform.out[1],\
+                  pre_beamform.out[2],\
+                  pointings )
     }
     prepfold( beamform.out[3] )
     pdmp( prepfold.out[0],
