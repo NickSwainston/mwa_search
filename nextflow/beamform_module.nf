@@ -198,7 +198,7 @@ process make_beam {
     errorStrategy 'retry'
     maxRetries 1
     maxForks 1
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB -M garrawarla"
+    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
         beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
@@ -286,7 +286,6 @@ process splice {
     label 'cpu'
     time '1h'
     maxForks 300
-    clusterOptions = " -M garrawarla"
 
     input:
     val chan
