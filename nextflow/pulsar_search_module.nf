@@ -158,6 +158,8 @@ process accelsift {
     }
     label 'cpu'
     time '25m'
+    errorStrategy 'retry'
+    maxRetries 1
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz", mode: 'copy'
     publishDir params.out_dir, pattern: "*_singlepulse.ps", mode: 'copy'
 
@@ -190,6 +192,8 @@ process accelsift {
 process prepfold {
     label 'cpu'
     time "${prepfold_dur}s"
+    errorStrategy 'retry'
+    maxRetries 1
 
     input:
     tuple file(fits_files), val(cand_line)
@@ -270,6 +274,8 @@ process assemble_single_pulse {
     label 'cpu_backup'
     time '10m'
     publishDir params.out_dir, mode: 'move'
+    errorStrategy 'retry'
+    maxRetries 1
 
     input:
     tuple val(name), file(inf_single_pulse)

@@ -281,6 +281,8 @@ process splice {
     label 'cpu'
     time '1h'
     maxForks 300
+    errorStrategy 'retry'
+    maxRetries 1
 
     input:
     val chan
