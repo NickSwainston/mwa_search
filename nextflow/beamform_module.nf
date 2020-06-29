@@ -205,7 +205,7 @@ process make_beam {
     }
     else {
         scratch '/nvmetmp'
-        container = 'vcstools_master.sif'
+        container = "vcstools_${params.vcstools_version}.sif"
     }
 
     input:
@@ -245,6 +245,11 @@ process make_beam_ipfb {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '$JOBFS'
+        beforeScript "module use $params.module_dir; module load vcstools/origbeam"
+    }
+    else {
+        scratch '/nvmetmp'
+        container = "vcstools_${params.vcstools_version}.sif"
     }
 
     when:
@@ -260,8 +265,6 @@ process make_beam_ipfb {
     file "*fits"
     //file "*hdr"
     //file "*vdif"
-
-    beforeScript "module use $params.module_dir; module load vcstools/origbeam"
 
     //TODO add other beamform options and flags -F
     """
@@ -295,7 +298,12 @@ process splice {
     file "${params.obsid}*fits"
     val "${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}"
 
-    beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version; module load mwa_search/$params.mwa_search_version"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version; module load mwa_search/$params.mwa_search_version"
+    }
+    else {
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
 
     """
     splice_wrapper.py -o ${params.obsid} -c ${chan.join(" ")}
