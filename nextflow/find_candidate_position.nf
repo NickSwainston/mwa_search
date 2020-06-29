@@ -115,7 +115,7 @@ process grid {
     file "*txt"
 
     """
-    grid.py -o $params.obsid -d $params.fwhm_deg -f 0.5 -p $pointings -l 1
+    grid.py -o $params.obsid -d $params.fwhm_deg -f 0.5 -p $pointings -l 2
     """
 
 }
@@ -136,7 +136,7 @@ process prepfold {
 
     //no mask command currently
     """
-    prepfold -o ${params.obsid}_${pointing} -n ${params.bins} -noxwin -noclip -p ${params.period} -dm ${params.dm} -nsub 256 -npart 120 \
+    prepfold -ncpus $task.cpus -o ${params.obsid}_${pointing} -n ${params.bins} -noxwin -noclip -p ${params.period} -dm ${params.dm} -nsub 256 -npart 120 \
 -dmstep 1 -pstep 1 -pdstep 2 -npfact 1 -ndmfact 1 -runavg ${params.obsid}*.fits
     """
 }
@@ -177,11 +177,14 @@ process pdmp {
 }
 
 process bestgridpos {
+    publishDir params.out_dir, mode: 'copy'
+
     input:
     file posn
 
     output:
     file "*txt"
+    file "*png"
 
     """
     bestgridpos.py -o ${params.obsid} -p ./ -w
@@ -206,7 +209,7 @@ workflow find_pos {
             beamform.out[2] )
         bestgridpos( pdmp.out[1].collect() )
     emit:
-        bestgridpos.out.splitCsv().collect()
+        bestgridpos.out[0].splitCsv().collect().flatten().collate( params.max_pointings )
 }
 
 workflow {
@@ -217,9 +220,9 @@ workflow {
                   pre_beamform.out[1],\
                   pre_beamform.out[2] )
         beamform( pre_beamform.out[0],\
-                pre_beamform.out[1],\
-                pre_beamform.out[2],\
-                find_pos.out )
+                  pre_beamform.out[1],\
+                  pre_beamform.out[2],\
+                  find_pos.out.view() )
     }
     else {
         beamform( pre_beamform.out[0],\
