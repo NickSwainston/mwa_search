@@ -832,15 +832,16 @@ def work_out_what_to_do(run_params):
     is_ar2_rvm          = isfile(filenames_dict["rvmfit"])  and isfile(filenames_dict["archive2"])
 
     #Try uploads
-    try:
-        if is_ar_rm:
-            dpp.upload_formatted_file(filenames_dict["archive1"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
-                                  extension=".ar")
-        if is_ar2_rvm:
-            dpp.upload_formatted_file(filenames_dict["archive2"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
-                                  extension=".ar2", name_info="RMcorrected")
-    except std.NoAuthError as e:
-        logger.warn(e)
+    if not run_params.cand:
+        try:
+            if is_ar_rm:
+                dpp.upload_formatted_file(filenames_dict["archive1"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
+                                    extension=".ar")
+            if is_ar2_rvm:
+                dpp.upload_formatted_file(filenames_dict["archive2"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
+                                    extension=".ar2", name_info="RMcorrected")
+        except std.NoAuthError as e:
+            logger.warn(e)
 
     #Main logic structure
     if hdr_files_in_dir or fits_files_in_dir:
