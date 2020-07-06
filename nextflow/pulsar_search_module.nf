@@ -162,12 +162,13 @@ process accelsift {
     maxRetries 1
     publishDir params.out_dir, pattern: "*_singlepulse.tar.gz", mode: 'copy'
     publishDir params.out_dir, pattern: "*_singlepulse.ps", mode: 'copy'
+    publishDir params.out_dir, pattern: "*.SpS", mode: 'copy'
 
     input:
     tuple val(name), file(accel_inf_single_pulse)
 
     output:
-    tuple val(name), file("cands_*greped.txt"), file("*_singlepulse.tar.gz"), file("*_singlepulse.ps")
+    tuple val(name), file("cands_*greped.txt"), file("*_singlepulse.tar.gz"), file("*_singlepulse.ps"), file("*.SpS")
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
@@ -185,6 +186,27 @@ process accelsift {
     single_pulse_search.py *.singlepulse
     tar -czvhf singlepulse.tar.gz *DM*.singlepulse
     mv singlepulse.tar.gz ${name}_singlepulse.tar.gz
+    cat *.singlepulse > ${name}.SpS
+    """
+}
+
+
+process single_pulse_searcher {
+    //container = "docker://nickswainston/sps:latest"
+    container = "sps.sif"
+    publishDir params.out_dir, pattern: "*pdf", mode: 'copy'
+
+    input:
+    tuple val(name), file(sps)
+
+    output:
+    file "*pdf" optional true
+
+    """
+    sps.py -N_min 3 -SNR_min 4 -SNR_peak 4.5 -DM_cand 0.5 ${sps}
+    for i in \$(ls *pdf); do
+        mv \$i ${name}\${i#diagnostics}
+    done
     """
 }
 
@@ -312,6 +334,7 @@ workflow pulsar_search {
                                                             [it[2]].flatten().findAll { it != null } + \
                                                             [it[3]].flatten().findAll { it != null }] }.\
                    groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
+        single_pulse_searcher( accelsift.out.map{ it -> [it[0], it[4]] } )
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
                   map{ it -> [it[0][1], it[1][1]] } )
@@ -329,6 +352,7 @@ workflow single_pulse_search {
                    ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
                    // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
+        single_pulse_searcher( accelsift.out.map{ it -> [it[0], it[4]] } )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
         assemble_single_pulse( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
                                groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] } )
