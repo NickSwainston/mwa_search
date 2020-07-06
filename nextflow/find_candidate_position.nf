@@ -1,7 +1,6 @@
 #!/usr/bin/env nextflow
 
 nextflow.preview.dsl = 2
-include { pre_beamform; beamform } from './beamform_module'
 
 params.obsid = null
 params.calid = null
@@ -191,6 +190,8 @@ process bestgridpos {
     """
 }
 
+include { pre_beamform; beamform } from './beamform_module'
+
 workflow find_pos {
     take:
         pointing_grid
@@ -219,6 +220,8 @@ workflow {
                   pre_beamform.out[0],\
                   pre_beamform.out[1],\
                   pre_beamform.out[2] )
+        //params.summed = false
+        //publish_fits = true
         beamform( pre_beamform.out[0],\
                   pre_beamform.out[1],\
                   pre_beamform.out[2],\

@@ -195,7 +195,7 @@ process make_beam {
     //time '2h'
     time "${mb_dur}s"
     errorStrategy 'retry'
-    maxRetries 3
+    maxRetries 1
     maxForks 120
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -235,7 +235,7 @@ process make_beam_ipfb {
     //time '2h'
     time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
-    maxRetries 3
+    maxRetries 1
     maxForks 120
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -279,8 +279,10 @@ process splice {
     publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits
     publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
-    time '1h'
+    time '2h'
     maxForks 300
+    errorStrategy 'retry'
+    maxRetries 1
 
     input:
     val chan
