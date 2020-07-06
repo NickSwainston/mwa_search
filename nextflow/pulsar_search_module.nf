@@ -190,19 +190,20 @@ process accelsift {
 
 
 process single_pulse_searcher {
-    container = "docker://nickswainston/sps:latest"
+    //container = "docker://nickswainston/sps:latest"
+    container = "sps.sif"
     publishDir params.out_dir, pattern: "*pdf", mode: 'copy'
 
     input:
     tuple val(name), file(sps)
 
     output:
-    file sp_pdf optional true
+    file "*pdf" optional true
 
     """
-    sps.py -N_min 3 -SNR_min 4 -SNR_peak 4.5 -DM_cand 0.5 -no_plot ${sps}
+    sps.py -N_min 3 -SNR_min 4 -SNR_peak 4.5 -DM_cand 0.5 ${sps}
     for i in \$(ls *pdf); do
-        mv \$i ${name}_\${i#diagnostics}
+        mv \$i ${name}\${i#diagnostics}
     done
     """
 }
