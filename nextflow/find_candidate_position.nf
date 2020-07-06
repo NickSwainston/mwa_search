@@ -163,7 +163,6 @@ process pdmp {
     period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
     echo "period: \$period"
-    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
     samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
     #One subint per 30 seconds
     subint=\$(python -c "print('{:d}'.format(int(\$samples/300000)))")
