@@ -51,11 +51,10 @@ if ( obs_length % 200 != 0 ) {
 
 
 //Beamforming ipfb duration calc
-mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 20 ) * 2
+mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 200 ) * 2
 
 //Beamforming duration calc
-//mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 20 ) * 2
-mb_dur = 599
+mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 200 ) * 2
 
 //Required temp SSD mem required for gpu jobs
 temp_mem = (int) (0.0012 * obs_length * max_job_pointings + 1)
@@ -197,8 +196,12 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 1
+<<<<<<< HEAD
     maxForks 1
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+=======
+    maxForks 120
+>>>>>>> development
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
         beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
@@ -287,8 +290,10 @@ process splice {
     publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits
     publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
-    time '1h'
+    time '2h'
     maxForks 300
+    errorStrategy 'retry'
+    maxRetries 1
 
     input:
     val chan
