@@ -6,68 +6,18 @@ import argparse
 from config_vcs import load_config_file
 import glob
 import sys
-import shutil
+import shutit
 
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
 import stokes_fold
 import binfinder
 import submit_to_database as std
+import pipe_helper
+import yaml_helper
+import dpp_check_args
 
 logger = logging.getLogger(__name__)
-
-#----------------------------------------------------------------------
-def binfinder_launch_line(run_params, dpp=False):
-    """
-    Creates a launch command using the run_params class
-
-    Parameters:
-    -----------
-    run_params: object
-        The run_params object
-    dpp: boolean
-        OPTIONAL - If True, will launch the data_processing_pipeline with the run_params variables instead of binfinder.py. Default: False
-
-    Returns:
-    --------
-    launch_line: str
-        The launch command
-    """
-    if dpp:
-        launch_line = "data_processing_pipeline.py"
-    else:
-        launch_line = "binfinder.py"
-
-    if isinstance(run_params.pointing_dir, list):
-        p = ""
-        for pointing in run_params.pointing_dir:
-                p += "{} ".format(pointing)
-    else:
-        p=run_params.pointing_dir
-
-    launch_line += " -d {0} -O {1} -p {2} -o {3} -L {4} --vcs_tools {5} --mwa_search {6}"\
-                    .format(p, run_params.cal_id, run_params.pulsar,\
-                    run_params.obsid, run_params.loglvl, run_params.vcs_tools, run_params.mwa_search)
-    if run_params.freq:
-        launch_line += " -f {}".format(run_params.freq)
-    if run_params.beg:
-       launch_line += " --beg {}".format(run_params.beg)
-    if run_params.end:
-        launch_line += " --end {}".format(run_params.end)
-    if run_params.dm:
-        launch_line += " --dm {}".format(run_params.dm)
-    if run_params.period:
-        launch_line += " --period {}".format(run_params.period)
-    if run_params.stokes_dep:
-        launch_line += " --stokes_dep {}".format(run_params.stokes_dep)
-    if run_params.no_ephem:
-        launch_line += " --no_ephem"
-    if run_params.dspsr_ops != "":
-        launch_line += " --dspsr_ops '{}'".format(run_params.dspsr_ops)
-    if run_params.prep_ops != "":
-        launch_line += " --prep_ops '{}'".format(run_params.prep_ops)
-
-    return launch_line
 
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
@@ -274,15 +224,9 @@ def stokes_fold(run_params):
     return job_id
 
 #----------------------------------------------------------------------
-def binfind(run_params):
-    """
-    Launches the binfinding part of the data processing pipeline
+def binfind(pipe):
+    """Launches the binfinding part of the data processing pipeline"""
 
-    Parameters:
-    -----------
-    run_params: object
-        The run_params object defined by data_proces_pipeline
-    """
     launch_line = binfinder_launch_line(run_params)
     commands = [launch_line]
     #decide how much time to allocate based on number of pointings
@@ -312,32 +256,16 @@ def binfind(run_params):
     logger.info("Job successfully submitted: {0}".format(name))
     return job_id
 
-def work_out_what_to_do(run_params):
-    """
+def main(kwargs):
+    kwargs = dpp_check_args.yaml_check_args(kwargs)
+    os.chdir(kwargs["run_dir"])
+    kwargs = pipe_helper.initiate_pipe(kwargs)
+    
 
-    Parameters:
-    -----------
-    run_params: object
-        The run_params object defined by data_proces_pipeline
-    """
-    if isinstance(run_params.pointing_dir, list):
-        logger.info("Multiple pointing directories")
-        binfind(run_params)
-    else:
-        fits_files_in_dir = glob.glob("{}/*.fits".format(run_params.pointing_dir))
-        bestprof_files_in_dir = glob.glob("{}/*.bestprof".format(run_params.pointing_dir))
-        archive_files_in_dir = glob.glob("{}/*.ar2".format(run_params.pointing_dir))
-        pol_plot_in_dir = glob.glob("{}/*Polarimetry*.png".format(run_params.pointing_dir))
-        if fits_files_in_dir and not bestprof_files_in_dir:
-            logger.info("Launching binfinder")
-            binfind(run_params)
-        elif fits_files_in_dir and (not archive_files_in_dir or not pol_plot_in_dir):
-            logger.info("Launching stokes_fold")
-            stokes_fold(run_params)
-        else:
-            logger.info("Nothing left to do...")
+    if not pipe.bf_complete:
+        binfind(pipe)
+    
 
-#----------------------------------------------------------------------
 if __name__ == '__main__':
 
     loglevels = dict(DEBUG=logging.DEBUG,
@@ -347,6 +275,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="""A pipeline for processing calibrated VCS data""",\
                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    yaml = parser.add_argument_group("YAML File")
+    yaml.add_argument("--yaml", type="str", help="The pathname of the .yaml file to work from")
 
     obsop = parser.add_argument_group("Observation Options")
     obsop.add_argument("-d", "--pointing_dir", nargs='+', type=str, help="The location of the pointing directory/s")
@@ -380,7 +311,6 @@ if __name__ == '__main__':
     otherop.add_argument("--cand", action="store_true", help="use this tag if this is not a kown pulsar")
 
     args = parser.parse_args()
-
     logger.setLevel(loglevels[args.loglvl])
     ch = logging.StreamHandler()
     ch.setLevel(loglevels[args.loglvl])
@@ -388,45 +318,5 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     logger.propagate = False
-
-    #Make assertions
-    if not args.pointing_dir:
-        logger.error("Pointing directory must be supplied")
-        sys.exit(1)
-    if not args.obsid:
-        logger.error("Observtion ID must be supplied")
-        sys.exit(1)
-    if not args.pulsar:
-        logger.error("Pulsar name must be supplied")
-        sys.exit(1)
-    if not args.beg or not args.end:
-        logger.error("Beginning and end times must be supplied")
-        sys.exit(1)
-
-    rp={}
-    rp["pointing_dir"]      = args.pointing_dir
-    rp["cal_id"]            = args.cal_id
-    rp["pulsar"]            = args.pulsar
-    rp["obsid"]             = args.obsid
-    rp["stop"]              = args.stop
-    rp["mwa_search"]        = args.mwa_search
-    rp["vcs_tools"]         = args.vcs_tools
-    rp["loglvl"]            = args.loglvl
-    rp["threshold"]         = args.threshold
-    rp["stokes_bins"]       = args.nbins
-    rp["beg"]               = args.beg
-    rp["end"]               = args.end
-    rp["freq"]              = args.freq
-    rp["dspsr_ops"]         = args.dspsr_ops
-    rp["prep_ops"]          = args.prep_ops
-    rp["no_ephem"]          = args.no_ephem
-    rp["dm"]                = args.dm
-    rp["period"]            = args.period
-    rp["cand"]              = args.cand
-    rp["rvmres"]            = args.rvmres
-    if args.subint:
-        rp["subint"] = args.subint
-    run_params = run_params_class(**rp)
-
-    work_out_what_to_do(run_params)
-
+    kwargs = vars(args)
+    main(kwargs)
