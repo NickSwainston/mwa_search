@@ -68,54 +68,6 @@ def move_to_product_dir(pulsar, pointing_dir, obsid):
         dpp.copy_data(product, product_dir)
 
 #----------------------------------------------------------------------
-def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
-    """
-    Finds the fractional time the pulsar is in the beam at some zenith normalized power
-
-    Parameters:
-    -----------
-    pulsar: string
-        Pulsar J name
-    obsid: int
-        The observation ID
-    beg: int
-        The beginning of the observation time in gps time
-    end: int
-        The end of the observation time in gps time
-    min_z_power: tuple/list
-        OPTIONAL - evaluated the pulsar as 'in the beam' at this normalized zenith power. If None will use [0.3, 0.1] Default: None
-
-    Returns:
-    [enter, leave, power]: list
-        enter: float
-            The time the pulsar enters the beam as a normalized fraction of beg and end. None if pulsar not in beam
-        leave: float
-            The time the pulsar leaves the beam as a normalized fraction of beg and end. None if pulsar not in beam
-        power: float
-            The power for which enter and leave are calculated
-    """
-    if min_z_power is None:
-        min_z_power = [0.3, 0.1]
-    if not isinstance(min_z_power, list):
-        min_z_power = list(min_z_power)
-
-    min_z_power = sorted(min_z_power, reverse=True)
-    names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
-    pow_dict, _ = check_known_pulsars.find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec)
-    for power in pow_dict.keys():
-        psr_list = pow_dict[power][obsid]
-        enter = None
-        leave = None
-        if psr_list: #if pulsar is in beam for this power coverage
-            this_enter, this_leave = snfe.pulsar_beam_coverage(obsid, pulsar, beg=beg, end=end, min_z_power=power)
-            if this_enter is not None and this_leave is not None:
-                enter = this_enter
-                leave = this_leave
-                break
-
-    return [enter, leave, power]
-
-#----------------------------------------------------------------------
 def add_prepfold_to_commands(run_dir, files="*.fits", pulsar=None, commands=None, prep_ops="", **kwargs):
     """
     Adds prepfold commands to a list
@@ -398,47 +350,7 @@ def bestprof_info(filename):
     f.close()
     return info_dict
 
-#----------------------------------------------------------------------
-def bin_sampling_limit(pulsar, sampling_rate=1e-4):
-    """
-    Finds the sampling limit of the input pulsar in units of number of bins
 
-    Parameters:
-    -----------
-    puslar: string
-        The J name of the pulsar to check the sampling limit for
-    sampling_rate: float
-        OPTIONAL - the sampling rate of the instrument. Default=1e-4 (MWA VCS)
-
-    Returns:
-    bin_lim: int
-        The highest number of bins that can be logically folded on
-    """
-    query = psrqpy.QueryATNF(params=["P0"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas
-    period = query["P0"][0]
-    bin_lim = int(period/sampling_rate + 1) #the +1 is to round the limit up every time
-    logger.debug("Bin limit: {0}".format(bin_lim))
-    return bin_lim
-
-def is_binary(pulsar):
-    """
-    Checks the ATNF database to see if a pulsar is part of a binary system
-
-    Parameters:
-    -----------
-    pulsar: string
-        The J name of the pulsar
-
-    Returns:
-    --------
-    boolean
-        True if the pulsar is a binary. False otherwise
-    """
-    query = psrqpy.QueryATNF(params=["BINARY"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas
-    if isinstance(query["BINARY"][0], str):
-        return True
-    else:
-        return False
 
 #----------------------------------------------------------------------
 def submit_to_db_and_continue(run_params, best_bins):
@@ -904,14 +816,18 @@ def find_bins_in_dir(directory):
 
 #----------------------------------------------------------------------
 def work_out_what_to_do(run_params):
-    """
-    A logic structure that decides what to do next in the binfinder pipeline
+    """A logic structure that decides what to do next"""
 
-    Parameters:
-    -----------
-    run_params: object
-        The run_params object defined by data_proces_pipeline
-    """
+
+
+
+
+
+
+
+
+
+
     os.chdir(run_params.pointing_dir)
     hdr_files = glob.glob("*.hdr".format(run_params.pointing_dir))
     ipfb_archive = glob.glob("*ipfb*.ar".format(run_params.pointing_dir))
@@ -996,90 +912,3 @@ def work_out_what_to_do(run_params):
                 logger.info("Period:            {}".format(run_params.period))
                 logger.info("DM:                {}".format(run_params.dm))
                 submit_to_db_and_continue(run_params, last_fold_bins)
-                return
-
-#----------------------------------------------------------------------
-if __name__ == '__main__':
-    #dictionary for choosing log-levels
-    loglevels = dict(DEBUG=logging.DEBUG,
-                     INFO=logging.INFO,
-                     WARNING=logging.WARNING,
-                     ERROR = logging.ERROR)
-
-    #Arguments
-    parser = argparse.ArgumentParser(description="A script that handles pulsar folding operations",\
-                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    required = parser.add_argument_group("Required Inputs:")
-    required.add_argument("-d", "--pointing_dir", action="store", nargs="+", help="Pointing directory(s) that contains the spliced fits files.")
-    required.add_argument("-o", "--obsid", type=str, help="The observation ID")
-    required.add_argument("-O", "--cal_id", type=str, help="The Obs ID of the calibrator")
-    required.add_argument("-p", "--pulsar", type=str, help="The name of the pulsar. eg. J2241-5236")
-    required.add_argument("--beg", type=int, help="The beginning of the observation. Will try to find if unsupplied")
-    required.add_argument("--end", type=int, help="The end of the observation. Will try to find if unsupplied")
-
-    foldop = parser.add_argument_group("Folding Options:")
-    foldop.add_argument("--no_ephem", action="store_true", help="Use this to override the use of an ephemeris for folding the pulsar")
-    foldop.add_argument("--dm", type=float, default=None, help="The dispersion measure to fold around")
-    foldop.add_argument("--period", type=float, default=None, help="The period to fold around in seconds")
-    foldop.add_argument("--prep_ops", type=str, default="", help="Any additional options to use with prepfold in string form\
-                        eg. ' -dm 20 -p 0.528'")
-
-    other = parser.add_argument_group("Other Options:")
-    other.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
-    other.add_argument("-t", "--threshold", type=float, default=8.0, help="The signal to noise threshold to stop at. Default = 10.0")
-    other.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level. Default: INFO", choices=loglevels.keys())
-    other.add_argument("-S", "--stop", action="store_true", help="Use this tag to stop the data processing pipeline when finished binfinding")
-    other.add_argument("--dspsr_ops", type=str, default="", help="Any additional options to send to dspsr once binfinder is finished")
-    other.add_argument("--stokes_dep", type=int, help="Job ID of a job that needs to be completed before the stokes_fold.py job can begin")
-    other.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use.")
-    other.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use.")
-
-    args = parser.parse_args()
-    logger.setLevel(loglevels[args.loglvl])
-    ch = logging.StreamHandler()
-    ch.setLevel(loglevels[args.loglvl])
-    formatter = logging.Formatter('%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-    logger.propagate = False
-
-    #Checking required inputs
-    if args.pointing_dir == None:
-        logger.error("No pointing directory supplied. Please specify the pointing directory path and rerun")
-        sys.exit(1)
-    elif args.cal_id == None:
-        logger.error("No calibrator ID supplied. Please input a cal ID and rerun")
-        sys.exit(1)
-    elif args.pulsar == None:
-        logger.error("No pulsar name supplied. Please input a pulsar and rerun")
-        sys.exit(1)
-    if args.end is None or args.beg is None:
-        logger.error("Beginning and end times not supplied. Please supply and rerun")
-        sys.exit(1)
-
-    rp={}
-    rp["pointing_dir"] = args.pointing_dir
-    rp["cal_id"] = args.cal_id
-    rp["pulsar"] = args.pulsar
-    rp["obsid"] = args.obsid
-    rp["stop"] = args.stop
-    rp["mwa_search"] = args.mwa_search
-    rp["vcs_tools"] = args.vcs_tools
-    rp["loglvl"] = args.loglvl
-    rp["threshold"] = args.threshold
-    rp["beg"] = args.beg
-    rp["end"] = args.end
-    rp["freq"] = args.freq
-    rp["dspsr_ops"] = args.dspsr_ops
-    rp["prep_ops"] = args.prep_ops
-    rp["dm"] = args.dm
-    rp["period"] = args.period
-    rp["stokes_dep"] = args.stokes_dep
-    run_params = dpp.run_params_class(**rp)
-
-    if run_params.freq is None:
-        run_params.set_freq_from_metadata(run_params.obsid)
-
-    logger.info("Pointing Dir: {}".format(run_params.pointing_dir))
-    work_out_what_to_do(run_params)
