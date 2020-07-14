@@ -62,35 +62,35 @@ class pipe_class:
     def obs_beg(self):
         return self._obs_beg
     @obs_beg.setter
-    def obs_beg(self, val)
+    def obs_beg(self, val):
         self._obs_beg = val
 
     @property
     def obs_end(self):
         return self._obs_end
     @obs_end.setter
-    def obs_end(self, val)
+    def obs_end(self, val):
         self._obs_end = val
 
     @property
     def obs_ra(self):
         return self._obs_ra
     @obs_ra.setter
-    def obs_ra(self, val)
+    def obs_ra(self, val):
         self._obs_ra = val
 
     @property
     def obs_dec(self):
         return self._obs_dec
     @obs_dec.setter
-    def obs_dec(self, val)
+    def obs_dec(self, val):
         self._obs_dec = val
 
     @property
     def obs_dur(self):
         return self._obs_dur
     @obs_dur.setter
-    def obs_dur(self, val)
+    def obs_dur(self, val):
         self._obs_dur = val
 
     @property
