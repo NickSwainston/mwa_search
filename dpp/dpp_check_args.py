@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 import yaml_helper
+import glob
+
+class FileNotExistsError:
+    """Raise when a file does not exist"""
 
 def yaml_check_args(kwargs)
     """Makes assertions and changes to the kwargs from data_processing_pipeline.py script"""
@@ -29,7 +33,7 @@ def yaml_check_args(kwargs)
     parse_unavailable(unavailable)
 
     if "initiated_yaml" not in kwargs.keys():
-        pipe_helper.initiate_yaml(kwargs)
+        kwargs = pipe_helper.initiate_pipe(kwargs)
 
     return kwargs
 
@@ -37,4 +41,3 @@ def parse_unavailable(unavailable):
     """raises an error if there is anything in the input list"""
     if parse_unavailable:
         raise ValueError(f"The following parameters need to be provided: {unavailable}")
-        

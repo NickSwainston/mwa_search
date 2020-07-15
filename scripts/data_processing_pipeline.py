@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+from os import path.join as ospj
 import logging
 import argparse
 from config_vcs import load_config_file
@@ -11,13 +12,37 @@ import shutit
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
 import stokes_fold
-import binfinder
+from binfinder import bf_main
 import submit_to_database as std
 import pipe_helper
 import yaml_helper
 import dpp_check_args
 
 logger = logging.getLogger(__name__)
+
+
+def get_next_name(pipe):
+    if not pipe["completed"]["bf"]:
+        if not pipe["completed"]["post"]:
+            name = "post"
+        elif not pipe["completed"]["submit_move"]:
+            name = "submit_move"
+    elif not polarimetry["completed"]:
+        name = "Polarimetry"
+    return name
+
+def resubmit_self(pipe, dependencies=None):
+    batch_dir = os.path.join(comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
+    func = name = get_next_name(pipe)
+    batch_name = f"dpp_{name}_{pipe['source']['name']}_{pipe['obs']['id']}"
+    yaml_name = ospj(pipe["run_ops"]["dir"], f"{pipe['obs']['id']}_{pipe['source']['name']}.yaml")
+    yaml_helper.dump_to_yaml(pipe, yaml_name)
+    commands = [f"data_processing_pipeline.py --yaml {yaml_name}"]
+    job_id = submit_slurm(batch_name, commands,\
+                batch_dir=batch_dir,
+                slurm_kwargs={"time": "00:30:00"},
+                module_list=[f"mwa_search/{pipe['run_ops']['mwa_search']}", f"vcstools/{pipe['run_ops']['vcstools']}"],
+                submit=True, depend=dependencies, depend_type="afterok")
 
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
@@ -78,65 +103,6 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
         launch_line += " --rvmres {}".format(run_params.rvmres)
 
     return launch_line
-
-#----------------------------------------------------------------------
-def prepfold_time_alloc(prepfold_dict, beg, end):
-    """
-    Estimates the jobtime for prepfold jobs based on inputs
-
-    Parameters:
-    -----------
-    duration: float
-        The duration of the folding time in seconds
-    nbins: int
-        Then number of bins to fold over
-    npfact: int
-        OPTIONAL - prepfold's npfact option. Default: 2
-    ndmfact: int
-        OPTIONAL - prepfold's ndmfact option. Default: 3
-    nosearch: boolean
-        OPTIONAL - true if prepfold's nosearch tag is used. Default: False
-
-    Returns:
-    --------
-    time: string
-        The allocated time for the fold job as a string that can be passed to the slurm batch handler
-    """
-    nopsearch = False
-    nopdsearch = False
-    nodmsearch = False
-    nosearch = False
-    if "nopsearch" in prepfold_dict:
-        nopsearch = True
-    if "nodmsearch" in prepfold_dict:
-        nodmsearch = True
-    if "nopdsearch" in prepfold_dict:
-        nopdsearch = True
-    if "nosearch" in prepfold_dict:
-        nosearch = True
-    npfact = prepfold_dict["npfact"]
-    ndmfact = prepfold_dict["ndmfact"]
-    nbins = prepfold_dict["n"]
-    duration = (prepfold_dict["end"] - prepfold_dict["start"]) * (end - beg)
-
-    time = 600
-    time += nbins
-    time += duration
-
-    if not nosearch:
-        ptime = 1
-        pdtime = 1
-        dmtime = 1
-        if not nopsearch:
-            ptime = npfact*nbins
-        if not nopdsearch:
-            pdtime = npfact*nbins
-        if not nodmsearch:
-            dmtime = ndmfact*nbins
-        time += ((ptime * pdtime * dmtime)/1e4)
-    time = time*2 #compute time is very sporadic so just give double the allocation time
-
-    return time
 
 #----------------------------------------------------------------------
 def copy_data(data_path, target_directory):
@@ -223,48 +189,18 @@ def stokes_fold(run_params):
     logger.info("Job successfully submitted: {0}".format(name))
     return job_id
 
-#----------------------------------------------------------------------
-def binfind(pipe):
-    """Launches the binfinding part of the data processing pipeline"""
-
-    launch_line = binfinder_launch_line(run_params)
-    commands = [launch_line]
-    #decide how much time to allocate based on number of pointings
-    n_pointings = len(run_params.pointing_dir)
-    if n_pointings<100:
-        time = "00:30:00"
-    elif n_pointings<400:
-        time = "02:00:00"
-    elif n_pointings<1000:
-        time = "05:00:00"
-    else:
-        time = "10:00:00"
-
-    name = "bf_initiate_{0}_{1}".format(run_params.pulsar, run_params.obsid)
-    logger.info("Submitting binfinder script:")
-    logger.info("")
-    logger.info("Job Name: {}".format(name))
-    comp_config = load_config_file()
-    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
-    job_id = submit_slurm(name, commands,\
-                        batch_dir=batch_dir,\
-                        slurm_kwargs={"time": time},\
-                        module_list=['mwa_search/{0}'.format(run_params.mwa_search),\
-                                    'presto/no-python'],\
-                        submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
-
-    logger.info("Job successfully submitted: {0}".format(name))
-    return job_id
 
 def main(kwargs):
     kwargs = dpp_check_args.yaml_check_args(kwargs)
     os.chdir(kwargs["run_dir"])
-    kwargs = pipe_helper.initiate_pipe(kwargs)
-    
+    pipe = pipe_helper.initiate_pipe(kwargs)
+    if not pipe["completed"]["bf"]:
+        bf_main(pipe)
+    elif not pipe["completed"]["submit_move"]:
+        submit_move_main(pipe)
+    elif not pipe["completed"]["polarimetry"]:
+        pass #TODO: make the pol pipe
 
-    if not pipe.bf_complete:
-        binfind(pipe)
-    
 
 if __name__ == '__main__':
 
@@ -292,8 +228,6 @@ if __name__ == '__main__':
     foldop.add_argument("-t", "--threshold", type=float, default=8.0, help="The presto sigma value\
                              above which is deemed a detection. If this value is not exceeded in any\
                              of the folds, the pipeline will terminate")
-    foldop.add_argument("--prep_ops", type=str, default="", help="Provide as a string in quotes any prepfold command you would like to use for folding.\
-                        eg: ' -dm 50.0 -p 0.50625' (make sure there is a space before the first argument))")
     foldop.add_argument("--dm", type=float, default=None, help="The dispersion measure to fold around")
     foldop.add_argument("--period", type=float, default=None, help="The period to fold around in milliseconds")
     foldop.add_argument("-b", "--nbins", type=int, help="The number of bins for to fold over for the stokes folding script")
@@ -301,6 +235,7 @@ if __name__ == '__main__':
     foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
                         eg: ' -D 50.0 -c 506.25' (make sure there is a space before the first argument)")
     foldop.add_argument("--rvmres", type=int, default=90, help="The number of degree samples to try for alpha and beta.")
+    foldop.add_argument("--mask", type=str, help="The pathname of the mask to use for folding")
 
     otherop = parser.add_argument_group("Other Options")
     otherop.add_argument("--no_ephem", action="store_true", help="Use this to override the use of an ephemeris for foldign the pulsar")
