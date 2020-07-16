@@ -7,11 +7,14 @@ import sys
 from setuptools import setup
 from subprocess import check_output
 
+
 def read(fname):
     """Read a file"""
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
-#The following two functions were taken from the repo: https://github.com/pyfidelity/setuptools-git-version/blob/master/setuptools_git_version.py
+# The following two functions were taken from the repo: https://github.com/pyfidelity/setuptools-git-version/blob/master/setuptools_git_version.py
+
+
 def format_version(version, fmt='{tag}.{commitcount}_{gitsha}'):
     parts = version.split('-')
     if len(parts) < 4:
@@ -23,9 +26,12 @@ def format_version(version, fmt='{tag}.{commitcount}_{gitsha}'):
         return tag
     return fmt.format(tag=tag, commitcount=count, gitsha=sha.lstrip('g'))
 
+
 def get_git_version():
-    git_version = check_output('git describe --tags --long --dirty --always'.split()).decode('utf-8').strip()
+    git_version = check_output(
+        'git describe --tags --long --dirty --always'.split()).decode('utf-8').strip()
     return format_version(version=git_version)
+
 
 mwa_search_version = get_git_version()
 
@@ -37,7 +43,7 @@ reqs = ['python>=3.6.3',
         'matplotlib>=2.1.0',
         'astropy>=2.0.2']
 
-#make a temporary version file to be installed then delete it
+# make a temporary version file to be installed then delete it
 with open('version.py', 'a') as the_file:
     the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
 
@@ -46,7 +52,7 @@ setup(name="mwa_search",
       description="Scripts used to search for pulsars with the Murchison Widefield Array's Voltage Capture System data",
       url="https://github.com/NickSwainston/mwa_search",
       long_description=read('README.md'),
-      #install_requires=reqs,
+      # install_requires=reqs,
       scripts=['scripts/ACCEL_sift.py', 'scripts/check_known_pulsars.py',
                'scripts/grid.py', 'scripts/lfDDplan.py',
                'scripts/mwa_search_pipeline.py', 'scripts/pulsars_in_fov.py',
@@ -58,7 +64,8 @@ setup(name="mwa_search",
                'plotting/plot_obs_pulsar.py',
                'plotting/position_sn_heatmap_fwhm.py',
                'dpp/binfinder.py', 'dpp/stokes_fold.py', 'dpp/plotting_toolkit.py',
-               'dpp/yaml_helper.py',
+               'dpp/yaml_helper.py', 'dpp/pipe_helper.py', 'dpp/prepfold_launch.py',
+               'dpp/pulsar_obs_helper.py', 'dpp/dpp_check_args.py', 'dpp/misc_helper.py', 'dpp/submit_move.py',
                'version.py',
                'nextflow/beamform.nf', 'nextflow/beamform_module.nf',
                'nextflow/beamform_fov_sources.nf', 'nextflow/nextflow.config',
@@ -69,8 +76,7 @@ setup(name="mwa_search",
                'nextflow/mwa_search_pipeline.nf'],
       #data_files=[('AegeanTools', [os.path.join(data_dir, 'MOC.fits')]) ],
       setup_requires=['pytest-runner'],
-      tests_require=['pytest']#, 'nose']
-)
+      tests_require=['pytest']  # , 'nose']
+      )
 
 os.remove('version.py')
-
