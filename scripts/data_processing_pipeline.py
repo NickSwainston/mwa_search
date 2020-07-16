@@ -31,7 +31,7 @@ def get_next_name(pipe):
         name = "Polarimetry"
     return name
 
-def resubmit_self(pipe, dependencies=None):
+def resubmit_self(pipe, dep_id=None, dep_type="afterok"):
     batch_dir = os.path.join(comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
     func = name = get_next_name(pipe)
     batch_name = f"dpp_{name}_{pipe['source']['name']}_{pipe['obs']['id']}"
@@ -42,7 +42,13 @@ def resubmit_self(pipe, dependencies=None):
                 batch_dir=batch_dir,
                 slurm_kwargs={"time": "00:30:00"},
                 module_list=[f"mwa_search/{pipe['run_ops']['mwa_search']}", f"vcstools/{pipe['run_ops']['vcstools']}"],
-                submit=True, depend=dependencies, depend_type="afterok")
+                submit=True, depend=dep_id, depend_type=dep_type)
+
+    logger.info(f"Move script on queue for pulsar: {pipe["source"]["name"]}")
+    logger.info(f"Job name: {name}")
+    logger.info(f"Dependenices: {dep_id}")
+    logger.info(f"Depend type: {dep_type}")
+    logger.info(f"Job ID: {this_id}")
 
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
