@@ -19,7 +19,7 @@ def common_kwargs(pipe, bin_count):
     prep_kwargs["-npart"] = 120
     prep_kwargs["-npfact"] = 1
     prep_kwargs["-ndmfact"] = 1
-    if nbins>=300:
+    if nbins >= 300:
         prep_kwargs["-nopdsearch"] = ""
     if bin_count == 50:
         prep_kwargs["-npfact"] = 2
@@ -27,7 +27,7 @@ def common_kwargs(pipe, bin_count):
     if bin_count == 64:
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
-    if pipe["source"]["ATNF_P"] < 0.005 #period less than 50ms
+    if pipe["source"]["ATNF_P"] < 0.005  # period less than 50ms
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
         prep_kwargs["-dmstep"] = 3
@@ -44,6 +44,7 @@ def common_kwargs(pipe, bin_count):
         prep_kwargs["-dm"] = pipe["source"]["my_P"]
 
     return prep_kwargs
+
 
 def prepfold_time_alloc(pipe, prepfold_kwargs):
     """
@@ -69,7 +70,8 @@ def prepfold_time_alloc(pipe, prepfold_kwargs):
     npfact = prepfold_dict["-npfact"]
     ndmfact = prepfold_dict["-ndmfact"]
     nbins = prepfold_dict["-n"]
-    duration = (pipe["obs"]["end"] - pipe["obs"]["beg"]) * (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"])
+    duration = (pipe["obs"]["end"] - pipe["obs"]["beg"]) * \
+                (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"])
 
     time = 600
     time += nbins
@@ -86,12 +88,13 @@ def prepfold_time_alloc(pipe, prepfold_kwargs):
         if not nodmsearch:
             dmtime = ndmfact*nbins
         time += ((ptime * pdtime * dmtime)/1e4)
-    time = time*2 #compute time is very sporadic so just give double the allocation time
+    time = time*2  # compute time is very sporadic so just give double the allocation time
     if time > 86399.:
         logger.warn("Estimation for prepfold time greater than one day")
         time = 86399
 
     return time
+
 
 def add_prepfold_to_commands(run_dir, pulsar=None, commands=None, kwargs):
     """
@@ -116,7 +119,7 @@ def add_prepfold_to_commands(run_dir, pulsar=None, commands=None, kwargs):
     if commands is None:
         commands = []
 
-    options=""
+    options = ""
     for key, val in kwargs.items():
         if val is not None or val is True:
             options += " {0} {1}".format(key, val)
@@ -132,10 +135,11 @@ def add_prepfold_to_commands(run_dir, pulsar=None, commands=None, kwargs):
         commands.append('   echo "Folding using the -psr option"')
         commands.append(f'   prepfold -psr {pulsar} {options}')
         commands.append('fi')
-    else: #candidate
+    else:  # candidate
         commands.append("prepfold {}".format(option))
 
     return commands
+
 
 def submit_prepfold(pipe, run_dir, kwargs):
     """
@@ -155,7 +159,7 @@ def submit_prepfold(pipe, run_dir, kwargs):
     """
     commands = add_prepfold_to_commands(run_dir, pulsar=pulsar, commands=commands, kwargs)
 
-    #Check if prepfold worked:
+    # Check if prepfold worked:
     commands.append("errorcode=$?")
     commands.append("echo 'errorcode' $errorcode")
     commands.append('if [ "$errorcode" != "0" ]; then')
@@ -163,11 +167,12 @@ def submit_prepfold(pipe, run_dir, kwargs):
     commands.append("   exit $errorcode")
     commands.append("fi")
 
-    batch_dir = os.path.join(comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
+    batch_dir = os.path.join(
+        comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
     batch_name = f"bf_{pipe['source']['name']}_{pipe['obs']['id']}_b{kwargs['-n']}"
     time = prepfold_time_alloc(pipe, kwargs)
-    time = str(datetime.timedelta(seconds = int(time)))
-    job_id = submit_slurm(batch_name, commands,\
+    time = str(datetime.timedelta(seconds=int(time)))
+    job_id = submit_slurm(batch_name, commands,
                 batch_dir=batch_dir,
                 slurm_kwargs={"time": time},
                 module_list=['presto/master'],
@@ -175,7 +180,8 @@ def submit_prepfold(pipe, run_dir, kwargs):
 
     logger.info("Submitting prepfold Job")
     logger.info(f"Pointing directory:        {pipe['run_ops']['dir']}")
-    logger.info(f"Pulsar name:               {pipe['source']['name']}".format(run_params.pulsar))
+    logger.info(f"Pulsar name:               {pipe['source']['name']}".format(
+        run_params.pulsar))
     logger.info(f"Number of bins to fold on: {kwargs['-n']}")
     logger.info(f"Job name:                  {batch_name}"
     logger.info(f"Time Allocation:           {}".format(time))

@@ -21,8 +21,9 @@ import prepfold_launch
 from data_processing_pipeline import resubmit_self
 logger = logging.getLogger(__name__)
 
-#load config
+# load config
 comp_config = load_config_file()
+
 
 class NoSuitableProfileError:
     """Raise when no suitable profiles are found"""
@@ -55,20 +56,20 @@ def bestprof_info(filename):
         period_error: float
             The error in the pulsar's period measurement
     """
-    #open the file and read the info into a dictionary
+    # open the file and read the info into a dictionary
     info_dict = {}
     f = open(filename, "r")
     lines = f.read()
     f.close()
     lines = lines.split("\n")
-    #info:
+    # info:
     info_dict["obsid"] = int(lines[0].split()[4].split("_")[0])
     info_dict["pulsar"] = lines[1].split()[3].split("_")[1]
     info_dict["nbins"] = int(lines[9].split()[4])
     info_dict["chi"] = float(lines[12].split()[4])
     info_dict["sn"] = float(lines[13].split()[4][2:])
     info_dict["dm"] = float(lines[14].split()[4])
-    info_dict["period"] = float(lines[15].split()[4])/1e3 #in seconds
+    info_dict["period"] = float(lines[15].split()[4])/1e3  # in seconds
     info_dict["period_error"] = float(lines[15].split()[6])/1e3
     f.close()
     return info_dict
@@ -83,16 +84,18 @@ def find_best_pointing(pipe):
     bestprof_info_list = []
     for pointing in pipe["run_ops"]["dirs"]:
         os.chdir(pointing)
-        prof_name = glob.glob(f"*b{eval_bins}**{pipe['source']['name'][1:]}*.bestprof")[0]
+        prof_name = glob.glob(
+            f"*b{eval_bins}**{pipe['source']['name'][1:]}*.bestprof")[0]
         bestprof_info_list.append(bestprof_info(prof_name))
     best_sn = 0.0
     best_i = -1
     for i, info_dict in enumerate(bestprof_info_list):
-        if info_dict["chi"]>=pipe["run_ops"]["thresh_chi"] and info_dict["sn"]>best_sn and info_dict["sn"]>=pipe["thresh_sn"]:
+        if info_dict["chi"] >= pipe["run_ops"]["thresh_chi"] and info_dict["sn"] > best_sn and info_dict["sn"] >= pipe["thresh_sn"]:
             best_sn = info_dict["sn"]
             best_i = i
-    if best_i<0:
-        raise NoSuitableProfileError("No profile above the threshold values were found")
+    if best_i < 0:
+        raise NoSuitableProfileError(
+            "No profile above the threshold values were found")
     logger.info(f"Pulsar found in pointings {pipe['run_ops']['dirs'][i]}")
 
     return pipe['run_ops']['dirs'][i]
@@ -106,7 +109,8 @@ def bf_init(pipe):
             kwargs = prepfold_launch.common_kwargs(pipe, int(bin_count))
             _id = prepfold_launch.submit_prepfold(pipe, _dir, kwargs)
             fold_ids.append(_id)
-            pipe["ex_files"]["init_folds"].append(ospj(os.cwd(), f"{kwargs['-o']}.pfd.bestprof"))
+            pipe["ex_files"]["init_folds"].append(
+                ospj(os.cwd(), f"{kwargs['-o']}.pfd.bestprof"))
     pipe["completed"]["init_folds"] = True
     resubmit_self(pipe, dependencies=fold_ids)
 
@@ -122,7 +126,8 @@ def bf_post(pipe):
     fold_ids = []
     for bin_count in pipe["folds"]["post"]:
         kwargs = prepfold_launch.common_kwargs(pipe, int(bin_count))
-        _id = prepfold_launch.submit_prepfold(pipe, pipe["run_ops"]["my_dir"], kwargs)
+        _id = prepfold_launch.submit_prepfold(
+            pipe, pipe["run_ops"]["my_dir"], kwargs)
         fold_ids.append(_id)
         pipe["ex_files"]["post_folds"].append(f"{kwargs['-o']}.pfd.bestprof")
     pipe["completed"]["post_folds"] = True

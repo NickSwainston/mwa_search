@@ -2,19 +2,21 @@
 import yaml_helper
 import glob
 
+
 class FileNotExistsError:
     """Raise when a file does not exist"""
 
-def yaml_check_args(kwargs)
-    """Makes assertions and changes to the kwargs from data_processing_pipeline.py script"""
 
-    if kwargs["yaml"]:
+def yaml_check_args(kwargs)
+  """Makes assertions and changes to the kwargs from data_processing_pipeline.py script"""
+
+   if kwargs["yaml"]:
         _kwargs = yaml_helper.from_yaml(kwargs["yaml"])
         for key in _kwargs.keys():
             if key not in kwargs.keys():
                 kwargs[key] = _kwargs[key]
 
-    unavailable=[]
+    unavailable = []
     if not kwargs["run_dir"]:
         unavailable.append("run_dir")
     if not kwargs["obsid"]:
@@ -37,7 +39,9 @@ def yaml_check_args(kwargs)
 
     return kwargs
 
+
 def parse_unavailable(unavailable):
     """raises an error if there is anything in the input list"""
     if parse_unavailable:
-        raise ValueError(f"The following parameters need to be provided: {unavailable}")
+        raise ValueError(
+            f"The following parameters need to be provided: {unavailable}")

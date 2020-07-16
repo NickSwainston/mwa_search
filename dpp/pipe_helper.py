@@ -6,9 +6,11 @@ from pulsar_obs_helper import find_fold_times
 
 logger = logging.getLogger(__name__)
 
+
 def initiate_pipe(kwargs):
     """Adds all available keys to the pipe dictionary and figures out some useful constants"""
-    pipe={"obs":{}, "source":{}, "completed":{}, "folds":{}, "run_ops":{}}
+    pipe = {"obs": {}, "source": {},
+            "completed": {}, "folds": {}, "run_ops": {}}
 
     pipe["run_ops"]["dirs"] = kwargs["run_dirs"]
     pipe["run_ops"]["my_dir"] = None
@@ -32,7 +34,8 @@ def initiate_pipe(kwargs):
     pipe["source"]["cand"] = kwargs["cand"]
 
     if pipe["cand"] == False:
-        query = psrqpy.QueryATNF(psrs=pipe["pulsar"], loadfromdb=data_load.ATNF_LOC).pandas
+        query = psrqpy.QueryATNF(
+            psrs=pipe["pulsar"], loadfromdb=data_load.ATNF_LOC).pandas
         pipe["source"]["name"] = kwargs["pulsar"]
         pipe["source"]["ra"] = query["RAJ"][0]
         pipe["source"]["dec"] = query["DECJ"][0]
@@ -47,8 +50,10 @@ def initiate_pipe(kwargs):
         pipe["source"]["my_DM"] = None
         pipe["source"]["my_P"] = None
         pipe["source"]["binary"] = is_binary(pulsar, query=query)
-        pipe["source"]["sampling_limit"] = bin_sampling_limit(pulsar, query=query)
-        pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(pipe["pulsar"], pipe["obsid"], pipe["obs_beg"], pipe["obs_end"])
+        pipe["source"]["sampling_limit"] = bin_sampling_limit(
+            pulsar, query=query)
+        pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
+            pipe["pulsar"], pipe["obsid"], pipe["obs_beg"], pipe["obs_end"])
         init, post = = required_bin_folds(pipe["pulsar"], query=query)
         pipe["folds"] = {}
         for _, i in enumerate(init):
