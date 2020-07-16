@@ -180,8 +180,7 @@ def submit_prepfold(pipe, run_dir, kwargs):
 
     logger.info("Submitting prepfold Job")
     logger.info(f"Pointing directory:        {pipe['run_ops']['dir']}")
-    logger.info(f"Pulsar name:               {pipe['source']['name']}".format(
-        run_params.pulsar))
+    logger.info(f"Pulsar name:               {pipe['source']['name']}")
     logger.info(f"Number of bins to fold on: {kwargs['-n']}")
     logger.info(f"Job name:                  {batch_name}"
     logger.info(f"Time Allocation:           {}".format(time))

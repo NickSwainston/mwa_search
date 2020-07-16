@@ -65,12 +65,10 @@ def move_product_dir(pipe, dep_id=None, dep_type="afterok"):
 
     commands = []
     commands.append(f"echo 'Moving {current_dir} to new location: {new_dir}'")
-    if run_params.pulsar[-1].isalpha():
-        commands.append(
-            "cp -ru {0} {1}".format(run_params.pointing_dir, new_pointing_dir))
+    if pipe["source"]["name"][-1].isalpha():
+        commands.append(f"cp -ru {current_dir} {new_dir}")
     else:
-        commands.append("mv {0} {1}".format(
-            run_params.pointing_dir, new_pointing_dir))
+        commands.append(f"mv {current_dir} {new_dir}")
 
     name = f"Move_{pipe['source']['name']}_{pipe['obs']['id']}"
     batch_dir = os.path.join(
