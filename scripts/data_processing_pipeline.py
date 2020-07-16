@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 
 import os
-from os import path.join as ospj
+from os.path import join as ospj
 import logging
 import argparse
 from config_vcs import load_config_file
 import glob
 import sys
-import shutit
+import shutil
 
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
 import stokes_fold
-from binfinder import bf_main
 import submit_to_database as std
 import pipe_helper
 import yaml_helper
 import dpp_check_args
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,26 +31,30 @@ def get_next_name(pipe):
         name = "Polarimetry"
     return name
 
+
 def resubmit_self(pipe, dep_id=None, dep_type="afterok"):
-    batch_dir = os.path.join(comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
+    batch_dir = os.path.join(
+        comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
     func = name = get_next_name(pipe)
     batch_name = f"dpp_{name}_{pipe['source']['name']}_{pipe['obs']['id']}"
-    yaml_name = ospj(pipe["run_ops"]["dir"], f"{pipe['obs']['id']}_{pipe['source']['name']}.yaml")
+    yaml_name = ospj(pipe["run_ops"]["dir"],
+                     f"{pipe['obs']['id']}_{pipe['source']['name']}.yaml")
     yaml_helper.dump_to_yaml(pipe, yaml_name)
     commands = [f"data_processing_pipeline.py --yaml {yaml_name}"]
-    job_id = submit_slurm(batch_name, commands,\
-                batch_dir=batch_dir,
-                slurm_kwargs={"time": "00:30:00"},
-                module_list=[f"mwa_search/{pipe['run_ops']['mwa_search']}", f"vcstools/{pipe['run_ops']['vcstools']}"],
-                submit=True, depend=dep_id, depend_type=dep_type)
+    job_id = submit_slurm(batch_name, commands,
+                          batch_dir=batch_dir,
+                          slurm_kwargs={"time": "00:30:00"},
+                          module_list=[
+                              f"mwa_search/{pipe['run_ops']['mwa_search']}", f"vcstools/{pipe['run_ops']['vcstools']}"],
+                          submit=True, depend=dep_id, depend_type=dep_type)
 
-    logger.info(f"Move script on queue for pulsar: {pipe["source"]["name"]}")
+    logger.info(f"Move script on queue for pulsar: {pipe['source']['name']}")
     logger.info(f"Job name: {name}")
     logger.info(f"Dependenices: {dep_id}")
     logger.info(f"Depend type: {dep_type}")
     logger.info(f"Job ID: {this_id}")
 
-#----------------------------------------------------------------------
+
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     """
     Creates a launch command using the run_params class
@@ -80,8 +84,8 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
         p = run_params.pointing_dir
 
     launch_line += " -d {0} -p {1} -L {2} -o {3} -O {4} --mwa_search {5} --vcs_tools {5}"\
-                    .format(p, run_params.pulsar, run_params.loglvl, run_params.obsid,
-                    run_params.cal_id, run_params.mwa_search, run_params.vcs_tools)
+        .format(p, run_params.pulsar, run_params.loglvl, run_params.obsid,
+                run_params.cal_id, run_params.mwa_search, run_params.vcs_tools)
 
     if run_params.stokes_bins:
         launch_line += " -b {}".format(run_params.stokes_bins)
@@ -90,7 +94,7 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     if run_params.freq:
         launch_line += " -f {}".format(run_params.freq)
     if run_params.beg:
-       launch_line += " --beg {}".format(run_params.beg)
+        launch_line += " --beg {}".format(run_params.beg)
     if run_params.end:
         launch_line += " --end {}".format(run_params.end)
     if run_params.dm:
@@ -110,7 +114,7 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
 
     return launch_line
 
-#----------------------------------------------------------------------
+
 def copy_data(data_path, target_directory):
     """
     Copies the data path file to the targeted directory. Will make targeted directory if it doesn't exist
@@ -126,8 +130,10 @@ def copy_data(data_path, target_directory):
     try:
         shutil.copy(data_path, target_directory)
     except RuntimeError as error:
-        logger.warning("File:{0} could not be copied to {1}".format(data_path, target_directory))
+        logger.warning("File:{0} could not be copied to {1}".format(
+            data_path, target_directory))
         logger.warning("Error message: {0}".format(error))
+
 
 def upload_formatted_file(filename, obsid, pulsar, bins, cal_id, filetype, name_info="", extension=""):
     """
@@ -165,12 +171,13 @@ def upload_formatted_file(filename, obsid, pulsar, bins, cal_id, filetype, name_
     if os.path.basename(upname) not in all_ftypes:
         logger.info("Archive file not on databse. Uploading...")
         shutil.copy(filename, upname)
-        std.upload_file_to_db(obsid, pulsar, upname, filetype, metadata=metadata, coh=True)
+        std.upload_file_to_db(obsid, pulsar, upname,
+                              filetype, metadata=metadata, coh=True)
         os.remove(upname)
     else:
         logger.info("file on database. Not uploading")
 
-#----------------------------------------------------------------------
+
 def stokes_fold(run_params):
     """
     Launches the stokes_fold part of the data processing pipeling
@@ -181,17 +188,19 @@ def stokes_fold(run_params):
         The run_params object defined by data_processing_pipeline
     """
     launch_line = stokes_launch_line(run_params)
-    commands=[launch_line]
-    name="Stokes_Fold_init_{0}_{1}".format(run_params.pulsar, run_params.obsid)
+    commands = [launch_line]
+    name = "Stokes_Fold_init_{0}_{1}".format(
+        run_params.pulsar, run_params.obsid)
     comp_config = load_config_file()
-    batch_dir = "{0}{1}/batch/".format(comp_config['base_product_dir'], run_params.obsid)
+    batch_dir = "{0}{1}/batch/".format(
+        comp_config['base_product_dir'], run_params.obsid)
 
-    job_id = submit_slurm(name, commands,\
-                        batch_dir=batch_dir,\
-                        slurm_kwargs={"time": "00:10:00"},\
-                        module_list=["mwa_search/{0}".format(run_params.mwa_search),\
-                                    "dspsr/master", "psrchive/master"],\
-                        submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
+    job_id = submit_slurm(name, commands,
+                          batch_dir=batch_dir,
+                          slurm_kwargs={"time": "00:10:00"},
+                          module_list=["mwa_search/{0}".format(run_params.mwa_search),
+                                       "dspsr/master", "psrchive/master"],
+                          submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
     logger.info("Job successfully submitted: {0}".format(name))
     return job_id
 
@@ -201,61 +210,83 @@ def main(kwargs):
     os.chdir(kwargs["run_dir"])
     pipe = pipe_helper.initiate_pipe(kwargs)
     if not pipe["completed"]["bf"]:
+        from binfinder import bf_main
         bf_main(pipe)
     elif not pipe["completed"]["submit_move"]:
+        from submit_move import submit_move_main
         submit_move_main(pipe)
     elif not pipe["completed"]["polarimetry"]:
-        pass #TODO: make the pol pipe
+        pass  # TODO: make the pol pipe
 
 
 if __name__ == '__main__':
 
     loglevels = dict(DEBUG=logging.DEBUG,
-                    INFO=logging.INFO,
-                    WARNING=logging.WARNING,
-                    ERROR = logging.ERROR)
+                     INFO=logging.INFO,
+                     WARNING=logging.WARNING,
+                     ERROR=logging.ERROR)
 
-    parser = argparse.ArgumentParser(description="""A pipeline for processing calibrated VCS data""",\
-                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="""A pipeline for processing calibrated VCS data""",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     yaml = parser.add_argument_group("YAML File")
-    yaml.add_argument("--yaml", type="str", help="The pathname of the .yaml file to work from")
+    yaml.add_argument("--yaml", type=str,
+                      help="The pathname of the .yaml file to work from")
 
     obsop = parser.add_argument_group("Observation Options")
-    obsop.add_argument("-d", "--pointing_dir", nargs='+', type=str, help="The location of the pointing directory/s")
-    obsop.add_argument("-o", "--obsid", type=str, help="The obs ID of the data")
-    obsop.add_argument("-O", "--cal_id", type=str, help="The ID of the calibrator used to calibrate the data")
-    obsop.add_argument("-p", "--pulsar", type=str, help="The J name of the pulsar. e.g. J2241-5236")
-    obsop.add_argument("--beg", type=int, help="The beginning of the observation")
+    obsop.add_argument("-d", "--pointing_dir", nargs='+',
+                       type=str, help="The location of the pointing directory/s")
+    obsop.add_argument("-o", "--obsid", type=str,
+                       help="The obs ID of the data")
+    obsop.add_argument("-O", "--cal_id", type=str,
+                       help="The ID of the calibrator used to calibrate the data")
+    obsop.add_argument("-p", "--pulsar", type=str,
+                       help="The J name of the pulsar. e.g. J2241-5236")
+    obsop.add_argument("--beg", type=int,
+                       help="The beginning of the observation")
     obsop.add_argument("--end", type=int, help="The end of the observation")
-    obsop.add_argument("-f", "--freq", type=float, help="The central frequency of the observation in MHz")
+    obsop.add_argument("-f", "--freq", type=float,
+                       help="The central frequency of the observation in MHz")
 
     foldop = parser.add_argument_group("Folding/processing Options")
     foldop.add_argument("-t", "--threshold", type=float, default=8.0, help="The presto sigma value\
                              above which is deemed a detection. If this value is not exceeded in any\
                              of the folds, the pipeline will terminate")
-    foldop.add_argument("--dm", type=float, default=None, help="The dispersion measure to fold around")
-    foldop.add_argument("--period", type=float, default=None, help="The period to fold around in milliseconds")
-    foldop.add_argument("-b", "--nbins", type=int, help="The number of bins for to fold over for the stokes folding script")
-    foldop.add_argument("-s", "--subint", type=float, default=None, help="The length of the integrations (in seconds) used for dspsr.")
+    foldop.add_argument("--dm", type=float, default=None,
+                        help="The dispersion measure to fold around")
+    foldop.add_argument("--period", type=float, default=None,
+                        help="The period to fold around in milliseconds")
+    foldop.add_argument("-b", "--nbins", type=int,
+                        help="The number of bins for to fold over for the stokes folding script")
+    foldop.add_argument("-s", "--subint", type=float, default=None,
+                        help="The length of the integrations (in seconds) used for dspsr.")
     foldop.add_argument("--dspsr_ops", type=str, default="", help="Provide as a string in quotes any dspsr command you would like to use for folding.\
                         eg: ' -D 50.0 -c 506.25' (make sure there is a space before the first argument)")
-    foldop.add_argument("--rvmres", type=int, default=90, help="The number of degree samples to try for alpha and beta.")
-    foldop.add_argument("--mask", type=str, help="The pathname of the mask to use for folding")
+    foldop.add_argument("--rvmres", type=int, default=90,
+                        help="The number of degree samples to try for alpha and beta.")
+    foldop.add_argument("--mask", type=str,
+                        help="The pathname of the mask to use for folding")
 
     otherop = parser.add_argument_group("Other Options")
-    otherop.add_argument("--no_ephem", action="store_true", help="Use this to override the use of an ephemeris for foldign the pulsar")
-    otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
-    otherop.add_argument("-S", "--stop", action="store_true", help="Use this mode to tell the pipeline not to continue processing data after finishing the desired task")
-    otherop.add_argument("--mwa_search", type=str, default="master",  help="The version of mwa_search to use")
-    otherop.add_argument("--vcs_tools", type=str, default="master", help="The version of vcs_tools to use")
-    otherop.add_argument("--cand", action="store_true", help="use this tag if this is not a kown pulsar")
+    otherop.add_argument("--no_ephem", action="store_true",
+                         help="Use this to override the use of an ephemeris for foldign the pulsar")
+    otherop.add_argument("-L", "--loglvl", type=str, default="INFO",
+                         help="Logger verbosity level", choices=loglevels.keys())
+    otherop.add_argument("-S", "--stop", action="store_true",
+                         help="Use this mode to tell the pipeline not to continue processing data after finishing the desired task")
+    otherop.add_argument("--mwa_search", type=str, default="master",
+                         help="The version of mwa_search to use")
+    otherop.add_argument("--vcs_tools", type=str, default="master",
+                         help="The version of vcs_tools to use")
+    otherop.add_argument("--cand", action="store_true",
+                         help="use this tag if this is not a kown pulsar")
 
     args = parser.parse_args()
     logger.setLevel(loglevels[args.loglvl])
     ch = logging.StreamHandler()
     ch.setLevel(loglevels[args.loglvl])
-    formatter = logging.Formatter('%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
+    formatter = logging.Formatter(
+        '%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     logger.propagate = False

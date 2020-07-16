@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
-from vcstools import data_load
+#from vcstools import data_load
 import psrqpy
+import logging
+
 from misc_helper import bin_sampling_limit, is_binary, required_bin_folds
 from pulsar_obs_helper import find_fold_times
 
 logger = logging.getLogger(__name__)
+
+
+try:  # get ATNF db location
+    ATNF_LOC = os.environ['PSRCAT_FILE']
+except:
+    logger.warn(
+        "ATNF database could not be loaded on disk. This may lead to a connection failure")
+    ATNF_LOC = None
 
 
 def initiate_pipe(kwargs):
@@ -35,7 +45,7 @@ def initiate_pipe(kwargs):
 
     if pipe["cand"] == False:
         query = psrqpy.QueryATNF(
-            psrs=pipe["pulsar"], loadfromdb=data_load.ATNF_LOC).pandas
+            psrs=pipe["pulsar"], loadfromdb=ATNF_LOC).pandas
         pipe["source"]["name"] = kwargs["pulsar"]
         pipe["source"]["ra"] = query["RAJ"][0]
         pipe["source"]["dec"] = query["DECJ"][0]
@@ -54,7 +64,7 @@ def initiate_pipe(kwargs):
             pulsar, query=query)
         pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
             pipe["pulsar"], pipe["obsid"], pipe["obs_beg"], pipe["obs_end"])
-        init, post = = required_bin_folds(pipe["pulsar"], query=query)
+        init, post = required_bin_folds(pipe["pulsar"], query=query)
         pipe["folds"] = {}
         for _, i in enumerate(init):
             pipe["folds"]["init"][str(i)] = {}

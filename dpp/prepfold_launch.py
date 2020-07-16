@@ -2,7 +2,7 @@
 
 def common_kwargs(pipe, bin_count):
     """Creates a prepfold-friendly dictionary of common arguments to pass to prepfold"""
-    name = f"{pipe['obs']['id']}_b{bin_count}_{pipe["source"]["name"]}"
+    name = f"{pipe['obs']['id']}_b{bin_count}_{pipe['source']['name']}"
     prep_kwargs = {}
     prep_kwargs["-mask"] = pipe["run_ops"]["mask"]
     prep_kwargs["-o"] = name
@@ -27,7 +27,7 @@ def common_kwargs(pipe, bin_count):
     if bin_count == 64:
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
-    if pipe["source"]["ATNF_P"] < 0.005  # period less than 50ms
+    if pipe["source"]["ATNF_P"] < 0.005:  # period less than 50ms
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
         prep_kwargs["-dmstep"] = 3
@@ -71,7 +71,7 @@ def prepfold_time_alloc(pipe, prepfold_kwargs):
     ndmfact = prepfold_dict["-ndmfact"]
     nbins = prepfold_dict["-n"]
     duration = (pipe["obs"]["end"] - pipe["obs"]["beg"]) * \
-                (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"])
+        (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"])
 
     time = 600
     time += nbins
@@ -96,7 +96,7 @@ def prepfold_time_alloc(pipe, prepfold_kwargs):
     return time
 
 
-def add_prepfold_to_commands(run_dir, pulsar=None, commands=None, kwargs):
+def add_prepfold_to_commands(run_dir, pulsar=None, commands=None, kwargs=dict()):
     """
     Adds prepfold commands to a list
 
@@ -157,7 +157,8 @@ def submit_prepfold(pipe, run_dir, kwargs):
     job_id: int
         The ID of the submitted job
     """
-    commands = add_prepfold_to_commands(run_dir, pulsar=pulsar, commands=commands, kwargs)
+    commands = add_prepfold_to_commands(
+        run_dir, pulsar=pulsar, commands=commands, kwargs=kwargs)
 
     # Check if prepfold worked:
     commands.append("errorcode=$?")
@@ -173,17 +174,17 @@ def submit_prepfold(pipe, run_dir, kwargs):
     time = prepfold_time_alloc(pipe, kwargs)
     time = str(datetime.timedelta(seconds=int(time)))
     job_id = submit_slurm(batch_name, commands,
-                batch_dir=batch_dir,
-                slurm_kwargs={"time": time},
-                module_list=['presto/master'],
-                submit=True)
+                          batch_dir=batch_dir,
+                          slurm_kwargs={"time": time},
+                          module_list=['presto/master'],
+                          submit=True)
 
     logger.info("Submitting prepfold Job")
     logger.info(f"Pointing directory:        {pipe['run_ops']['dir']}")
     logger.info(f"Pulsar name:               {pipe['source']['name']}")
     logger.info(f"Number of bins to fold on: {kwargs['-n']}")
     logger.info(f"Job name:                  {batch_name}")
-    logger.info(f"Time Allocation:           {}".format(time))
-    logger.info(f"Job ID:                    {}".format(job_id))
+    logger.info(f"Time Allocation:           {time}")
+    logger.info(f"Job ID:                    {job_id}")
 
     return job_id

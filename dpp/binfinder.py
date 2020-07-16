@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-from os import path.join as ospj
+from os.path import join as ospj
 import glob
 import logging
 import argparse
@@ -18,7 +18,6 @@ import sn_flux_est as snfe
 import stokes_fold
 import check_known_pulsars
 import prepfold_launch
-from data_processing_pipeline import resubmit_self
 logger = logging.getLogger(__name__)
 
 # load config
@@ -112,7 +111,7 @@ def bf_init(pipe):
             pipe["ex_files"]["init_folds"].append(
                 ospj(os.cwd(), f"{kwargs['-o']}.pfd.bestprof"))
     pipe["completed"]["init_folds"] = True
-    resubmit_self(pipe, dependencies=fold_ids)
+    dpp.resubmit_self(pipe, dependencies=fold_ids)
 
 
 def bf_post(pipe):
@@ -131,7 +130,7 @@ def bf_post(pipe):
         fold_ids.append(_id)
         pipe["ex_files"]["post_folds"].append(f"{kwargs['-o']}.pfd.bestprof")
     pipe["completed"]["post_folds"] = True
-    resubmit_self(pipe, dependencies=fold_ids)
+    dpp.resubmit_self(pipe, dependencies=fold_ids)
 
 
 def bf_main(pipe):

@@ -7,10 +7,10 @@ class FileNotExistsError:
     """Raise when a file does not exist"""
 
 
-def yaml_check_args(kwargs)
-  """Makes assertions and changes to the kwargs from data_processing_pipeline.py script"""
+def yaml_check_args(kwargs):
+    """Makes assertions and changes to the kwargs from data_processing_pipeline.py script"""
 
-   if kwargs["yaml"]:
+    if kwargs["yaml"]:
         _kwargs = yaml_helper.from_yaml(kwargs["yaml"])
         for key in _kwargs.keys():
             if key not in kwargs.keys():

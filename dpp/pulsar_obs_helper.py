@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import find_puslar_in_obs as fpio
+import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
 
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from os import path.join as ospj
+from os.path import join as ospj
 
 from binfinder import NoSuitableProfileError, bestprof_info
-from plotting_toolkit import plot_bestprof
-from data_processing_pipeline import resubmit_self
+import plotting_toolkit
+import data_processing_pipeline as dpp
 from config_vcs import load_config_file
 
 
@@ -32,7 +32,7 @@ def submit_to_db(pipe, dep_id=None, dep_type="afterok"):
         commands.append(
             f"submit_to_database.py -o {pipe['obs']['id']} --cal_id {pipe['obs']['cal_id']} -p {pipe['source']['name']} --bestprof {bestprof} --ppps {ppps}")
         # Also Make a nice plot
-        plot_bestprof(os.path.join(
+        plotting_toolkit.plot_bestprof(os.path.join(
             pipe["run_ops"]["my_dir"], bestprof, out_dir=pipe["run_ops"]["my_dir"]))
 
     name = f"Submit_db_{pipe['source']['name']}_{pipe['obs']['id']}"
@@ -137,10 +137,11 @@ def get_best_fold(pipe):
 
     return bin_order[best_i]
 
-    def submit_move_main(pipe):
-        fill_pipe_folds(pipe)
-        get_best_fold(pipe)
-        dep_id = submit_to_db(pipe)
-        if "group" not in pipe["run_ops"]["dir"].split("/"):
-            dep_id = move_product_dir(pipe, dep_id=dep_id, dep_type="afterok")
-        resubmit_self(pipe, dep_id=dep_id, dep_type="afterok")
+
+def submit_move_main(pipe):
+    fill_pipe_folds(pipe)
+    get_best_fold(pipe)
+    dep_id = submit_to_db(pipe)
+    if "group" not in pipe["run_ops"]["dir"].split("/"):
+        dep_id = move_product_dir(pipe, dep_id=dep_id, dep_type="afterok")
+    dpp.resubmit_self(pipe, dep_id=dep_id, dep_type="afterok")
