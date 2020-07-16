@@ -2,7 +2,7 @@
 from vcstools import data_load
 import psrqpy
 
-#----------------------------------------------------------------------
+
 def bin_sampling_limit(pulsar, sampling_rate=1e-4, query=None):
     """Finds the sampling limit of the input pulsar in units of number of bins"""
     if not query:
@@ -10,6 +10,7 @@ def bin_sampling_limit(pulsar, sampling_rate=1e-4, query=None):
     period = query["P0"][0]
     bin_lim = int(period/sampling_rate + 1) #the +1 is to round the limit up every time
     return bin_lim
+
 
 def is_binary(pulsar, query=None):
     """Checks the ATNF database to see if a pulsar is part of a binary system"""
@@ -19,6 +20,7 @@ def is_binary(pulsar, query=None):
         return True
     else:
         return False
+
 
 def required_bin_folds(pulsar, sampling_rate=1e4, query=None)
     """Generates a list of integers that are the folding bins required to complete for dpp"""
