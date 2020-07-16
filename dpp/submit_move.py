@@ -121,5 +121,6 @@ def get_best_fold(pipe):
         fill_pipe_folds(pipe)
         get_best_fold(pipe)
         dep_id = submit_to_db(pipe)
-        dep_id = move_product_dir(pipe, dep_id=dep_id, dep_type="afterok")
+        if "group" not in pipe["run_ops"]["dir"].split("/"):
+            dep_id = move_product_dir(pipe, dep_id=dep_id, dep_type="afterok")
         resubmit_self(pipe, dep_id=dep_id, dep_type="afterok")
