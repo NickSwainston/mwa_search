@@ -84,7 +84,7 @@ def find_best_pointing(pipe):
     for pointing in pipe["run_ops"]["dirs"]:
         os.chdir(pointing)
         prof_name = glob.glob(f"*b{eval_bins}**{pipe['source']['name'][1:]}*.bestprof")[0]
-        bestprof_info_list.append(bestprof_info(filename=prof_name))
+        bestprof_info_list.append(bestprof_info(prof_name))
     best_sn = 0.0
     best_i = -1
     for i, info_dict in enumerate(bestprof_info_list):
@@ -116,7 +116,7 @@ def bf_post(pipe):
     best_pointing = find_best_pointing(pipe)
     pipe["run_ops"]["my_dir"] = best_pointing
     os.chdir(pipe["run_ops"]["my_dir"])
-    info = bestprof_info(filename=pipe["run_ops"]["my_dir"])
+    info = bestprof_info(pipe["run_ops"]["my_dir"])
     pipe["source"]["my_DM"] = info["dm"]
     pipe["source"]["my_P"] = info["period"]
     fold_ids = []
