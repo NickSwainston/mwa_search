@@ -182,6 +182,8 @@ process dspsr_time_eph {
 }
 
 process get_toas {
+    publishDir params.out_dir, pattern: "*ps", mode: 'copy'
+
     input:
     each file(archive)
     file std_profile
@@ -200,6 +202,8 @@ process get_toas {
 }
 
 process combine_toas {
+    publishDir params.out_dir, mode: 'copy'
+
     input:
     file toa_tims
 
@@ -251,7 +255,4 @@ workflow {
         }
     }
     combine_toas( get_toas.out[0].collect() )
-    publish:
-        combine_toas.out to: params.out_dir, mode: 'copy'
-        get_toas.out to: params.out_dir, pattern: "*ps", mode: 'copy'
 }
