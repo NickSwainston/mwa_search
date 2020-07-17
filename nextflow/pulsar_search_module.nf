@@ -194,6 +194,7 @@ process accelsift {
 process single_pulse_searcher {
     //container = "docker://nickswainston/sps:latest"
     container = "sps.sif"
+    stageInMode = 'copy'
     publishDir params.out_dir, pattern: "*pdf", mode: 'copy'
 
     input:
