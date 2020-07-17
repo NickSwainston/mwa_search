@@ -25,7 +25,7 @@ process pdmp {
     beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
 
     """
-    dspsr -b ${params.bins} -c ${params.period} -D ${params.dm} -L ${params.subint} -e subint -cont -U 4000 ${fits}
+    dspsr  -t $task.cpus -b ${params.bins} -c ${params.period} -D ${params.dm} -L ${params.subint} -e subint -cont -U 4000 ${fits}
     psradd *.subint -o ${params.obsid}_${pointings}.ar
     pam --setnchn ${params.nchan} -m ${params.obsid}_${pointings}.ar
     pdmp -g ${params.obsid}_${pointings}_pdmp.ps/cps ${params.obsid}_${pointings}.ar
