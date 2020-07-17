@@ -16,7 +16,8 @@ import find_pulsar_in_obs as fpio
 import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min, get_obs_array_phase
-from check_known_pulsars import calc_ta_fwhm, get_pointings_required, find_pulsars_power, get_sources_in_fov
+from check_known_pulsars import calc_ta_fwhm, get_pointings_required, get_sources_in_fov
+from pulsar_obs_helper import find_pulsars_power
 from config_vcs import load_config_file
 from grid import get_grid
 import checks
