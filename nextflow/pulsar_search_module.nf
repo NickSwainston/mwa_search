@@ -285,35 +285,6 @@ process search_dd {
 }
 
 
-process assemble_single_pulse {
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
-    label 'cpu_backup'
-    time '10m'
-    publishDir params.out_dir, mode: 'copy'
-    errorStrategy 'retry'
-    maxRetries 1
-
-    input:
-    tuple val(name), file(inf_single_pulse)
-
-    output:
-    tuple val(name), file("*.SpS")
-
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
-    }
-
-    """
-    cat *.subSpS > ${name}.SpS
-    """
-}
-
-
 workflow pulsar_search {
     take:
         name_fits_files // [val(candidateName_obsid_pointing), file(fits_files)]
@@ -348,8 +319,6 @@ workflow single_pulse_search {
                    ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
                    // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
-        //assemble_single_pulse( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
-        //                       groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] } )
         single_pulse_searcher( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
                                groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }  )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
