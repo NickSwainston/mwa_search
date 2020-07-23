@@ -58,7 +58,7 @@ setup(name="mwa_search",
                'plotting/plot_obs_pulsar.py',
                'plotting/position_sn_heatmap_fwhm.py',
                'dpp/data_processing_pipeline.py', 'dpp/binfinder.py', 'dpp/stokes_fold.py',
-               'dpp/plotting_toolkit.py'
+               'dpp/plotting_toolkit.py',
                'version.py',
                'nextflow/beamform.nf', 'nextflow/beamform_module.nf',
                'nextflow/beamform_fov_sources.nf', 'nextflow/nextflow.config',

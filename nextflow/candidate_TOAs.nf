@@ -19,7 +19,7 @@ params.mwa_search_version = 'master'
 params.basedir = '/group/mwavcs/vcs'
 params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
-params.out_dir = "${params.obsid}_toas"
+params.out_dir = "${params.search_dir}/${params.obsid}_toas"
 
 params.bins = 128
 params.period = 0.90004
@@ -103,7 +103,7 @@ process dspsr_ch {
     period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
     echo "period: \$period"
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -O ${params.obsid}_b${params.bins}_ch\${chans} -cont -U 4000 G*_${params.obsid}*ch\${chans}*.fits
+    dspsr  -t $task.cpus -b ${params.bins} -c \${period} -D \${DM} -O ${params.obsid}_b${params.bins}_ch\${chans} -cont -U 4000 G*_${params.obsid}*ch\${chans}*.fits
     pam -pTF -e pTDF --name J0036-1033 *.ar
     """
 }
@@ -150,7 +150,7 @@ process dspsr_time {
     sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
     samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
     subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
+    dspsr  -t $task.cpus -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
     #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
     pam -pTF -e pTDF --name J0036-1033 *.subint
     """
@@ -175,13 +175,15 @@ process dspsr_time_eph {
     sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
     samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
     subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -E ${eph} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
+    dspsr -t $task.cpus -b ${params.bins} -E ${eph} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
     #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
     pam -pTF -e pTDF --name J0036-1033 *.subint
     """
 }
 
 process get_toas {
+    publishDir params.out_dir, pattern: "*ps", mode: 'copy'
+
     input:
     each file(archive)
     file std_profile
@@ -200,6 +202,8 @@ process get_toas {
 }
 
 process combine_toas {
+    publishDir params.out_dir, mode: 'copy'
+
     input:
     file toa_tims
 
@@ -251,7 +255,4 @@ workflow {
         }
     }
     combine_toas( get_toas.out[0].collect() )
-    publish:
-        combine_toas.out to: params.out_dir, mode: 'copy'
-        get_toas.out to: params.out_dir, pattern: "*ps", mode: 'copy'
 }
