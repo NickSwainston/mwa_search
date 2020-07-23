@@ -15,8 +15,12 @@ process feature_extract {
     output:
     file "*.arff"
     file "*pfd*" includeInputs true
-    
-    beforeScript "module use $params.module_dir; module load PulsarFeatureLab/V1.3.2"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use $params.module_dir; module load PulsarFeatureLab/V1.3.2"
+    }
+    else {
+        container = "lofar_pulsar_ml.sif"
+    }
 
     """
     ls
@@ -35,7 +39,12 @@ process classify {
     file "feature_extraction*"
     file "*pfd*" includeInputs true
     
-    beforeScript "module use $params.module_dir; module load LOTAASClassifier/master"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use $params.module_dir; module load LOTAASClassifier/master"
+    }
+    else {
+        container = "lofar_pulsar_ml.sif"
+    }
 
     """
     REALPATH=`realpath ${fex_out}`
@@ -61,6 +70,9 @@ process sort_detections {
     output:
     file "positive_detections/*" optional true
     file "negative_detections/*" optional true
+    if ( ! "$HOSTNAME".startsWith("farnarkle") ) {
+        container = "lofar_pulsar_ml.sif"
+    }
 
     """
     LOTAAS_wrapper.py

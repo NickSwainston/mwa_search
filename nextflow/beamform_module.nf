@@ -196,12 +196,8 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 1
-<<<<<<< HEAD
-    maxForks 1
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
-=======
     maxForks 120
->>>>>>> development
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
         beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
