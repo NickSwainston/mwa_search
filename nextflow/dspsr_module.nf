@@ -3,7 +3,7 @@ nextflow.preview.dsl = 2
 params.obsid = null
 params.pointings = null
 
-params.out_dir = "${params.basedir}/${params.obsid}/pointings"
+params.out_dir = "${params.scratch_basedir}/${params.obsid}/pointings"
 
 params.bins = 128
 params.period = 0.90004

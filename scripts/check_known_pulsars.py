@@ -380,7 +380,7 @@ def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     vcstools_version: string
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
-    base_dir = os.path.join(product_dir, obsid, "dpp_pointings")
+    base_dir = os.path.join(product_dir, obsid, "pointings")
     nfiles = ( psrend - psrbeg + 1 ) // 200
     if ( ( psrend - psrbeg + 1 )%200 != 0 ):
         nfiles += 1

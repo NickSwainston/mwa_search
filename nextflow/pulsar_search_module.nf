@@ -99,17 +99,9 @@ process ddplan {
 
 
 process search_dd_fft_acc {
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        scratch '$JOBFS'
-        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
-    }
-    else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
     label 'cpu'
     time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
+    clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
     maxForks 800
@@ -123,7 +115,12 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load presto/min_path"
+    }
+    else {
+        scratch '/nvmetmp'
+        container = "presto.sif"
     }
 
 
@@ -152,11 +149,6 @@ process search_dd_fft_acc {
 
 
 process accelsift {
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
     label 'cpu'
     time '25m'
     errorStrategy 'retry'
@@ -172,7 +164,10 @@ process accelsift {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
     }
-
+    else {
+        //container = "nickswainston/presto"
+        container = "presto.sif"
+    }
     """
     ACCEL_sift.py --file_name ${name}
     if [ -f cands_${name}.txt ]; then
@@ -221,8 +216,13 @@ process prepfold {
     output:
     file "*pfd*"
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
-
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else {
+        //container = "nickswainston/presto"
+        container = "presto.sif"
+    }
     //no mask command currently
     """
     echo "${cand_line.split()}"
@@ -248,17 +248,9 @@ process prepfold {
 
 
 process search_dd {
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        scratch '$JOBFS'
-        clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
-    }
-    else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
     label 'cpu'
     time '4h'
+    clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
 
@@ -270,8 +262,14 @@ process search_dd {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        scratch '$JOBFS'
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
+    }
+    else {
+        scratch '/nvmetmp'
+        //container = "nickswainston/presto"
+        container = "presto.sif"
     }
 
     """
@@ -324,5 +322,6 @@ workflow single_pulse_search {
                                groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }  )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
     emit:
-        assemble_single_pulse.out
+        single_pulse_searcher.out[0]
+        single_pulse_searcher.out[1]
 }
