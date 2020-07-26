@@ -58,8 +58,10 @@ mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (p
 
 //Required temp SSD mem required for gpu jobs
 temp_mem = (int) (0.0012 * obs_length * max_job_pointings + 1)
+temp_mem_single = (int) (0.0024 * obs_length + 2)
 if ( ! params.summed ) {
     temp_mem = temp_mem * 4
+    temp_mem_single = temp_mem_single *4
 }
 
 
@@ -129,7 +131,7 @@ process ensure_metafits {
     from process_vcs import ensure_metafits
     
     ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
-                    "${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
+                    "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
     """
 }
 
@@ -155,10 +157,10 @@ process make_directories {
     from mdir import mdir
     from process_vcs import create_link
 
-    mdir("${params.basedir}/${params.obsid}", "Data")
+    mdir("${params.scratch_basedir}/${params.obsid}", "Data")
     mdir("${params.scratch_basedir}/${params.obsid}", "Products")
-    mdir("${params.basedir}/batch", "Batch")
-    mdir("${params.basedir}/${params.obsid}/pointings", "Pointings")
+    mdir("${params.scratch_basedir}/batch", "Batch")
+    mdir("${params.scratch_basedir}/${params.obsid}/pointings", "Pointings")
     mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
     create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
                 "${params.basedir}/${params.obsid}", "dpp_pointings")
@@ -196,8 +198,8 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 1
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
     maxForks 120
+    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         scratch '$JOBFS'
         beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
@@ -232,8 +234,8 @@ ${bf_out} -z $utc
 process make_beam_ipfb {
     publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*hdr"
     publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*vdif"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*hdr"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*vdif"
+    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*hdr"
+    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*vdif"
 
     label 'gpu'
     //time '2h'
@@ -241,8 +243,8 @@ process make_beam_ipfb {
     errorStrategy 'retry'
     maxRetries 1
     maxForks 120
+    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '$JOBFS'
         beforeScript "module use $params.module_dir; module load vcstools/origbeam"
     }
@@ -276,15 +278,17 @@ process make_beam_ipfb {
 
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.scratch_basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]} \
+-d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -u -z $utc
+-p -v -z $utc
+    ls *
+    mv */*fits .
     """
 }
 
 process splice {
     publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
+    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
     time '2h'
     maxForks 300

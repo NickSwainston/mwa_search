@@ -322,5 +322,6 @@ workflow single_pulse_search {
                                groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }  )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
     emit:
-        assemble_single_pulse.out
+        single_pulse_searcher.out[0]
+        single_pulse_searcher.out[1]
 }
