@@ -15,13 +15,12 @@ process feature_extract {
     output:
     file "*.arff"
     file "*pfd*" includeInputs true
-    
-    if ( "$HOSTNAME".startsWith("x86") ) {
-        container = 'lofar_pulsar_ml.sif'
-    }
-        //container = 'nickswainston/lofar_pulsar_ml'
-    else {
+
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use $params.module_dir; module load PulsarFeatureLab/V1.3.2"
+    }
+    else {
+        container = "lofar_pulsar_ml.sif"
     }
 
     """
@@ -41,12 +40,11 @@ process classify {
     file "feature_extraction*"
     file "*pfd*" includeInputs true
     
-    if ( "$HOSTNAME".startsWith("x86") ) {
-        container = 'lofar_pulsar_ml.sif'
-    }
-        //container = 'nickswainston/lofar_pulsar_ml'
-    else {
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use $params.module_dir; module load LOTAASClassifier/master"
+    }
+    else {
+        container = "lofar_pulsar_ml.sif"
     }
 
     """
@@ -73,6 +71,9 @@ process sort_detections {
     output:
     file "positive_detections/*" optional true
     file "negative_detections/*" optional true
+    if ( ! "$HOSTNAME".startsWith("farnarkle") ) {
+        container = "lofar_pulsar_ml.sif"
+    }
 
     if ( "$HOSTNAME".startsWith("x86") ) {
         container = 'lofar_pulsar_ml.sif'

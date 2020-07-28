@@ -16,17 +16,16 @@ params.summed = true
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwavcs/vcs'
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
-params.out_dir = "${params.obsid}_toas"
+params.out_dir = "${params.search_dir}/${params.obsid}_toas"
 
 params.bins = 128
 params.period = 0.90004
 params.dm = 23.123
 params.nchan = 48
 params.ncchan = 1
-params.subint = 600
+params.subint = ""
 params.eph = ""
 
 params.no_beamform = false
@@ -59,6 +58,18 @@ if ( ! ( params.chan_split || params.time_split) ) {
     exit(1)
 }
 
+if ( params.subint == "" ) {
+    subint_command = '\$(python -c "print(\'{:d}\'.format(int((8.0/\$sn)**2*\$samples/10000)))")'
+}
+else {
+    subint_command = params.subint
+}
+if ( params.eph == "" ) {
+    eph_command = "-c \${period} -D \${DM}"
+}
+else {
+    eph_command = " -E ${params.eph}"
+}
 
 process prepfold_ch {
     label 'cpu'
@@ -71,8 +82,14 @@ process prepfold_ch {
     output:
     file "*bestprof"
     file fits_files
-
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else {
+        //container = "nickswainston/presto"
+        container = "presto.sif"
+    }
 
     //no mask command currently
     """
@@ -92,7 +109,13 @@ process dspsr_ch {
     output:
     file "*pTDF"
 
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    }
+    else {
+        //container = "nickswainston/dspsr_docker"
+        container = "dspsr.sif"
+    }
 
     //may need to add some channel names
     """
@@ -103,7 +126,7 @@ process dspsr_ch {
     period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
     echo "period: \$period"
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -O ${params.obsid}_b${params.bins}_ch\${chans} -cont -U 4000 G*_${params.obsid}*ch\${chans}*.fits
+    dspsr -t $task.cpus -b ${params.bins} -c \${period} -D \${DM} -O ${params.obsid}_b${params.bins}_ch\${chans} -cont -U 4000 G*_${params.obsid}*ch\${chans}*.fits
     pam -pTF -e pTDF --name J0036-1033 *.ar
     """
 }
@@ -118,16 +141,24 @@ process prepfold_time {
     output:
     file "*bestprof"
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else {
+        //container = "nickswainston/presto"
+        container = "presto.sif"
+    }
 
     //no mask command currently
     """
-    prepfold  -o pulsar_timing_check -n ${params.bins} -noxwin -noclip -p ${params.period} -dm ${params.dm} -nsub 256 -npart 120 \
--dmstep 1 -pstep 1 -pdstep 2 -npfact 1 -ndmfact 1 -runavg ${params.obsid}*.fits
+    prepfold -o pulsar_timing_check -n ${params.bins} -noxwin -noclip -p ${params.period} -dm ${params.dm} -nsub 256 -npart 120 \
+-dmstep 1 -pstep 1 -pdstep 2 -npfact 1 -ndmfact 1 -runavg ${params.obsid}*fits
     """
 }
+
 
 process dspsr_time {
+    cpus = 5
     label 'cpu'
     time '6h'
 
@@ -138,50 +169,30 @@ process dspsr_time {
     output:
     file "*pTDF"
 
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    }
+    else {
+        //container = "nickswainston/dspsr_docker"
+        container = "dspsr.sif"
+    }
 
     //may need to add some channel names
     """
-    DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
-    echo "DM: \$DM"
+    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
+    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
     period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
-    echo "period: \$period"
-    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
-    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
-    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
-    #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
-    pam -pTF -e pTDF --name J0036-1033 *.subint
-    """
-}
-
-process dspsr_time_eph {
-    label 'cpu'
-    time '6h'
-
-    input:
-    file bestprof
-    file fits_files
-    file eph
-
-    output:
-    file "*pTDF"
-
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
-
-    //may need to add some channel names
-    """
-    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
-    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
-    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -E ${eph} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
-    #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
+    DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
+    echo "DM: \$DM   Period: \$period   SN: \$sn"
+    dspsr -t $task.cpus -b ${params.bins} ${eph_command} -L ${subint_command} -e subint -cont -U 4000 ${params.obsid}*fits
     pam -pTF -e pTDF --name J0036-1033 *.subint
     """
 }
 
 process get_toas {
+    publishDir params.out_dir, pattern: "*ps", mode: 'copy'
+
     input:
     each file(archive)
     file std_profile
@@ -200,6 +211,8 @@ process get_toas {
 }
 
 process combine_toas {
+    publishDir params.out_dir, mode: 'copy'
+
     input:
     file toa_tims
 
@@ -235,23 +248,10 @@ workflow {
     }
     else if ( params.time_split ) {
         prepfold_time( fits_files )
-        if ( params.eph == "" ) {
-            dspsr_time( prepfold_time.out[0],\
-                        fits_files.collect() )
-            get_toas( dspsr_time.out,\
-                      std_profile )
-        }
-        else {
-            eph_channel = Channel.fromPath( params.eph )
-            dspsr_time_eph( prepfold_time.out[0],\
-                            fits_files.collect(),\
-                            eph_channel )
-            get_toas( dspsr_time_eph.out.flatten(),\
-                      std_profile )
-        }
+        dspsr_time( prepfold_time.out[0],\
+                    fits_files.collect() )
+        get_toas( dspsr_time.out,\
+                    std_profile )
     }
     combine_toas( get_toas.out[0].collect() )
-    publish:
-        combine_toas.out to: params.out_dir, mode: 'copy'
-        get_toas.out to: params.out_dir, pattern: "*ps", mode: 'copy'
 }
