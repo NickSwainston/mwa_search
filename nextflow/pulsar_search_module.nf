@@ -36,16 +36,16 @@ else {
 }
 
 // Work out some estimated job times
-if ( "$HOSTNAME".startsWith("galaxy") ) {
+if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
-    search_dd_fft_acc_dur = 14400
-    prepfold_dur = 7200
-    presto_python_load = ""
-}
-else{
     search_dd_fft_acc_dur = obs_length * 5.0
     prepfold_dur = obs_length * 2.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+}
+else {
+    search_dd_fft_acc_dur = 14400
+    prepfold_dur = 7200
+    presto_python_load = ""
 }
 
 process ddplan {
@@ -104,9 +104,10 @@ process search_dd_fft_acc {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
-        //container = "nickswainston/presto"
+        if ( "$HOSTNAME".startsWith("x86") ) {
+            scratch '/ssd'
+        }
         container = "presto.sif"
-        //stageInMode = 'copy'
     }
     label 'cpu'
     time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
@@ -151,7 +152,7 @@ process search_dd_fft_acc {
 
 
 process accelsift {
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
+    if ( !"$HOSTNAME".startsWith("farnarkle") ) {
         //container = "nickswainston/presto"
         container = "presto.sif"
         //stageInMode = 'copy'
@@ -233,9 +234,10 @@ process search_dd {
         clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     }
     else {
-        //container = "nickswainston/presto"
+        if ( "$HOSTNAME".startsWith("x86") ) {
+            scratch '/ssd'
+        }
         container = "presto.sif"
-        //stageInMode = 'copy'
     }
     label 'cpu'
     time '4h'

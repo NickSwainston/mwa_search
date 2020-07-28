@@ -292,7 +292,9 @@ process splice {
     file "${params.obsid}*fits"
     val "${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}"
 
-    beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version; module load mwa_search/$params.mwa_search_version"
+    if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
+    }
 
     """
     splice_wrapper.py -o ${params.obsid} -c ${chan.join(" ")}
