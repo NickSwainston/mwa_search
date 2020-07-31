@@ -199,13 +199,24 @@ process make_beam {
     errorStrategy 'retry'
     maxRetries 1
     maxForks 120
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
-        beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        clusterOptions = "--gres=gpu:1"
+        scratch '/ssd'
+        //container = "vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        scratch '/nvmetmp'
+        container = "vcstools_${params.vcstools_version}.sif"
     }
     else {
-        scratch '/nvmetmp'
         container = "vcstools_${params.vcstools_version}.sif"
     }
 
@@ -243,13 +254,23 @@ process make_beam_ipfb {
     errorStrategy 'retry'
     maxRetries 1
     maxForks 120
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+    
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
-        beforeScript "module use $params.module_dir; module load vcstools/origbeam"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        clusterOptions = "--gres=gpu:1"
+        scratch '/ssd'
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        scratch '/nvmetmp'
+        container = "vcstools_${params.vcstools_version}.sif"
     }
     else {
-        scratch '/nvmetmp'
         container = "vcstools_${params.vcstools_version}.sif"
     }
 

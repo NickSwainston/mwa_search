@@ -101,7 +101,6 @@ process ddplan {
 process search_dd_fft_acc {
     label 'cpu'
     time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
-    clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
     maxForks 800
@@ -115,14 +114,16 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load presto/min_path"
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
-        scratch '/ssd'
+        //scratch '/ssd'
         container = "presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "presto.sif"
     }
@@ -257,7 +258,6 @@ process prepfold {
 process search_dd {
     label 'cpu'
     time '4h'
-    clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
 
@@ -269,6 +269,7 @@ process search_dd {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load presto/min_path"
     }
@@ -277,6 +278,7 @@ process search_dd {
         container = "presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "presto.sif"
     }
