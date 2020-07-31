@@ -225,7 +225,7 @@ process make_beam {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -z $utc
+${bf_out} -z $utc -t 6000
     mv */*fits .
     """
 }
@@ -280,7 +280,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -z $utc
+-p -v -z $utc -t 6000
     ls *
     mv */*fits .
     """
