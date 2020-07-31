@@ -15,6 +15,7 @@ process feature_extract {
     output:
     file "*.arff"
     file "*pfd*" includeInputs true
+
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use $params.module_dir; module load PulsarFeatureLab/V1.3.2"
     }
@@ -74,6 +75,10 @@ process sort_detections {
         container = "lofar_pulsar_ml.sif"
     }
 
+    if ( "$HOSTNAME".startsWith("x86") ) {
+        container = 'lofar_pulsar_ml.sif'
+    }
+        //container = 'nickswainston/lofar_pulsar_ml'
     """
     LOTAAS_wrapper.py
     if [ -f LOTAAS_positive_detections.txt ]; then
