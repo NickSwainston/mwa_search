@@ -12,7 +12,7 @@ import socket
 import numpy as np
 
 #vcstools imports
-import search_database
+#import search_database
 import mwa_metadb_utils as meta
 from mwa_metadb_utils import get_channels
 import process_vcs as pvcs
@@ -23,6 +23,7 @@ import data_processing_pipeline
 import logging
 logger = logging.getLogger(__name__)
 
+"""
 if 'SEARCH_WORK_DIR' in os.environ:
     DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
 else:
@@ -34,7 +35,7 @@ else:
 
 DB_FILE_LOC = os.environ['SEARCH_DB']
 DEFAULT_WORK_DIR = os.environ['SEARCH_WORK_DIR']
-
+"""
 
 class search_options_class:
     # Initializer / Instance Attributes

@@ -16,7 +16,7 @@ params.channels = null
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.dm_min = 1
