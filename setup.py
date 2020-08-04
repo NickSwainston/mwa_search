@@ -27,8 +27,6 @@ def get_git_version():
     git_version = check_output('git describe --tags --long --dirty --always'.split()).decode('utf-8').strip()
     return format_version(version=git_version)
 
-mwa_search_version = get_git_version()
-
 # Since we mostly run this on supercomputers it probably isn't correct to
 # pip install all these modules
 reqs = ['argparse>=1.4.0',
@@ -38,14 +36,20 @@ reqs = ['argparse>=1.4.0',
         'psrqpy']
 
 #make a temporary version file to be installed then delete it
-with open('version.py', 'a') as the_file:
-    the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
+if os.path.exists('version.py'):
+    with open('version.py', 'r') as the_file:
+        mwa_search_version =  the_file.read()
+else:
+    mwa_search_version = get_git_version()
+    #make a temporary version file to be installed then delete it
+    with open('version.py', 'a') as the_file:
+        the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
 
 setup(name="mwa_search",
       version=mwa_search_version,
       description="Scripts used to search for pulsars with the Murchison Widefield Array's Voltage Capture System data",
       url="https://github.com/NickSwainston/mwa_search",
-      long_description=read('README.md'),
+      #long_description=read('README.md'),
       python_requires='>=3.6',
       install_requires=reqs,
       scripts=['scripts/ACCEL_sift.py', 'scripts/check_known_pulsars.py',
