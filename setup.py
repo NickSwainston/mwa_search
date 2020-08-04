@@ -32,27 +32,31 @@ def get_git_version():
         'git describe --tags --long --dirty --always'.split()).decode('utf-8').strip()
     return format_version(version=git_version)
 
-
-mwa_search_version = get_git_version()
-
 # Since we mostly run this on supercomputers it probably isn't correct to
 # pip install all these modules
-reqs = ['python>=3.6.3',
-        'argparse>=1.4.0',
+reqs = ['argparse>=1.4.0',
         'numpy>=1.13.3',
         'matplotlib>=2.1.0',
-        'astropy>=2.0.2']
+        'astropy>=2.0.2',
+        'psrqpy']
 
-# make a temporary version file to be installed then delete it
-with open('version.py', 'a') as the_file:
-    the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
+#make a temporary version file to be installed then delete it
+if os.path.exists('version.py'):
+    with open('version.py', 'r') as the_file:
+        mwa_search_version =  the_file.read()
+else:
+    mwa_search_version = get_git_version()
+    #make a temporary version file to be installed then delete it
+    with open('version.py', 'a') as the_file:
+        the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
 
 setup(name="mwa_search",
       version=mwa_search_version,
       description="Scripts used to search for pulsars with the Murchison Widefield Array's Voltage Capture System data",
       url="https://github.com/NickSwainston/mwa_search",
-      long_description=read('README.md'),
-      # install_requires=reqs,
+      #long_description=read('README.md'),
+      python_requires='>=3.6',
+      install_requires=reqs,
       scripts=['scripts/ACCEL_sift.py', 'scripts/check_known_pulsars.py',
                'scripts/grid.py', 'scripts/lfDDplan.py',
                'scripts/mwa_search_pipeline.py', 'scripts/pulsars_in_fov.py',

@@ -16,7 +16,7 @@ params.mwa_search_version = 'master'
 
 params.basedir = '/group/mwavcs/vcs'
 params.scratch_basedir = '/astro/mwavcs/vcs'
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = false
 
@@ -58,8 +58,10 @@ mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (p
 
 //Required temp SSD mem required for gpu jobs
 temp_mem = (int) (0.0012 * obs_length * max_job_pointings + 1)
+temp_mem_single = (int) (0.0024 * obs_length + 2)
 if ( ! params.summed ) {
     temp_mem = temp_mem * 4
+    temp_mem_single = temp_mem_single *4
 }
 
 
@@ -129,7 +131,7 @@ process ensure_metafits {
     from process_vcs import ensure_metafits
     
     ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
-                    "${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
+                    "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
     """
 }
 
@@ -155,10 +157,10 @@ process make_directories {
     from mdir import mdir
     from process_vcs import create_link
 
-    mdir("${params.basedir}/${params.obsid}", "Data")
+    mdir("${params.scratch_basedir}/${params.obsid}", "Data")
     mdir("${params.scratch_basedir}/${params.obsid}", "Products")
-    mdir("${params.basedir}/batch", "Batch")
-    mdir("${params.basedir}/${params.obsid}/pointings", "Pointings")
+    mdir("${params.scratch_basedir}/batch", "Batch")
+    mdir("${params.scratch_basedir}/${params.obsid}/pointings", "Pointings")
     mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
     create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
                 "${params.basedir}/${params.obsid}", "dpp_pointings")
@@ -197,9 +199,28 @@ process make_beam {
     errorStrategy 'retry'
     maxRetries 1
     maxForks 120
+
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        clusterOptions = "--gres=gpu:1"
+        scratch '/ssd'
+        //container = "vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        scratch '/nvmetmp'
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else {
+        container = "vcstools_${params.vcstools_version}.sif"
     }
 
     input:
@@ -211,15 +232,14 @@ process make_beam {
     output:
     file "*fits"
 
-    beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
 
     //TODO add other beamform options and flags -F
     """
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.basedir}/${params.obsid}/combined -P ${point.join(",")} \
--r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -z $utc
+-d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
+-r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
+${bf_out} -t 6000 -z $utc
     mv */*fits .
     """
 }
@@ -228,8 +248,8 @@ ${bf_out} -z $utc
 process make_beam_ipfb {
     publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*hdr"
     publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*vdif"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*hdr"
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*vdif"
+    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*hdr"
+    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*vdif"
 
     label 'gpu'
     //time '2h'
@@ -237,9 +257,27 @@ process make_beam_ipfb {
     errorStrategy 'retry'
     maxRetries 1
     maxForks 120
+    
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        clusterOptions = "--gres=gpu:1"
+        scratch '/ssd'
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        scratch '/nvmetmp'
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else {
+        container = "vcstools_${params.vcstools_version}.sif"
     }
 
     when:
@@ -256,8 +294,6 @@ process make_beam_ipfb {
     //file "*hdr"
     //file "*vdif"
 
-    beforeScript "module use $params.module_dir; module load vcstools/origbeam"
-
     //TODO add other beamform options and flags -F
     """
     if $params.publish_fits; then
@@ -269,15 +305,17 @@ process make_beam_ipfb {
 
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]} \
--r 10000 -m ${params.basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -u -z $utc
+-d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
+-r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
+-p -v -t 6000 -z $utc
+    ls *
+    mv */*fits .
     """
 }
 
 process splice {
     publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits
-    publishDir "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
+    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
     time '2h'
     maxForks 300
@@ -292,7 +330,21 @@ process splice {
     file "${params.obsid}*fits"
     val "${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}"
 
-    beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version; module load mwa_search/$params.mwa_search_version"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else {
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
 
     """
     splice_wrapper.py -o ${params.obsid} -c ${chan.join(" ")}

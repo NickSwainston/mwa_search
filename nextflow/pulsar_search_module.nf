@@ -36,16 +36,16 @@ else {
 }
 
 // Work out some estimated job times
-if ( "$HOSTNAME".startsWith("galaxy") ) {
+if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
-    search_dd_fft_acc_dur = 14400
-    prepfold_dur = 7200
-    presto_python_load = ""
-}
-else{
     search_dd_fft_acc_dur = obs_length * 5.0
     prepfold_dur = obs_length * 2.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+}
+else {
+    search_dd_fft_acc_dur = 14400
+    prepfold_dur = 7200
+    presto_python_load = ""
 }
 
 process ddplan {
@@ -99,15 +99,6 @@ process ddplan {
 
 
 process search_dd_fft_acc {
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        scratch '$JOBFS'
-        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
-    }
-    else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
     label 'cpu'
     time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
     //Will ignore errors for now because I have no idea why it dies sometimes
@@ -123,7 +114,24 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load presto/min_path"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        //scratch '/ssd'
+        container = "presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        container = "presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        scratch '/nvmetmp'
+        container = "presto.sif"
+    }
+    else {
+        container = "presto.sif"
     }
 
 
@@ -144,7 +152,7 @@ process search_dd_fft_acc {
         accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
     done
     ${presto_python_load}
-    single_pulse_search.py -p *.dat
+    single_pulse_search.py -p -m 0.5 -b *.dat
     cat *.singlepulse > ${name}_DM${dm_values[0]}-${dm_values[1]}.subSpS
     printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------------\\n"
     """
@@ -152,11 +160,6 @@ process search_dd_fft_acc {
 
 
 process accelsift {
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
     label 'cpu'
     time '25m'
     errorStrategy 'retry'
@@ -172,7 +175,10 @@ process accelsift {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
     }
-
+    else {
+        //container = "nickswainston/presto"
+        container = "presto.sif"
+    }
     """
     ACCEL_sift.py --file_name ${name}
     if [ -f cands_${name}.txt ]; then
@@ -189,10 +195,11 @@ process accelsift {
 process single_pulse_searcher {
     //container = "docker://nickswainston/sps:latest"
     container = "sps.sif"
+    stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
 
     input:
-    tuple val(name), file(sps)
+    tuple val(name), file(sps), file(fits)
 
     output:
     file "*pdf" optional true
@@ -200,10 +207,8 @@ process single_pulse_searcher {
 
     """
     cat *.subSpS > ${name}.SpS
-    sps.py -N_min 3 -SNR_min 4 -SNR_peak 4.5 -DM_cand 0.5 ${name}.SpS
-    for i in \$(ls *pdf); do
-        mv \$i ${name}\${i#diagnostics}
-    done
+    #-SNR_min 4 -SNR_peak_min 4.5 -DM_cand 1.5 -N_min 3
+    single_pulse_searcher.py -fits ${fits} -no_store -plot_name ${name}_sps.pdf ${name}.SpS
     """
 }
 
@@ -220,8 +225,13 @@ process prepfold {
     output:
     file "*pfd*"
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
-
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else {
+        //container = "nickswainston/presto"
+        container = "presto.sif"
+    }
     //no mask command currently
     """
     echo "${cand_line.split()}"
@@ -247,15 +257,6 @@ process prepfold {
 
 
 process search_dd {
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        scratch '$JOBFS'
-        clusterOptions { "--tmp=${ (int) ( 0.04 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
-    }
-    else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
     label 'cpu'
     time '4h'
     //Will ignore errors for now because I have no idea why it dies sometimes
@@ -269,8 +270,24 @@ process search_dd {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        scratch '$JOBFS'
+        beforeScript "module use ${params.module_dir}; module load presto/min_path"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        scratch '/ssd'
+        container = "presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        container = "presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        scratch '/nvmetmp'
+        container = "presto.sif"
+    }
+    else {
+        container = "presto.sif"
     }
 
     """
@@ -279,37 +296,8 @@ process search_dd {
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
     prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
 -downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
-    single_pulse_search.py -p *.dat
+    single_pulse_search.py -p -m 0.5 -b *.dat
     cat *.singlepulse > ${name}_DM${dm_values[0]}-${dm_values[1]}.subSpS
-    """
-}
-
-
-process assemble_single_pulse {
-    if ( "$HOSTNAME".startsWith("galaxy") ) {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
-        //stageInMode = 'copy'
-    }
-    label 'cpu_backup'
-    time '10m'
-    publishDir params.out_dir, mode: 'copy'
-    errorStrategy 'retry'
-    maxRetries 1
-
-    input:
-    tuple val(name), file(inf_single_pulse)
-
-    output:
-    tuple val(name), file("*.SpS")
-
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14; module load numpy/1.16.3-python-2.7.14"
-    }
-
-    """
-    cat *.subSpS > ${name}.SpS
     """
 }
 
@@ -330,7 +318,9 @@ workflow pulsar_search {
                                                             [it[2]].flatten().findAll { it != null }] }.\
                    groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
         single_pulse_searcher( search_dd_fft_acc.out.map{ it -> [it[0], [it[3]].flatten().findAll { it != null }] }.\
-                               groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
+                               groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]}.\
+                               // Add fits files
+                               concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]} )
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
                   map{ it -> [it[0][1], it[1][1]] } )
@@ -348,11 +338,12 @@ workflow single_pulse_search {
                    ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
                    // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
-        //assemble_single_pulse( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
-        //                       groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] } )
         single_pulse_searcher( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
-                               groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }  )
+                               groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }.\
+                               // Add fits files
+                               concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]}  )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
     emit:
-        assemble_single_pulse.out
+        single_pulse_searcher.out[0]
+        single_pulse_searcher.out[1]
 }
