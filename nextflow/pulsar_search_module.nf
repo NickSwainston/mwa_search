@@ -123,6 +123,9 @@ process search_dd_fft_acc {
         container = "presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        container = "presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "presto.sif"
@@ -149,7 +152,7 @@ process search_dd_fft_acc {
         accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
     done
     ${presto_python_load}
-    single_pulse_search.py -p *.dat
+    single_pulse_search.py -p -m 0.5 -b *.dat
     cat *.singlepulse > ${name}_DM${dm_values[0]}-${dm_values[1]}.subSpS
     printf "\\n#Finished at \$(date +"%Y-%m-%d_%H:%m:%S") ----------------------------------------------------------------\\n"
     """
@@ -196,7 +199,7 @@ process single_pulse_searcher {
     publishDir params.out_dir, mode: 'copy'
 
     input:
-    tuple val(name), file(sps)
+    tuple val(name), file(sps), file(fits)
 
     output:
     file "*pdf" optional true
@@ -204,10 +207,8 @@ process single_pulse_searcher {
 
     """
     cat *.subSpS > ${name}.SpS
-    sps.py -N_min 3 -SNR_min 4 -SNR_peak 4.5 -DM_cand 0.5 ${name}.SpS
-    for i in \$(ls *pdf); do
-        mv \$i ${name}\${i#diagnostics}
-    done
+    #-SNR_min 4 -SNR_peak_min 4.5 -DM_cand 1.5 -N_min 3
+    single_pulse_searcher.py -fits ${fits} -no_store -plot_name ${name}_sps.pdf ${name}.SpS
     """
 }
 
@@ -278,6 +279,9 @@ process search_dd {
         container = "presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        container = "presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "presto.sif"
@@ -292,7 +296,7 @@ process search_dd {
     printf "\\n#Dedispersing the time series at \$(date +"%Y-%m-%d_%H:%m:%S") --------------------------------------------\\n"
     prepsubband -ncpus $task.cpus -lodm ${dm_values[0]} -dmstep ${dm_values[2]} -numdms ${dm_values[3]} -zerodm -nsub ${dm_values[6]} \
 -downsamp ${dm_values[5]} -numout ${(int)(obs_length*10000/Float.valueOf(dm_values[5]))} -o ${name.replaceAll("\\*","")} ${params.obsid}_*.fits
-    single_pulse_search.py -p *.dat
+    single_pulse_search.py -p -m 0.5 -b *.dat
     cat *.singlepulse > ${name}_DM${dm_values[0]}-${dm_values[1]}.subSpS
     """
 }
@@ -314,7 +318,9 @@ workflow pulsar_search {
                                                             [it[2]].flatten().findAll { it != null }] }.\
                    groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
         single_pulse_searcher( search_dd_fft_acc.out.map{ it -> [it[0], [it[3]].flatten().findAll { it != null }] }.\
-                               groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
+                               groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]}.\
+                               // Add fits files
+                               concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]} )
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
                   map{ it -> [it[0][1], it[1][1]] } )
@@ -333,7 +339,9 @@ workflow single_pulse_search {
                    // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
         single_pulse_searcher( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
-                               groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }  )
+                               groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }.\
+                               // Add fits files
+                               concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]}  )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
     emit:
         single_pulse_searcher.out[0]
