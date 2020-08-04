@@ -2,6 +2,7 @@
 
 import os
 from os.path import join as ospj
+from os import getcwd as cwd
 import logging
 import argparse
 from config_vcs import load_config_file
@@ -11,48 +12,51 @@ import shutil
 
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
-import stokes_fold
 import submit_to_database as std
 import pipe_helper
 import yaml_helper
 import dpp_check_args
 
 
+comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
-def get_next_name(pipe):
-    if not pipe["completed"]["bf"]:
-        if not pipe["completed"]["post"]:
-            name = "post"
-        elif not pipe["completed"]["submit_move"]:
-            name = "submit_move"
-    elif not polarimetry["completed"]:
-        name = "Polarimetry"
-    return name
+def resubmit_self(pipe, dep_ids=None, dep_type="afterok"):
+    """Resubmits the data processing pipeline to the appropriate queue"""
+    def get_next_name(pipe):
+        if not pipe["completed"]["bf"]:
+            if not pipe["completed"]["post_folds"]:
+                name = "post"
+            elif not pipe["completed"]["submit_move"]:
+                name = "submit_move"
+        elif not pipe["completed"]["polarimetry"]:
+            name = "Polarimetry"
+        return name
 
-
-def resubmit_self(pipe, dep_id=None, dep_type="afterok"):
     batch_dir = os.path.join(
-        comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
-    func = name = get_next_name(pipe)
+        comp_config['base_data_dir'], pipe["obs"]["id"], "batch")
+    name = get_next_name(pipe)
     batch_name = f"dpp_{name}_{pipe['source']['name']}_{pipe['obs']['id']}"
-    yaml_name = ospj(pipe["run_ops"]["dir"],
+    if pipe["run_ops"]["my_dir"]:
+        yaml_name = ospj(pipe["run_ops"]["my_dir"],
                      f"{pipe['obs']['id']}_{pipe['source']['name']}.yaml")
+    else:
+        yaml_name = ospj(cwd(), f"{pipe['obs']['id']}_{pipe['source']['name']}.yaml")
     yaml_helper.dump_to_yaml(pipe, yaml_name)
     commands = [f"data_processing_pipeline.py --yaml {yaml_name}"]
-    job_id = submit_slurm(batch_name, commands,
+    this_id = submit_slurm(batch_name, commands,
                           batch_dir=batch_dir,
                           slurm_kwargs={"time": "00:30:00"},
                           module_list=[
                               f"mwa_search/{pipe['run_ops']['mwa_search']}", f"vcstools/{pipe['run_ops']['vcstools']}"],
-                          submit=True, depend=dep_id, depend_type=dep_type)
-
+                          submit=True, depend=dep_ids, depend_type=dep_type)
     logger.info(f"Move script on queue for pulsar: {pipe['source']['name']}")
     logger.info(f"Job name: {name}")
-    logger.info(f"Dependenices: {dep_id}")
+    logger.info(f"Dependenices: {dep_ids}")
     logger.info(f"Depend type: {dep_type}")
     logger.info(f"Job ID: {this_id}")
+    logger.info(f"Batch file: {batch_dir}/{batch_name}")
 
 
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
@@ -191,9 +195,8 @@ def stokes_fold(run_params):
     commands = [launch_line]
     name = "Stokes_Fold_init_{0}_{1}".format(
         run_params.pulsar, run_params.obsid)
-    comp_config = load_config_file()
     batch_dir = "{0}{1}/batch/".format(
-        comp_config['base_product_dir'], run_params.obsid)
+        comp_config['base_data_dir'], run_params.obsid)
 
     job_id = submit_slurm(name, commands,
                           batch_dir=batch_dir,
@@ -206,9 +209,7 @@ def stokes_fold(run_params):
 
 
 def main(kwargs):
-    kwargs = dpp_check_args.yaml_check_args(kwargs)
-    os.chdir(kwargs["run_dir"])
-    pipe = pipe_helper.initiate_pipe(kwargs)
+    pipe = dpp_check_args.yaml_check_args(kwargs)
     if not pipe["completed"]["bf"]:
         from binfinder import bf_main
         bf_main(pipe)
@@ -234,7 +235,7 @@ if __name__ == '__main__':
                       help="The pathname of the .yaml file to work from")
 
     obsop = parser.add_argument_group("Observation Options")
-    obsop.add_argument("-d", "--pointing_dir", nargs='+',
+    obsop.add_argument("-d", "--run_dirs", nargs='+',
                        type=str, help="The location of the pointing directory/s")
     obsop.add_argument("-o", "--obsid", type=str,
                        help="The obs ID of the data")
@@ -242,9 +243,9 @@ if __name__ == '__main__':
                        help="The ID of the calibrator used to calibrate the data")
     obsop.add_argument("-p", "--pulsar", type=str,
                        help="The J name of the pulsar. e.g. J2241-5236")
-    obsop.add_argument("--beg", type=int,
+    obsop.add_argument("--obs_beg", type=int,
                        help="The beginning of the observation")
-    obsop.add_argument("--end", type=int, help="The end of the observation")
+    obsop.add_argument("--obs_end", type=int, help="The end of the observation")
     obsop.add_argument("-f", "--freq", type=float,
                        help="The central frequency of the observation in MHz")
 
@@ -276,19 +277,17 @@ if __name__ == '__main__':
                          help="Use this mode to tell the pipeline not to continue processing data after finishing the desired task")
     otherop.add_argument("--mwa_search", type=str, default="master",
                          help="The version of mwa_search to use")
-    otherop.add_argument("--vcs_tools", type=str, default="master",
+    otherop.add_argument("--vcstools", type=str, default="master",
                          help="The version of vcs_tools to use")
     otherop.add_argument("--cand", action="store_true",
                          help="use this tag if this is not a kown pulsar")
 
     args = parser.parse_args()
+    logger = logging.getLogger()
     logger.setLevel(loglevels[args.loglvl])
     ch = logging.StreamHandler()
-    ch.setLevel(loglevels[args.loglvl])
     formatter = logging.Formatter(
         '%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
     ch.setFormatter(formatter)
-    logger.addHandler(ch)
-    logger.propagate = False
     kwargs = vars(args)
     main(kwargs)

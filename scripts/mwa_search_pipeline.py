@@ -85,7 +85,7 @@ class search_options_class:
             if incoh:
                 self._pointing_dir = '{0}incoh/'.format(self.fits_dir_base)
             elif (scratch or data_process) and self.pointing is not None:
-                self._pointing_dir = '{0}dpp_pointings/{1}/'.format(self.fits_dir_base,
+                self._pointing_dir = '{0}ointings/{1}/'.format(self.fits_dir_base,
                                                                     self.pointing)
             elif self.pointing is not None:
                 self._pointing_dir = '{0}pointings/{1}/'.format(self.fits_dir_base,
@@ -351,14 +351,14 @@ def process_vcs_wrapper(search_opts, pointings,
 
     #check for incoh file which is used to predict if you have used rfifind
     bf_formats = " -p"
-    if os.path.exists('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid)):
+    if os.path.exists('{0}{1}/incoh'.format(comp_config['base_data_dir'], search_opts.obsid)):
         # assumes there is already an rfimask
         incoh_rfimask = False
     else:
         # assumes there is no rfimask so makes and incoherent beam and a mask
         incoh_rfimask = True
         bf_formats += " -i"
-        os.mkdir('{0}{1}/incoh'.format(comp_config['base_product_dir'], search_opts.obsid))
+        os.mkdir('{0}{1}/incoh'.format(comp_config['base_data_dir'], search_opts.obsid))
     if search_opts.vdif:
         bf_formats += " -u"
     if summed:
@@ -407,7 +407,7 @@ def process_vcs_wrapper(search_opts, pointings,
                 code_comment = "{0} {1} pn {2}".format(code_comment_in, temp_pulsar_string,
                                                        pointing_id[pn])
             if search_opts.data_process:
-                search_opts.setPdir('{0}/dpp_pointings/{1}'.format(search_opts.fits_dir_base,
+                search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
                                                                   search_opts.pointing))
             else:
                 search_opts.setPdir('{0}/pointings/{1}'.format(search_opts.fits_dir_base,
@@ -442,18 +442,24 @@ def multibeam_binfind(search_opts, pointing_dir_list, job_id_list, pulsar, loglv
             p += "{} ".format(pointing)
 
         commands=["echo 'Folding on multiple pointings'"]
-        run_params = data_processing_pipeline.run_params_class(pulsar=pulsar, obsid=search_opts.obsid, cal_id=search_opts.cal_id,\
-                        loglvl=loglvl, mwa_search=search_opts.search_ver, vcs_tools=search_opts.vcstools_ver,\
-                        pointing_dir=pointing_dir_list, beg=search_opts.begin, end=search_opts.end)
-        launch_line = data_processing_pipeline.binfinder_launch_line(run_params, dpp=True)
-        commands.append(launch_line)
+        dpp_launch = "data_processing_pipeline.py"
+        dpp_launch += f" --run_dirs {p}"
+        dpp_launch += f" --obsid {search_opts.obsid}"
+        dpp_launch += f" --cal_id {search_opts.cal_id}"
+        dpp_launch += f" --pulsar {pulsar}"
+        dpp_launch += f" --obs_beg {search_opts.begin}"
+        dpp_launch += f" --obs_end {search_opts.end}"
+        dpp_launch += f" --mwa_search {search_opts.search_ver}"
+        dpp_launch += f" --vcstools {search_opts.vcstools_ver}"
+        commands.append(dpp_launch)
+        comp_config = load_config_file()
 
         name="dpp_launch_{0}_{1}".format(pulsar, search_opts.obsid)
         logger.info("Submitting job: {}".format(name))
-        batch_dir = os.path.join(search_opts.fits_dir_base, "batch")
+        batch_dir = os.path.join(comp_config["base_data_dir"], search_opts.obsid, "batch")
         submit_slurm(name, commands,\
                     batch_dir=batch_dir,\
-                    slurm_kwargs={"time": "00:10:00"},\
+                    slurm_kwargs={"time": "00:20:00"},\
                     module_list=['mwa_search/{0}'.format(search_opts.search_ver),\
                                   'presto/no-python'],\
                     submit=True, vcstools_version=search_opts.vcstools_ver,\
@@ -492,7 +498,7 @@ def dependant_splice_batch(search_opts, job_id_list=None, pulsar_list=None,
     splice_command = 'splice_wrapper.py -o {0} -d -c {1}'.format(search_opts.obsid,
                      ' '.join(map(str, search_opts.channels)))
     if search_opts.incoh or incoh_rfimask:
-        incoh_dir = '{0}{1}/incoh/'.format(comp_config['base_product_dir'], search_opts.obsid)
+        incoh_dir = '{0}{1}/incoh/'.format(comp_config['base_data_dir'], search_opts.obsid)
         commands.append('cd {0}'.format(incoh_dir))
         commands.append('{0} -i -w {1}'.format(splice_command, incoh_dir))
     else:
@@ -626,7 +632,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                 search_opts.setPdir('{0}incoh/'.format(search_opts.fits_dir_base))
             else:
                 if (search_opts.data_process or search_opts.scratch):
-                    search_opts.setPdir('{0}dpp_pointings/{1}/'.format(search_opts.fits_dir_base,
+                    search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
                                                                    search_opts.pointing))
                 else:
                     search_opts.setPdir('{0}pointings/{1}/'.format(search_opts.fits_dir_base,
@@ -849,7 +855,7 @@ def beamform(search_opts, pointing_list, code_comment=None,
                     logger.debug(pulsar_list, pointing, dep_job_id)
                     if search_opts.data_process or search_opts.scratch:
                         # use the /astro dir if dataprocessing
-                        pointing_dir_temp = '{0}/dpp_pointings/{1}'.format(\
+                        pointing_dir_temp = '{0}/pointings/{1}'.format(\
                                              search_opts.fits_dir_base,
                                              pointing)
                     else:
@@ -1310,7 +1316,7 @@ def wrap_up(search_opts):
     commands.append('rm {0}/{1}/*fft'.format(search_opts.work_dir, search_opts.sub_dir))
     commands.append('rm {0}/{1}/*inf'.format(search_opts.work_dir, search_opts.sub_dir))
     commands.append('rm {0}/{1}/*ACCEL_0*'.format(search_opts.work_dir, search_opts.sub_dir))
-    commands.append('rm -rf {0}{1}/pointings/{2}'.format(comp_config['base_product_dir'],
+    commands.append('rm -rf {0}{1}/pointings/{2}'.format(comp_config['base_data_dir'],
                                                search_opts.obsid, search_opts.pointing))
     commands.append('search_database.py -m w -b {0} --cand_val "$total $over_sn 0"'.\
                     format(search_opts.bsd_row_num))

@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
+import os
+import datetime
+import logging
+
+from config_vcs import load_config_file
+from job_submit import submit_slurm
+
+
+comp_config = load_config_file()
+logger = logging.getLogger(__name__)
+
 
 def common_kwargs(pipe, bin_count):
     """Creates a prepfold-friendly dictionary of common arguments to pass to prepfold"""
     name = f"{pipe['obs']['id']}_b{bin_count}_{pipe['source']['name']}"
     prep_kwargs = {}
-    prep_kwargs["-mask"] = pipe["run_ops"]["mask"]
+    if pipe["run_ops"]["mask"]:
+        prep_kwargs["-mask"] = pipe["run_ops"]["mask"]
     prep_kwargs["-o"] = name
     prep_kwargs["-n"] = bin_count
     prep_kwargs["-start"] = pipe["source"]["enter_frac"]
@@ -19,7 +31,7 @@ def common_kwargs(pipe, bin_count):
     prep_kwargs["-npart"] = 120
     prep_kwargs["-npfact"] = 1
     prep_kwargs["-ndmfact"] = 1
-    if nbins >= 300:
+    if bin_count >= 300:
         prep_kwargs["-nopdsearch"] = ""
     if bin_count == 50:
         prep_kwargs["-npfact"] = 2
@@ -67,14 +79,14 @@ def prepfold_time_alloc(pipe, prepfold_kwargs):
         nopdsearch = True
     if "-nosearch" in prepfold_kwargs:
         nosearch = True
-    npfact = prepfold_dict["-npfact"]
-    ndmfact = prepfold_dict["-ndmfact"]
-    nbins = prepfold_dict["-n"]
+    npfact = prepfold_kwargs["-npfact"]
+    ndmfact = prepfold_kwargs["-ndmfact"]
+    bin_count = prepfold_kwargs["-n"]
     duration = (pipe["obs"]["end"] - pipe["obs"]["beg"]) * \
         (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"])
 
     time = 600
-    time += nbins
+    time += bin_count
     time += duration
 
     if not nosearch:
@@ -82,11 +94,11 @@ def prepfold_time_alloc(pipe, prepfold_kwargs):
         pdtime = 1
         dmtime = 1
         if not nopsearch:
-            ptime = npfact*nbins
+            ptime = npfact*bin_count
         if not nopdsearch:
-            pdtime = npfact*nbins
+            pdtime = npfact*bin_count
         if not nodmsearch:
-            dmtime = ndmfact*nbins
+            dmtime = ndmfact*bin_count
         time += ((ptime * pdtime * dmtime)/1e4)
     time = time*2  # compute time is very sporadic so just give double the allocation time
     if time > 86399.:
@@ -121,9 +133,8 @@ def add_prepfold_to_commands(run_dir, pulsar=None, commands=None, kwargs=dict())
 
     options = ""
     for key, val in kwargs.items():
-        if val is not None or val is True:
-            options += " {0} {1}".format(key, val)
-    options += " *fits".format(files)
+            options += f" {key} {val}"
+    options += " *fits"
     commands.append(f'cd {run_dir}')
     if pulsar:
         commands.append(f'echo "Folding on known pulsar {pulsar}"')
@@ -158,7 +169,7 @@ def submit_prepfold(pipe, run_dir, kwargs):
         The ID of the submitted job
     """
     commands = add_prepfold_to_commands(
-        run_dir, pulsar=pulsar, commands=commands, kwargs=kwargs)
+        run_dir, pulsar=pipe["source"]["name"], kwargs=kwargs)
 
     # Check if prepfold worked:
     commands.append("errorcode=$?")
@@ -169,7 +180,7 @@ def submit_prepfold(pipe, run_dir, kwargs):
     commands.append("fi")
 
     batch_dir = os.path.join(
-        comp_config['base_product_dir'], pipe["obs"]["id"], "batch")
+        comp_config['base_data_dir'], pipe["obs"]["id"], "batch")
     batch_name = f"bf_{pipe['source']['name']}_{pipe['obs']['id']}_b{kwargs['-n']}"
     time = prepfold_time_alloc(pipe, kwargs)
     time = str(datetime.timedelta(seconds=int(time)))
@@ -180,11 +191,12 @@ def submit_prepfold(pipe, run_dir, kwargs):
                           submit=True)
 
     logger.info("Submitting prepfold Job")
-    logger.info(f"Pointing directory:        {pipe['run_ops']['dir']}")
+    logger.info(f"Pointing directory:        {run_dir}")
     logger.info(f"Pulsar name:               {pipe['source']['name']}")
     logger.info(f"Number of bins to fold on: {kwargs['-n']}")
     logger.info(f"Job name:                  {batch_name}")
     logger.info(f"Time Allocation:           {time}")
     logger.info(f"Job ID:                    {job_id}")
+    logger.info(f"Batch file: {batch_dir}/{batch_name}")
 
     return job_id

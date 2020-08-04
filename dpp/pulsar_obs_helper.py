@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
+import logging
+
+
 import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
 
+
+logger = logging.getLogger(__name__)
 
 def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
     """

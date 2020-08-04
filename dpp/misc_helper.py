@@ -2,6 +2,8 @@
 # from vcstools import data_load
 import psrqpy
 import logging
+import math
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -15,18 +17,17 @@ except:
 
 def bin_sampling_limit(pulsar, sampling_rate=1e-4, query=None):
     """Finds the sampling limit of the input pulsar in units of number of bins"""
-    if not query:
+    if query is None:
         query = psrqpy.QueryATNF(params=["P0"], psrs=[
                                  pulsar], loadfromdb=ATNF_LOC).pandas
     period = query["P0"][0]
-    # the +1 is to round the limit up every time
-    bin_lim = int(period/sampling_rate + 1)
+    bin_lim = math.ceil(period/sampling_rate) #round up the limit
     return bin_lim
 
 
 def is_binary(pulsar, query=None):
     """Checks the ATNF database to see if a pulsar is part of a binary system"""
-    if not query:
+    if query is None:
         query = psrqpy.QueryATNF(params=["BINARY"], psrs=[
                                  pulsar], loadfromdb=ATNF_LOC).pandas
     if isinstance(query["BINARY"][0], str):
@@ -35,9 +36,9 @@ def is_binary(pulsar, query=None):
         return False
 
 
-def required_bin_folds(pulsar, sampling_rate=1e4, query=None):
+def required_bin_folds(pulsar, sampling_rate=1e-4, query=None):
     """Generates a list of integers that are the folding bins required to complete for dpp"""
-    sam_lim = bin_sampling_limit(pulsar, sampling_rate=1e4, query=query)
+    sam_lim = bin_sampling_limit(pulsar, sampling_rate=sampling_rate, query=query)
     if sam_lim >= 1024:  # regular period pulsar
         init_folds = [64, 100]
         post_folds = [1024, 512, 256, 128]
@@ -51,5 +52,4 @@ def required_bin_folds(pulsar, sampling_rate=1e4, query=None):
     elif sam_lim <= 100:  # if msp
         init_folds = [50]
         post_folds = [sam_lim]
-
-        return init_folds, post_folds
+    return init_folds, post_folds

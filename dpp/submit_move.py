@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 
 from os.path import join as ospj
+import logging
 
 from binfinder import NoSuitableProfileError, bestprof_info
 import plotting_toolkit
 import data_processing_pipeline as dpp
 from config_vcs import load_config_file
+
+
+comp_config = load_config_file()
+logger = logging.getLogger(__name__)
 
 
 def submit_to_db(pipe, dep_id=None, dep_type="afterok"):
@@ -37,7 +42,7 @@ def submit_to_db(pipe, dep_id=None, dep_type="afterok"):
 
     name = f"Submit_db_{pipe['source']['name']}_{pipe['obs']['id']}"
     batch_dir = os.path.join(
-        comp_config['base_product_dir'], pipe['obs']['id'], "batch")
+        comp_config['base_data_dir'], pipe['obs']['id'], "batch")
     this_id = submit_slurm(name, commands,
                            batch_dir=batch_dir,
                            slurm_kwargs={"time": "02:00:00"},
@@ -56,10 +61,10 @@ def submit_to_db(pipe, dep_id=None, dep_type="afterok"):
 
 
 def move_product_dir(pipe, dep_id=None, dep_type="afterok"):
-    """Submits a job to move the pointing directory from /astro to /group"""
+    """Creates a new folder for the data products"""
     current_dir = pipe["run_ops"]["dir"]
     move_loc = ospj(load_from_config()[
-                    "base_product_dir"], pipe["obs"]["id"], "data_products")
+                    "base_data_dir"], pipe["obs"]["id"], "data_products")
     pointing = [i for i in current_dir.split("/") if i != ""]
     new_dir = os.path.join(move_loc, pointing[-1])
 
@@ -72,7 +77,7 @@ def move_product_dir(pipe, dep_id=None, dep_type="afterok"):
 
     name = f"Move_{pipe['source']['name']}_{pipe['obs']['id']}"
     batch_dir = os.path.join(
-        comp_config['base_product_dir'], pipe['obs']['id'], "batch")
+        comp_config['base_data_dir'], pipe['obs']['id'], "batch")
     this_id = submit_slurm(name, commands,
                            batch_dir=batch_dir,
                            slurm_kwargs={"time": "02:00:00"},

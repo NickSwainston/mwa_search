@@ -22,8 +22,11 @@ import sn_flux_est as snfe
 from mwa_pulsar_client import client
 import submit_to_database as std
 import pulsar_obs_helper as poh
+from config_vcs import load_config_file
+
 
 import logging
+comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 #get ATNF db location
@@ -56,7 +59,7 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
         The pathname of the sourcelist
     """
     comp_config = load_config_file()
-    base_dir = comp_config['base_product_dir']
+    base_dir = comp_config['base_data_dir']
     cal_dir = os.path.join(base_dir, str(obsid), "cal", str(cal_id))
     cal_dirs=[]
     srclists=[]
@@ -108,7 +111,7 @@ def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_ret
 
     return cal_dirs, srclists
 
-def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
+def find_beg_end(obsid, base_path=comp_config["base_data_dir"]):
     """
     looks through the comined files of the obsid to find the beginning and end gps times
 
@@ -117,7 +120,7 @@ def find_beg_end(obsid, base_path="/group/mwaops/vcs/"):
     obsid: int
         The observation ID
     base_path: string
-        OPTIONAL - The system's base working path. Default = '/group/mwaops/vcs/'
+        OPTIONAL - The system's base working pat
 
     Returns:
     --------
@@ -313,7 +316,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
 
 
 def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
-                      product_dir='/group/mwaops/vcs',
+                      product_dir=comp_config["base_data_dir"],
                       mwa_search_version='master',
                       vcstools_version='master',
                       relaunch=False):
@@ -335,13 +338,13 @@ def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     psrend: int
         The end of the observing time
     product_dir: string
-        OPTIONAL - The base directory to store data products. Default = '/group/mwaops/vcs'
+        OPTIONAL - The base directory to store data products
     mwa_search_version: string
         OPTIONAL - The version of mwas_search to use. Default = 'master'
     vcstools_version: string
         OPTIONAL - The version of vcstools to use. Default = 'master'
     """
-    base_dir = os.path.join(product_dir, obsid, "dpp_pointings")
+    base_dir = os.path.join(product_dir, obsid, "pointings")
     nfiles = ( psrend - psrbeg + 1 ) // 200
     if ( ( psrend - psrbeg + 1 )%200 != 0 ):
         nfiles += 1
@@ -545,7 +548,7 @@ if __name__ == "__main__":
 
     comp_config = load_config_file()
     if not args.DI_dir:
-        args.DI_dir = "{0}/{1}/cal/{2}/rts/".format(comp_config['base_product_dir'],
+        args.DI_dir = "{0}/{1}/cal/{2}/rts/".format(comp_config['base_data_dir'],
                                                     args.obsid, args.cal_obs)
         print("No DI_dir given so assuming {0} is the directory".format(args.DI_dir))
 
@@ -559,7 +562,7 @@ if __name__ == "__main__":
     elif args.all:
         beg, end = obs_max_min(args.obsid)
     else:
-        find_beg_end(args.obsid, base_path=comp_config['base_product_dir'])
+        find_beg_end(args.obsid, base_path=comp_config['base_data_dir'])
 
     #Perform data checks
     dur = end - beg + 1

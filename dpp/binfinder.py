@@ -10,7 +10,6 @@ import psrqpy
 import datetime
 import numpy as np
 
-from config_vcs import load_config_file
 import data_processing_pipeline as dpp
 import plotting_toolkit
 import find_pulsar_in_obs as fpio
@@ -18,14 +17,14 @@ import sn_flux_est as snfe
 import stokes_fold
 import check_known_pulsars
 import prepfold_launch
+
+
 logger = logging.getLogger(__name__)
 
-# load config
-comp_config = load_config_file()
 
-
-class NoSuitableProfileError:
+class NoSuitableProfileError(Exception):
     """Raise when no suitable profiles are found"""
+    pass
 
 
 def bestprof_info(filename):
@@ -76,9 +75,9 @@ def bestprof_info(filename):
 
 def find_best_pointing(pipe):
     """Finds the pointing directory with the highest S/N fold"""
-    if 64 in pipe["folds"]["init"]:
+    if "64" in pipe["folds"]["init"].keys():
         eval_bins = 64
-    elif 50 in pipe["folds"]["init"]:
+    elif "50" in pipe["folds"]["init"].keys():
         eval_bins = 50
     bestprof_info_list = []
     for pointing in pipe["run_ops"]["dirs"]:
@@ -89,7 +88,7 @@ def find_best_pointing(pipe):
     best_sn = 0.0
     best_i = -1
     for i, info_dict in enumerate(bestprof_info_list):
-        if info_dict["chi"] >= pipe["run_ops"]["thresh_chi"] and info_dict["sn"] > best_sn and info_dict["sn"] >= pipe["thresh_sn"]:
+        if info_dict["chi"] >= pipe["run_ops"]["thresh_chi"] and info_dict["sn"] > best_sn and info_dict["sn"] >= pipe["run_ops"]["thresh_sn"]:
             best_sn = info_dict["sn"]
             best_i = i
     if best_i < 0:
@@ -108,29 +107,30 @@ def bf_init(pipe):
             kwargs = prepfold_launch.common_kwargs(pipe, int(bin_count))
             _id = prepfold_launch.submit_prepfold(pipe, _dir, kwargs)
             fold_ids.append(_id)
-            pipe["ex_files"]["init_folds"].append(
-                ospj(os.cwd(), f"{kwargs['-o']}.pfd.bestprof"))
     pipe["completed"]["init_folds"] = True
-    dpp.resubmit_self(pipe, dependencies=fold_ids)
+    dpp.resubmit_self(pipe, dep_ids=fold_ids)
 
 
 def bf_post(pipe):
     """Fold on the follow-up bin counts should there be a pulsar in the initial folds"""
-    best_pointing = find_best_pointing(pipe)
-    pipe["run_ops"]["my_dir"] = best_pointing
+    pipe["run_ops"]["my_dir"] = find_best_pointing(pipe)
     os.chdir(pipe["run_ops"]["my_dir"])
-    info = bestprof_info(pipe["run_ops"]["my_dir"])
-    pipe["source"]["my_DM"] = info["dm"]
-    pipe["source"]["my_P"] = info["period"]
+    if "100" in pipe["folds"]["init"].keys():
+        b = 100
+    else:
+        b = 50
+    prof = glob.glob(f"{pipe['run_ops']['my_dir']}/*b{b}*{pipe['source']['name']}*pfd.bestprof")[0]
+    info = bestprof_info(prof)
+    pipe["source"]["my_DM"] = float(info["dm"])
+    pipe["source"]["my_P"] = float(info["period"])
     fold_ids = []
     for bin_count in pipe["folds"]["post"]:
         kwargs = prepfold_launch.common_kwargs(pipe, int(bin_count))
         _id = prepfold_launch.submit_prepfold(
             pipe, pipe["run_ops"]["my_dir"], kwargs)
         fold_ids.append(_id)
-        pipe["ex_files"]["post_folds"].append(f"{kwargs['-o']}.pfd.bestprof")
     pipe["completed"]["post_folds"] = True
-    dpp.resubmit_self(pipe, dependencies=fold_ids)
+    dpp.resubmit_self(pipe, dep_ids=fold_ids)
 
 
 def bf_main(pipe):

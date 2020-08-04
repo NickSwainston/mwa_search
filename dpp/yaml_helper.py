@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import yaml
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def dump_to_yaml(mydict, filepath):
