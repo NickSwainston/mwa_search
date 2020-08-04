@@ -211,10 +211,13 @@ process make_beam {
         //container = "vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
-    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
         container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else {
         container = "vcstools_${params.vcstools_version}.sif"
@@ -236,7 +239,7 @@ process make_beam {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -z $utc -t 6000
+${bf_out} -t 6000 -z $utc
     mv */*fits .
     """
 }
@@ -265,10 +268,13 @@ process make_beam_ipfb {
         scratch '/ssd'
         container = "vcstools_${params.vcstools_version}.sif"
     }
-    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
         container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else {
         container = "vcstools_${params.vcstools_version}.sif"
@@ -301,7 +307,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -z $utc -t 6000
+-p -v -t 6000 -z $utc
     ls *
     mv */*fits .
     """
@@ -325,7 +331,16 @@ process splice {
     val "${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use $params.module_dir; module load vcstools/$params.vcstools_version"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("mwa") ) {
+        container = "vcstools_${params.vcstools_version}.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else {
         container = "vcstools_${params.vcstools_version}.sif"
