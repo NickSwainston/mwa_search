@@ -327,7 +327,8 @@ workflow beamform {
                    pointings,\
                    obs_beg_end )
         splice( channels,\
-                make_beam.out.flatten().map { it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map { it -> it[1] } )
+                make_beam.out.flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
+                groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
         make_beam.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
@@ -347,7 +348,8 @@ workflow beamform_ipfb {
                         pointings.flatten(),\
                         obs_beg_end )
         splice( channels,\
-                make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map { it -> it[1] } )
+                make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
+                groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
         make_beam_ipfb.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
