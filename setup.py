@@ -38,7 +38,8 @@ reqs = ['argparse>=1.4.0',
         'numpy>=1.13.3',
         'matplotlib>=2.1.0',
         'astropy>=2.0.2',
-        'psrqpy']
+        'psrqpy',
+        'pyyaml']
 
 #make a temporary version file to be installed then delete it
 if os.path.exists('version.py'):
