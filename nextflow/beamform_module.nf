@@ -208,19 +208,19 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        //container = "vcstools_${params.vcstools_version}.sif"
+        //container = "${config.containDir}/vcstool/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("mwa") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "${config.containDir}/vcstool/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else {
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "cirapulsarsandtransients/vcstools:${params.vcstools_version}"
     }
 
     input:
@@ -266,18 +266,18 @@ process make_beam_ipfb {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("mwa") ) {
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else {
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "cirapulsarsandtransients/vcstools:${params.vcstools_version}"
     }
 
     when:
@@ -334,16 +334,16 @@ process splice {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("mwa") ) {
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else {
-        container = "vcstools_${params.vcstools_version}.sif"
+        container = "cirapulsarsandtransients/vcstools:${params.vcstools_version}"
     }
 
     """
