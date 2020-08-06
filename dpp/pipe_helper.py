@@ -3,6 +3,7 @@
 import psrqpy
 import logging
 import os
+import glob
 
 from misc_helper import bin_sampling_limit, is_binary, required_bin_folds
 from pulsar_obs_helper import find_fold_times
@@ -33,6 +34,7 @@ def initiate_pipe(kwargs):
     pipe["run_ops"]["mask"] = kwargs["mask"]
     pipe["run_ops"]["thresh_chi"] = 4.0
     pipe["run_ops"]["thresh_sn"] = 8.0
+    pipe["run_ops"]["vdif"] = None
 
     md = get_common_obs_metadata(kwargs["obsid"])
     pipe["obs"]["ra"] = md[1]
@@ -50,18 +52,17 @@ def initiate_pipe(kwargs):
         pipe["source"]["name"] = kwargs["pulsar"]
         query = psrqpy.QueryATNF(
             psrs=pipe["source"]["name"], loadfromdb=ATNF_LOC).pandas
-        pipe["source"]["ra"] = str(query["RAJ"][0])
-        pipe["source"]["dec"] = str(query["DECJ"][0])
-        pipe["source"]["ATNF_RM"] = float(query["RM"][0])
-        pipe["source"]["ATNF_RM_e"] = float(query["RM_ERR"][0])
+        pipe["source"]["ATNF"] = dict(query)
+        pipe["source"]["RM_type"] = None
         pipe["source"]["synth_RM"] = None
         pipe["source"]["synth_RM_e"] = None
         pipe["source"]["fit_RM"] = None
         pipe["source"]["fit_RM_e"] = None
-        pipe["source"]["ATNF_P"] = float(query["P0"][0])
-        pipe["source"]["ATNF_DM"] = float(query["DM"][0])
+        pipe["source"]["my_RM"] = None
+        pipe["source"]["my_RM_e"] = None
         pipe["source"]["my_DM"] = None
         pipe["source"]["my_P"] = None
+        pipe["source"]["my_bins"] = None
         pipe["source"]["binary"] = is_binary(pipe["source"]["name"], query=query)
         pipe["source"]["sampling_limit"] = int(bin_sampling_limit(
             pipe["source"]["name"], query=query))
@@ -69,6 +70,8 @@ def initiate_pipe(kwargs):
             pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"])
         pipe["source"]["enter_frac"] = float(pipe["source"]["enter_frac"])
         pipe["source"]["exit_frac"] = float(pipe["source"]["exit_frac"])
+        pipe["source"]["seek"] = pipe["source"]["enter_frac"] * (pipe["obs"]["end"] - pipe["obs"]["beg"])
+        pipe["source"]["total"] = (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"]) * (pipe["obs"]["end"] - pipe["obs"]["beg"])
         pipe["source"]["power"] = float(pipe["source"]["power"])
         init, post = required_bin_folds(pipe["source"]["name"], query=query)
         pipe["folds"] = {"init":{}, "post":{}}
@@ -77,11 +80,18 @@ def initiate_pipe(kwargs):
         for _, i in enumerate(post):
             pipe["folds"]["post"][str(i)] = {}
 
+    pipe["pol"]["archive1"] = None
+    pipe["pol"]["archive2"] = None
+    pipe["pol"]["rmfit"] = None
+    pipe["pol"]["rmsynth"] = None
+    pipe["pol"]["rvmfit"] = None
+
     pipe["completed"] = {}
     pipe["completed"]["init_folds"] = False
     pipe["completed"]["post_folds"] = False
-    pipe["completed"]["submit_move"] = False
+    pipe["completed"]["upload_and_move"] = False
     pipe["completed"]["bf"] = False
     pipe["completed"]["polarimetry"] = False
+    pipe["completed"]["init_dspsr"] = False
 
     return pipe

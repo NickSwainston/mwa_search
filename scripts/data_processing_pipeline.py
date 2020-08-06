@@ -22,7 +22,7 @@ comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
-def resubmit_self(pipe, dep_ids=None, dep_type="afterok"):
+def resubmit_self(pipe, dep_ids=None, dep_type="afterany"):
     """Resubmits the data processing pipeline to the appropriate queue"""
     def get_next_name(pipe):
         if not pipe["completed"]["bf"]:
@@ -57,66 +57,6 @@ def resubmit_self(pipe, dep_ids=None, dep_type="afterok"):
     logger.info(f"Depend type: {dep_type}")
     logger.info(f"Job ID: {this_id}")
     logger.info(f"Batch file: {batch_dir}/{batch_name}")
-
-
-def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
-    """
-    Creates a launch command using the run_params class
-
-    Parameters:
-    -----------
-    run_params: object
-        The run_params object
-    dpp: boolean
-        OPTIONAL - If True, will launch the data_processing_pipeline with the run_params variables instead of stokes_fold.py. Default: False
-    custom_pointing: str
-        OPTIONAL - A custom pointing directory to run from
-
-    Returns:
-    --------
-    launch_line: str
-        The launch command
-    """
-    if dpp:
-        launch_line = "data_processing_pipeline.py"
-    else:
-        launch_line = "stokes_fold.py"
-
-    if custom_pointing:
-        p = custom_pointing
-    else:
-        p = run_params.pointing_dir
-
-    launch_line += " -d {0} -p {1} -L {2} -o {3} -O {4} --mwa_search {5} --vcs_tools {5}"\
-        .format(p, run_params.pulsar, run_params.loglvl, run_params.obsid,
-                run_params.cal_id, run_params.mwa_search, run_params.vcs_tools)
-
-    if run_params.stokes_bins:
-        launch_line += " -b {}".format(run_params.stokes_bins)
-    if run_params.subint:
-        launch_line += " -s {}".format(run_params.subint)
-    if run_params.freq:
-        launch_line += " -f {}".format(run_params.freq)
-    if run_params.beg:
-        launch_line += " --beg {}".format(run_params.beg)
-    if run_params.end:
-        launch_line += " --end {}".format(run_params.end)
-    if run_params.dm:
-        launch_line += " --dm {}".format(run_params.dm)
-    if run_params.period:
-        launch_line += " --period {}".format(run_params.period)
-    if run_params.stop:
-        launch_line += " -S"
-    if run_params.no_ephem:
-        launch_line += " --no_ephem"
-    if run_params.dspsr_ops != "":
-        launch_line += " --dspsr_ops {}".format(run_params.dspsr_ops)
-    if run_params.cand:
-        launch_line += " --cand"
-    if run_params.rvmres:
-        launch_line += " --rvmres {}".format(run_params.rvmres)
-
-    return launch_line
 
 
 def copy_data(data_path, target_directory):
@@ -182,30 +122,6 @@ def upload_formatted_file(filename, obsid, pulsar, bins, cal_id, filetype, name_
         logger.info("file on database. Not uploading")
 
 
-def stokes_fold(run_params):
-    """
-    Launches the stokes_fold part of the data processing pipeling
-
-    Parameters:
-    -----------
-    run_params: object
-        The run_params object defined by data_processing_pipeline
-    """
-    launch_line = stokes_launch_line(run_params)
-    commands = [launch_line]
-    name = "Stokes_Fold_init_{0}_{1}".format(
-        run_params.pulsar, run_params.obsid)
-    batch_dir = "{0}{1}/batch/".format(
-        comp_config['base_data_dir'], run_params.obsid)
-
-    job_id = submit_slurm(name, commands,
-                          batch_dir=batch_dir,
-                          slurm_kwargs={"time": "00:10:00"},
-                          module_list=["mwa_search/{0}".format(run_params.mwa_search),
-                                       "dspsr/master", "psrchive/master"],
-                          submit=True, vcstools_version="{0}".format(run_params.vcs_tools))
-    logger.info("Job successfully submitted: {0}".format(name))
-    return job_id
 
 
 def main(kwargs):
@@ -213,9 +129,9 @@ def main(kwargs):
     if not pipe["completed"]["bf"]:
         from binfinder import bf_main
         bf_main(pipe)
-    elif not pipe["completed"]["submit_move"]:
-        from submit_move import submit_move_main
-        submit_move_main(pipe)
+    elif not pipe["completed"]["upload_and_move"]:
+        from upload_and_move import upload_and_move_main
+        upload_and_move_main(pipe)
     elif not pipe["completed"]["polarimetry"]:
         pass  # TODO: make the pol pipe
 

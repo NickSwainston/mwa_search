@@ -19,7 +19,6 @@ def yaml_check_args(kwargs):
 
     if kwargs["yaml"]:
         kwargs = yaml_helper.from_yaml(kwargs["yaml"])
-
     else:
         unavailable = []
         if not kwargs["run_dirs"]:
@@ -32,13 +31,10 @@ def yaml_check_args(kwargs):
             unavailable.append("obs_beg")
         if not kwargs["obs_end"]:
             unavailable.append("obs_end")
-
         if not kwargs["cand"]:
             if not kwargs["pulsar"]:
                 unavailable.append("pulsar")
-
         parse_unavailable(unavailable)
-
         if "initiated_yaml" not in kwargs.keys():
             kwargs = pipe_helper.initiate_pipe(kwargs)
 

@@ -1,0 +1,11 @@
+Mar-25 14:25:46.758 [main] DEBUG nextflow.cli.Launcher - $> nextflow run beamform_fov_sources.nf --obsid 1267283936 --begin 1267283938 --end 1267284958 --calid 1267268464 --publish_fits_scratch
+Mar-25 14:25:46.888 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 20.01.0
+Mar-25 14:25:46.926 [main] DEBUG nextflow.cli.Launcher - Operation aborted
+nextflow.exception.AbortOperationException: Not a valid project name: beamform_fov_sources.nf
+	at nextflow.scm.AssetManager.resolveName(AssetManager.groovy:246)
+	at nextflow.scm.AssetManager.build(AssetManager.groovy:121)
+	at nextflow.scm.AssetManager.<init>(AssetManager.groovy:105)
+	at nextflow.cli.CmdRun.getScriptFile(CmdRun.groovy:331)
+	at nextflow.cli.CmdRun.run(CmdRun.groovy:245)
+	at nextflow.cli.Launcher.run(Launcher.groovy:460)
+	at nextflow.cli.Launcher.main(Launcher.groovy:642)

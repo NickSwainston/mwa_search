@@ -108,7 +108,7 @@ def bf_init(pipe):
             _id = prepfold_launch.submit_prepfold(pipe, _dir, kwargs)
             fold_ids.append(_id)
     pipe["completed"]["init_folds"] = True
-    dpp.resubmit_self(pipe, dep_ids=fold_ids)
+    return fold_ids
 
 
 def bf_post(pipe):
@@ -130,15 +130,17 @@ def bf_post(pipe):
             pipe, pipe["run_ops"]["my_dir"], kwargs)
         fold_ids.append(_id)
     pipe["completed"]["post_folds"] = True
-    dpp.resubmit_self(pipe, dep_ids=fold_ids)
+    return fold_ids
 
 
 def bf_main(pipe):
     """A logic structure that decides what to do next"""
     if not pipe["completed"]["bf"]:
         if not pipe["completed"]["init_folds"]:
-            bf_init(pipe)
+            dep_ids = bf_init(pipe)
+            dpp.resubmit_self(pipe, dep_ids=dep_ids)
         elif not pipe["completed"]["post_folds"]:
-            bf_post(pipe)
+            dep_ids = bf_post(pipe)
+            dpp.resubmit_self(pipe, dep_ids=dep_ids)
     else:
         logger.info("The binfinder pipeline has already been completed")
