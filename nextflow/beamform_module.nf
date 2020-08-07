@@ -201,7 +201,7 @@ process make_beam {
     maxForks 120
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
@@ -212,7 +212,7 @@ process make_beam {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("mwa") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
         container = "vcstools_${params.vcstools_version}.sif"
     }
