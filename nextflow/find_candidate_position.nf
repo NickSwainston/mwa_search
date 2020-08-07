@@ -9,8 +9,8 @@ params.pointing_file = null
 params.pointing_grid = null
 params.fwhm_deg = 0.021
 
-params.begin = null
-params.end = null
+params.begin = 0
+params.end = 0
 params.all = false
 
 params.summed = true
@@ -18,37 +18,17 @@ params.channels = null
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
-
 params.bins = 128
 params.period = 0.90004
 params.dm = 23.123
 params.subint = 60
 params.nchan = 48
 
-if ( params.pointing_file ) {
-    pointings = Channel
-        .fromPath(params.pointing_file)
-        .splitCsv()
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else if ( params.pointings ) {
-    pointings = Channel
-        .from(params.pointings.split(","))
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else if ( params.pointing_grid ) {
-    pointing_grid = Channel.from(params.pointing_grid).view()
-}
-else {
-    println "No pointings given. Either use --pointing_file, --pointings or --pointing_grid. Exiting"
-    exit(1)
-}
+include { pre_beamform; beamform } from './beamform_module'
+
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
+
 
 params.help = false
 if ( params.help ) {
@@ -103,6 +83,29 @@ if ( params.help ) {
              |              is finished [default: ${workDir}]""".stripMargin()
     println(help)
     exit(0)
+}
+
+if ( params.pointing_file ) {
+    pointings = Channel
+        .fromPath(params.pointing_file)
+        .splitCsv()
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else if ( params.pointings ) {
+    pointings = Channel
+        .from(params.pointings.split(","))
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else if ( params.pointing_grid ) {
+    pointing_grid = Channel.from(params.pointing_grid).view()
+}
+else {
+    println "No pointings given. Either use --pointing_file, --pointings or --pointing_grid. Exiting"
+    exit(1)
 }
 
 process grid {
@@ -187,8 +190,6 @@ process bestgridpos {
     bestgridpos.py -o ${params.obsid} -p ./ -w
     """
 }
-
-include { pre_beamform; beamform } from './beamform_module'
 
 workflow find_pos {
     take:

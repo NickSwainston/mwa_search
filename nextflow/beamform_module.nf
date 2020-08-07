@@ -161,9 +161,9 @@ process make_directories {
     mdir("${params.scratch_basedir}/${params.obsid}", "Products")
     mdir("${params.scratch_basedir}/batch", "Batch")
     mdir("${params.scratch_basedir}/${params.obsid}/pointings", "Pointings")
-    mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
-    create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
-                "${params.basedir}/${params.obsid}", "dpp_pointings")
+    #mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
+    #create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
+    #            "${params.basedir}/${params.obsid}", "dpp_pointings")
     """
 }
 
@@ -201,7 +201,7 @@ process make_beam {
     maxForks 120
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
@@ -211,8 +211,8 @@ process make_beam {
         //container = "${config.containDir}/vcstool/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
         container = "${config.containDir}/vcstool/vcstools_${params.vcstools_version}.sif"
     }
@@ -268,7 +268,7 @@ process make_beam_ipfb {
         scratch '/ssd'
         container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
         container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
@@ -336,7 +336,7 @@ process splice {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
@@ -379,7 +379,8 @@ workflow beamform {
                    pointings,\
                    obs_beg_end )
         splice( channels,\
-                make_beam.out.flatten().map { it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map { it -> it[1] } )
+                make_beam.out.flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
+                groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
         make_beam.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
@@ -399,7 +400,8 @@ workflow beamform_ipfb {
                         pointings.flatten(),\
                         obs_beg_end )
         splice( channels,\
-                make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map { it -> it[1] } )
+                make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
+                groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
         make_beam_ipfb.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
