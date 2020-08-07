@@ -80,7 +80,7 @@ process sort_detections {
     if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
         container = "${config.containDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
     }
-    else if ( ! "$HOSTNAME".startsWith("farnarkle") ) { {
+    else if ( ! "$HOSTNAME".startsWith("farnarkle") ) {
         container = "nickswainston/lofar_pulsar_ml"
     }
     """
