@@ -19,7 +19,7 @@ process feature_extract {
         beforeScript "module use $params.module_dir; module load PulsarFeatureLab/V1.3.2"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "${config.containDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
+        container = "file:///${config.containerDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
     }
     else {
         container = "cirapulsarsandtransients/pulsarfeaturelab:V1.3.2"
@@ -46,7 +46,7 @@ process classify {
         beforeScript "module use $params.module_dir; module load LOTAASClassifier/master"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "${config.containDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
+        container = "file:///${config.containerDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
     }
     else {
         container = "cirapulsarsandtransients/pulsarfeaturelab:V1.3.2"
@@ -78,7 +78,7 @@ process sort_detections {
     file "negative_detections/*" optional true
 
     if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "${config.containDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
+        container = "file:///${config.containerDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
     }
     else if ( ! "$HOSTNAME".startsWith("farnarkle") ) {
         container = "nickswainston/lofar_pulsar_ml"

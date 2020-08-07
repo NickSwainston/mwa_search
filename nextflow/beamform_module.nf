@@ -208,13 +208,13 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        //container = "${config.containDir}/vcstool/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${config.containerDir}/vcstool/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
-        container = "${config.containDir}/vcstool/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${config.containerDir}/vcstool/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -266,12 +266,12 @@ process make_beam_ipfb {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -334,10 +334,10 @@ process splice {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
-        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        container = "${config.containDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
