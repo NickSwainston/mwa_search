@@ -161,9 +161,9 @@ process make_directories {
     mdir("${params.scratch_basedir}/${params.obsid}", "Products")
     mdir("${params.scratch_basedir}/batch", "Batch")
     mdir("${params.scratch_basedir}/${params.obsid}/pointings", "Pointings")
-    mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
-    create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
-                "${params.basedir}/${params.obsid}", "dpp_pointings")
+    #mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
+    #create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
+    #            "${params.basedir}/${params.obsid}", "dpp_pointings")
     """
 }
 
@@ -211,7 +211,7 @@ process make_beam {
         //container = "vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
         container = "vcstools_${params.vcstools_version}.sif"
@@ -268,7 +268,7 @@ process make_beam_ipfb {
         scratch '/ssd'
         container = "vcstools_${params.vcstools_version}.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
         container = "vcstools_${params.vcstools_version}.sif"
@@ -336,7 +336,7 @@ process splice {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         container = "vcstools_${params.vcstools_version}.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         container = "vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
