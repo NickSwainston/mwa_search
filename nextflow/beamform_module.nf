@@ -81,6 +81,9 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
 
 // Handling begin and end times
 process get_beg_end {
+    output:
+    stdout channel
+    
     script:
     if ( params.all )
         """
