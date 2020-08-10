@@ -149,12 +149,18 @@ process gps_to_utc {
     input:
     tuple val(begin), val(end)
 
+    output:
+    file "${params.obsid}_utc.txt"
+
     """
     #!/usr/bin/env python3
 
     from process_vcs import gps_to_utc
+    import csv
 
-    print(gps_to_utc(${begin})),
+    with open("${params.obsid}_utc.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow(gps_to_utc(${begin}))
     """
 }
 
@@ -372,7 +378,7 @@ workflow pre_beamform {
     emit:
         get_beg_end.out.splitCsv()
         get_channels.out.splitCsv()
-        gps_to_utc.out
+        gps_to_utc.out.splitCsv()
 }
 
 
