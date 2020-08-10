@@ -81,9 +81,6 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
 
 // Handling begin and end times
 process get_beg_end {
-    output:
-    stdout channel
-    
     script:
     if ( params.all )
         """
@@ -360,7 +357,7 @@ workflow pre_beamform {
         get_beg_end()
         get_channels()
         ensure_metafits()
-        gps_to_utc( get_beg_end.out.map{ it.split(",") }.flatten().collect() )
+        gps_to_utc( get_beg_end.stdout().map{ it.split(",") }.flatten().collect() )
         make_directories()
         combined_data_check(get_beg_end.out.map{ it.split(",") }.flatten().collect())
     emit:
