@@ -81,23 +81,32 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
 
 // Handling begin and end times
 process get_beg_end {
+    output:
+    file "${params.obsid}_beg_end.txt"
+
     script:
     if ( params.all )
         """
         #!/usr/bin/env python3
+        import csv
 
         from mwa_metadb_utils import obs_max_min
 
         beg, end = obs_max_min(${params.obsid})
-        print("{},{}".format(beg, end), end="")
+        with open("${params.obsid}_beg_end.txt", "w") as outfile:
+            spamwriter = csv.writer(outfile, delimiter=',')
+            spamwriter.writerow([beg, end])
         """
     else
         """
         #!/usr/bin/env python3
+        import csv
 
         beg = "$params.begin"
         end = "$params.end"
-        print("{},{}".format(beg, end), end="")
+        with open("${params.obsid}_beg_end.txt", "w") as outfile:
+            spamwriter = csv.writer(outfile, delimiter=',')
+            spamwriter.writerow([beg, end])
         """
 }
 
@@ -357,11 +366,11 @@ workflow pre_beamform {
         get_beg_end()
         get_channels()
         ensure_metafits()
-        gps_to_utc( get_beg_end.stdout().map{ it.split(",") }.flatten().collect() )
+        gps_to_utc( get_beg_end.out.splitCsv() )
         make_directories()
-        combined_data_check(get_beg_end.out.map{ it.split(",") }.flatten().collect())
+        combined_data_check(get_beg_end.out.splitCsv())
     emit:
-        get_beg_end.out.map{ it.split(",") }.flatten().collect()
+        get_beg_end.out.splitCsv()
         get_channels.out.splitCsv()
         gps_to_utc.out
 }
