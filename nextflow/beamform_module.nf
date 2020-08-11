@@ -160,7 +160,7 @@ process gps_to_utc {
 
     with open("${params.obsid}_utc.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
-        spamwriter.writerow(gps_to_utc(${begin}))
+        spamwriter.writerow([gps_to_utc(${begin})])
     """
 }
 
@@ -223,13 +223,13 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        //container = "file:///${config.containerDir}/vcstool/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
-        container = "file:///${config.containerDir}/vcstool/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -378,7 +378,7 @@ workflow pre_beamform {
     emit:
         get_beg_end.out.splitCsv()
         get_channels.out.splitCsv()
-        gps_to_utc.out.splitCsv()
+        gps_to_utc.out.splitText()
 }
 
 
