@@ -18,7 +18,7 @@ if ( params.help ) {
     exit(0)
 }
 
-include classifier from './classifier_module'
+include { classifier } from './classifier_module'
 
 workflow {
     classifier( Channel.fromPath("${params.cand_dir}/*pfd").toList( )

@@ -4,7 +4,6 @@ nextflow.preview.dsl = 2
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 process feature_extract {
-    //container = "cirapulsarsandtransients/pulsarfeaturelab:V1.3.2"
     label 'cpu'
     errorStrategy 'retry'
     maxRetries 1
@@ -19,8 +18,11 @@ process feature_extract {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use $params.module_dir; module load PulsarFeatureLab/V1.3.2"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${config.containerDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
+    }
     else {
-        container = "lofar_pulsar_ml.sif"
+        container = "cirapulsarsandtransients/pulsarfeaturelab:V1.3.2"
     }
 
     """
@@ -43,8 +45,11 @@ process classify {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use $params.module_dir; module load LOTAASClassifier/master"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${config.containerDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
+    }
     else {
-        container = "lofar_pulsar_ml.sif"
+        container = "cirapulsarsandtransients/pulsarfeaturelab:V1.3.2"
     }
 
     """
@@ -71,14 +76,13 @@ process sort_detections {
     output:
     file "positive_detections/*" optional true
     file "negative_detections/*" optional true
-    if ( ! "$HOSTNAME".startsWith("farnarkle") ) {
-        container = "lofar_pulsar_ml.sif"
-    }
 
-    if ( "$HOSTNAME".startsWith("x86") ) {
-        container = 'lofar_pulsar_ml.sif'
+    if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${config.containerDir}/lofar_pulsar_ml/lofar_pulsar_ml.sif"
     }
-        //container = 'nickswainston/lofar_pulsar_ml'
+    else if ( ! "$HOSTNAME".startsWith("farnarkle") ) {
+        container = "nickswainston/lofar_pulsar_ml"
+    }
     """
     LOTAAS_wrapper.py
     if [ -f LOTAAS_positive_detections.txt ]; then

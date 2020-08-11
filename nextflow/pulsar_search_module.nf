@@ -120,18 +120,18 @@ process search_dd_fft_acc {
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
         //scratch '/ssd'
-        container = "presto.sif"
+        container = "file:///${config.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "presto.sif"
+        container = "file:///${config.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("mwa") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
-        container = "presto.sif"
+        container = "file:///${config.containerDir}/presto/presto.sif"
     }
     else {
-        container = "presto.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
 
 
@@ -175,9 +175,11 @@ process accelsift {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${config.containerDir}/presto/presto.sif"
+    }
     else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
     """
     ACCEL_sift.py --file_name ${name}
@@ -193,8 +195,6 @@ process accelsift {
 
 
 process single_pulse_searcher {
-    //container = "docker://nickswainston/sps:latest"
-    container = "sps.sif"
     stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
 
@@ -205,6 +205,13 @@ process single_pulse_searcher {
     file "*pdf" optional true
     file "*.SpS"
 
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
+         "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${config.containerDir}/sps/sps.sif"
+    }
+    else {
+        container = "nickswainston/sps"
+    }
     """
     cat *.subSpS > ${name}.SpS
     #-SNR_min 4 -SNR_peak_min 4.5 -DM_cand 1.5 -N_min 3
@@ -228,9 +235,11 @@ process prepfold {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${config.containerDir}/presto/presto.sif"
+    }
     else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
     //no mask command currently
     """
@@ -276,18 +285,18 @@ process search_dd {
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
         scratch '/ssd'
-        container = "presto.sif"
+        container = "file:///${config.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "presto.sif"
+        container = "file:///${config.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("mwa") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
-        container = "presto.sif"
+        container = "file:///${config.containerDir}/presto/presto.sif"
     }
     else {
-        container = "presto.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
 
     """

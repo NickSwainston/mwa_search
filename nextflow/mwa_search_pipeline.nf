@@ -92,8 +92,8 @@ else {
 }
 
 include { pre_beamform; beamform } from './beamform_module'
-include pulsar_search from './pulsar_search_module'
-include classifier    from './classifier_module'
+include { pulsar_search } from './pulsar_search_module'
+include { classifier }   from './classifier_module'
 
 workflow {
     pre_beamform()
