@@ -125,7 +125,7 @@ process search_dd_fft_acc {
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${config.containerDir}/presto/presto.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "file:///${config.containerDir}/presto/presto.sif"
@@ -290,7 +290,7 @@ process search_dd {
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${config.containerDir}/presto/presto.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "file:///${config.containerDir}/presto/presto.sif"
