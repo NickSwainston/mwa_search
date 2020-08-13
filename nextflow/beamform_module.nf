@@ -421,4 +421,5 @@ workflow beamform_ipfb {
         make_beam_ipfb.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[1]
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("_ch")[0].split("${params.obsid}_")[-1], it ] } | groupTuple()
 }

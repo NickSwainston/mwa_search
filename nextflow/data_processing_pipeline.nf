@@ -66,14 +66,75 @@ process find_pointings {
     """
 }
 
+process known_pulsar_prepfold {
+    label 'cpu'
+    time "${prepfold_dur}s"
+    errorStrategy 'retry'
+    maxRetries 1
+
+    input:
+    tuple file(fits_files), val(pulsar)
+
+    output:
+    file "*pfd*"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${config.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
+    //no mask command currently
+    """
+    echo "pulsar: ${pulsar}"
+    # Set up the prepfold options to match the ML candidate profiler
+    period=\$(psrcat -c p0 -x ${pulsar} | cut -d ' ' -f 1)
+    psrcat -e ${pulsar} > ${pulsar}.eph
+    if (( \$(echo "\$period > 0.01" | bc -l) )); then
+        nbins=100
+        ntimechunk=120
+        dmstep=1
+        period_search_n=1
+    else
+        # bin size is smaller than time resolution so reduce nbins
+        nbins=50
+        ntimechunk=40
+        dmstep=3
+        period_search_n=2
+    fi
+
+    prepfold -ncpus $task.cpus -o initial_fold -n \$nbins -noxwin -noclip -par ${pulsar}.eph -nsub 256 \
+-npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
+    """
+}
+
 include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
 include { pulsar_search; single_pulse_search } from './pulsar_search_module'
 include { classifier } from './classifier_module'
 
+workflow initial_fold {
+    take:
+        pointings
+        pulsar_names
+        fits_files
+    main:
+        known_pulsar_prepfold( // Combine pointings with pulsar names
+                               pointings.merge( pulsar_names ).\
+                               // Then group them with available fits files
+                               concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> [it[1][1], it[1][0]] } )
+        // Run through the classfier
+        classifier( known_pulsar_prepfold.out.flatten().collate( 120 ) )
+    emit:
+        classifier.out[0]
+}
+
+
 workflow {
-    get_beg_end()
-    find_pointings( get_beg_end.out.map{ it.split(",") }.flatten().collect() )
     pre_beamform()
+    find_pointings( pre_beamform.out[0] )
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
@@ -86,6 +147,15 @@ workflow {
                    pre_beamform.out[2],\
                    //Grab the pointings for slow pulsars and single pulses
                    find_pointings.out.splitCsv(skip: 3, limit: 1) )
+
+    // Perform processing pipeline on all known pulsars
+    initial_fold( // pointings
+                  find_pointings.out.splitCsv(skip: 1, limit: 1).mix( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().flatten(),\
+                  // pulsar names
+                  find_pointings.out.splitCsv(skip: 0, limit: 1).mix( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().flatten(),\
+                  // fits files
+                  beamform.out[3].mix(beamform_ipfb.out[3]) )
+
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
     pulsar_search( find_pointings.out.splitCsv(skip: 5, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 4, limit: 1).flatten()).\
