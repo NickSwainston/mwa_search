@@ -69,7 +69,7 @@ def add_prepfold_to_commands(prep_kwargs):
 
 def write_cmd_to_file(pipe, commands):
     """Writes the prepfold command to a text file"""
-    with open(f"prepfold_cmd_{pipe['obs']['id']}_{pipe['source']['name']}_{pipe['run_ops']['pointing']}.sh") as f:
+    with open(f"prepfold_cmd_{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}.sh") as f:
         for cmd in commands:
             f.write(cmd)
 
