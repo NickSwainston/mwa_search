@@ -97,7 +97,7 @@ process pulsar_prepfold_cmd_make {
     tuple file(fits_files), file(yaml_file)
 
     output:
-    file "*txt"
+    file "*.sh"
 
     """
     prepfold_cmd_maker.py --yaml_file $yaml_file --fits $fits_files
