@@ -10,7 +10,7 @@ comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
-def common_kwargs(pipe, bin_count, fits):
+def common_kwargs(pipe, bin_count):
     """Creates a prepfold-friendly dictionary of common arguments to pass to prepfold"""
     name = f"{pipe['obs']['id']}_b{bin_count}_{pipe['source']['name']}"
     prep_kwargs = {}
@@ -50,9 +50,7 @@ def common_kwargs(pipe, bin_count, fits):
         prep_kwargs["-dm"] = pipe["source"]["my_DM"]
     if pipe["source"]["my_P"]:
         prep_kwargs["-dm"] = pipe["source"]["my_P"]
-    prep_kwargs["fits"] = ""
-    for f in fits:
-        prep_kwargs["fits"] += f
+
 
     return prep_kwargs
 
@@ -71,12 +69,12 @@ def add_prepfold_to_commands(prep_kwargs):
 
 def write_cmd_to_file(pipe, commands):
     """Writes the prepfold command to a text file"""
-    with open(f"prepfold_cmd_{pipe['obs']['id']}_{pipe['source']['name']}_{pipe['run_ops']['pointing']}.txt") as f:
+    with open(f"prepfold_cmd_{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}.sh") as f:
         for cmd in commands:
             f.write(cmd)
 
 
-def main(pipe, fits):
+def main(pipe):
     folds = []
     if not pipe["completed"]["init_folds"]:
         for i in pipe["folds"]["init"].keys()
@@ -87,7 +85,7 @@ def main(pipe, fits):
             folds.append(int(i))
         pipe["completed"]["post_folds"] = True
     for bin_count in folds:
-        prep_kwargs = common_kwargs(pipe, bin_count, fits)
+        prep_kwargs = common_kwargs(pipe, bin_count)
         cmd = add_prepfold_to_commands(prep_kwargs)
         write_cmd_to_file(pipe, cmd)
     #update yaml file
@@ -102,7 +100,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Creates a prepfold command for each pulsar and writes to file""",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--yaml", type=str, required=True, help="The pathname of the yaml file")
-    parser.add_argument("--fits", type=str, nargs='+', required=True, help="The fits files to use when folding")
     otherop.add_argument("--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
     args = parser.parse_args()
     logger = logging.getLogger()
@@ -112,4 +109,4 @@ if __name__ == '__main__':
         '%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
     ch.setFormatter(formatter)
     pipe = yaml_helper.from_yaml(args.yaml)
-    main(pipe, args.fits)
+    main(pipe)
