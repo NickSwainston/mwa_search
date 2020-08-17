@@ -21,26 +21,26 @@ except:
     ATNF_LOC = None
 
 
-def initiate_pipe(kwargs):
+def initiate_pipe(kwargs, psr, pointing, metadata=None):
     """Adds all available keys to the pipe dictionary and figures out some useful constants"""
     pipe = {"obs": {}, "source": {},
             "completed": {}, "folds": {}, "run_ops": {}}
 
     pipe["run_ops"]["dirs"] = kwargs["run_dir"]
-    pipe["run_ops"]["pointing"] = kwargs["pointing"]
+    pipe["run_ops"]["pointing"] = pointing
     pipe["run_ops"]["loglvl"] = kwargs["loglvl"]
     pipe["run_ops"]["mwa_search"] = kwargs["mwa_search"]
     pipe["run_ops"]["vcstools"] = kwargs["vcstools"]
-    pipe["run_ops"]["mask"] = kwargs["mask"]
     pipe["run_ops"]["thresh_chi"] = 4.0
     pipe["run_ops"]["thresh_sn"] = 8.0
     pipe["run_ops"]["vdif"] = None
 
-    md = get_common_obs_metadata(kwargs["obsid"])
-    pipe["obs"]["ra"] = md[1]
-    pipe["obs"]["dec"] = md[2]
-    pipe["obs"]["dur"] = md[3]
-    pipe["obs"]["freq"] = md[5]
+    if metadata is None:
+        metadata = get_common_obs_metadata(kwargs["obsid"])
+    pipe["obs"]["ra"] = metadata[1]
+    pipe["obs"]["dec"] = metadata[2]
+    pipe["obs"]["dur"] = metadata[3]
+    pipe["obs"]["freq"] = metadata[5]
     pipe["obs"]["id"] = kwargs["obsid"]
     pipe["obs"]["cal"] = kwargs["cal_id"]
     pipe["obs"]["beg"] = kwargs["obs_beg"]
@@ -49,9 +49,10 @@ def initiate_pipe(kwargs):
     pipe["source"]["cand"] = kwargs["cand"]
 
     if pipe["source"]["cand"] == False:
-        pipe["source"]["name"] = kwargs["pulsar"]
-        query = psrqpy.QueryATNF(
-            psrs=pipe["source"]["name"], loadfromdb=ATNF_LOC).pandas
+        pipe["source"]["name"] = psr
+        if query is None:
+            query = psrqpy.QueryATNF(
+                psrs=pipe["source"]["name"], loadfromdb=ATNF_LOC).pandas
         pipe["source"]["ATNF"] = dict(query)
         pipe["source"]["RM_type"] = None
         pipe["source"]["synth_RM"] = None
@@ -112,8 +113,10 @@ def dump_to_yaml(pipe, filepath=None):
 
 
 def main(kwargs)
-    pipe = initiate_pipe(kwargs)
-    write_to_file(pipe)
+    metadata = get_common_obs_metadata(kwargs["obsid"])
+    for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"])
+        pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata)
+        write_to_file(pipe)
 
 
 if __name__ == '__main__':
@@ -131,12 +134,12 @@ if __name__ == '__main__':
                        help="The obs ID of the data")
     obsop.add_argument("-O", "--cal_id", type=str,
                        help="The ID of the calibrator used to calibrate the data")
-    obsop.add_argument("-p", "--pulsar", type=str,
-                       help="The J name of the pulsar. e.g. J2241-5236")
+    obsop.add_argument("-p", "--psrs", nargs="+", type=str,
+                       help="The J name of the pulsar(s). e.g. J2241-5236")
     obsop.add_argument("--obs_beg", type=int,
                        help="The beginning of the observation")
     obsop.add_argument("--obs_end", type=int, help="The end of the observation")
-    obsop.add_argument("--pointing", type=str, help="The pointing location of the source")
+    obsop.add_argument("--pointings", type=str, nargs="+", help="The pointing(s) location of the source")
 
     foldop = parser.add_argument_group("Folding/processing Options")
     foldop.add_argument("--sn_min_thresh", type=float, default=8.0, help="The presto sigma value\
