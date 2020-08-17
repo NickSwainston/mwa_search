@@ -81,23 +81,32 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
 
 // Handling begin and end times
 process get_beg_end {
+    output:
+    file "${params.obsid}_beg_end.txt"
+
     script:
     if ( params.all )
         """
         #!/usr/bin/env python3
+        import csv
 
         from mwa_metadb_utils import obs_max_min
 
         beg, end = obs_max_min(${params.obsid})
-        print("{},{}".format(beg, end), end="")
+        with open("${params.obsid}_beg_end.txt", "w") as outfile:
+            spamwriter = csv.writer(outfile, delimiter=',')
+            spamwriter.writerow([beg, end])
         """
     else
         """
         #!/usr/bin/env python3
+        import csv
 
         beg = "$params.begin"
         end = "$params.end"
-        print("{},{}".format(beg, end), end="")
+        with open("${params.obsid}_beg_end.txt", "w") as outfile:
+            spamwriter = csv.writer(outfile, delimiter=',')
+            spamwriter.writerow([beg, end])
         """
 }
 
@@ -140,12 +149,18 @@ process gps_to_utc {
     input:
     tuple val(begin), val(end)
 
+    output:
+    file "${params.obsid}_utc.txt"
+
     """
     #!/usr/bin/env python3
 
     from process_vcs import gps_to_utc
+    import csv
 
-    print(gps_to_utc(${begin})),
+    with open("${params.obsid}_utc.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow([gps_to_utc(${begin})])
     """
 }
 
@@ -208,13 +223,13 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        //container = "file:///${config.containerDir}/vcstool/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
-        container = "file:///${config.containerDir}/vcstool/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -357,13 +372,13 @@ workflow pre_beamform {
         get_beg_end()
         get_channels()
         ensure_metafits()
-        gps_to_utc( get_beg_end.out.map{ it.split(",") }.flatten().collect() )
+        gps_to_utc( get_beg_end.out.splitCsv() )
         make_directories()
-        combined_data_check(get_beg_end.out.map{ it.split(",") }.flatten().collect())
+        combined_data_check(get_beg_end.out.splitCsv())
     emit:
-        get_beg_end.out.map{ it.split(",") }.flatten().collect()
+        get_beg_end.out.splitCsv()
         get_channels.out.splitCsv()
-        gps_to_utc.out
+        gps_to_utc.out.splitText()
 }
 
 

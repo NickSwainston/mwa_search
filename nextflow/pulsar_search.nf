@@ -75,7 +75,7 @@ if ( params.help ) {
 }
 
 include {pulsar_search; single_pulse_search} from './pulsar_search_module'
-include classifier    from './classifier_module'
+include { classifier }   from './classifier_module'
 
 workflow {
     if ( params.sp ) {
