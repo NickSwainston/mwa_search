@@ -81,26 +81,26 @@ process find_pointings {
 process make_yamls {
     input:
     tuple val(begin), val(end)
-    val(pointing)
+    tuple val(pointing), val(pulsar)
 
     output:
     file "*.yaml"
 
     """
-    yaml_helper.py -o $params.obsid -O $params.calid -b $begin -e $end --pointing $pointing --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
+    yaml_helper.py -o $params.obsid -O $params.calid -b $begin -e $end --pointing $pointing --pulsar $pulsar --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
     """
 }
 
 
 process pulsar_prepfold_cmd_make {
     input:
-    tuple file(fits_files), file(yaml_file)
+    file yaml_file
 
     output:
-    file "*txt"
+    file "*sh"
 
     """
-    prepfold_cmd_maker.py --yaml_file $yaml_file --fits $fits_files
+    prepfold_cmd_maker.py --yaml_file $yaml_file
     """
 }
 
@@ -112,7 +112,7 @@ process init_pulsar_prepfold_run {
     maxRetries 1
 
     input:
-    file prepfold_cmd_file
+    tuple file(prepfold_cmd_file), file(fits)
 
     output:
     file "*pfd*"
@@ -141,13 +141,15 @@ workflow initial_fold {
         yaml_files
         fits_files
     main:
-        pulsar_prepfold_make( // Combine pointings with pulsar names
-                               pointings.merge( yaml_files ).\
-                               // Then group them with available fits files
-                               concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> [it[1][1], it[1][0]] } )
+        // Create a bash file of the prepfold commands required
+        pulsar_prepfold_cmd_make( yaml_files )
+        // Run the bash file
+        init_pulsar_prepfold_run( // Work out pointings from the file names
+                                  pulsar_prepfold_cmd_make.out.flatten().map{ it -> [it.baseName.split("_${params.obsid}")[0], it ] }.\
+                                  // Group fits files by bash files with same pointings
+                                  mix( fits_files ).groupTuple().map{ it -> it[1] } )
         // Run through the classfier
-        init_pulsar_prepfold_run(pulsar_prepfold_make.out)
-        classifier( known_pulsar_prepfold.out.flatten().collate( 120 ) )
+        classifier( init_pulsar_prepfold_run.flatten().collate( 120 ) )
     emit:
         classifier.out[0]
 }
@@ -169,12 +171,14 @@ workflow {
                    //Grab the pointings for slow pulsars and single pulses
                    find_pointings.out.splitCsv(skip: 3, limit: 1) )
 
-    //Create yaml files from all pointings
-    make_yamls(pre_beamform.out[0], find_pointings.out.splitCsv(skip: 1, limit: 1).mix( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().flatten())
+    // Make a yaml_file with all necessary info for each pointing
+    make_yamls( pre_beamform.out[0],\
+                find_pointings.out.splitCsv(skip: 1, limit: 1).mix( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().flatten().merge(\
+                find_pointings.out.splitCsv(skip: 0, limit: 1).mix( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().flatten()) )
 
     // Perform processing pipeline on all known pulsars
     initial_fold( // yaml files
-                  make_yamls.out
+                  make_yamls.out,\
                   // fits files
                   beamform.out[3].mix(beamform_ipfb.out[3]) )
 
