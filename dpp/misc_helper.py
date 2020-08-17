@@ -40,10 +40,10 @@ def required_bin_folds(pulsar, sampling_rate=1e-4, query=None):
     """Generates a list of integers that are the folding bins required to complete for dpp"""
     sam_lim = bin_sampling_limit(pulsar, sampling_rate=sampling_rate, query=query)
     if sam_lim >= 1024:  # regular period pulsar
-        init_folds = [64, 100]
+        init_folds = [100]
         post_folds = [1024, 512, 256, 128]
     elif sam_lim > 100 and sam_lim < 1024:  # moderate period pulsar
-        init_folds = [50, 64, 100]
+        init_folds = [100]
         f = sam_lim
         post_folds = []
         while f > 100:

@@ -52,8 +52,6 @@ if ( params.help ) {
     exit(0)
 }
 
-
-
 process find_pointings {
     input:
     tuple val(begin), val(end)
@@ -66,14 +64,41 @@ process find_pointings {
     """
 }
 
-process known_pulsar_prepfold {
+process make_yamls {
+    input:
+    tuple val(begin), val(end)
+    val(pointing)
+
+    output:
+    file "*.yaml"
+
+    """
+    yaml_helper.py -o $params.obsid -O $params.calid -b $begin -e $end --pointing $pointing --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
+    """
+}
+
+
+process pulsar_prepfold_cmd_make {
+    input:
+    tuple file(fits_files), file(yaml_file)
+
+    output:
+    file "*txt"
+
+    """
+    prepfold_cmd_maker.py --yaml_file $yaml_file --fits $fits_files
+    """
+}
+
+
+process init_pulsar_prepfold_run {
     label 'cpu'
     time "${prepfold_dur}s"
     errorStrategy 'retry'
     maxRetries 1
 
     input:
-    tuple file(fits_files), val(pulsar)
+    file prepfold_cmd_file
 
     output:
     file "*pfd*"
@@ -87,29 +112,11 @@ process known_pulsar_prepfold {
     else {
         container = "nickswainston/presto:realfft_docker"
     }
-    //no mask command currently
     """
-    echo "pulsar: ${pulsar}"
-    # Set up the prepfold options to match the ML candidate profiler
-    period=\$(psrcat -c p0 -x ${pulsar} | cut -d ' ' -f 1)
-    psrcat -e ${pulsar} > ${pulsar}.eph
-    if (( \$(echo "\$period > 0.01" | bc -l) )); then
-        nbins=100
-        ntimechunk=120
-        dmstep=1
-        period_search_n=1
-    else
-        # bin size is smaller than time resolution so reduce nbins
-        nbins=50
-        ntimechunk=40
-        dmstep=3
-        period_search_n=2
-    fi
-
-    prepfold -ncpus $task.cpus -o initial_fold -n \$nbins -noxwin -noclip -par ${pulsar}.eph -nsub 256 \
--npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
+    bash $prepfold_cmd_file
     """
 }
+
 
 include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
 include { pulsar_search; single_pulse_search } from './pulsar_search_module'
@@ -117,15 +124,15 @@ include { classifier } from './classifier_module'
 
 workflow initial_fold {
     take:
-        pointings
-        pulsar_names
+        yaml_files
         fits_files
     main:
-        known_pulsar_prepfold( // Combine pointings with pulsar names
-                               pointings.merge( pulsar_names ).\
+        pulsar_prepfold_make( // Combine pointings with pulsar names
+                               pointings.merge( yaml_files ).\
                                // Then group them with available fits files
                                concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> [it[1][1], it[1][0]] } )
         // Run through the classfier
+        init_pulsar_prepfold_run(pulsar_prepfold_make.out)
         classifier( known_pulsar_prepfold.out.flatten().collate( 120 ) )
     emit:
         classifier.out[0]
@@ -148,11 +155,12 @@ workflow {
                    //Grab the pointings for slow pulsars and single pulses
                    find_pointings.out.splitCsv(skip: 3, limit: 1) )
 
+    //Create yaml files from all pointings
+    make_yamls(pre_beamform.out[0], find_pointings.out.splitCsv(skip: 1, limit: 1).mix( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().flatten())
+
     // Perform processing pipeline on all known pulsars
-    initial_fold( // pointings
-                  find_pointings.out.splitCsv(skip: 1, limit: 1).mix( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().flatten(),\
-                  // pulsar names
-                  find_pointings.out.splitCsv(skip: 0, limit: 1).mix( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().flatten(),\
+    initial_fold( // yaml files
+                  make_yamls.out
                   // fits files
                   beamform.out[3].mix(beamform_ipfb.out[3]) )
 
