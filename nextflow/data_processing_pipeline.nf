@@ -145,11 +145,11 @@ workflow initial_fold {
         pulsar_prepfold_cmd_make( yaml_files )
         // Run the bash file
         init_pulsar_prepfold_run( // Work out pointings from the file names
-                                  pulsar_prepfold_cmd_make.out.flatten().map{ it -> [it.baseName.split("_${params.obsid}")[0], it ] }.\
+                                  pulsar_prepfold_cmd_make.out.view().map{ it -> [it.baseName.split("_${params.obsid}")[0], it ] }.\
                                   // Group fits files by bash files with same pointings
                                   mix( fits_files ).groupTuple().map{ it -> it[1] } )
         // Run through the classfier
-        classifier( init_pulsar_prepfold_run.flatten().collate( 120 ) )
+        classifier( init_pulsar_prepfold_run.out.flatten().collate( 120 ) )
     emit:
         classifier.out[0]
 }
