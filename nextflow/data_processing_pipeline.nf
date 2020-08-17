@@ -52,8 +52,6 @@ if ( params.help ) {
     exit(0)
 }
 
-<<<<<<< HEAD
-=======
 // Work out some estimated job times
 if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
@@ -67,7 +65,7 @@ else {
     presto_python_load = ""
 }
 
->>>>>>> 44f4002d0a7b1e62232dc5d986c0b6099eee24c3
+
 process find_pointings {
     input:
     tuple val(begin), val(end)
