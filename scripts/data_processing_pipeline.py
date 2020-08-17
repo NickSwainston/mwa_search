@@ -13,7 +13,6 @@ import shutil
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
 import submit_to_database as std
-import pipe_helper
 import yaml_helper
 import dpp_check_args
 

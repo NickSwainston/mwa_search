@@ -4,6 +4,7 @@ import logging
 import os
 import glob
 import yaml
+import argparse
 
 from misc_helper import bin_sampling_limit, is_binary, required_bin_folds
 from pulsar_obs_helper import find_fold_times
@@ -112,9 +113,9 @@ def dump_to_yaml(pipe, filepath=None):
         yaml.dump(mydict, f, default_flow_style=False)
 
 
-def main(kwargs)
+def main(kwargs):
     metadata = get_common_obs_metadata(kwargs["obsid"])
-    for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"])
+    for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
         pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata)
         write_to_file(pipe)
 

@@ -4,7 +4,6 @@ import glob
 
 
 import yaml_helper
-import pipe_helper
 
 
 logger = logging.getLogger(__name__)
