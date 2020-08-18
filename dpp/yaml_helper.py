@@ -22,10 +22,10 @@ except:
     ATNF_LOC = None
 
 
-def initiate_pipe(kwargs, psr, pointing, metadata=None):
+def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
     """Adds all available keys to the pipe dictionary and figures out some useful constants"""
     pipe = {"obs": {}, "source": {},
-            "completed": {}, "folds": {}, "run_ops": {}}
+            "completed": {}, "folds": {}, "run_ops": {}, "pol": {}}
 
     pipe["run_ops"]["dirs"] = kwargs["run_dir"]
     pipe["run_ops"]["pointing"] = pointing
