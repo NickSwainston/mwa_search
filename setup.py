@@ -41,15 +41,10 @@ reqs = ['argparse>=1.4.0',
         'psrqpy',
         'pyyaml']
 
+mwa_search_version = get_git_version()
 #make a temporary version file to be installed then delete it
-if os.path.exists('version.py'):
-    with open('version.py', 'r') as the_file:
-        mwa_search_version =  the_file.read()
-else:
-    mwa_search_version = get_git_version()
-    #make a temporary version file to be installed then delete it
-    with open('version.py', 'a') as the_file:
-        the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
+with open('version.py', 'a') as the_file:
+    the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
 
 setup(name="mwa_search",
       version=mwa_search_version,
@@ -57,6 +52,7 @@ setup(name="mwa_search",
       url="https://github.com/NickSwainston/mwa_search",
       #long_description=read('README.md'),
       python_requires='>=3.6',
+      packages=['dpp'],
       install_requires=reqs,
       scripts=['scripts/ACCEL_sift.py', 'scripts/check_known_pulsars.py',
                'scripts/grid.py', 'scripts/lfDDplan.py',
