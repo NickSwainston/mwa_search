@@ -87,7 +87,7 @@ process make_yamls {
     file "*.yaml"
 
     """
-    yaml_helper.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing $pointing --psrs $pulsar --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
+    yaml_helper.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psrs ${pulsar.join(" ")} --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
     """
 }
 
@@ -173,8 +173,8 @@ workflow {
 
     // Make a yaml_file with all necessary info for each pointing
     make_yamls( pre_beamform.out[0],\
-                find_pointings.out.splitCsv(skip: 1, limit: 1).mix( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().flatten().merge(\
-                find_pointings.out.splitCsv(skip: 0, limit: 1).mix( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().flatten()) )
+                find_pointings.out.splitCsv(skip: 1, limit: 1).concat( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().map{ it -> [it] }.concat(\
+                find_pointings.out.splitCsv(skip: 0, limit: 1).concat( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().map{ it -> [it] }).collect() )
 
     // Perform processing pipeline on all known pulsars
     initial_fold( // yaml files
