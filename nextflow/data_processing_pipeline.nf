@@ -87,7 +87,7 @@ process make_yamls {
     file "*.yaml"
 
     """
-    yaml_helper.py -o $params.obsid -O $params.calid -b $begin -e $end --pointing $pointing --pulsar $pulsar --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
+    yaml_helper.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing $pointing --psrs $pulsar --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
     """
 }
 
