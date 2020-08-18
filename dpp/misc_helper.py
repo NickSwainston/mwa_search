@@ -29,7 +29,7 @@ def is_binary(pulsar, query=None):
     """Checks the ATNF database to see if a pulsar is part of a binary system"""
     if query is None:
         query = psrqpy.QueryATNF(params=["BINARY"], psrs=[
-                                 pulsar], loadfromdb=ATNF_LOC).pandas
+                                 pulsar], loadfromdb=ATNF_LOC).pandasq
     if isinstance(query["BINARY"][0], str):
         return True
     else:
