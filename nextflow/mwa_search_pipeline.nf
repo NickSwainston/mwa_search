@@ -22,6 +22,7 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
+params.zmax = 0
 
 params.no_combined_check = false
 

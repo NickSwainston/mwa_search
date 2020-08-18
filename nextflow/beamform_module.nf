@@ -213,7 +213,12 @@ process make_beam {
     time "${mb_dur}s"
     errorStrategy 'retry'
     maxRetries 1
-    maxForks 120
+    if ( "$HOSTNAME".startsWith("garrawarla") ) {
+        maxForks 70
+    }
+    else {
+        maxForks 120
+    }
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -223,13 +228,13 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        //container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
-        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -271,7 +276,12 @@ process make_beam_ipfb {
     time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
     maxRetries 1
-    maxForks 120
+    if ( "$HOSTNAME".startsWith("garrawarla") ) {
+        maxForks 70
+    }
+    else {
+        maxForks 120
+    }
     
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
@@ -281,12 +291,12 @@ process make_beam_ipfb {
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
-        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
     clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -349,10 +359,10 @@ process splice {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
-        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        container = "file:///${config.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"

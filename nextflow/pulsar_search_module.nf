@@ -17,6 +17,7 @@ params.dm_min_step = 0.02
 params.nharm = 16 // number of harmonics to search
 params.min_period = 0.001 // min period to search for in sec (ANTF min = 0.0013)
 params.max_period = 30 // max period to search for in sec  (ANTF max = 23.5)
+params.zmax = 0
 
 //Some math for the accelsearch command
 //convert to freq
@@ -100,7 +101,12 @@ process ddplan {
 
 process search_dd_fft_acc {
     label 'cpu'
-    time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
+    if ( params.zmax == 0 ) {
+        time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
+    }
+    else {
+        time { "${1.5 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
+    }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
     maxForks 800
@@ -109,7 +115,7 @@ process search_dd_fft_acc {
     tuple val(name), val(dm_values), file(fits_files)
 
     output:
-    tuple val(name), file("*ACCEL_0"), file("*.inf"), file("*.subSpS")
+    tuple val(name), file("*ACCEL_${params.zmax}"), file("*.inf"), file("*.subSpS")
     //file "*ACCEL_0" optional true
     //Will have to change the ACCEL_0 if I do an accelsearch
 
@@ -120,15 +126,15 @@ process search_dd_fft_acc {
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
         //scratch '/ssd'
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -149,7 +155,7 @@ process search_dd_fft_acc {
     realfft *dat
     printf "\\n#Performing the periodic search at \$(date +"%Y-%m-%d_%H:%m:%S") ------------------------------------------\\n"
     for i in \$(ls *.dat); do
-        accelsearch -ncpus $task.cpus -zmax 0 -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
+        accelsearch -ncpus $task.cpus -zmax ${params.zmax} -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
     done
     ${presto_python_load}
     single_pulse_search.py -p -m 0.5 -b *.dat
@@ -176,7 +182,7 @@ process accelsift {
                      "module use $params.module_dir; module load mwa_search/py2_scripts"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -207,7 +213,7 @@ process single_pulse_searcher {
 
     if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
          "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/sps/sps.sif"
+        container = "file:///${params.containerDir}/sps/sps.sif"
     }
     else {
         container = "nickswainston/sps"
@@ -236,7 +242,7 @@ process prepfold {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -285,15 +291,15 @@ process search_dd {
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
         scratch '/ssd'
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
-    else if ( "$HOSTNAME".startsWith("mwa") ) {
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
