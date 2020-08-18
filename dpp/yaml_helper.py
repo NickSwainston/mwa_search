@@ -35,6 +35,7 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
     pipe["run_ops"]["thresh_chi"] = 4.0
     pipe["run_ops"]["thresh_sn"] = 8.0
     pipe["run_ops"]["vdif"] = None
+    pipe["run_ops"]["mask"] = None
 
     if metadata is None:
         metadata = get_common_obs_metadata(kwargs["obsid"])
@@ -55,6 +56,8 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
             query = psrqpy.QueryATNF(
                 psrs=pipe["source"]["name"], loadfromdb=ATNF_LOC).pandas
         pipe["source"]["ATNF"] = dict(query)
+        pipe["source"]["ATNF_P"] = query["P0"][0]
+        pipe["source"]["ATNF_DM"] = query["DM"][0]
         pipe["source"]["RM_type"] = None
         pipe["source"]["synth_RM"] = None
         pipe["source"]["synth_RM_e"] = None
@@ -102,22 +105,23 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
 
 def from_yaml(filepath):
     with open(filepath) as f:
-        my_dict = yaml.safe_load(f)
+        my_dict = yaml.load(f, Loader=yaml.Loader)
     return my_dict
 
 
 def dump_to_yaml(pipe, filepath=None):
     if filepath == None:
-        filepath = f"{pipe['obs']['id']}_{pipe['source']['name']}_{pipe['run_ops']['pointing']}.yaml"
+        filepath = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}.yaml"
     with open(filepath, 'w') as f:
-        yaml.dump(mydict, f, default_flow_style=False)
+        yaml.dump(pipe, f, default_flow_style=False)
 
 
 def main(kwargs):
     metadata = get_common_obs_metadata(kwargs["obsid"])
+    query = psrqpy.QueryATNF(loadfromdb=ATNF_LOC).pandas
     for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
-        pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata)
-        write_to_file(pipe)
+        pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, query=query[query['PSRJ'] == psr].reset_index())
+        dump_to_yaml(pipe)
 
 
 if __name__ == '__main__':

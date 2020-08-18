@@ -14,7 +14,7 @@ params.mwa_search_version = 'master'
 
 params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
-params.publish_fits_scratch = true
+params.publish_fits_scratch = false
 
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
@@ -100,7 +100,7 @@ process pulsar_prepfold_cmd_make {
     file "*sh"
 
     """
-    prepfold_cmd_maker.py --yaml_file $yaml_file
+    prepfold_cmd_make.py --yaml $yaml_file
     """
 }
 
@@ -121,7 +121,7 @@ process init_pulsar_prepfold_run {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -142,12 +142,12 @@ workflow initial_fold {
         fits_files
     main:
         // Create a bash file of the prepfold commands required
-        pulsar_prepfold_cmd_make( yaml_files )
+        pulsar_prepfold_cmd_make( yaml_files.flatten() )
         // Run the bash file
         init_pulsar_prepfold_run( // Work out pointings from the file names
-                                  pulsar_prepfold_cmd_make.out.view().map{ it -> [it.baseName.split("_${params.obsid}")[0], it ] }.\
+                                  pulsar_prepfold_cmd_make.out.map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
                                   // Group fits files by bash files with same pointings
-                                  mix( fits_files ).groupTuple().map{ it -> it[1] } )
+                                  concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         // Run through the classfier
         classifier( init_pulsar_prepfold_run.out.flatten().collate( 120 ) )
     emit:
@@ -180,7 +180,7 @@ workflow {
     initial_fold( // yaml files
                   make_yamls.out,\
                   // fits files
-                  beamform.out[3].mix(beamform_ipfb.out[3]) )
+                  beamform.out[3].concat(beamform_ipfb.out[3]) )
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list

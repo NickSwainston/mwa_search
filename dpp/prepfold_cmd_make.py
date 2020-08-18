@@ -2,9 +2,10 @@
 import os
 import datetime
 import logging
+import argparse
 
 import yaml_helper
-
+from config_vcs import load_config_file
 
 comp_config = load_config_file()
 logger = logging.getLogger(__name__)
@@ -59,17 +60,17 @@ def add_prepfold_to_commands(prep_kwargs):
     """Adds prepfold commands to a list"""
     commands = []
     options = ""
-    for key, val in kwargs.items():
+    for key, val in prep_kwargs.items():
             options += f" {key} {val}"
     options += " *fits"
-    commands.append("prepfold {}".format(option))
+    commands.append("prepfold {}".format(options))
 
     return commands
 
 
 def write_cmd_to_file(pipe, commands):
     """Writes the prepfold command to a text file"""
-    with open(f"prepfold_cmd_{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}.sh") as f:
+    with open(f"prepfold_cmd_{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}.sh", 'w') as f:
         for cmd in commands:
             f.write(cmd)
 
@@ -77,11 +78,11 @@ def write_cmd_to_file(pipe, commands):
 def main(pipe):
     folds = []
     if not pipe["completed"]["init_folds"]:
-        for i in pipe["folds"]["init"].keys()
+        for i in pipe["folds"]["init"].keys():
             folds.append(int(i))
         pipe["completed"]["init_folds"] = True
     elif not pipe["completed"]["post_folds"]:
-        for i in pipe["folds"]["post"].keys()
+        for i in pipe["folds"]["post"].keys():
             folds.append(int(i))
         pipe["completed"]["post_folds"] = True
     for bin_count in folds:
@@ -100,7 +101,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Creates a prepfold command for each pulsar and writes to file""",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--yaml", type=str, required=True, help="The pathname of the yaml file")
-    otherop.add_argument("--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
+    parser.add_argument("--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
     args = parser.parse_args()
     logger = logging.getLogger()
     logger.setLevel(loglevels[args.loglvl])
