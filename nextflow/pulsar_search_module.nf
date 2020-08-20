@@ -102,10 +102,14 @@ process ddplan {
 process search_dd_fft_acc {
     label 'cpu'
     if ( params.zmax == 0 ) {
-        time { "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
+        time { search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
+                   "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
+                   "86400s"}
     }
     else {
-        time { "${1.5 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" }
+        time { 2 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
+                   "${2 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
+                   "86400s"}
     }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
