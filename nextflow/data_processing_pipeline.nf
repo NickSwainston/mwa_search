@@ -84,10 +84,11 @@ process make_yamls {
     tuple val(pointing), val(pulsar)
 
     output:
-    file "*.yaml"
+    file "*initialized.yaml"
 
     """
-    yaml_helper.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psrs ${pulsar.join(" ")} --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version
+    yaml_helper.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psrs ${pulsar.join(" ")}\
+    --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label initialized
     """
 }
 
@@ -98,14 +99,15 @@ process pulsar_prepfold_cmd_make {
 
     output:
     file "*sh"
+    file "*prep_cmd_make.yaml"
 
     """
-    prepfold_cmd_make.py --yaml $yaml_file
+    prepfold_cmd_make.py --yaml $yaml_file --label prep_cmd_make
     """
 }
 
 
-process init_pulsar_prepfold_run {
+process pulsar_prepfold_run {
     label 'cpu'
     time "${prepfold_dur}s"
     errorStrategy 'retry'
@@ -145,15 +147,48 @@ workflow initial_fold {
         pulsar_prepfold_cmd_make( yaml_files.flatten() )
         // Run the bash file
         init_pulsar_prepfold_run( // Work out pointings from the file names
-                                  pulsar_prepfold_cmd_make.out.map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
+                                  pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
                                   // Group fits files by bash files with same pointings
                                   concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         // Run through the classfier
         classifier( init_pulsar_prepfold_run.out.flatten().collate( 120 ) )
     emit:
-        classifier.out[0]
+        classifier.out[0] //classifier files
+        pulsar_prepfold_cmd_make.out[1] //yaml files
 }
 
+/*
+process decide_detections {
+    input
+    file bestprofs
+    file yamls
+
+    output
+    file *pfd*
+    file *post_detection.yaml
+
+    """
+    some_python_script.py
+    """
+
+}
+workflow post_fold{
+    take:
+        yaml_files
+        fits_files
+        classifier_out
+    main:
+        pulsar_prepfold_cmd_make(yaml_files)
+        pulsar_prepfold_run(prepfold_cmd_make.out, fits_files)
+        decide_detections(pulsar_prepfold_run.out, pulsar_prepfold_cmd_make.out) //figures out which bestprofs are detections and updates yaml file
+
+    emit:
+    //detections
+    decide_detections.out[0]
+    //yaml files
+    decide_detections.out[1]
+}
+*/
 
 workflow {
     pre_beamform()
@@ -181,6 +216,8 @@ workflow {
                   make_yamls.out,\
                   // fits files
                   beamform.out[3].concat(beamform_ipfb.out[3]) )
+
+//    post_fold()
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
