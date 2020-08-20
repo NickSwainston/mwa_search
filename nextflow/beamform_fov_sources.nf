@@ -68,7 +68,7 @@ process find_pointings {
 
 include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
 include { pulsar_search; single_pulse_search } from './pulsar_search_module'
-include classifier from './classifier_module'
+include { classifier } from './classifier_module'
 
 workflow {
     get_beg_end()

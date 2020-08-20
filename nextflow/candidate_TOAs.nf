@@ -87,7 +87,7 @@ process prepfold_ch {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -115,7 +115,7 @@ process dspsr_ch {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -149,7 +149,7 @@ process prepfold_time {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -179,7 +179,7 @@ process dspsr_time {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${config.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
         container = "nickswainston/presto:realfft_docker"

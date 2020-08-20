@@ -59,7 +59,7 @@ if ( params.help ) {
              |              are not in the default directory :
              |              ${params.basedir}/<obsid>/pointings/${params.pointings}
              |  --scratch   Change the default directory to:
-             |              ${params.stratch_basedir}/<obsid>/pointings/${params.pointings}
+             |              ${params.scratch_basedir}/<obsid>/pointings/${params.pointings}
              |  --dm_min    Minimum DM to search over [default: 1]
              |  --dm_max    Maximum DM to search over [default: 250]
              |  --dm_min_step
@@ -75,7 +75,7 @@ if ( params.help ) {
 }
 
 include {pulsar_search; single_pulse_search} from './pulsar_search_module'
-include classifier    from './classifier_module'
+include { classifier }   from './classifier_module'
 
 workflow {
     if ( params.sp ) {
