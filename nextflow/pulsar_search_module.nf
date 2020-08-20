@@ -205,8 +205,11 @@ process accelsift {
 
 
 process single_pulse_searcher {
+    label 'cpu_large_mem'
+    time '30m'
     stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
+    errorStrategy 'ignore'
 
     input:
     tuple val(name), file(sps), file(fits)
