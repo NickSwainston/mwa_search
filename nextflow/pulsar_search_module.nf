@@ -206,7 +206,7 @@ process accelsift {
 
 process single_pulse_searcher {
     label 'cpu_large_mem'
-    time '30m'
+    time '2h'
     stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
     errorStrategy 'ignore'
