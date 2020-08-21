@@ -215,10 +215,13 @@ def calc_ta_fwhm(freq, array_phase='P2C'):
         # True max_baseline is 2800 but due to the minimal amount of long baselines
         # the following is more realisitic
         max_baseline = 2200.
-    if array_phase == 'P2C':
+    elif array_phase == 'P2C':
         # True max_baseline is 700.
         max_baseline = 360.
     elif array_phase == 'P2E':
+        max_baseline = 5300.
+    else:
+        logger.warn("Array phase is OTHER so assumeing the array is in phase 2 extended mode.")
         max_baseline = 5300.
 
     wavelength = c / (freq * 1e6)
