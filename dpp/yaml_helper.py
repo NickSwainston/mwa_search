@@ -109,10 +109,12 @@ def from_yaml(filepath):
     return my_dict
 
 
-def dump_to_yaml(pipe, filepath=None):
-    if filepath == None:
-        filepath = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}.yaml"
-    with open(filepath, 'w') as f:
+def dump_to_yaml(pipe, label=""):
+    name = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}"
+    if label:
+        name += f"{label}"
+    name += ".yaml"
+    with open(name, 'w') as f:
         yaml.dump(pipe, f, default_flow_style=False)
 
 
@@ -121,7 +123,7 @@ def main(kwargs):
     query = psrqpy.QueryATNF(loadfromdb=ATNF_LOC).pandas
     for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
         pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, query=query[query['PSRJ'] == psr].reset_index())
-        dump_to_yaml(pipe)
+        dump_to_yaml(pipe, label=kwargs["label"])
 
 
 if __name__ == '__main__':
@@ -169,6 +171,7 @@ if __name__ == '__main__':
                          help="The version of vcs_tools to use")
     otherop.add_argument("--cand", action="store_true",
                          help="use this tag if this is not a kown pulsar")
+    otherop.add_argument("--label", type=str, default="", help="A label to apply to the .yaml file")
     args = parser.parse_args()
     logger = logging.getLogger()
     logger.setLevel(loglevels[args.loglvl])

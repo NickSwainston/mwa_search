@@ -75,13 +75,15 @@ def write_cmd_to_file(pipe, commands):
             f.write(cmd)
 
 
-def main(pipe):
+def main(pipe, label=""):
     folds = []
     if not pipe["completed"]["init_folds"]:
+        logger.info("Creating command for inital folds")
         for i in pipe["folds"]["init"].keys():
             folds.append(int(i))
         pipe["completed"]["init_folds"] = True
     elif not pipe["completed"]["post_folds"]:
+        logger.info("Creating command for post folds")
         for i in pipe["folds"]["post"].keys():
             folds.append(int(i))
         pipe["completed"]["post_folds"] = True
@@ -90,7 +92,7 @@ def main(pipe):
         cmd = add_prepfold_to_commands(prep_kwargs)
         write_cmd_to_file(pipe, cmd)
     #update yaml file
-    yaml_helper.dump_to_yaml(pipe)
+    yaml_helper.dump_to_yaml(pipe, label=label)
 
 
 if __name__ == '__main__':
@@ -102,6 +104,7 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--yaml", type=str, required=True, help="The pathname of the yaml file")
     parser.add_argument("--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
+    parser.add_argument("--label", type=str, default="", help="A label to apply to the .yaml file")
     args = parser.parse_args()
     logger = logging.getLogger()
     logger.setLevel(loglevels[args.loglvl])
@@ -110,4 +113,4 @@ if __name__ == '__main__':
         '%(asctime)s  %(filename)s  %(name)s  %(lineno)-4d  %(levelname)-9s :: %(message)s')
     ch.setFormatter(formatter)
     pipe = yaml_helper.from_yaml(args.yaml)
-    main(pipe)
+    main(pipe, label=args.label)
