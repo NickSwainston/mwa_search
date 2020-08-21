@@ -35,5 +35,5 @@ if [ ! -d $ROOT/$VERSION ]; then
 fi
 
 # Updates to the project version are explained in CHANGELOG.md
-python3 setup.py build --build-scripts=$ROOT/$VERSION/
+python3 setup.py install --prefix=$ROOT/$VERSION/
 find $ROOT/$VERSION/ -type d -exec chmod 775 {} \;
