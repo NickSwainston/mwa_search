@@ -16,16 +16,22 @@ import matplotlib.pyplot as plt
 from matplotlib import patches
 
 
-def find_pos(dec_search_range, ra_search_range, detections, fwhm, initial_pos=None):
+def find_pos(dec_search_range, ra_search_range, detections, fwhm, given_fwhm_ra=None, given_fwhm_dec=None, initial_pos=None):
     RA = []; DEC = []; residual = []; psf_guass_grid = []
     for dec in dec_search_range:
         for ra in ra_search_range:
             # Loop over sources
             det_gauss = []
             for det in detections:
-                # Adjust the FWHM for the projected change
-                fwhm_ra  = np.degrees(np.radians(fwhm)/cos(np.radians(dec + 26.7))**2)
-                fwhm_dec = np.degrees(np.radians(fwhm)/cos(np.radians(dec)))
+                if given_fwhm_ra is None:
+                    # Adjust the FWHM for the projected change
+                    fwhm_ra  = np.degrees(np.radians(fwhm)/cos(np.radians(dec + 26.7))**2)
+                else:
+                    fwhm_ra = given_fwhm_ra
+                if given_fwhm_dec is None:
+                    fwhm_dec = np.degrees(np.radians(fwhm)/cos(np.radians(dec)))
+                else:
+                    fwhm_dec = given_fwhm_dec
                 # Calculate the guassian response
                 ra_guass =  (ra  - det[0]) / (0.6006*fwhm_ra)
                 dec_guass = (dec - det[1]) / (0.6006*fwhm_dec)
@@ -81,6 +87,8 @@ if __name__ == "__main__":
             help='The resolution of the search in degrees.')
     parser.add_argument('-w', '--write', action='store_true',
             help='Write out a file with the predicted poistion.')
+    parser.add_argument('-fr', '--fwhm_ra', type=float, help='Manualy give the RA FWHM in degrees instead of it estimating it from the array phase and frequency')
+    parser.add_argument('-fd', '--fwhm_dec', type=float, help='Manualy give the declination FWHM in degrees instead of it estimating it from the array phase and frequency')
     args=parser.parse_args()
 
     # Set up plots
@@ -166,7 +174,9 @@ if __name__ == "__main__":
     dec_initial = DEC[residual.index(min(residual))]
 
     # Run again with all detections, only process if the initial detction is between the two beams
-    RA, DEC, residual = find_pos(dec_search_range, ra_search_range, detections[:3], fwhm, initial_pos=[ra_initial, dec_initial])
+    RA, DEC, residual = find_pos(dec_search_range, ra_search_range, detections[:3], fwhm,
+                                 given_fwhm_ra=args.fwhm_ra, given_fwhm_dec=args.fwhm_dec,
+                                 initial_pos=[ra_initial, dec_initial])
 
     ramax = RA[residual.index(min(residual))]
     decmax = DEC[residual.index(min(residual))]
