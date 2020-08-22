@@ -113,7 +113,12 @@ process search_dd_fft_acc {
     }
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
-    maxForks 800
+    if ( "$HOSTNAME".startsWith("garrawarla") ) {
+        maxForks 300
+    }
+    else {
+        maxForks 800
+    }
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
@@ -283,6 +288,12 @@ process search_dd {
     time '4h'
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
+    if ( "$HOSTNAME".startsWith("garrawarla") ) {
+        maxForks 300
+    }
+    else {
+        maxForks 800
+    }
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
