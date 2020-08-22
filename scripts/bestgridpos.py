@@ -218,7 +218,7 @@ if __name__ == "__main__":
                                    linewidth=0.3, fill=False, edgecolor='green')
         ax.add_patch(ellipse)
         plt.scatter(ra,dec,s=0.5,c='white', zorder=10)
-        ax.text(ra, dec, str(sn), fontsize=10, ha='center', va='center')
+        ax.text(ra, dec, str(sn), fontsize=8, ha='center', va='center')
 
     #Start plotting
     colour_map = 'plasma_r'
