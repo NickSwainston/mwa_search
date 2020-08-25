@@ -134,7 +134,7 @@ process search_dd_fft_acc {
     tuple val(name), val(dm_values), file(fits_files)
 
     output:
-    tuple val(name), file("*ACCEL_${params.zmax}"), file("*.inf"), file("*.subSpS")
+    tuple val(name), file("*ACCEL_${params.zmax}"), file("*.inf"), file("*.subSpS"), file('*.cand')
     //file "*ACCEL_0" optional true
     //Will have to change the ACCEL_0 if I do an accelsearch
 
@@ -366,7 +366,8 @@ workflow pulsar_search {
                                concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]} )
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
-                  map{ it -> [it[0][1], it[1][1]] } )
+                  // Find the .cand file needed for each accelsift line
+                  map{ it -> [it[0][1], it[1][1], search_dd_fft_acc.out[3].filter{ it[1][1].split()[0].substring(0, it[1][1].split()[0].lastIndexOf(":")) + '.cand' }] }.view() )
     emit:
         accelsift.out 
         prepfold.out
