@@ -47,11 +47,28 @@ if ( params.help ) {
     println(help)
     exit(0)
 }
+//Work out total obs time
+if ( params.all ) {
+    // an estimation since there's no easy way to make this work
+    println("Benchmarks don't need the full observation")
+    exit(0)
+}
+else {
+    obs_length = params.end - params.begin + 1
+}
 
 range = Channel.from( ['001', '002', '003', '004', '005', '006',\
                        '007', '008', '009', '010', '011', '012',\
                        '013', '014', '015', '016', '017', '018',\
                        '019', '020', '021', '022', '023', '024'] )
+
+//Required temp SSD mem required for gpu jobs
+temp_mem = (int) (0.0012 * obs_length * params.max_pointings + 1)
+temp_mem_single = (int) (0.0024 * obs_length + 2)
+if ( ! params.summed ) {
+    temp_mem = temp_mem * 4
+    temp_mem_single = temp_mem_single *4
+}
 
 if ( params.summed ) {
     bf_out = " -p -s "
@@ -209,7 +226,7 @@ process calc_beamformer_benchmarks {
     file files
 
     output:
-    file "make_beam*txt"
+    stdout()
     
     """
     calc_beamformer_benchmarks.py --max_pointing_num ${params.max_pointings}
@@ -233,5 +250,6 @@ workflow {
                    make_pointings.out.flatten().map{ it -> it.splitCsv().collect().flatten() },\
                    pre_beamform.out[0] )
         calc_beamformer_benchmarks( make_beam.out.collect() )
+        calc_beamformer_benchmarks.out.view()
     }
 }
