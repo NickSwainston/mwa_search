@@ -12,6 +12,7 @@ params.all = false
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
+params.max_dms_per_job = 5000
 
 //Defaults for the accelsearch command
 params.nharm = 16 // number of harmonics to search
@@ -34,6 +35,15 @@ if ( params.all ) {
 }
 else {
     obs_length = params.end - params.begin + 1
+}
+
+// If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
+if ( params.zmax == 0 ) {
+    total_dm_jobs = 6
+}
+else {
+    total_dm_jobs = 24
+    params.max_dms_per_job = 128
 }
 
 // Work out some estimated job times
@@ -70,7 +80,7 @@ process ddplan {
 
     if '$name'.startswith('Blind'):
         output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max,
-                         min_DM_step=$params.dm_min_step)
+                         min_DM_step=$params.dm_min_step, max_dms_per_job=$params.max_dms_per_job)
     else:
         if '$name'.startswith('FRB'):
             dm = fpio.grab_source_alog(source_type='FRB',
@@ -90,7 +100,7 @@ process ddplan {
             dm_min = 1.0
         dm_max = float(dm) + 2.0
         output = dd_plan(150., 30.72, 3072, 0.1, dm_min, dm_max,
-                         min_DM_step=$params.dm_min_step)
+                         min_DM_step=$params.dm_min_step, max_dms_per_job=$params.max_dms_per_job)
     with open("DDplan.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
@@ -107,8 +117,8 @@ process search_dd_fft_acc {
                    "86400s"}
     }
     else {
-        time { 2 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
-                   "${2 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
+        time { 4 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
+                   "${4 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
                    "86400s"}
     }
     //Will ignore errors for now because I have no idea why it dies sometimes
@@ -349,9 +359,9 @@ workflow pulsar_search {
         // Get all the inf, ACCEL and single pulse files and sort them into groups with the same name key
         accelsift( search_dd_fft_acc.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + \
                                                             [it[2]].flatten().findAll { it != null }] }.\
-                   groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
+                   groupTuple( size: total_dm_jobs, remainder: true ).map{ it -> [it[0], it[1].flatten()]} )
         single_pulse_searcher( search_dd_fft_acc.out.map{ it -> [it[0], [it[3]].flatten().findAll { it != null }] }.\
-                               groupTuple( size: 6, remainder: true ).map{ it -> [it[0], it[1].flatten()]}.\
+                               groupTuple( size: total_dm_jobs, remainder: true ).map{ it -> [it[0], it[1].flatten()]}.\
                                // Add fits files
                                concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]} )
         // Make a pair of accelsift out lines and fits files that match
@@ -372,7 +382,7 @@ workflow single_pulse_search {
                    // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
                    map{ it -> [it[1].init(), [[it[0], it[1].last()]]].combinations() }.flatMap().map{ it -> [it[1][0], it[0], it[1][1]]} )
         single_pulse_searcher( search_dd.out.map{ it -> [it[0], [it[1]].flatten().findAll { it != null } + [it[2]].flatten().findAll { it != null }] }.\
-                               groupTuple( size: 6, remainder: true).map{ it -> [it[0], it[1].flatten()] }.\
+                               groupTuple( size: total_dm_jobs, remainder: true).map{ it -> [it[0], it[1].flatten()] }.\
                                // Add fits files
                                concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]}  )
         // Get all the inf and single pulse files and sort them into groups with the same basename (obsid_pointing)
