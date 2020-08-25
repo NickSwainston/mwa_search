@@ -51,10 +51,10 @@ if ( obs_length % 200 != 0 ) {
 
 
 //Beamforming ipfb duration calc
-mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 200 ) * 2
+mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 200 ) * 1.2
 
 //Beamforming duration calc
-mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 200 ) * 2
+mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 200 ) * 1.2
 
 //Required temp SSD mem required for gpu jobs
 temp_mem = (int) (0.0012 * obs_length * max_job_pointings + 1)
@@ -388,7 +388,7 @@ workflow pre_beamform {
     emit:
         get_beg_end.out.splitCsv()
         get_channels.out.splitCsv()
-        gps_to_utc.out.splitText()
+        gps_to_utc.out.splitCsv().flatten()
 }
 
 
