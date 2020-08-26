@@ -367,7 +367,7 @@ workflow pulsar_search {
         // Make a pair of accelsift out lines and fits files that match
         prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
                   // Find the .cand file needed for each accelsift line
-                  map{ it -> [it[0][1], it[1][1], search_dd_fft_acc.out[3].filter{ it[1][1].split()[0].substring(0, it[1][1].split()[0].lastIndexOf(":")) + '.cand' }] }.view() )
+                  map{ it -> [it[0][1], it[1][1], search_dd_fft_acc.out[3].filter{ it[1][1].split()[0].substring(0, it[1][1].split()[0].lastIndexOf(":")).view() + '.cand' }] }.view() )
     emit:
         accelsift.out 
         prepfold.out
