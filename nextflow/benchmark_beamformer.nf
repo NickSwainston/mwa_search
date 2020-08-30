@@ -8,11 +8,9 @@ params.calid = null
 params.begin = null
 params.end = null
 params.all = false
-params.max_pointings = 20
 
 params.summed = false
 params.channels = null
-params.ipfb = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
@@ -62,8 +60,12 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
                        '013', '014', '015', '016', '017', '018',\
                        '019', '020', '021', '022', '023', '024'] )
 
+
+
+bench_max_pointings = 20
+
 //Required temp SSD mem required for gpu jobs
-temp_mem = (int) (0.0012 * obs_length * params.max_pointings + 1)
+temp_mem = (int) (0.0012 * obs_length * bench_max_pointings + 1)
 temp_mem_single = (int) (0.0024 * obs_length + 2)
 if ( ! params.summed ) {
     temp_mem = temp_mem * 4
@@ -88,7 +90,7 @@ process make_pointings {
     arcsec = 0
     p_ra, p_dec = ["00:00:00.00", "00:00:00.00"]
     dec_deg, dec_min, dec_sec = p_dec.split(":")
-    for pn in range(1, ${params.max_pointings} + 1):
+    for pn in range(1, ${bench_max_pointings} + 1):
         temp_list = []
         for n in range(1, pn + 1):
             out_dec_sec = float(dec_sec) + arcsec
@@ -160,7 +162,7 @@ process make_beam {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -t 6000 -z $utc &> make_beam_${channel_pair[0]}_n${point.size()}_output.txt
+${bf_out} -t 6000 -z $utc &> make_beam_${channel_pair[1]}_n${point.size()}_output.txt
     rm */*fits
     """
 }
@@ -169,7 +171,6 @@ ${bf_out} -t 6000 -z $utc &> make_beam_${channel_pair[0]}_n${point.size()}_outpu
 process make_beam_ipfb {
     label 'gpu'
     time '24h'
-    time "${mb_ipfb_dur}s"
     errorStrategy 'retry'
     maxRetries 1
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
@@ -190,7 +191,7 @@ process make_beam_ipfb {
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
@@ -215,11 +216,55 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -t 6000 -z $utc &> make_beam_${channel_pair[0]}_n${point.size()}_output.txt
+-p -v -t 6000 -z $utc &> make_beam_${channel_pair[1]}_IPFB_output.txt
     rm */*fits
     """
 }
 
+process make_beam_single {
+    label 'gpu'
+    time '24h'
+    errorStrategy 'retry'
+    maxRetries 1
+    if ( "$HOSTNAME".startsWith("garrawarla") ) {
+        maxForks 70
+    }
+    else {
+        maxForks 120
+    }
+
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        scratch '$JOBFS'
+    }
+    else if ( "$HOSTNAME".startsWith("x86") ) {
+        clusterOptions = "--gres=gpu:1"
+        scratch '/ssd'
+    }
+    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        scratch '/nvmetmp'
+    }
+    container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
+
+    input:
+    each channel_pair
+    val utc
+    val point
+    tuple val(begin), val(end)
+
+    output:
+    file "make_beam*txt"
+
+    """
+    make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
+-f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
+-d ${params.scratch_basedir}/${params.obsid}/combined -R ${point.split("_")[0]} -D ${point.split("_")[1]} \
+-r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
+-p -z $utc &> make_beam_${channel_pair[1]}_single-pixel_output.txt
+    rm *fits
+    """
+}
 
 process calc_beamformer_benchmarks {
     input:
@@ -229,27 +274,29 @@ process calc_beamformer_benchmarks {
     stdout()
     
     """
-    calc_beamformer_benchmarks.py --max_pointing_num ${params.max_pointings}
+    calc_beamformer_benchmarks.py --max_pointing_num ${bench_max_pointings}
     """
 }
 
 include { pre_beamform } from './beamform_module'
 
+single_pointing = Channel.of("00:00:00.00_00:00:00.00")
+
 workflow {
     pre_beamform()
     make_pointings()
-    if ( params.ipfb ) {
-        make_beam_ipfb( pre_beamform.out[1].flatten().merge(range),\
-                        pre_beamform.out[2],\
-                        make_pointings.out.flatten().splitCsv(),\
-                        pre_beamform.out[0] )
-    }
-    else {
-        make_beam( pre_beamform.out[1].flatten().merge(range),\
-                   pre_beamform.out[2],\
-                   make_pointings.out.flatten().map{ it -> it.splitCsv().collect().flatten() },\
-                   pre_beamform.out[0] )
-        calc_beamformer_benchmarks( make_beam.out.collect() )
-        calc_beamformer_benchmarks.out.view()
-    }
+    make_beam( pre_beamform.out[1].flatten().merge(range),\
+               pre_beamform.out[2],\
+               make_pointings.out.flatten().map{ it -> it.splitCsv().collect().flatten() },\
+               pre_beamform.out[0] )
+    make_beam_single( pre_beamform.out[1].flatten().merge(range),\
+                      pre_beamform.out[2],\
+                      single_pointing,\
+                      pre_beamform.out[0] )
+    make_beam_ipfb( pre_beamform.out[1].flatten().merge(range),\
+                    pre_beamform.out[2],\
+                    single_pointing,\
+                    pre_beamform.out[0] )
+    calc_beamformer_benchmarks( make_beam.out.concat(make_beam_single.out, make_beam_ipfb.out).collect() )
+    calc_beamformer_benchmarks.out.view()
 }
