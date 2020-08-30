@@ -118,12 +118,7 @@ process make_beam {
     time '24h'
     errorStrategy 'retry'
     maxRetries 1
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 70
-    }
-    else {
-        maxForks 120
-    }
+    maxForks 24
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -173,12 +168,7 @@ process make_beam_ipfb {
     time '24h'
     errorStrategy 'retry'
     maxRetries 1
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 70
-    }
-    else {
-        maxForks 120
-    }
+    maxForks 24
     
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
@@ -226,12 +216,7 @@ process make_beam_single {
     time '24h'
     errorStrategy 'retry'
     maxRetries 1
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 70
-    }
-    else {
-        maxForks 120
-    }
+    maxForks 24
 
     if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/nswainston"
