@@ -34,8 +34,7 @@ def read_beanchmark_jobs(max_pointing_num, file_dir):
         temp_calc_time_std  = []
         temp_write_time = []
         temp_write_time_std = []
-        #for ch in range(1, 25):
-        for ch in range(109, 133):
+        for ch in range(1, 25):
             with open(os.path.join(file_dir, "make_beam_{}_n{}_output.txt".format(ch, pn)), "r") as batch_file:
                 lines = batch_file.readlines()
                 for line in lines:
@@ -70,26 +69,49 @@ def read_beanchmark_jobs(max_pointing_num, file_dir):
         temp_write_time_std.append(average_write_std)
         pn_average_write_std.append(sqrt_sum_of_squares(temp_write_time_std)/24)
 
-    print(f"Times: {pn_average_total}")
-    print(f"Times std: {pn_average_total_std}")
+    print(f"MPB Times: {pn_average_total}")
+    print(f"MPB Times std: {pn_average_total_std}")
 
-    print(f"GPU Times: {pn_average_calc}")
-    print(f"GPU Times std: {pn_average_calc_std}")
+    print(f"MPB GPU Times: {pn_average_calc}")
+    print(f"MPB GPU Times std: {pn_average_calc_std}")
+    print("")
 
-    # Work out the benchmarks to be put into nextflow.config
-    from scipy.optimize import curve_fit
+    # Single-pixel calc
+    single-pixel_times = []
+    for ch in range(1, 25):
+        with open(os.path.join(file_dir, "make_beam_{}_single-pixel_output.txt".format(ch, pn)), "r") as batch_file:
+            lines = batch_file.readlines()
+            for line in lines:
+                if "**FINISHED BEAMFORMING**" in line:
+                    single-pixel_times.append(float(line.split("]")[0][1:]))
+    print("SPB Times: {}".format(np.mean(single-pixel_times))
+    print("SPB Times std: {}".format(np.std(single-pixel_times))
+    print("")
 
+    # IPFB calc
+    IPFB_times = []
+    for ch in range(1, 25):
+        with open(os.path.join(file_dir, "make_beam_{}_IPFB_output.txt".format(ch, pn)), "r") as batch_file:
+            lines = batch_file.readlines()
+            for line in lines:
+                if "**FINISHED BEAMFORMING**" in line:
+                    IPFB_times.append(float(line.split("]")[0][1:]))
+    print("IPFB Times: {}".format(np.mean(IPFB_times))
+    print("IPFB Times std: {}".format(np.std(IPFB_times))
 
-    popt, pcov = curve_fit(sraight_line, range(1, max_pointing_num + 1), pn_average_calc) # your data x, y to fit
-    perr = np.sqrt(np.diag(pcov))
-    cal = popt[1]
-    cal_err = perr[1]
-    beam = popt[0]
-    beam_err = perr[0]
-    print("bm_read  = {:6.3f}".format(np.mean(pn_average_read) + np.mean(pn_average_read_std)))
-    print("bm_cal   = {:6.3f}".format(cal + cal_err))
-    print("bm_beam  = {:6.3f}".format(beam + beam_err))
-    print("bm_write = {:6.3f}".format(np.mean(pn_average_write) + np.mean(pn_average_write_std)))
+    if max_pointing_num > 1:
+        # Work out the benchmarks to be put into nextflow.config
+        from scipy.optimize import curve_fit
+        popt, pcov = curve_fit(sraight_line, range(1, max_pointing_num + 1), pn_average_calc) # your data x, y to fit
+        perr = np.sqrt(np.diag(pcov))
+        cal = popt[1]
+        cal_err = perr[1]
+        beam = popt[0]
+        beam_err = perr[0]
+        print("bm_read  = {:6.3f}".format(np.mean(pn_average_read) + np.mean(pn_average_read_std)))
+        print("bm_cal   = {:6.3f}".format(cal + cal_err))
+        print("bm_beam  = {:6.3f}".format(beam + beam_err))
+        print("bm_write = {:6.3f}".format(np.mean(pn_average_write) + np.mean(pn_average_write_std)))
 
 
     
