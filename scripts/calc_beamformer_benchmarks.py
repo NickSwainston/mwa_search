@@ -35,7 +35,7 @@ def read_beanchmark_jobs(max_pointing_num, file_dir):
         temp_write_time = []
         temp_write_time_std = []
         for ch in range(1, 25):
-            with open(os.path.join(file_dir, "make_beam_{}_n{}_output.txt".format(ch, pn)), "r") as batch_file:
+            with open(os.path.join(file_dir, "make_beam_{:03d}_n{}_output.txt".format(ch, pn)), "r") as batch_file:
                 lines = batch_file.readlines()
                 for line in lines:
                     if "**FINISHED BEAMFORMING**" in line:
@@ -77,27 +77,27 @@ def read_beanchmark_jobs(max_pointing_num, file_dir):
     print("")
 
     # Single-pixel calc
-    single-pixel_times = []
+    single_pixel_times = []
     for ch in range(1, 25):
-        with open(os.path.join(file_dir, "make_beam_{}_single-pixel_output.txt".format(ch, pn)), "r") as batch_file:
+        with open(os.path.join(file_dir, "make_beam_{:03d}_single-pixel_output.txt".format(ch, pn)), "r") as batch_file:
             lines = batch_file.readlines()
             for line in lines:
                 if "**FINISHED BEAMFORMING**" in line:
-                    single-pixel_times.append(float(line.split("]")[0][1:]))
-    print("SPB Times: {}".format(np.mean(single-pixel_times))
-    print("SPB Times std: {}".format(np.std(single-pixel_times))
+                    single_pixel_times.append(float(line.split("]")[0][1:]))
+    print("SPB Times: {}".format(np.mean(single_pixel_times)))
+    print("SPB Times std: {}".format(np.std(single_pixel_times)))
     print("")
 
     # IPFB calc
     IPFB_times = []
     for ch in range(1, 25):
-        with open(os.path.join(file_dir, "make_beam_{}_IPFB_output.txt".format(ch, pn)), "r") as batch_file:
+        with open(os.path.join(file_dir, "make_beam_{:03d}_IPFB_output.txt".format(ch, pn)), "r") as batch_file:
             lines = batch_file.readlines()
             for line in lines:
                 if "**FINISHED BEAMFORMING**" in line:
                     IPFB_times.append(float(line.split("]")[0][1:]))
-    print("IPFB Times: {}".format(np.mean(IPFB_times))
-    print("IPFB Times std: {}".format(np.std(IPFB_times))
+    print("IPFB Times: {}".format(np.mean(IPFB_times)))
+    print("IPFB Times std: {}".format(np.std(IPFB_times)))
 
     if max_pointing_num > 1:
         # Work out the benchmarks to be put into nextflow.config
