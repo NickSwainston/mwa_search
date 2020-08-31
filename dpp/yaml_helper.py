@@ -10,9 +10,7 @@ from misc_helper import bin_sampling_limit, is_binary, required_bin_folds
 from pulsar_obs_helper import find_fold_times
 from mwa_metadb_utils import get_common_obs_metadata
 
-
 logger = logging.getLogger(__name__)
-
 
 try:  # get ATNF db location
     ATNF_LOC = os.environ['PSRCAT_FILE']
@@ -52,6 +50,7 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
 
     if pipe["source"]["cand"] == False:
         pipe["source"]["name"] = psr
+        pipe["run_ops"]["file_precursor"] = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}"
         if query is None:
             query = psrqpy.QueryATNF(
                 psrs=pipe["source"]["name"], loadfromdb=ATNF_LOC).pandas
@@ -68,7 +67,6 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
         pipe["source"]["my_DM"] = None
         pipe["source"]["my_P"] = None
         pipe["source"]["my_bins"] = None
-        pipe["source"]["binary"] = is_binary(pipe["source"]["name"], query=query)
         pipe["source"]["sampling_limit"] = int(bin_sampling_limit(
             pipe["source"]["name"], query=query))
         pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
@@ -84,6 +82,15 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
             pipe["folds"]["init"][str(i)] = {}
         for _, i in enumerate(post):
             pipe["folds"]["post"][str(i)] = {}
+        pipe["source"]["binary"] = is_binary(pipe["source"]["name"], query=query)
+        pipe["source"]["edited_eph"] = None
+        pipe["source"]["edited_eph_name"] = None
+        #create an edited epehemris for binary folding if necessary
+        if pipe["source"]["binary"]:
+            from prepfold_cmd_make import create_edited_eph
+            pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
+            pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
+        
 
     pipe["pol"]["archive1"] = None
     pipe["pol"]["archive2"] = None
