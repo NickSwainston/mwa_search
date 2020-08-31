@@ -3,6 +3,7 @@ import os
 import datetime
 import logging
 import argparse
+import subprocess
 
 import yaml_helper
 from config_vcs import load_config_file
@@ -41,36 +42,41 @@ def common_kwargs(pipe, bin_count):
         prep_kwargs["-ndmfact"] = 3
         prep_kwargs["-dmstep"] = 3
         prep_kwargs["-npart"] = 40
-    if pipe["source"]["binary"]:
-        prep_kwargs["-dm"] = None
-        prep_kwargs["-p"] = None
-    else:
-        prep_kwargs["-dm"] = pipe["source"]["ATNF_DM"]
-        prep_kwargs["-p"] = pipe["source"]["ATNF_P"]
+    prep_kwargs["-dm"] = pipe["source"]["ATNF_DM"]
+    prep_kwargs["-p"] = pipe["source"]["ATNF_P"]
     if pipe["source"]["my_DM"]:
         prep_kwargs["-dm"] = pipe["source"]["my_DM"]
     if pipe["source"]["my_P"]:
-        prep_kwargs["-dm"] = pipe["source"]["my_P"]
-
-
+        prep_kwargs["-p"] = pipe["source"]["my_P"]
     return prep_kwargs
 
 
-def add_prepfold_to_commands(prep_kwargs):
-    """Adds prepfold commands to a list"""
+def create_edited_eph(pulsar_name, eph_name):
+    """Created a string version of 'psrcat -e' and removes the last line"""
+    eph = subprocess.check_output(["psrcat", "-e", pulsar_name])
+    eph = eph.decode("utf-8")
+    eph = "\n".join(tuple(a.split("\n")[:-2]))
+    return eph
+
+
+def add_prepfold_to_commands(prep_kwargs, eph=None, eph_name=None):
+    """Adds prepfold commands to a list. If eph is not None, will use -par"""
     commands = []
     options = ""
     for key, val in prep_kwargs.items():
             options += f" {key} {val}"
+    if eph and eph_name:
+        with open(eph_name, "w") as f:
+            f.write(eph)
+        options += f"-par {eph_name}"
     options += " *fits"
     commands.append("prepfold {}".format(options))
-
     return commands
 
 
 def write_cmd_to_file(pipe, commands):
     """Writes the prepfold command to a text file"""
-    with open(f"prepfold_cmd_{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}.sh", 'w') as f:
+    with open(f"prepfold_cmd_{pipe['run_ops']['file_precursor']}.sh", 'w') as f:
         for cmd in commands:
             f.write(cmd)
 
@@ -89,7 +95,7 @@ def main(pipe, label=""):
         pipe["completed"]["post_folds"] = True
     for bin_count in folds:
         prep_kwargs = common_kwargs(pipe, bin_count)
-        cmd = add_prepfold_to_commands(prep_kwargs)
+        cmd = add_prepfold_to_commands(prep_kwargs, pipe["source"]["edited_eph"], pipe["source"]["edited_eph"]["name"])
         write_cmd_to_file(pipe, cmd)
     #update yaml file
     yaml_helper.dump_to_yaml(pipe, label=label)

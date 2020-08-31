@@ -98,8 +98,9 @@ process pulsar_prepfold_cmd_make {
     file yaml_file
 
     output:
-    file "*sh"
-    file "*prep_cmd_make.yaml"
+    tuple file("*sh"), file("edited_ephemeris.eph", optional true)
+    file("*prep_cmd_make.yaml") 
+    // ephemeris files are formatted in the same way as the bash files
 
     """
     prepfold_cmd_make.py --yaml $yaml_file --label prep_cmd_make
@@ -114,7 +115,7 @@ process pulsar_prepfold_run {
     maxRetries 1
 
     input:
-    tuple file(prepfold_cmd_file), file(fits)
+    tuple file(prepfold_cmd_file_and_eph), file(fits)
 
     output:
     file "*pfd*"
@@ -146,12 +147,12 @@ workflow initial_fold {
         // Create a bash file of the prepfold commands required
         pulsar_prepfold_cmd_make( yaml_files.flatten() )
         // Run the bash file
-        init_pulsar_prepfold_run( // Work out pointings from the file names
-                                  //pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
-                                  // Group fits files by bash files with same pointings
-                                  fits_files)//concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
+        pulsar_prepfold_run( // Work out pointings from the file names
+                             pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
+                             // Group fits files by bash files with same pointings
+                             fits_files)//concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         // Run through the classfier
-        classifier( init_pulsar_prepfold_run.out.flatten().collate( 120 ) )
+        classifier( pulsar_prepfold_run.out.flatten().collate( 120 ) )
     emit:
         classifier.out[0] //classifier files
         //pulsar_prepfold_cmd_make.out[1] //yaml files
