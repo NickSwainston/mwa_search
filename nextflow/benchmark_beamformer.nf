@@ -115,7 +115,7 @@ process make_pointings {
 
 process make_beam {
     label 'gpu'
-    time '24h'
+    time '12h'
     errorStrategy 'retry'
     maxRetries 1
     maxForks 24
@@ -165,7 +165,7 @@ ${bf_out} -t 6000 -z $utc &> make_beam_${channel_pair[1]}_n${point.size()}_outpu
 
 process make_beam_ipfb {
     label 'gpu'
-    time '24h'
+    time '12h'
     errorStrategy 'retry'
     maxRetries 1
     maxForks 24
@@ -213,7 +213,7 @@ process make_beam_ipfb {
 
 process make_beam_single {
     label 'gpu'
-    time '24h'
+    time '12h'
     errorStrategy 'retry'
     maxRetries 1
     maxForks 24
