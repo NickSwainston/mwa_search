@@ -12,6 +12,7 @@ params.all = false
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
+params.dm_max_step = 500.0
 params.max_dms_per_job = 5000
 
 //Defaults for the accelsearch command
@@ -43,7 +44,6 @@ if ( params.zmax == 0 ) {
 }
 else {
     total_dm_jobs = 24
-    params.max_dms_per_job = 128
 }
 
 // Work out some estimated job times
@@ -80,7 +80,8 @@ process ddplan {
 
     if '$name'.startswith('Blind'):
         output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max,
-                         min_DM_step=$params.dm_min_step, max_dms_per_job=$params.max_dms_per_job)
+                         min_DM_step=$params.dm_min_step, max_DM_step=$params.dm_max_step,
+                         max_dms_per_job=$params.max_dms_per_job)
     else:
         if '$name'.startswith('FRB'):
             dm = fpio.grab_source_alog(source_type='FRB',
@@ -100,7 +101,8 @@ process ddplan {
             dm_min = 1.0
         dm_max = float(dm) + 2.0
         output = dd_plan(150., 30.72, 3072, 0.1, dm_min, dm_max,
-                         min_DM_step=$params.dm_min_step, max_dms_per_job=$params.max_dms_per_job)
+                         min_DM_step=$params.dm_min_step, max_DM_step=$params.dm_max_step,
+                         max_dms_per_job=$params.max_dms_per_job)
     with open("DDplan.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
@@ -124,7 +126,7 @@ process search_dd_fft_acc {
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 300
+        maxForks 400
     }
     else {
         maxForks 800
@@ -255,7 +257,7 @@ process prepfold {
     maxRetries 1
 
     input:
-    tuple file(fits_files), val(cand_line)
+    tuple val(cand_line), file(cand_file), file(cand_inf), file(fits_files)
 
     output:
     file "*pfd*"
@@ -270,6 +272,7 @@ process prepfold {
         container = "nickswainston/presto:realfft_docker"
     }
     //no mask command currently
+    //${cand_line.split()[0].substring(0, cand_line.split()[0].lastIndexOf(":")) + '.cand'}
     """
     echo "${cand_line.split()}"
     # Set up the prepfold options to match the ML candidate profiler
@@ -287,7 +290,13 @@ process prepfold {
         period_search_n=2
     fi
 
-    prepfold -ncpus $task.cpus -o ${cand_line.split()[0]} -n \$nbins -noxwin -noclip -p \$period -dm ${cand_line.split()[1]} -nsub 256 \
+    # Work out how many dmfacts to use to search +/- 2 DM
+    ddm=`echo "scale=10;0.000241*138.87^2*\${dmstep} / (1/\$period *\$nbins)" | bc`
+    ndmfact=`echo "2/(\$ddm*\$nbins)" | bc`
+
+    #-p \$period 
+    prepfold -ncpus $task.cpus -o ${cand_line.split()[0]} -n \$nbins -dm ${cand_line.split()[1]} -noxwin -noclip -nsub 256 \
+-accelfile ${cand_line.split()[0].substring(0, cand_line.split()[0].lastIndexOf(":"))}.cand -accelcand ${cand_line.split()[0].split(":")[-1]} \
 -npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
     """
 }
@@ -364,10 +373,19 @@ workflow pulsar_search {
                                groupTuple( size: total_dm_jobs, remainder: true ).map{ it -> [it[0], it[1].flatten()]}.\
                                // Add fits files
                                concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]} )
-        // Make a pair of accelsift out lines and fits files that match
-        prepfold( name_fits_files.cross(accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_DM")[0], it ] }).\
-                  // Find the .cand file needed for each accelsift line
-                  map{ it -> [it[0][1], it[1][1], search_dd_fft_acc.out[3].filter{ it[1][1].split()[0].substring(0, it[1][1].split()[0].lastIndexOf(":")) + '.cand' }] }.view() )
+        prepfold( name_fits_files.cross(
+                  // Group all the .cand and .inf files by their base names
+                  search_dd_fft_acc.out.map{ it -> [it[2]].flatten().findAll { it != null } }.\
+                  flatten().map{ it -> [it.baseName.split(".inf")[0], it ] }.concat(
+                  search_dd_fft_acc.out.map{ it -> [it[4]].flatten().findAll { it != null } }.\
+                  flatten().map{ it -> [it.baseName.split("_ACCEL")[0], it ] },\
+                  // Group them with a matching accelsift line
+                  accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_ACCEL")[0], it ] }).\
+                  groupTuple( size: 3, remainder: false ).map{ it -> [it[0].split("_DM")[0], [it[1][0], it[1][1], it[1][2]]]}\
+                  // Match with fits files
+                  ).\
+                  // Reogranise to val(cand_line), file(cand_file), file(cand_inf), file(fits_files)
+                  map{ it -> [it[1][1][2], it[1][1][1], it[1][1][0], it[0][1]] } )
     emit:
         accelsift.out 
         prepfold.out
