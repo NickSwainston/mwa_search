@@ -108,10 +108,17 @@ def read_beanchmark_jobs(max_pointing_num, file_dir):
         cal_err = perr[1]
         beam = popt[0]
         beam_err = perr[0]
-        print("bm_read  = {:6.3f}".format(np.mean(pn_average_read) + np.mean(pn_average_read_std)))
-        print("bm_cal   = {:6.3f}".format(cal + cal_err))
-        print("bm_beam  = {:6.3f}".format(beam + beam_err))
-        print("bm_write = {:6.3f}".format(np.mean(pn_average_write) + np.mean(pn_average_write_std)))
+        print("Benchmarks in ms")
+        print("bm_read  = {:5.1f} +\- {:5.1f} ms".format(np.mean(pn_average_read)*1000, np.mean(pn_average_read_std)*1000))
+        print("bm_cal   = {:5.1f} +\- {:5.1f} ms".format(cal*1000, cal_err*1000))
+        print("bm_beam  = {:5.1f} +\- {:5.1f} ms".format(beam*1000, beam_err*1000))
+        print("bm_write = {:5.1f} +\- {:5.1f} ms".format(np.mean(pn_average_write)*1000, np.mean(pn_average_write_std)*1000))
+
+        print("Benchmarks in s including std to be put into nextflow.config")
+        print("params.bm_read  = {:6.3f}".format(np.mean(pn_average_read) + np.mean(pn_average_read_std)))
+        print("params.bm_cal   = {:6.3f}".format(cal + cal_err))
+        print("params.bm_beam  = {:6.3f}".format(beam + beam_err))
+        print("params.bm_write = {:6.3f}".format(np.mean(pn_average_write) + np.mean(pn_average_write_std)))
 
 
     

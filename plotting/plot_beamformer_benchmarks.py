@@ -36,7 +36,7 @@ def plot_benchmarks(max_pointings, gpu=False):
                         0.251464319230689, 0.24366376957200842, 0.22391966882989287])
     ozstar_orig_times = np.array([0.73*24]*15)
     ozstar_orig_t_std = np.array([0.02*24]*15)
-
+ 
     #Shangia ARM MPB benchmarks serial, cal once upgrade
     #sugon gpu
     arm_mpb_times = np.array([10.428699999999997, 6.327849999999999, 4.876733333333333, 4.2145, 3.8385600000000006, 3.6098166666666662, 3.3983857142857152, 3.2382874999999993, 3.1671000000000005, 3.1546199999999995, 3.1414727272727276, 3.0049666666666663, 2.968484615384616, 2.9391785714285716, 2.871186666666667])
@@ -49,8 +49,11 @@ def plot_benchmarks(max_pointings, gpu=False):
     
     #Benchmarks for 60s of beamforming
 
-    # Galaxy
-    galaxy_orig_times = np.array([
+    # Galaxy ------------------------------------------------------
+    galaxy_orig_times = np.array([80.024356]*20)*pns
+    galaxy_orig_t_std = np.array([17.407244805764243]*20)
+    galaxy_ipfb_times = np.array([176.90150595833333]*20)*pns
+    galaxy_ipfb_t_std = np.array([4.81427011600363]*20)
     galaxy_mpb_times = np.array([87.92744508333332, 130.752930625, 142.68917829166665, 151.09457491666666, 175.9199586666667,
                         190.59483129166665, 211.239435, 220.92454999999998, 237.09312275, 241.56801558333336,
                         263.16444916666666, 278.83963575, 295.05736541666664, 324.809873875, 338.5593945,
@@ -59,27 +62,6 @@ def plot_benchmarks(max_pointings, gpu=False):
                         16.52515973362016, 11.542991266680383, 8.241497860268732, 7.9050627160796205, 8.75072582114132,
                         9.984636448279785, 8.207385441325538, 6.7822706699207576, 13.355794591824555, 9.976878315324516,
                         8.90584301787109, 16.0897684666793, 7.04310014752728, 13.628790278733309, 7.023970736723734])
-
-    garrawarla_orig_times = np.array([26.58501879166667]*20)
-    garrawarla_orig_t_std = np.array([0.8307293830850536]*20)
-    garrawarla_mpb_times = np.array([36.603427875, 31.402163833333333, 38.723946041666665, 42.19923445833333, 44.64464158333334,
-                            48.18021158333334, 47.220577291666665, 55.08318729166667, 54.272442250000005, 63.23153141666668,
-                            65.77896220833334, 70.14031154166668, 72.28991529166667, 76.61966149999999, 75.985575875,
-                            80.09525933333333, 85.08665087499999, 90.50430125000001, 92.93317920833333, 95.44081741666666])
-    garrawarla_mpb_t_std = np.array([14.936836223789541, 9.197380107737061, 8.004670682815602, 6.719730478378461, 8.626076415601606,
-                            9.571553176642036, 9.41658963492266, 7.565667642952214, 9.876546570038121, 12.460640966743567,
-                            10.892631988997312, 10.085567742822462, 8.259131706006734, 8.231193363069687, 8.785111966270026,
-                            9.823887533315723, 9.279506162073455, 8.04683163106655, 9.213397394332917, 9.857900903074347])
-
-    """
-    plt.errorbar(pns, ozstar_orig_times/ozstar_mpb_times, yerr=ozstar_mpb_t_std/5,
-                 color='green', label='OzSTAR super computer')
-    plt.errorbar(pns, galaxy_orig_times/galaxy_mpb_times, yerr=galaxy_mpb_t_std/5,
-                 color='blue', label='Galaxy super computer')
-    plt.errorbar(pns, arm_orig_times/arm_mpb_times, yerr=arm_mpb_t_std/5,
-                 color='red', label='CSRC prototype')
-    """
-    # GPU times
     galaxy_mpb_gpu_times = np.array([0.46495833333333336, 0.7200000000000001, 0.976625, 1.232, 1.49,
                             1.7459999999999998, 2.002, 2.256, 2.511, 2.770000000000001,
                             3.0250000000000004, 3.2760000000000002, 3.5425000000000004, 3.7940000000000005, 4.050000000000001,
@@ -89,6 +71,19 @@ def plot_benchmarks(max_pointings, gpu=False):
                             0.6438652809400426, 0.6856262344261145, 0.727397257922611, 0.7669700486691483, 0.806613290245084,
                             0.8453303101943838, 0.8839070463949624, 0.9214119599831552, 0.9587272741041174, 0.995414713383192])
 
+    # Garrawarla --------------------------------------------------
+    garrawarla_orig_times = np.array([36.61813077083333]*20)*pns
+    garrawarla_orig_t_std = np.array([7.0984338765348305]*20)
+    garrawarla_ipfb_times = np.array([45.22205279166667]*20)*pns
+    garrawarla_ipfb_t_std = np.array([4.3707582012192505]*20)
+    garrawarla_mpb_times = np.array([36.603427875, 31.402163833333333, 38.723946041666665, 42.19923445833333, 44.64464158333334,
+                            48.18021158333334, 47.220577291666665, 55.08318729166667, 54.272442250000005, 63.23153141666668,
+                            65.77896220833334, 70.14031154166668, 72.28991529166667, 76.61966149999999, 75.985575875,
+                            80.09525933333333, 85.08665087499999, 90.50430125000001, 92.93317920833333, 95.44081741666666])
+    garrawarla_mpb_t_std = np.array([14.936836223789541, 9.197380107737061, 8.004670682815602, 6.719730478378461, 8.626076415601606,
+                            9.571553176642036, 9.41658963492266, 7.565667642952214, 9.876546570038121, 12.460640966743567,
+                            10.892631988997312, 10.085567742822462, 8.259131706006734, 8.231193363069687, 8.785111966270026,
+                            9.823887533315723, 9.279506162073455, 8.04683163106655, 9.213397394332917, 9.857900903074347])
     garrawarla_mpb_gpu_times =  np.array([0.12008333333333332, 0.15225, 0.18600000000000003, 0.22033333333333335, 0.25333333333333335,
                             0.28775, 0.32025, 0.35300000000000004, 0.38587499999999997, 0.42125000000000007,
                             0.4519166666666667, 0.484, 0.5189166666666667, 0.5489166666666666, 0.585,
@@ -98,6 +93,25 @@ def plot_benchmarks(max_pointings, gpu=False):
                            0.2493708759036287, 0.2641602813839541, 0.278770219153938, 0.2930138104385162, 0.3070779624134562,
                            0.32091418923343, 0.3345482989319772, 0.34741005249171475, 0.3601623782279182, 0.3720426292590419])
 
+    # Calculate improvement uncertainties and plot them
+    """
+    ozstar_improvement = ozstar_mpb_times/ozstar_orig_times
+    ozstar_per_unc = ozstar_mpb_t_std/ozstar_mpb_times + ozstar_orig_t_std/ozstar_orig_times
+    plt.errorbar(pns, ozstar_improvement, yerr=ozstar_improvement*ozstar_per_unc,
+                 color='green', label='OzSTAR super computer')
+    """
+    galaxy_improvement = galaxy_orig_times/galaxy_mpb_times
+    galaxy_per_unc = galaxy_mpb_t_std/galaxy_mpb_times + galaxy_orig_t_std/galaxy_orig_times
+    plt.errorbar(pns, galaxy_improvement, yerr=galaxy_improvement*galaxy_per_unc,
+                 color='blue', label='Galaxy super computer')
+    garrawarla_improvement = garrawarla_orig_times/garrawarla_mpb_times
+    garrawarla_per_unc = garrawarla_mpb_t_std/garrawarla_mpb_times + garrawarla_orig_t_std/garrawarla_orig_times
+    plt.errorbar(pns, garrawarla_improvement, yerr=garrawarla_improvement*garrawarla_per_unc,
+                 color='purple', label='Garrawarla  super computer')
+    """
+    plt.errorbar(pns, arm_orig_times/arm_mpb_times, yerr=arm_mpb_t_std/5,
+                 color='red', label='CSRC prototype')
+    
     # Galaxy garra comparison
     gg_improvement = galaxy_mpb_times/garrawarla_mpb_times
     gg_per_unc = galaxy_mpb_t_std/galaxy_mpb_times + garrawarla_mpb_t_std/garrawarla_mpb_times
@@ -107,6 +121,7 @@ def plot_benchmarks(max_pointings, gpu=False):
     gg_gpu_per_unc = galaxy_mpb_gpu_t_std/galaxy_mpb_gpu_times + garrawarla_mpb_gpu_t_std/garrawarla_mpb_gpu_times
     plt.errorbar(pns, gg_gpu_improvement, yerr=garrawarla_mpb_gpu_t_std,
                  color='green', label='GPU processing improvement')
+    """
 
     plt.ylabel("Factor of improved processing efficiency")
     plt.xlabel("Number of simultaneous tied-array beams")
