@@ -17,12 +17,6 @@ import prof_utils
 import stokes_fold
 
 logger = logging.getLogger(__name__)
-
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except KeyError:
-    logger.warning("ATNF database could not be found on disk.")
-    ATNF_LOC = None
 EPNDB_LOC = os.environ["EPNDB_LOC"]
 
 #---------------------------------------------------------------

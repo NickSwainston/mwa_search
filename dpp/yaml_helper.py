@@ -9,17 +9,10 @@ import argparse
 from misc_helper import bin_sampling_limit, is_binary, required_bin_folds
 from pulsar_obs_helper import find_fold_times
 from mwa_metadb_utils import get_common_obs_metadata
+from vcstools import data_load
 
 
 logger = logging.getLogger(__name__)
-
-
-try:  # get ATNF db location
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except:
-    logger.warn(
-        "ATNF database could not be loaded on disk. This may lead to a connection failure")
-    ATNF_LOC = None
 
 
 def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
@@ -54,7 +47,7 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
         pipe["source"]["name"] = psr
         if query is None:
             query = psrqpy.QueryATNF(
-                psrs=pipe["source"]["name"], loadfromdb=ATNF_LOC).pandas
+                psrs=pipe["source"]["name"], loadfromdb=data_load.ATNF_LOC).pandas
         pipe["source"]["ATNF"] = dict(query)
         pipe["source"]["ATNF_P"] = query["P0"][0]
         pipe["source"]["ATNF_DM"] = query["DM"][0]
@@ -120,7 +113,7 @@ def dump_to_yaml(pipe, label=""):
 
 def main(kwargs):
     metadata = get_common_obs_metadata(kwargs["obsid"])
-    query = psrqpy.QueryATNF(loadfromdb=ATNF_LOC).pandas
+    query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
     for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
         pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, query=query[query['PSRJ'] == psr].reset_index())
         dump_to_yaml(pipe, label=kwargs["label"])

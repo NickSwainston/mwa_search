@@ -23,18 +23,13 @@ from mwa_pulsar_client import client
 import submit_to_database as std
 import pulsar_obs_helper as poh
 from config_vcs import load_config_file
+from vcstools import data_load
 
 
 import logging
 comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
-#get ATNF db location
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except KeyError:
-    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
-    ATNF_LOC = None
 
 def search_for_cal_srclist(obsid, cal_id, all_cal_returns=False, all_srclist_returns=False):
     """
@@ -373,7 +368,7 @@ def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
     for o in obs_psrs:
         pulsar_list.append(o[0])
     periods = psrqpy.QueryATNF(params=["P0"], psrs=pulsar_list,
-                               loadfromdb=ATNF_LOC).pandas["P0"]
+                               loadfromdb=data_load.ATNF_LOC).pandas["P0"]
 
     oap = get_obs_array_phase(obsid)
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.

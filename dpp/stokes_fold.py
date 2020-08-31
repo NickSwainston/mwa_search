@@ -19,13 +19,6 @@ import rm_synthesis
 
 logger = logging.getLogger(__name__)
 
-#get ATNF db location
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except:
-    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
-    ATNF_LOC = None
-
 comp_config = load_config_file()
 
 #---------------------------------------------------------------

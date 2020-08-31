@@ -22,16 +22,10 @@ from config_vcs import load_config_file
 from grid import get_grid
 import checks
 import sn_flux_est as snfe
+from vcstools import data_load
 
 import logging
 logger = logging.getLogger(__name__)
-
-#get ATNF db location
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except KeyError:
-    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
-    ATNF_LOC = None
 
 
     
@@ -79,8 +73,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
     for o in obs_psrs:
         pulsar_list.append(o[0])
     periods = psrqpy.QueryATNF(params=["P0"], psrs=pulsar_list,
-                               loadfromdb=ATNF_LOC).pandas["P0"]
-
+                               loadfromdb=data_load.ATNF_LOC).pandas["P0"]
 
     oap = get_obs_array_phase(obsid)
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
@@ -175,12 +168,14 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
     # Find all of the Fermi candidates
     #-----------------------------------------------------------------------------------------------------------
     fermi_list = get_sources_in_fov(obsid, 'Fermi', fwhm)
+    print(fermi_list)
     pulsar_search_name_list = pulsar_search_name_list + fermi_list[0]
     pulsar_search_pointing_list = pulsar_search_pointing_list + fermi_list[1]
 
     # Find all of the points of interest candidates
     #-----------------------------------------------------------------------------------------------
     poi_list = get_sources_in_fov(obsid, 'POI', fwhm)
+    print(poi_list)
     pulsar_search_name_list = pulsar_search_name_list + poi_list[0]
     pulsar_search_pointing_list = pulsar_search_pointing_list + poi_list[1]
 

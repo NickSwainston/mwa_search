@@ -11,6 +11,7 @@ import glob
 from config_vcs import load_config_file
 import psrqpy
 from shutil import copyfile as cp
+from vcstools import data_load
 
 from mwa_pulsar_client import client
 import mwa_metadb_utils
@@ -23,12 +24,6 @@ import submit_to_database as std
 
 logger = logging.getLogger(__name__)
 
-#get ATNF db location
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except:
-    logger.warn("ATNF database could not be loaded on disk. This may lead to a connection failure")
-    ATNF_LOC = None
 
 comp_config = load_config_file()
 
@@ -139,7 +134,7 @@ def find_RM_from_cat(pulsar):
         The uncertainty in the rotation measure
     """
 
-    query = psrqpy.QueryATNF(params=["RM"], psrs=[pulsar], loadfromdb=ATNF_LOC).pandas
+    query = psrqpy.QueryATNF(params=["RM"], psrs=[pulsar], loadfromdb=data_load.ATNF_LOC).pandas
     rm = query["RM"][0]
     rm_err = query["RM_ERR"][0]
 
