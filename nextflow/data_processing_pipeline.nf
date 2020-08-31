@@ -134,7 +134,7 @@ process pulsar_prepfold_run {
 }
 
 
-include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
+include { pre_beamform; beamform; beamform_ipfb } from './beamform_module'
 include { pulsar_search; single_pulse_search } from './pulsar_search_module'
 include { classifier } from './classifier_module'
 
@@ -147,14 +147,14 @@ workflow initial_fold {
         pulsar_prepfold_cmd_make( yaml_files.flatten() )
         // Run the bash file
         init_pulsar_prepfold_run( // Work out pointings from the file names
-                                  pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
+                                  //pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
                                   // Group fits files by bash files with same pointings
-                                  concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
+                                  fits_files)//concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         // Run through the classfier
         classifier( init_pulsar_prepfold_run.out.flatten().collate( 120 ) )
     emit:
         classifier.out[0] //classifier files
-        pulsar_prepfold_cmd_make.out[1] //yaml files
+        //pulsar_prepfold_cmd_make.out[1] //yaml files
 }
 
 /*
@@ -209,11 +209,13 @@ workflow {
     // Make a yaml_file with all necessary info for each pointing
     make_yamls( pre_beamform.out[0],\
                 find_pointings.out.splitCsv(skip: 1, limit: 1).concat( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().map{ it -> [it] }.concat(\
-                find_pointings.out.splitCsv(skip: 0, limit: 1).concat( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().map{ it -> [it] }).collect() )
+                find_pointings.out.splitCsv(skip: 0, limit: 1).concat( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().map{ it -> [it] }).collect().view() )
 
+    make_yamls.out.view()
     // Perform processing pipeline on all known pulsars
+    /*
     initial_fold( // yaml files
-                  make_yamls.out,\
+                  make_yamls.out.view(),\
                   // fits files
                   beamform.out[3].concat(beamform_ipfb.out[3]) )
 
@@ -227,4 +229,5 @@ workflow {
     // Perform a single pulse search on all single pulse candidates
     single_pulse_search( find_pointings.out.splitCsv(skip: 7, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 6, limit: 1).flatten()).\
                          concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> it[1] } )
+    */
 }
