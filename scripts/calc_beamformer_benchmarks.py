@@ -122,8 +122,6 @@ if __name__ == "__main__":
             help="Max number of pointings for multipixel beamformer")
     parser.add_argument('-f', '--file_dir', type=str, default='./',
             help="Directory containging files containing the output of make_beam.")
-    parser.add_argument('-m', '--mode', type=str, default='s',
-            help="Script mode. s: send off jobs. r: read in outputs and do statitics")
     args = parser.parse_args()
 
     read_beanchmark_jobs(args.max_pointing_num, args.file_dir)

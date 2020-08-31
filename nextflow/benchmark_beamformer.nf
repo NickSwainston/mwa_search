@@ -218,19 +218,24 @@ process make_beam_single {
     maxRetries 1
     maxForks 24
 
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+    if ( "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.module_dir}; module load vcstools/nswainston"
+    }
+    else if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
+        container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
         clusterOptions = "--gres=gpu:1"
         scratch '/ssd'
+        container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
+        container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
     }
-    container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
 
     input:
     each channel_pair
