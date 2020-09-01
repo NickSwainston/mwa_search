@@ -26,6 +26,16 @@ params.zmax = 0
 
 params.no_combined_check = false
 
+// If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
+if ( params.zmax == 0 ) {
+    total_dm_jobs = 6
+    params.max_dms_per_job = 5000
+}
+else {
+    total_dm_jobs = 24
+    params.max_dms_per_job = 128
+}
+
 params.help = false
 if ( params.help ) {
     help = """mwa_search_pipeline.nf: A pipeline that will beamform and perform a pulsar search

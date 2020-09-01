@@ -71,7 +71,8 @@ def calc_nsub(centrefreq, dm):
     return int(nsub)
 
 
-def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_step=0.02):
+def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM,
+            min_DM_step=0.02, max_DM_step=500.0, max_dms_per_job=5000):
     """
     Work out the dedisperion plan
 
@@ -91,6 +92,8 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         The highest dispersion measure
     min_DM_step: float
         Will overwrite the minimum DM step with this value
+    max_dms_per_job: int
+        If Nsteps is greater than this value split it into multiple lines
 
     Returns
     -------
@@ -134,6 +137,8 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         if DM_step < min_DM_step:
             #set DM to 0.01 as a zero DM doesn't make sense
             DM_step = min_DM_step
+        if DM_step > max_DM_step:
+            DM_step = max_DM_step
 
 
         if D_DM > highDM:
@@ -155,7 +160,23 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM, min_DM_ste
         timeres *= 2.
         downsample *= 2
 
-    return DD_plan_array
+    #Check no lines have more Nsteps than max_dms_per_job
+    new_DD_plan_array = []
+    for dd_line in DD_plan_array:
+        new_dd_lines = []
+        while dd_line[3] > max_dms_per_job:
+            # previous_DM, D_DM, DM_step, nDM_step, timeres, downsample, nsub
+            new_dd_lines.append([dd_line[0], dd_line[0] + dd_line[2] * max_dms_per_job,
+                                dd_line[2], max_dms_per_job, dd_line[4],
+                                dd_line[5], dd_line[6]])
+            dd_line = [dd_line[0] + dd_line[2] * max_dms_per_job, dd_line[1],
+                       dd_line[2], dd_line[3] - max_dms_per_job, dd_line[4],
+                       dd_line[5], dd_line[6]]
+        new_dd_lines.append(dd_line)
+        for n_line in new_dd_lines:
+            new_DD_plan_array.append(n_line)
+
+    return new_DD_plan_array
 
 
 
@@ -178,11 +199,16 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--obsid', type=int,
                         help='The MWA observation ID of an observation. Using this command will get the require observation parameters.')
     parser.add_argument('-m', '--min_DM_step', type=float, default=0.02,
-                        help='The  minimun DM step size, default 0.02')
+                        help='The minimun DM step size, default 0.02')
+    parser.add_argument('--max_DM_step', type=float, default=500.0,
+                        help='The maximum DM step size, default 500.0')
     parser.add_argument('-p', '--plot', action='store_true',
                         help='Plot the sensitivty of the DM plan')
     parser.add_argument('--time', type=int, default=4800,
                         help='Time in seconds to calculate the sensitivity')
+    parser.add_argument('--max_dms_per_job', type=int, default=5000,
+                        help='If Nsteps is greater than this value split it into multiple lines. '
+                             'This will cause the search pipeline to submit fewer DMs per job')
     #parser.add_argument()
     args=parser.parse_args()
 
@@ -194,7 +220,9 @@ if __name__ == "__main__":
         args.centrefreq = channels
 
 
-    DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM, min_DM_step=args.min_DM_step)
+    DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM,
+                             min_DM_step=args.min_DM_step, max_DM_step=args.max_DM_step,
+                             max_dms_per_job=args.max_dms_per_job)
     print(" low DM | high DM | DeltaDM | Nsteps | Downsamp | nsub | Effective time resolution (ms) ")
     total_steps = 0
     for d in DD_plan_array:
