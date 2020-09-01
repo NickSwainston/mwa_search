@@ -177,11 +177,8 @@ process accelsift {
     output:
     tuple val(name), file("cands_*greped.txt")
 
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module use $params.module_dir; module load mwa_search/py2_scripts"
-    }
-    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
+              "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
