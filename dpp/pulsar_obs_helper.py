@@ -8,7 +8,7 @@ import sn_flux_est as snfe
 
 logger = logging.getLogger(__name__)
 
-def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
+def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None):
     """
     Finds the fractional time the pulsar is in the beam at some zenith normalized power
 
@@ -41,9 +41,8 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
 
     min_z_power = sorted(min_z_power, reverse=True)
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
-    pow_dict, _ = find_pulsars_power(
-        obsid, powers=min_z_power, names_ra_dec=names_ra_dec
-    )
+    pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power,
+                                     names_ra_dec=names_ra_dec, metadata=metadata)
     for power in pow_dict.keys():
         psr_list = pow_dict[power][obsid]
         enter = None
@@ -60,7 +59,7 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1)):
     return [enter, leave, power]
 
 
-def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
+def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata=None):
     """
     Finds the beam power information for pulsars in a specific obsid
 
@@ -73,6 +72,8 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
     names_ra_dec: list
         OPTIONAL - A list of puslars and their RA and Dec values to evaluate (generated from fpio.get_source_alog).
                    If none, will look for all pulsars. Default: None
+    metadata: list
+        A list of the output of get_common_obs_metadata for the input obsid
 
     Returns:
     --------
@@ -96,8 +97,8 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None):
     pulsar_power_dict = {}
     for pwr in powers:
         obs_data, meta_data = fpio.find_sources_in_obs(
-            [obsid], names_ra_dec, dt_input=100, min_power=pwr
-        )
+            [obsid], names_ra_dec,
+            dt_input=100, min_power=pwr, metadata_list=[metadata])
         pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data

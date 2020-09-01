@@ -14,13 +14,12 @@ from vcstools import data_load
 logger = logging.getLogger(__name__)
 
 
-def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
+def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
     """Adds all available keys to the pipe dictionary and figures out some useful constants"""
     pipe = {"obs": {}, "source": {},
             "completed": {}, "folds": {}, "run_ops": {}, "pol": {}}
 
     pipe["run_ops"]["dirs"] = kwargs["run_dir"]
-    pipe["run_ops"]["pointing"] = pointing
     pipe["run_ops"]["loglvl"] = kwargs["loglvl"]
     pipe["run_ops"]["mwa_search"] = kwargs["mwa_search"]
     pipe["run_ops"]["vcstools"] = kwargs["vcstools"]
@@ -44,7 +43,6 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
 
     if pipe["source"]["cand"] == False:
         pipe["source"]["name"] = psr
-        pipe["run_ops"]["file_precursor"] = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}"
         if query is None:
             query = psrqpy.QueryATNF(
                 psrs=pipe["source"]["name"], loadfromdb=data_load.ATNF_LOC).pandas
@@ -64,7 +62,7 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, query=None):
         pipe["source"]["sampling_limit"] = int(bin_sampling_limit(
             pipe["source"]["name"], query=query))
         pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
-            pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"])
+            pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=[metadata, full_meta])
         pipe["source"]["enter_frac"] = float(pipe["source"]["enter_frac"])
         pipe["source"]["exit_frac"] = float(pipe["source"]["exit_frac"])
         pipe["source"]["seek"] = pipe["source"]["enter_frac"] * (pipe["obs"]["end"] - pipe["obs"]["beg"])
@@ -120,11 +118,20 @@ def dump_to_yaml(pipe, label=""):
 
 
 def main(kwargs):
-    metadata = get_common_obs_metadata(kwargs["obsid"])
+    metadata, full_meta = get_common_obs_metadata(kwargs["obsid"], return_all=True)
     query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
+    pulsars_pointings_dict = {}
     for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
-        pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, query=query[query['PSRJ'] == psr].reset_index())
-        dump_to_yaml(pipe, label=kwargs["label"])
+        if psr not in pulsars_pointings_dict.keys():
+            pulsars_pointings_dict[psr] = []
+        pulsars_pointings_dict[psr].append(pointing)
+    for psr in pulsars_pointings_dict.keys():
+        pipe = initiate_pipe(kwargs, psr, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index())
+        for pointings in pulsars_pointings_dict[psr]:
+            pipe["run_ops"]["pointing"] = pointing
+            if pipe["source"]["cand"] == False:
+                pipe["run_ops"]["file_precursor"] = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}"
+            dump_to_yaml(pipe, label=kwargs["label"])
 
 
 if __name__ == '__main__':
