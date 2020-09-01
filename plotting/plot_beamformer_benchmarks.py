@@ -4,6 +4,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import argparse
 import numpy as np
 
@@ -93,23 +94,44 @@ def plot_benchmarks(max_pointings, gpu=False):
                            0.2493708759036287, 0.2641602813839541, 0.278770219153938, 0.2930138104385162, 0.3070779624134562,
                            0.32091418923343, 0.3345482989319772, 0.34741005249171475, 0.3601623782279182, 0.3720426292590419])
 
+    # Ozstar -------------------------------------------------
+    ozstar_orig_times = np.array([41.013328375]*20)*pns
+    ozstar_orig_t_std = np.array([12.536352391293963]*20)
+    ozstar_ipfb_times = np.array([61.20333333333334]*20)*pns
+    ozstar_ipfb_t_std = np.array([1.0810707141019444]*20)
+    ozstar_mpb_times = np.array([24.169166666666666, 28.060833333333335, 33.99875, 40.934583333333336, 43.505833333333335,
+        51.16291666666666, 55.370416666666664, 60.588750000000005, 69.05833333333334, 73.95625,
+        76.29541666666667, 84.19250000000001, 90.74249999999999, 94.31125000000002, 99.84833333333331,
+        103.68374999999999, 111.355, 117.90125, 126.1125, 126.99291666666666])
+    ozstar_mpb_t_std = np.array([2.0768805066466602, 2.0158949969898945, 3.364736632214573, 3.6792820621767452, 2.585562344807971,
+        3.914387435226047, 4.264825591555754, 4.143663146399975, 5.2639090882051605, 5.95648233195007,
+        3.4441423450629274, 6.342387333120969, 7.810977985075449, 5.826557955102366, 5.762243968763865,
+        4.757413348746703, 8.036259494731778, 9.236832660829505, 10.546772511847722, 9.421768446513752])
+    ozstar_mpb_gpu_times =  np.array([0.15641666666666665, 0.1934166666666667, 0.23525, 0.2798333333333334, 0.31395833333333334,
+        0.36000000000000004, 0.39695833333333336, 0.43733333333333335, 0.48374999999999996, 0.52375,
+        0.5550416666666667, 0.6025, 0.6505416666666667, 0.6813333333333333, 0.7243749999999999,
+        0.758, 0.8053750000000001, 0.84675, 0.8945833333333334, 0.9283333333333333])
+    ozstar_mpb_gpu_t_std = np.array([0.017946239921619974, 0.09252896580378416, 0.12302691820348921, 0.14797360404343893, 0.16773201175143984,
+        0.18909343135754653, 0.20716072153930223, 0.22550290508863083, 0.24448628950705417, 0.26169448508874976,
+        0.2762079381228228, 0.2943326568734341, 0.3113274453835384, 0.3255043813791224, 0.3413085295402345,
+        0.355580646588618, 0.3714644530886231, 0.3869487160328536, 0.40299869847085584, 0.4152926053465283])
+
     # Calculate improvement uncertainties and plot them
-    """
-    ozstar_improvement = ozstar_mpb_times/ozstar_orig_times
+    plt.xticks([0,2,4,6,8,10,12,14,16,18,20])
+    ozstar_improvement = ozstar_orig_times/ozstar_mpb_times
     ozstar_per_unc = ozstar_mpb_t_std/ozstar_mpb_times + ozstar_orig_t_std/ozstar_orig_times
-    plt.errorbar(pns, ozstar_improvement, yerr=ozstar_improvement*ozstar_per_unc,
+    plt.errorbar(np.array(pns), ozstar_improvement, yerr=ozstar_improvement*ozstar_per_unc,
                  color='green', label='OzSTAR super computer')
-    """
     galaxy_improvement = galaxy_orig_times/galaxy_mpb_times
     galaxy_per_unc = galaxy_mpb_t_std/galaxy_mpb_times + galaxy_orig_t_std/galaxy_orig_times
-    plt.errorbar(pns, galaxy_improvement, yerr=galaxy_improvement*galaxy_per_unc,
+    plt.errorbar(np.array(pns)+0.1, galaxy_improvement, yerr=galaxy_improvement*galaxy_per_unc,
                  color='blue', label='Galaxy super computer')
     garrawarla_improvement = garrawarla_orig_times/garrawarla_mpb_times
     garrawarla_per_unc = garrawarla_mpb_t_std/garrawarla_mpb_times + garrawarla_orig_t_std/garrawarla_orig_times
-    plt.errorbar(pns, garrawarla_improvement, yerr=garrawarla_improvement*garrawarla_per_unc,
+    plt.errorbar(np.array(pns)+0.2, garrawarla_improvement, yerr=garrawarla_improvement*garrawarla_per_unc,
                  color='purple', label='Garrawarla  super computer')
     """
-    plt.errorbar(pns, arm_orig_times/arm_mpb_times, yerr=arm_mpb_t_std/5,
+    plt.errorbar(np.array(pns)+0.3, arm_orig_times/arm_mpb_times, yerr=arm_mpb_t_std/5,
                  color='red', label='CSRC prototype')
     
     # Galaxy garra comparison
