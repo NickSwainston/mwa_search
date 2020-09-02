@@ -72,8 +72,8 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
     pulsar_list = []
     for o in obs_psrs:
         pulsar_list.append(o[0])
-    periods = psrqpy.QueryATNF(params=["P0"], psrs=pulsar_list,
-                               loadfromdb=data_load.ATNF_LOC).pandas["P0"]
+    period_query = psrqpy.QueryATNF(params=["PSRJ", "P0"], psrs=pulsar_list,
+                               loadfromdb=data_load.ATNF_LOC).pandas
 
     oap = get_obs_array_phase(obsid)
     centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
@@ -114,7 +114,8 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
         temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
-        period = periods[pi]
+        period = period_query[period_query['PSRJ'] == PSRJ].reset_index()["P0"][0]
+
         if math.isnan(period):
             print("WARNING: Period not found in ephermeris for {0} so assuming "
                   "it's an RRAT".format(jname))
@@ -180,15 +181,15 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
     pulsar_search_pointing_list = pulsar_search_pointing_list + poi_list[1]
 
     # Sometimes we get redundant RRATs that are found in RRAT and ANTF catalogues so they need to be removed
-    sp_name_list     = list(dict.fromkeys([ ";".join(s) for s in sp_name_list]))
+    sp_name_list     = list(dict.fromkeys([ ":".join(s) for s in sp_name_list]))
     sp_pointing_list = list(dict.fromkeys(sp_pointing_list))
 
     # Changing the format of the names list to make it easier to format
-    return [[ ";".join(s) for s in pulsar_name_list],
+    return [[ ":".join(s) for s in pulsar_name_list],
             pulsar_pointing_list,
-            [ ";".join(s) for s in vdif_name_list],
+            [ ":".join(s) for s in vdif_name_list],
             vdif_pointing_list,
-            [ ";".join(s) for s in pulsar_search_name_list],
+            [ ":".join(s) for s in pulsar_search_name_list],
             pulsar_search_pointing_list,
             sp_name_list,
             sp_pointing_list]
