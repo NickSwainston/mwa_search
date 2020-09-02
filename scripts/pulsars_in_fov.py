@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
     
 
-def find_pulsars_in_fov(obsid, psrbeg, psrend):
+def find_pulsars_in_fov(obsid, psrbeg, psrend, fhwm=None, search_radius=0.02):
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
     -----------
@@ -43,6 +43,12 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
         The begining of the observation you are processing in GPS time
     psrend: int
         The end of the observation you are processing in GPS time
+    fwhm: float
+        The FWHM of the beam in degrees.
+        Default None: Value will be estimated
+    search_radius: float
+        The radius to search (create beams within) in degrees to account for ionosphere.
+        Default: 0.02 degrees
 
     Returns:
     --------
@@ -78,9 +84,11 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
     period_query = psrqpy.QueryATNF(params=["PSRJ", "P0"], psrs=pulsar_list,
                                loadfromdb=data_load.ATNF_LOC).pandas
 
-    oap = get_obs_array_phase(obsid)
-    centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
-    fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
+    if fwhm is None:
+        # Estimate FWHM
+        oap = get_obs_array_phase(obsid)
+        centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
+        fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
 
     # Sort all the sources into 3 categories, pulsars which is for slow pulsars, vdif
     # for fast pulsars that require vdif and sp for singple pulse searches (FRBs,
@@ -142,7 +150,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend):
             jname_temp_list.append(jname)
 
         # grid the pointings to fill 2 arcminute raduis to account for ionosphere shift
-        pointing_list_list = get_pointings_required(raj, decj, fwhm, 2./60.)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, search_radius)
 
         # sort the pointings into the right groups
         for prd in pointing_list_list:
@@ -210,6 +218,10 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--end", type=int, help="Last GPS time to process [no default]")
     parser.add_argument("-a", "--all", action="store_true", default=False,
             help="Perform on entire observation span. Use instead of -b & -e")
+    parser.add_argument("-f", "--fwhm", type=float, default=None,
+            help="FWHM of the observation in degrees. If no value given the FWHM will be estimated.")
+    parser.add_argument("-s", "--search_radius", type=float, default=0.02,
+            help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.02 degrees")
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
                         default="INFO")
     args=parser.parse_args()
@@ -234,7 +246,7 @@ if __name__ == "__main__":
     elif args.all:
         beg, end = obs_max_min(args.obsid)
 
-    output_list = find_pulsars_in_fov(args.obsid, beg, end)
+    output_list = find_pulsars_in_fov(args.obsid, beg, end, fwhm=args.fwhm, search_radius=args.search_radius)
     with open('{}_fov_sources_temp.csv'.format(args.obsid), 'w', newline='') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter=',')
         for ol in output_list:

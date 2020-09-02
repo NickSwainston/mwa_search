@@ -9,6 +9,8 @@ params.begin = null
 params.end = null
 params.all = false
 
+params.search_radius = 0.02
+
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
@@ -32,6 +34,9 @@ if ( params.help ) {
              |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
              |
              |Optional arguments:
+             |  --search_radius 
+             |              The radius to search (create beams within) in degrees to account for ionosphere.
+             |              [default: 0.02 degrees]
              |  --publish_fits
              |              Publish to the fits directory (/group on Galaxy). Use this instead
              |              of --publish_fits_scratch
@@ -65,16 +70,40 @@ else {
     presto_python_load = ""
 }
 
+process fwhm_calc {
+    input:
+    val channels
+
+    output:
+    file "${params.obsid}_fwhm.txt"
+
+    """
+    #!/usr/bin/env python3
+
+    from mwa_metadb_utils import get_obs_array_phase
+    from dpp.obs_tools import calc_ta_fwhm
+    import csv
+
+    oap = get_obs_array_phase(${parmas.obsid})
+    centrefreq = 1.28 * float(${channels[0]} + ${channels[-1]}) / 2.
+    fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
+
+    with open("${params.obsid}_fwhm.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow([fwhm])
+    """
+}
 
 process find_pointings {
     input:
     tuple val(begin), val(end)
+    val fwhm
 
     output:
     file "${params.obsid}_fov_sources.csv"
 
     """
-    pulsars_in_fov.py -o $params.obsid -b $begin -e $end
+    pulsars_in_fov.py -o $params.obsid -b $begin -e $end --fwhm $fwhm --search_radius ${params.search_radius}
     """
 }
 
@@ -151,6 +180,9 @@ workflow initial_fold {
                              pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
                              // Group fits files by bash files with same pointings
                              concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
+        //if ( (params.search_radius - fwhm / 2) > (fwhm * 0.6) ){
+            // If more than one loop of beams per source, 
+        //}
         // Run through the classfier
         classifier( pulsar_prepfold_run.out.flatten().collate( 120 ) )
     emit:
@@ -193,7 +225,9 @@ workflow post_fold{
 
 workflow {
     pre_beamform()
-    find_pointings( pre_beamform.out[0] )
+    fwhm_calc( pre_beamform.out[1] )
+    find_pointings( pre_beamform.out[0],
+                    fwhm_calc.out.splitText() )
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
