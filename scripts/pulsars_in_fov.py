@@ -11,18 +11,21 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 import csv
 
-# vcstools and mwa_search imports
+# vcstools imports
 import find_pulsar_in_obs as fpio
-import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min, get_obs_array_phase
-from check_known_pulsars import calc_ta_fwhm, get_pointings_required, get_sources_in_fov
-from pulsar_obs_helper import find_pulsars_power
 from config_vcs import load_config_file
-from grid import get_grid
 import checks
 import sn_flux_est as snfe
 from vcstools import data_load
+
+# mwa_search imports
+import mwa_search_pipeline as search_pipe
+from dpp.obs_tools import calc_ta_fwhm
+from dpp.pulsar_obs_helper import get_pointings_required, get_sources_in_fov
+from pulsar_obs_helper import find_pulsars_power
+from grid import get_grid
 
 import logging
 logger = logging.getLogger(__name__)

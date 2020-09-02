@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 import logging
 
-
+# vcstools imports
 import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
+from config_vcs import load_config_file
+comp_config = load_config_file()
+from mwa_metadb_utils import get_common_obs_metadata
 
 
 logger = logging.getLogger(__name__)
@@ -102,3 +105,127 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
         pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data
+
+
+def find_beg_end(obsid, base_path=comp_config["base_data_dir"]):
+    """
+    looks through the comined files of the obsid to find the beginning and end gps times
+
+    Parameters:
+    -----------
+    obsid: int
+        The observation ID
+    base_path: string
+        OPTIONAL - The system's base working pat
+
+    Returns:
+    --------
+    beg: int
+        The beginning time for on-disk files
+    end: int
+        The end time for on-disk files
+    """
+    #TODO have some sort of check to look for gaps
+    if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid)):
+        combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid))
+    else:
+        meta_data = get_common_obs_metadata(obsid)
+        channels = meta_data[-1]
+        combined_files = glob.glob("{0}/{1}/combined/{1}*_ch{2}.dat".\
+                                   format(base_path, obsid, channels[-1]))
+    comb_times = []
+    for comb in combined_files:
+        comb_times.append(int(comb.split("_")[1]))
+    beg = min(comb_times)
+    end = max(comb_times)
+
+    return beg, end
+
+
+def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
+    """
+    Gets the number of grid pointings required to cover the search radius
+
+    Parameters
+    ----------
+    source_ra, source_dec: string
+        A string separated representing the RA and dec respectively.
+        Expected format is 'hh:mm[:ss.s]'
+    fwhm: float
+        FWHM of the tied-array beam in degrees.
+        Can be calculated in the calc_ta_fwhm function
+    search_radius: float
+        The radius of the circle that you would like to search
+
+    Returns
+    -------
+    pointing_list_list: list of lists
+        A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss'
+        [[RA, Dec]]
+    """
+    #convert to radians
+    coord = SkyCoord(source_ra, source_dec, unit=(u.hourangle,u.deg))
+    rar = coord.ra.radian #in radians
+    decr = coord.dec.radian
+
+    #make a grid around each pulsar
+    grid_sep = fwhm * 0.6
+    #work out how many loops are required
+    loops = int( (search_radius - fwhm/2.) / grid_sep )
+    if loops < 0:
+        loops = 0
+    logger.debug("loops: {}".format(loops))
+    rads, decds = get_grid(rar, decr, np.radians(grid_sep), loops)
+
+    #convert back to sexidecimals
+    coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
+    rajs = coord.ra.to_string(unit=u.hour, sep=':')
+    decjs = coord.dec.to_string(unit=u.degree, sep=':')
+    temp = []
+    for raj, decj in zip(rajs, decjs):
+        temp.append([raj, decj])
+    pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+    return pointing_list_list
+
+def get_sources_in_fov(obsid, source_type, fwhm):
+    """
+    Find all sources of the input type in the observations field-of-view
+
+    Parameters:
+    -----------
+    obsid: str
+        observation ID to search in
+    source_type: str
+        the source type input to fpio.grab_source_alog
+    fwhm: float
+        FWHM of the tied-array beam in degrees.
+        Can be calculated in the calc_ta_fwhm function
+
+    Returns:
+    --------
+    list:
+        name_list: list
+            A list of pulsars in the FOV
+        pointing_list: list
+            A list of pointings corresponding to the pulsars in name_list
+    """
+    names_ra_dec = fpio.grab_source_alog(source_type=source_type)
+    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+
+    name_list = []
+    pointing_list = []
+    for pulsar_line in obs_data[obsid]:
+        jname = pulsar_line[0]
+        for line in names_ra_dec:
+            if jname == line[0]:
+                jname, raj, decj = line
+        jname_temp_list = [jname]
+
+        # grid the pointings to fill the position uncertaint (given in arcminutes)
+        pointing_list_list = get_pointings_required(raj, decj, fwhm, 1./60.)
+
+        # sort the pointings into the right groups
+        for prd in pointing_list_list:
+            name_list.append(jname_temp_list)
+            pointing_list.append("{0}_{1}".format(prd[0], prd[1]))
+    return [name_list, pointing_list]

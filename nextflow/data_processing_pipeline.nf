@@ -30,14 +30,14 @@ if ( params.help ) {
              |  --begin     First GPS time to process [no default]
              |  --end       Last GPS time to process [no default]
              |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
-             |  --publish_fits_scratch
-             |              Publish to the scratch fits directory (/astro on Galaxy). Include
-             |              this option.
              |
              |Optional arguments:
              |  --publish_fits
              |              Publish to the fits directory (/group on Galaxy). Use this instead
              |              of --publish_fits_scratch
+             |  --publish_fits_scratch
+             |              Publish to the scratch fits directory (/astro on Galaxy). Include
+             |              this option.
              |  --vcstools_version
              |              The vcstools module version to use [default: master]
              |  --mwa_search_version
@@ -45,7 +45,7 @@ if ( params.help ) {
              |  --no_combined_check
              |              Don't check if all the combined files are available [default: false]
              |  --out_dir   Where the search candidates will be output
-             |              [default: /group/mwavcs/vcs/<obsid>/<obsid>_candidates]
+             |              [default: ${params.out_dir}]
              |  -w          The Nextflow work directory. Delete the directory once the processs
              |              is finished [default: ${workDir}]""".stripMargin()
     println(help)
