@@ -98,8 +98,8 @@ process pulsar_prepfold_cmd_make {
     file yaml_file
 
     output:
-    tuple file("*sh"), file("edited_ephemeris.eph", optional true)
-    file("*prep_cmd_make.yaml") 
+    file "*[sh,edited_ephemeris.eph]"
+    file "*prep_cmd_make.yaml"
     // ephemeris files are formatted in the same way as the bash files
 
     """
@@ -150,12 +150,12 @@ workflow initial_fold {
         pulsar_prepfold_run( // Work out pointings from the file names
                              pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
                              // Group fits files by bash files with same pointings
-                             fits_files)//concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
+                             concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         // Run through the classfier
         classifier( pulsar_prepfold_run.out.flatten().collate( 120 ) )
     emit:
         classifier.out[0] //classifier files
-        //pulsar_prepfold_cmd_make.out[1] //yaml files
+        pulsar_prepfold_cmd_make.out[1] //yaml files
 }
 
 /*
@@ -210,17 +210,16 @@ workflow {
     // Make a yaml_file with all necessary info for each pointing
     make_yamls( pre_beamform.out[0],\
                 find_pointings.out.splitCsv(skip: 1, limit: 1).concat( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().map{ it -> [it] }.concat(\
-                find_pointings.out.splitCsv(skip: 0, limit: 1).concat( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().map{ it -> [it] }).collect().view() )
+                find_pointings.out.splitCsv(skip: 0, limit: 1).concat( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().map{ it -> [it] }).collect() )
 
     make_yamls.out.view()
     // Perform processing pipeline on all known pulsars
-    /*
     initial_fold( // yaml files
                   make_yamls.out.view(),\
                   // fits files
                   beamform.out[3].concat(beamform_ipfb.out[3]) )
 
-//    post_fold()
+    //post_fold()
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
@@ -230,5 +229,4 @@ workflow {
     // Perform a single pulse search on all single pulse candidates
     single_pulse_search( find_pointings.out.splitCsv(skip: 7, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 6, limit: 1).flatten()).\
                          concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> it[1] } )
-    */
 }

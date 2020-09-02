@@ -8,7 +8,7 @@ import sn_flux_est as snfe
 
 logger = logging.getLogger(__name__)
 
-def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None):
+def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None, full_meta=None):
     """
     Finds the fractional time the pulsar is in the beam at some zenith normalized power
 
@@ -42,15 +42,15 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=No
     min_z_power = sorted(min_z_power, reverse=True)
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
     pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power,
-                                     names_ra_dec=names_ra_dec, metadata=metadata)
+                                     names_ra_dec=names_ra_dec, metadata_list=[[metadata, full_meta]])
     for power in pow_dict.keys():
         psr_list = pow_dict[power][obsid]
         enter = None
         leave = None
         if psr_list:  # if pulsar is in beam for this power coverage
             this_enter, this_leave = snfe.pulsar_beam_coverage(
-                obsid, pulsar, beg=beg, end=end, min_z_power=power
-            )
+                obsid, pulsar, beg=beg, end=end, min_z_power=power,
+                metadata=metadata, full_meta=full_meta)
             if this_enter is not None and this_leave is not None:
                 enter = this_enter
                 leave = this_leave
@@ -59,7 +59,7 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=No
     return [enter, leave, power]
 
 
-def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata=None):
+def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None):
     """
     Finds the beam power information for pulsars in a specific obsid
 
@@ -98,7 +98,7 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata=None):
     for pwr in powers:
         obs_data, meta_data = fpio.find_sources_in_obs(
             [obsid], names_ra_dec,
-            dt_input=100, min_power=pwr, metadata_list=[metadata])
+            dt_input=100, min_power=pwr, metadata_list=metadata_list)
         pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data

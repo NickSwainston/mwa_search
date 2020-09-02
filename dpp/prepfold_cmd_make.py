@@ -55,7 +55,7 @@ def create_edited_eph(pulsar_name, eph_name):
     """Created a string version of 'psrcat -e' and removes the last line"""
     eph = subprocess.check_output(["psrcat", "-e", pulsar_name])
     eph = eph.decode("utf-8")
-    eph = "\n".join(tuple(a.split("\n")[:-2]))
+    eph = "\n".join(tuple(eph.split("\n")[:-2]))
     return eph
 
 

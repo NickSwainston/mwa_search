@@ -62,7 +62,7 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
         pipe["source"]["sampling_limit"] = int(bin_sampling_limit(
             pipe["source"]["name"], query=query))
         pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
-            pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=[metadata, full_meta])
+            pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=metadata, full_meta=full_meta)
         pipe["source"]["enter_frac"] = float(pipe["source"]["enter_frac"])
         pipe["source"]["exit_frac"] = float(pipe["source"]["exit_frac"])
         pipe["source"]["seek"] = pipe["source"]["enter_frac"] * (pipe["obs"]["end"] - pipe["obs"]["beg"])
@@ -78,10 +78,6 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
         pipe["source"]["edited_eph"] = None
         pipe["source"]["edited_eph_name"] = None
         #create an edited epehemris for binary folding if necessary
-        if pipe["source"]["binary"]:
-            from prepfold_cmd_make import create_edited_eph
-            pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
-            pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
         
 
     pipe["pol"]["archive1"] = None
@@ -121,16 +117,23 @@ def main(kwargs):
     metadata, full_meta = get_common_obs_metadata(kwargs["obsid"], return_all=True)
     query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
     pulsars_pointings_dict = {}
-    for psr, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
-        if psr not in pulsars_pointings_dict.keys():
-            pulsars_pointings_dict[psr] = []
-        pulsars_pointings_dict[psr].append(pointing)
+    for psrlist, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
+        for psr in psrlist.split(":"):
+            if psr not in pulsars_pointings_dict.keys():
+                pulsars_pointings_dict[psr] = []
+            pulsars_pointings_dict[psr].append(pointing)
     for psr in pulsars_pointings_dict.keys():
+        logger.info("Processing yaml for PSR: {}".format(psr))
         pipe = initiate_pipe(kwargs, psr, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index())
-        for pointings in pulsars_pointings_dict[psr]:
+        for pointing in pulsars_pointings_dict[psr]:
+            # Update the pipe with the pointing specific parameters
             pipe["run_ops"]["pointing"] = pointing
             if pipe["source"]["cand"] == False:
                 pipe["run_ops"]["file_precursor"] = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}"
+                if pipe["source"]["binary"]:
+                    from prepfold_cmd_make import create_edited_eph
+                    pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
+                    pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
             dump_to_yaml(pipe, label=kwargs["label"])
 
 
