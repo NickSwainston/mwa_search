@@ -87,7 +87,7 @@ def main(pipe, label=""):
         pipe["completed"]["post_folds"] = True
     for bin_count in folds:
         prep_kwargs = common_kwargs(pipe, bin_count)
-        cmd = add_prepfold_to_commands(prep_kwargs, pipe["source"]["edited_eph"], pipe["source"]["edited_eph"]["name"])
+        cmd = add_prepfold_to_commands(prep_kwargs, pipe["source"]["edited_eph"], pipe["source"]["edited_eph_name"])
         write_cmd_to_file(pipe, cmd)
     #update yaml file
     yaml_helper.dump_to_yaml(pipe, label=label)
