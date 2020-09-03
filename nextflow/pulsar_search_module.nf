@@ -289,12 +289,13 @@ process prepfold {
 
     # Work out how many dmfacts to use to search +/- 2 DM
     ddm=`echo "scale=10;0.000241*138.87^2*\${dmstep} / (1/\$period *\$nbins)" | bc`
-    ndmfact=`echo "2/(\$ddm*\$nbins)" | bc`
+    ndmfact=`echo "1/(\$ddm*\$nbins)" | bc`
+    echo "ndmfact: \$ndmfact   ddm: \$ddm"
 
     #-p \$period 
     prepfold -ncpus $task.cpus -o ${cand_line.split()[0]} -n \$nbins -dm ${cand_line.split()[1]} -noxwin -noclip -nsub 256 \
 -accelfile ${cand_line.split()[0].substring(0, cand_line.split()[0].lastIndexOf(":"))}.cand -accelcand ${cand_line.split()[0].split(":")[-1]} \
--npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
+-npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact \$ndmfact -runavg *.fits
     """
 }
 
