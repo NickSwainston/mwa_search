@@ -163,6 +163,23 @@ process pulsar_prepfold_run {
     """
 }
 
+process best_detection {
+    label 'cpu'
+    time '10m'
+    errorStrategy 'retry'
+    maxRetries 1
+
+    input:
+    file yaml_and_pfd
+
+    output:
+    file "*yaml"
+
+    """
+    hsdhjsj
+    """
+}
+
 
 include { pre_beamform; beamform; beamform_ipfb } from './beamform_module'
 include { pulsar_search; single_pulse_search } from './pulsar_search_module'
@@ -177,7 +194,7 @@ workflow initial_fold {
         pulsar_prepfold_cmd_make( yaml_files.flatten() )
         // Run the bash file
         pulsar_prepfold_run( // Work out pointings from the file names
-                             pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_${params.obsid}")[0].split("prepfold_cmd_")[1], it ] }.\
+                             pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_J")[0].split("prepfold_cmd_")[1], it ] }.\
                              // Group fits files by bash files with same pointings
                              concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         //if ( (params.search_radius - fwhm / 2) > (fwhm * 0.6) ){
@@ -185,8 +202,14 @@ workflow initial_fold {
         //}
         // Run through the classfier
         classifier( pulsar_prepfold_run.out.flatten().collate( 120 ) )
+        // Find the best detection for each pulsar
+        best_detection( // Pair the classifier output witht their yaml file
+                        classifier.out[0].map{ it -> [ it.baseName.split("_b")[0], it ]}.concat(
+                        yaml_files.flatten().map{ it -> [ it.baseName.split("_initialized")[0], it ]}).view().groupTuple().view().\
+                        // Group by pulsar
+                        map{ it -> [ it[0].split("_")[-1], it[1] ]}.view().groupTuple().view() )
     emit:
-        classifier.out[0] //classifier files
+        //classifier.out[0] //classifier files
         pulsar_prepfold_cmd_make.out[1] //yaml files
 }
 
