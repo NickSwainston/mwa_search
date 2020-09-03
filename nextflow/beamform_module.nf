@@ -193,7 +193,7 @@ process combined_data_check {
     #!/usr/bin/env python
 
     import sys
-    from dpp.obs_tools import check_data
+    from mwa_search.obs_tools import check_data
 
     #Perform data checks
     dur = $end-$begin + 1

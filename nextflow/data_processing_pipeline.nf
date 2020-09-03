@@ -34,7 +34,7 @@ if ( params.help ) {
              |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
              |
              |Optional arguments:
-             |  --search_radius 
+             |  --search_radius
              |              The radius to search (create beams within) in degrees to account for ionosphere.
              |              [default: 0.02 degrees]
              |  --publish_fits
@@ -81,10 +81,10 @@ process fwhm_calc {
     #!/usr/bin/env python3
 
     from mwa_metadb_utils import get_obs_array_phase
-    from dpp.obs_tools import calc_ta_fwhm
+    from mwa_search.obs_tools import calc_ta_fwhm
     import csv
 
-    oap = get_obs_array_phase(${parmas.obsid})
+    oap = get_obs_array_phase(${params.obsid})
     centrefreq = 1.28 * float(${channels[0]} + ${channels[-1]}) / 2.
     fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
 
@@ -181,7 +181,7 @@ workflow initial_fold {
                              // Group fits files by bash files with same pointings
                              concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         //if ( (params.search_radius - fwhm / 2) > (fwhm * 0.6) ){
-            // If more than one loop of beams per source, 
+            // If more than one loop of beams per source,
         //}
         // Run through the classfier
         classifier( pulsar_prepfold_run.out.flatten().collate( 120 ) )

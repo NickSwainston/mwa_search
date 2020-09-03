@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 import logging
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+import numpy as np
 
 # vcstools imports
 import find_pulsar_in_obs as fpio
@@ -7,6 +9,9 @@ import sn_flux_est as snfe
 from config_vcs import load_config_file
 comp_config = load_config_file()
 from mwa_metadb_utils import get_common_obs_metadata
+
+# mwa_search imports
+from mwa_search.grid_tools import get_grid
 
 
 logger = logging.getLogger(__name__)

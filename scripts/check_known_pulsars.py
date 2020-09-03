@@ -16,7 +16,7 @@ import mwa_search_pipeline as search_pipe
 from mwa_metadb_utils import get_common_obs_metadata as get_meta
 from mwa_metadb_utils import obs_max_min, get_obs_array_phase
 from config_vcs import load_config_file
-from grid import get_grid
+from mwa_search.grid_tools import get_grid
 import checks
 import sn_flux_est as snfe
 from mwa_pulsar_client import client

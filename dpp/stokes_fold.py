@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 import argparse
 import sys
@@ -320,7 +318,7 @@ def submit_rmcor(pipe, dep_id=None, dep_type="afterany"):
     commands = [f"cd {pipe['run_ops']['my_dir']}"]
     commands.append(f"pam -e ar2 -R {pipe['source']['my_RM']} {pipe['pol']['archive1']}")
     commands.append(f"pdv -FTtlZ {pipe['pol']['archive2']} > {ar_name}.txt")
-    job_name = f"rm_correction_{pipe['obs']['id']}_{pipe['source']['name']"
+    job_name = f"rm_correction_{pipe['obs']['id']}_{pipe['source']['name']}"
     batch_dir = os.path.join(
         comp_config['base_data_dir'], pipe['obs']['id'], "batch")
     job_id = submit_slurm(job_name, commands,
@@ -336,7 +334,7 @@ def submit_rmsynth(pipe, dep_id=None, dep_type="afterany"):
     label = f"{pipe['obs']['id']}_{pipe['source']['name']}_rms"
     rms_com = "rm_synthesis.py"
     rms_com += f" -f {pipe['pol']['archive1']}".format(archive_name)
-    rms_com += f" --label {label}")
+    rms_com += f" --label {label}"
     rms_com += " --write"
     rms_com += " --plot"
     rms_com += " --keep_QUV"
@@ -344,7 +342,7 @@ def submit_rmsynth(pipe, dep_id=None, dep_type="afterany"):
     commands = [f"cd {pipe['run_ops']['my_dir']}"]
     commands.append(rms_coms)
     pipe["pol"]["rmsynth"] = ospj(pipe['run_ops']['my_dir'], f"{label}_RMsynthesis.txt")
-    job_name = f"rmsynth_{pipe['obs']['id']}_{pipe['source']['name']"
+    job_name = f"rmsynth_{pipe['obs']['id']}_{pipe['source']['name']}"
     batch_dir = os.path.join(
         comp_config['base_data_dir'], pipe['obs']['id'], "batch")
     job_id = submit_slurm(job_name, commands,
@@ -361,7 +359,7 @@ def submit_rmfit(pipe, dep_id=None, dep_type="afterany"):
 
     commands.append(f"rmfit {pipe['pol']['archive1']} -t > {rmfit_name}")
     pipe["pol"]["rmfit"] = rmfit_name
-    job_name = f"rmfit_{pipe['obs']['id']}_{pipe['source']['name']"
+    job_name = f"rmfit_{pipe['obs']['id']}_{pipe['source']['name']}"
     batch_dir = os.path.join(
         comp_config['base_data_dir'], pipe['obs']['id'], "batch")
     job_id = submit_slurm(job_name, commands,
@@ -411,7 +409,7 @@ def submit_dspsr(pipe, dep_id=None, dep_type="afterany"):
 
 
 def pol_main(pipe):
-        """A logic structure that decides what to do next"""
+    """A logic structure that decides what to do next"""
     if not pipe["completed"]["polarimetry"]:
         if not pipe["completed"]["init_pol"]:
             dep_ids = submit_dspsr(pipe)
