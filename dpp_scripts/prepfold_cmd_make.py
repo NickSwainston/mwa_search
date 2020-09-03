@@ -51,14 +51,6 @@ def common_kwargs(pipe, bin_count):
     return prep_kwargs
 
 
-def create_edited_eph(pulsar_name, eph_name):
-    """Created a string version of 'psrcat -e' and removes the last line"""
-    eph = subprocess.check_output(["psrcat", "-e", pulsar_name])
-    eph = eph.decode("utf-8")
-    eph = "\n".join(tuple(eph.split("\n")[:-2]))
-    return eph
-
-
 def add_prepfold_to_commands(prep_kwargs, eph=None, eph_name=None):
     """Adds prepfold commands to a list. If eph is not None, will use -par"""
     commands = []

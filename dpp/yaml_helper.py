@@ -75,7 +75,10 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
         pipe["source"]["edited_eph"] = None
         pipe["source"]["edited_eph_name"] = None
         #create an edited epehemris for binary folding if necessary
-        
+        if pipe["source"]["binary"]:
+            pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
+            pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
+
 
     pipe["pol"]["archive1"] = None
     pipe["pol"]["archive2"] = None
@@ -93,6 +96,14 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
     pipe["completed"]["init_dspsr"] = False
 
     return pipe
+
+
+def create_edited_eph(pulsar_name, eph_name):
+    """Created a string version of 'psrcat -e' and removes the last line"""
+    eph = subprocess.check_output(["psrcat", "-e", pulsar_name])
+    eph = eph.decode("utf-8")
+    eph = "\n".join(tuple(eph.split("\n")[:-2]))
+    return eph
 
 
 def from_yaml(filepath):
