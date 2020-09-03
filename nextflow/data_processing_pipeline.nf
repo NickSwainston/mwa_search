@@ -159,7 +159,7 @@ process pulsar_prepfold_run {
         container = "nickswainston/presto:realfft_docker"
     }
     """
-    bash $prepfold_cmd_file
+    bash *sh
     """
 }
 
@@ -246,10 +246,9 @@ workflow {
                 find_pointings.out.splitCsv(skip: 1, limit: 1).concat( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().map{ it -> [it] }.concat(\
                 find_pointings.out.splitCsv(skip: 0, limit: 1).concat( find_pointings.out.splitCsv(skip: 2, limit: 1) ).collect().map{ it -> [it] }).collect() )
 
-    make_yamls.out.view()
     // Perform processing pipeline on all known pulsars
     initial_fold( // yaml files
-                  make_yamls.out.view(),\
+                  make_yamls.out,\
                   // fits files
                   beamform.out[3].concat(beamform_ipfb.out[3]) )
 
