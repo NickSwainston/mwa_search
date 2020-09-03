@@ -113,9 +113,9 @@ def from_yaml(filepath):
 
 
 def dump_to_yaml(pipe, label=""):
-    name = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}"
+    name = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
     if label:
-        name += f"{label}"
+        name += f"_{label}"
     name += ".yaml"
     with open(name, 'w') as f:
         yaml.dump(pipe, f, default_flow_style=False)

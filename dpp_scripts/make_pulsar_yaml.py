@@ -28,7 +28,7 @@ def main(kwargs):
             # Update the pipe with the pointing specific parameters
             pipe["run_ops"]["pointing"] = pointing
             if pipe["source"]["cand"] == False:
-                pipe["run_ops"]["file_precursor"] = f"{pipe['run_ops']['pointing']}_{pipe['obs']['id']}_{pipe['source']['name']}"
+                pipe["run_ops"]["file_precursor"] = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
                 if pipe["source"]["binary"]:
                     from prepfold_cmd_make import create_edited_eph
                     pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"

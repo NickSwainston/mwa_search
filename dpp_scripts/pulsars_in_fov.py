@@ -21,11 +21,10 @@ import sn_flux_est as snfe
 from vcstools import data_load
 
 # mwa_search imports
-import mwa_search_pipeline as search_pipe
 from mwa_search.obs_tools import calc_ta_fwhm
-from dpp.pulsar_obs_helper import get_pointings_required, get_sources_in_fov
-from pulsar_obs_helper import find_pulsars_power
 from mwa_search.grid_tools import get_grid
+from dpp.pulsar_obs_helper import get_pointings_required, get_sources_in_fov
+from dpp.pulsar_obs_helper import find_pulsars_power
 
 import logging
 logger = logging.getLogger(__name__)

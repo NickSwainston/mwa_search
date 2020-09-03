@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def common_kwargs(pipe, bin_count):
     """Creates a prepfold-friendly dictionary of common arguments to pass to prepfold"""
-    name = f"{pipe['obs']['id']}_b{bin_count}_{pipe['source']['name']}"
+    name = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}_b{bin_count}"
     prep_kwargs = {}
     if pipe["run_ops"]["mask"]:
         prep_kwargs["-mask"] = pipe["run_ops"]["mask"]
