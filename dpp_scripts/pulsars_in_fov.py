@@ -22,10 +22,10 @@ from vcstools import data_load
 
 # mwa_search imports
 import mwa_search_pipeline as search_pipe
-from dpp.obs_tools import calc_ta_fwhm
+from mwa_search.obs_tools import calc_ta_fwhm
 from dpp.pulsar_obs_helper import get_pointings_required, get_sources_in_fov
 from pulsar_obs_helper import find_pulsars_power
-from grid import get_grid
+from mwa_search.grid_tools import get_grid
 
 import logging
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
     
 
-def find_pulsars_in_fov(obsid, psrbeg, psrend, fhwm=None, search_radius=0.02):
+def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
     -----------
