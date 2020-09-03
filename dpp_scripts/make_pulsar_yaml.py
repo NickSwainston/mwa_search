@@ -8,6 +8,8 @@ import argparse
 from mwa_metadb_utils import get_common_obs_metadata
 from vcstools import data_load
 
+from dpp.yaml_helper import initiate_pipe, dump_to_yaml
+
 logger = logging.getLogger(__name__)
 
 def main(kwargs):
