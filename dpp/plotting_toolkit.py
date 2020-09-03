@@ -14,7 +14,7 @@ import glob
 import sys
 
 import prof_utils
-import stokes_fold
+from dpp import stokes_fold
 
 logger = logging.getLogger(__name__)
 EPNDB_LOC = os.environ["EPNDB_LOC"]
@@ -237,7 +237,7 @@ def plot_bestprof(bestprof, freq=None, out_dir="./"):
     fig_path: string
         The path of the .png plot
     """
-    import binfinder
+    from dpp import binfinder
     #retrieve data from bestprof
     logger.info("Plotting profile from file: {0}".format(bestprof))
     y = prof_utils.get_from_bestprof(bestprof)[-2]

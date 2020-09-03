@@ -21,7 +21,7 @@ import checks
 import sn_flux_est as snfe
 from mwa_pulsar_client import client
 import submit_to_database as std
-import pulsar_obs_helper as poh
+from dpp import pulsar_obs_helper as poh
 from config_vcs import load_config_file
 from vcstools import data_load
 

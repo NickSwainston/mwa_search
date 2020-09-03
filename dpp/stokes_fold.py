@@ -11,8 +11,8 @@ import psrqpy
 
 from job_submit import submit_slurm
 import data_processing_pipeline as dpp
-import plotting_toolkit
-import binfinder
+from dpp import plotting_toolkit
+from dpp import binfinder
 import rm_synthesis
 
 logger = logging.getLogger(__name__)

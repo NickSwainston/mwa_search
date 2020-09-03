@@ -1,10 +1,11 @@
+#!/usr/bin/env python3
 import os
 import datetime
 import logging
 import argparse
 import subprocess
 
-import yaml_helper
+from dpp import yaml_helper
 from config_vcs import load_config_file
 
 comp_config = load_config_file()

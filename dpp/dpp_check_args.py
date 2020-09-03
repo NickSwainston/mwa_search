@@ -2,7 +2,7 @@ import logging
 import glob
 
 
-import yaml_helper
+from dpp import yaml_helper
 
 
 logger = logging.getLogger(__name__)

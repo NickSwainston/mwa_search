@@ -116,7 +116,7 @@ process make_yamls {
     file "*initialized.yaml"
 
     """
-    yaml_helper.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psrs ${pulsar.join(" ")}\
+    make_pulsar_yaml.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psrs ${pulsar.join(" ")}\
     --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label initialized
     """
 }
@@ -227,7 +227,7 @@ workflow {
     pre_beamform()
     fwhm_calc( pre_beamform.out[1] )
     find_pointings( pre_beamform.out[0],
-                    fwhm_calc.out.splitText() )
+                    fwhm_calc.out.splitCsv().flatten() )
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\

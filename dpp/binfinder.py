@@ -9,10 +9,10 @@ import datetime
 import numpy as np
 
 import data_processing_pipeline as dpp
-import plotting_toolkit
+from dpp import plotting_toolkit
 import find_pulsar_in_obs as fpio
 import sn_flux_est as snfe
-import stokes_fold
+from dpp import stokes_fold
 import check_known_pulsars
 import prepfold_launch
 

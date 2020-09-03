@@ -17,8 +17,8 @@ from mwa_pulsar_client import client
 import mwa_metadb_utils
 from job_submit import submit_slurm
 import data_processing_pipeline as dpp
-import plotting_toolkit
-import binfinder
+from dpp import plotting_toolkit
+from dpp import binfinder
 import rm_synthesis
 import submit_to_database as std
 

@@ -2,7 +2,7 @@ from os.path import join as ospj
 import logging
 
 from binfinder import NoSuitableProfileError, bestprof_info
-import plotting_toolkit
+from dpp import plotting_toolkit
 import data_processing_pipeline as dpp
 from config_vcs import load_config_file
 
