@@ -194,7 +194,7 @@ workflow initial_fold {
         pulsar_prepfold_cmd_make( yaml_files.flatten() )
         // Run the bash file
         pulsar_prepfold_run( // Work out pointings from the file names
-                             pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_J")[0].split("prepfold_cmd_")[1], it ] }.\
+                             pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.\
                              // Group fits files by bash files with same pointings
                              concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         //if ( (params.search_radius - fwhm / 2) > (fwhm * 0.6) ){
@@ -204,10 +204,11 @@ workflow initial_fold {
         classifier( pulsar_prepfold_run.out.flatten().collate( 120 ) )
         // Find the best detection for each pulsar
         best_detection( // Pair the classifier output witht their yaml file
-                        classifier.out[0].map{ it -> [ it.baseName.split("_b")[0], it ]}.concat(
-                        yaml_files.flatten().map{ it -> [ it.baseName.split("_initialized")[0], it ]}).view().groupTuple().view().\
+                        classifier.out[0].flatten().map{ it -> [ it.baseName.split("_b")[0], it ]}.groupTuple().concat(
+                        yaml_files.flatten().map{ it -> [ it.baseName.split("_initialized")[0], it ]}.groupTuple()).\
                         // Group by pulsar
-                        map{ it -> [ it[0].split("_")[-1], it[1] ]}.view().groupTuple().view() )
+                        map{ it -> [ it[0].split("_")[-1], it[1] ]}.groupTuple( size: 2, remainder: false  ).\
+                        map{ it -> it[1][0] + it[1][1] }.view() )
     emit:
         //classifier.out[0] //classifier files
         pulsar_prepfold_cmd_make.out[1] //yaml files
