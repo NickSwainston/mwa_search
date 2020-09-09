@@ -2,6 +2,7 @@ import psrqpy
 import logging
 import os
 import yaml
+import subprocess
 
 from dpp.misc_helper import bin_sampling_limit, is_binary, required_bin_folds
 from dpp.pulsar_obs_helper import find_fold_times
@@ -74,10 +75,6 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
         pipe["source"]["binary"] = is_binary(pipe["source"]["name"], query=query)
         pipe["source"]["edited_eph"] = None
         pipe["source"]["edited_eph_name"] = None
-        #create an edited epehemris for binary folding if necessary
-        if pipe["source"]["binary"]:
-            pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
-            pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
 
 
     pipe["pol"]["archive1"] = None

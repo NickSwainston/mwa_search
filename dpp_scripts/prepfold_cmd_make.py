@@ -60,7 +60,7 @@ def add_prepfold_to_commands(prep_kwargs, eph=None, eph_name=None):
     if eph and eph_name:
         with open(eph_name, "w") as f:
             f.write(eph)
-        options += f"-par {eph_name}"
+        options += f" -par {eph_name}"
     options += " *fits"
     commands.append("prepfold {}".format(options))
     return commands

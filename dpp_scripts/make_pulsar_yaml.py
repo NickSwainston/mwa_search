@@ -8,7 +8,7 @@ import argparse
 from mwa_metadb_utils import get_common_obs_metadata
 from vcstools import data_load
 
-from dpp.yaml_helper import initiate_pipe, dump_to_yaml
+from dpp.yaml_helper import initiate_pipe, dump_to_yaml, create_edited_eph
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,6 @@ def main(kwargs):
             if pipe["source"]["cand"] == False:
                 pipe["run_ops"]["file_precursor"] = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
                 if pipe["source"]["binary"]:
-                    from prepfold_cmd_make import create_edited_eph
                     pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
                     pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
             dump_to_yaml(pipe, label=kwargs["label"])
