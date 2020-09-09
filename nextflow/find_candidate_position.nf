@@ -26,6 +26,8 @@ params.dm = 23.123
 params.subint = 60
 params.nchan = 48
 
+params.no_pdmp = false
+
 include { pre_beamform; beamform } from './beamform_module'
 
 params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
@@ -107,11 +109,18 @@ else if ( params.pointings ) {
         .collate( params.max_pointings )
 }
 else if ( params.pointing_grid ) {
-    pointing_grid = Channel.from(params.pointing_grid).view()
+    pointing_grid = Channel.from(params.pointing_grid)
 }
 else {
     println "No pointings given. Either use --pointing_file, --pointings or --pointing_grid. Exiting"
     exit(1)
+}
+
+if ( params.no_pdmp ) {
+    input_sn_option = " -b "
+}
+else {
+    input_sn_option = " -p "
 }
 
 process grid {
@@ -161,6 +170,9 @@ process pdmp {
     time '6h'
     publishDir params.out_dir, mode: 'copy'
 
+    when:
+    params.no_pdmp == false
+
     input:
     file bestprof
     file fits_files
@@ -206,14 +218,14 @@ process bestgridpos {
     publishDir params.out_dir, mode: 'copy'
 
     input:
-    file posn
+    file posn_or_bestprof
 
     output:
     file "*txt"
     file "*png"
 
     """
-    bestgridpos.py -o ${params.obsid} -p ./ -w
+    bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w
     """
 }
 
@@ -230,10 +242,15 @@ workflow find_pos {
                   pre_beamform_3,\
                   grid.out.splitCsv().collect().flatten().collate( params.max_pointings ) )
         prepfold( beamform.out[3] )
-        pdmp( prepfold.out[0],
-            beamform.out[1],
-            beamform.out[2] )
-        bestgridpos( pdmp.out[1].collect() )
+        if ( params.no_pdmp ) {
+            bestgridpos( prepfold.out[0].collect() )
+        }
+        else {
+            pdmp( prepfold.out[0],
+                  beamform.out[1],
+                  beamform.out[2] )
+            bestgridpos( pdmp.out[1].collect() )
+        }
     emit:
         bestgridpos.out[0].splitCsv().collect().flatten().collate( params.max_pointings )
 }
