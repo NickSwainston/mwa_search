@@ -194,7 +194,8 @@ workflow initial_fold {
         pulsar_prepfold_cmd_make( yaml_files.flatten() )
         // Run the bash file
         pulsar_prepfold_run( // Work out pointings from the file names
-                             pulsar_prepfold_cmd_make.out[0].map{ it -> [it.baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.\
+                             pulsar_prepfold_cmd_make.out[0].\
+                             map{ it -> [it.flatten().findAll { it != null }[-1].baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.\
                              // Group fits files by bash files with same pointings
                              concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
         //if ( (params.search_radius - fwhm / 2) > (fwhm * 0.6) ){
@@ -208,7 +209,7 @@ workflow initial_fold {
                         yaml_files.flatten().map{ it -> [ it.baseName.split("_initialized")[0], it ]}.groupTuple()).\
                         // Group by pulsar
                         map{ it -> [ it[0].split("_")[-1], it[1] ]}.groupTuple( size: 2, remainder: false  ).\
-                        map{ it -> it[1][0] + it[1][1] }.view() )
+                        map{ it -> it[1][0] + it[1][1] } )
     emit:
         //classifier.out[0] //classifier files
         pulsar_prepfold_cmd_make.out[1] //yaml files
@@ -256,9 +257,9 @@ workflow {
               pre_beamform.out[1],\
               pre_beamform.out[2],\
               //Grab the pointings for slow pulsars and single pulses
-              find_pointings.out.splitCsv(skip: 1, limit: 1).mix(\
+              find_pointings.out.splitCsv(skip: 1, limit: 1).concat(\
               find_pointings.out.splitCsv(skip: 5, limit: 1),\
-              find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().collate( params.max_pointings ) )
+              find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().filter{ it != " " }.collate( params.max_pointings ).view() )
     beamform_ipfb( pre_beamform.out[0],\
                    pre_beamform.out[1],\
                    pre_beamform.out[2],\
