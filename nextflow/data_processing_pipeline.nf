@@ -117,7 +117,7 @@ process make_yamls {
 
     """
     make_pulsar_yaml.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psrs ${pulsar.join(" ")}\
-    --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label initialized
+    --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label make_pulsar_yaml
     """
 }
 
@@ -206,7 +206,7 @@ workflow initial_fold {
         // Find the best detection for each pulsar
         best_detection( // Pair the classifier output witht their yaml file
                         classifier.out[0].flatten().map{ it -> [ it.baseName.split("_b")[0], it ]}.groupTuple().concat(
-                        yaml_files.flatten().map{ it -> [ it.baseName.split("_initialized")[0], it ]}.groupTuple()).\
+                        yaml_files.flatten().map{ it -> [ it.baseName.split("make_pulsar_yaml")[0], it ]}.groupTuple()).\
                         // Group by pulsar
                         map{ it -> [ it[0].split("_")[-1], it[1] ]}.groupTuple( size: 2, remainder: false  ).\
                         map{ it -> it[1][0] + it[1][1] } )

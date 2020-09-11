@@ -1,39 +1,13 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
-import psrqpy
 import logging
-import yaml
 import argparse
-
-from mwa_metadb_utils import get_common_obs_metadata
-from vcstools import data_load
-
-from dpp.yaml_helper import initiate_pipe, dump_to_yaml, create_edited_eph
 
 logger = logging.getLogger(__name__)
 
 def main(kwargs):
-    metadata, full_meta = get_common_obs_metadata(kwargs["obsid"], return_all=True)
-    query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
-    pulsars_pointings_dict = {}
-    for psrlist, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
-        for psr in psrlist.split(":"):
-            if psr not in pulsars_pointings_dict.keys():
-                pulsars_pointings_dict[psr] = []
-            pulsars_pointings_dict[psr].append(pointing)
-    for psr in pulsars_pointings_dict.keys():
-        logger.info("Processing yaml for PSR: {}".format(psr))
-        pipe = initiate_pipe(kwargs, psr, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index())
-        for pointing in pulsars_pointings_dict[psr]:
-            # Update the pipe with the pointing specific parameters
-            pipe["run_ops"]["pointing"] = pointing
-            if pipe["source"]["cand"] == False:
-                pipe["run_ops"]["file_precursor"] = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
-                if pipe["source"]["binary"]:
-                    pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
-                    pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
-            dump_to_yaml(pipe, label=kwargs["label"])
-
+    from helper_yaml import create_yaml_main
+    create_yaml_main(kwargs)
 
 if __name__ == '__main__':
     loglevels = dict(DEBUG=logging.DEBUG,
@@ -45,17 +19,17 @@ if __name__ == '__main__':
 
     obsop = parser.add_argument_group("Observation Options")
     obsop.add_argument("-d", "--run_dir", nargs='+',
-                       type=str, help="The location of the pointing directory/s")
-    obsop.add_argument("-o", "--obsid", type=str,
+                       type=str, required=True, help="The location of the pointing directory/s")
+    obsop.add_argument("-o", "--obsid", type=str, required=True,
                        help="The obs ID of the data")
-    obsop.add_argument("-O", "--cal_id", type=str,
+    obsop.add_argument("-O", "--cal_id", type=str, required=True,
                        help="The ID of the calibrator used to calibrate the data")
-    obsop.add_argument("-p", "--psrs", nargs="+", type=str,
+    obsop.add_argument("-p", "--psr", type=str,
                        help="The J name of the pulsar(s). e.g. J2241-5236")
-    obsop.add_argument("--obs_beg", type=int,
+    obsop.add_argument("--obs_beg", type=int, required=True,
                        help="The beginning of the observation")
-    obsop.add_argument("--obs_end", type=int, help="The end of the observation")
-    obsop.add_argument("--pointings", type=str, nargs="+", help="The pointing(s) location of the source")
+    obsop.add_argument("--obs_end", type=int, required=True, help="The end of the observation")
+    obsop.add_argument("--pointing", type=str, required=True, help="The pointing location of the source in the format HH:MM:SS_+DD:MM:SS. e.g. '19:23:48.53_-20:31:52.95'")
 
     foldop = parser.add_argument_group("Folding/processing Options")
     foldop.add_argument("--sn_min_thresh", type=float, default=8.0, help="The presto sigma value\
@@ -80,7 +54,7 @@ if __name__ == '__main__':
                          help="The version of vcs_tools to use")
     otherop.add_argument("--cand", action="store_true",
                          help="use this tag if this is not a kown pulsar")
-    otherop.add_argument("--label", type=str, default="", help="A label to apply to the .yaml file")
+    otherop.add_argument("--label", type=str, default="make_pulsar_yaml", help="A label to apply to the .yaml file")
     args = parser.parse_args()
     logger = logging.getLogger()
     logger.setLevel(loglevels[args.loglvl])
