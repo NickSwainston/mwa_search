@@ -89,6 +89,7 @@ if ( params.pointing_file ) {
         .collect()
         .flatten()
         .collate( params.max_pointings )
+    pointings_dms = Channel.from("Blind").combine(pointings)
 }
 else if ( params.pointings ) {
     pointings = Channel
@@ -96,10 +97,44 @@ else if ( params.pointings ) {
         .collect()
         .flatten()
         .collate( params.max_pointings )
+    pointings_dms = Channel.from("Blind").combine(pointings)
+}
+else if ( params.bestprof_pointings ) {
+    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof")
+    pointings_dms = bestprof_pointings.out.splitCsv()
 }
 else {
     println "No pointings given. Either use --pointing_file or --pointings. Exiting"
     exit(1)
+}
+
+process bestprof_pointings {
+    input:
+    bestprof_files
+
+    output:
+    dm_pointing_csv
+
+    """
+    #!/usr/bin/env python
+
+    import glob
+    import csv
+
+    bestprof_files = glob.glob("*.bestprof")
+    dm_pointings = []
+    for bfile_loc in bestprof_files:
+        pointing = bfile_loc.split("${parmas.obsid}_")[-1].split("_DM")[0]
+        with open(bfile_loc,"r") as file_loc:
+            lines = bestprof.readlines()
+            dm = lines[14][22:-1]
+        dm_pointing.append(["DM{}".format(DM), pointing])
+
+    with open("${params.obsid}_DM_pointing.csv", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        for dm_point in dm_pointings:
+            spamwriter.writerow(dm_point)
+    """
 }
 
 include { pre_beamform; beamform } from './beamform_module'
@@ -107,6 +142,7 @@ include { pulsar_search } from './pulsar_search_module'
 include { classifier }   from './classifier_module'
 
 workflow {
+    bestprof_pointings( bestprof_files )
     pre_beamform()
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
