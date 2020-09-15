@@ -291,7 +291,7 @@ process prepfold {
 
     # Work out how many dmfacts to use to search +/- 2 DM
     ddm=`echo "scale=10;0.000241*138.87^2*\${dmstep} / (1/\$period *\$nbins)" | bc`
-    ndmfact=`echo "1/(\$ddm*\$nbins)" | bc`
+    ndmfact=`echo "1 + 1/(\$ddm*\$nbins)" | bc`
     echo "ndmfact: \$ndmfact   ddm: \$ddm"
 
     #-p \$period 
