@@ -6,6 +6,7 @@ params.obsid = null
 params.calid = null
 params.pointings = null
 params.pointing_file = null
+params.bestprof_pointings = null
 
 params.begin = 0
 params.end = 0
@@ -26,6 +27,7 @@ params.zmax = 0
 
 params.no_combined_check = false
 
+
 // If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
 if ( params.zmax == 0 ) {
     total_dm_jobs = 6
@@ -35,6 +37,8 @@ else {
     total_dm_jobs = 24
     params.max_dms_per_job = 128
 }
+
+bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
 
 params.help = false
 if ( params.help ) {
@@ -82,38 +86,13 @@ if ( params.help ) {
     exit(0)
 }
 
-if ( params.pointing_file ) {
-    pointings = Channel
-        .fromPath(params.pointing_file)
-        .splitCsv()
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-    pointings_dms = Channel.from("Blind").combine(pointings)
-}
-else if ( params.pointings ) {
-    pointings = Channel
-        .from(params.pointings.split(","))
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-    pointings_dms = Channel.from("Blind").combine(pointings)
-}
-else if ( params.bestprof_pointings ) {
-    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof")
-    pointings_dms = bestprof_pointings.out.splitCsv()
-}
-else {
-    println "No pointings given. Either use --pointing_file or --pointings. Exiting"
-    exit(1)
-}
-
 process bestprof_pointings {
     input:
-    bestprof_files
+    val pointings
+    file bestprof_files
 
     output:
-    dm_pointing_csv
+    file "${params.obsid}_DM_pointing.csv"
 
     """
     #!/usr/bin/env python
@@ -121,14 +100,19 @@ process bestprof_pointings {
     import glob
     import csv
 
-    bestprof_files = glob.glob("*.bestprof")
     dm_pointings = []
-    for bfile_loc in bestprof_files:
-        pointing = bfile_loc.split("${parmas.obsid}_")[-1].split("_DM")[0]
-        with open(bfile_loc,"r") as file_loc:
-            lines = bestprof.readlines()
-            dm = lines[14][22:-1]
-        dm_pointing.append(["DM{}".format(DM), pointing])
+    if "${params.bestprof_pointings}" == "null":
+        pointings = [${pointings.join(",")}]
+        for p in pointings:
+            dm_pointing.append([p, "Blind"])
+    else:
+        bestprof_files = glob.glob("*.bestprof")
+        for bfile_loc in bestprof_files:
+            pointing = bfile_loc.split("${params.obsid}_")[-1].split("_DM")[0]
+            with open(bfile_loc,"r") as bestprof:
+                lines = bestprof.readlines()
+                dm = lines[14][22:-1]
+            dm_pointings.append([pointing, "dm_{}".format(dm)])
 
     with open("${params.obsid}_DM_pointing.csv", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
@@ -137,17 +121,43 @@ process bestprof_pointings {
     """
 }
 
+if ( params.pointing_file ) {
+    pointings = Channel
+        .fromPath(params.pointing_file)
+        .splitCsv()
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else if ( params.pointings ) {
+    pointings = Channel
+        .from(params.pointings.split(","))
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else if ( params.bestprof_pointings ) {
+    pointings = Channel.from("null")
+}
+else {
+    println "No pointings given. Either use --pointing_file or --pointings. Exiting"
+    exit(1)
+}
+
 include { pre_beamform; beamform } from './beamform_module'
 include { pulsar_search } from './pulsar_search_module'
 include { classifier }   from './classifier_module'
 
 workflow {
-    bestprof_pointings( bestprof_files )
+    bestprof_pointings( pointings,
+                        bestprof_files )
     pre_beamform()
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
-              pointings )
-    pulsar_search( beamform.out[1].map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
+              bestprof_pointings.out.splitCsv().map{ it -> it[0] }.flatten().collate( params.max_pointings ) )
+    pulsar_search( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
+                   bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1]]}).map{ it -> [it[0].toString(), it[1]] }.\
+                   groupTuple( size: 2 ).map{ it -> [it[1][1]+"_${params.obsid}_"+it[0], it[1][0]] } )
     classifier( pulsar_search.out[1].flatten().collate( 120 ) )
 }

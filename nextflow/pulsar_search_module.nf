@@ -83,7 +83,9 @@ process ddplan {
                          min_DM_step=$params.dm_min_step, max_DM_step=$params.dm_max_step,
                          max_dms_per_job=$params.max_dms_per_job)
     else:
-        if '$name'.startswith('FRB'):
+        if '$name'.startswith('dm_'):
+            dm = float('$name'.split('dm_')[-1].split('_')[0])
+        elif '$name'.startswith('FRB'):
             dm = fpio.grab_source_alog(source_type='FRB',
                  pulsar_list=['$name'.split("_")[0]], include_dm=True)[0][-1]
         else:
