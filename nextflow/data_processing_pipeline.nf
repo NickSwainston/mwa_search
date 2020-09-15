@@ -113,7 +113,7 @@ process make_yamls {
     tuple val(pointing), val(pulsar)
 
     output:
-    file "*initialized.yaml"
+    file "*.yaml"
 
     """
     make_pulsar_yaml.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psr ${pulsar.join(" ")}\
@@ -195,9 +195,9 @@ workflow initial_fold {
         // Run the bash file
         pulsar_prepfold_run( // Work out pointings from the file names
                              pulsar_prepfold_cmd_make.out[0].\
-                             map{ it -> [it.flatten().findAll { it != null }[-1].baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.\
+                             map{ it -> [it.flatten().findAll{ it != null }[-1].baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.groupTuple().\
                              // Group fits files by bash files with same pointings
-                             concat( fits_files ).groupTuple( size: 2, remainder: false ).map{ it -> it[1] } )
+                             concat( fits_files ).groupTuple( size: 2, remainder: false ).view().map{ it -> it[1] } )
         //if ( (params.search_radius - fwhm / 2) > (fwhm * 0.6) ){
             // If more than one loop of beams per source,
         //}

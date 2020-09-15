@@ -70,7 +70,7 @@ def write_cmd_to_file(pipe, commands):
 
 def prepfold_cmd_make_main(kwargs):
     """takes kwargs from prepfold_cmd_make"""
-    from yaml_helper import from_yaml, dump_to_yaml
+    from dpp.helper_yaml import from_yaml, dump_to_yaml
     pipe = from_yaml(kwargs["yaml"])
     folds = []
     if not pipe["completed"]["init_folds"]:
@@ -88,4 +88,4 @@ def prepfold_cmd_make_main(kwargs):
         cmd = add_prepfold_to_commands(prep_kwargs, pipe["source"]["edited_eph"], pipe["source"]["edited_eph_name"])
         write_cmd_to_file(pipe, cmd)
     #update yaml file
-    yaml_helper.dump_to_yaml(pipe, label=kwargs["label"])
+    dump_to_yaml(pipe, label=kwargs["label"])
