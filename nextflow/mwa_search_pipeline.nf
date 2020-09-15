@@ -38,7 +38,12 @@ else {
     params.max_dms_per_job = 128
 }
 
-bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
+if ( params.bestprof_pointings ) {
+    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect().view()
+}
+else {
+    bestprof_files = Channel.from(" ")
+}
 
 params.help = false
 if ( params.help ) {
@@ -102,9 +107,9 @@ process bestprof_pointings {
 
     dm_pointings = []
     if "${params.bestprof_pointings}" == "null":
-        pointings = [${pointings.join(",")}]
+        pointings = ["${pointings.join('", "')}"]
         for p in pointings:
-            dm_pointing.append([p, "Blind"])
+            dm_pointings.append([p, "Blind"])
     else:
         bestprof_files = glob.glob("*.bestprof")
         for bfile_loc in bestprof_files:
