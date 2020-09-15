@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def main(kwargs):
-    from helper_bestprof import find_best_pointing_main
+    from dpp.helper_bestprof import find_best_pointing_main
     find_best_pointing_main(kwargs)
 
 

@@ -428,7 +428,7 @@ def find_pulsars_in_fov_main(kwargs):
     if not (kwargs["begin"] and kwargs["end"]):
         kwargs["beg"], kwargs["end"] = obs_max_min(args.obsid)
 
-    output_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["beg"], kwargs["end"], fwhm=kwargs["fwhm"], search_radius=kwargs["search_radius"])
+    output_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["begin"], kwargs["end"], fwhm=kwargs["fwhm"], search_radius=kwargs["search_radius"])
     with open(f"{kwargs['obsid']}_fov_sources_temp.csv", 'w', newline='') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter=',')
         for ol in output_list:
@@ -441,7 +441,7 @@ def find_pulsars_in_fov_main(kwargs):
     with open(f'{kwargs["obsid"]}_fov_sources_temp.csv', 'r') as readfile:
         csv_read = readfile.readlines()
 
-    with open(f'{kwargs["obsid"]}_fov_sources.csv'), 'w') as csvfile:
+    with open(f'{kwargs["obsid"]}_fov_sources.csv', 'w') as csvfile:
         for line in csv_read:
             if len(line) == 0:
                 csvfile.write(" \n")

@@ -6,7 +6,7 @@ import argparse
 logger = logging.getLogger(__name__)
 
 def main(kwargs):
-    from helper_yaml import create_yaml_main
+    from dpp.helper_yaml import create_yaml_main
     create_yaml_main(kwargs)
 
 if __name__ == '__main__':
@@ -24,12 +24,13 @@ if __name__ == '__main__':
                        help="The obs ID of the data")
     obsop.add_argument("-O", "--cal_id", type=str, required=True,
                        help="The ID of the calibrator used to calibrate the data")
-    obsop.add_argument("-p", "--psr", type=str,
+    obsop.add_argument("-p", "--psr", type=str, nargs='*',
                        help="The J name of the pulsar(s). e.g. J2241-5236")
     obsop.add_argument("--obs_beg", type=int, required=True,
                        help="The beginning of the observation")
     obsop.add_argument("--obs_end", type=int, required=True, help="The end of the observation")
-    obsop.add_argument("--pointing", type=str, required=True, help="The pointing location of the source in the format HH:MM:SS_+DD:MM:SS. e.g. '19:23:48.53_-20:31:52.95'")
+    obsop.add_argument("--pointing", type=str, required=True, nargs='*',
+                       help="The pointing location of the source in the format HH:MM:SS_+DD:MM:SS. e.g. '19:23:48.53_-20:31:52.95'")
 
     foldop = parser.add_argument_group("Folding/processing Options")
     foldop.add_argument("--sn_min_thresh", type=float, default=8.0, help="The presto sigma value\

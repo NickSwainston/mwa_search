@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
 
-from helper_yaml import from_yaml, dump_to_yaml
+from dpp.helper_yaml import from_yaml, dump_to_yaml
 
 logger = logging.getLogger(__name__)
 

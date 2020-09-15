@@ -116,8 +116,8 @@ process make_yamls {
     file "*initialized.yaml"
 
     """
-    make_pulsar_yaml.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psrs ${pulsar.join(" ")}\
-    --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label make_pulsar_yaml
+    make_pulsar_yaml.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psr ${pulsar.join(" ")}\
+    --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label make_pulsar_yaml -d ./
     """
 }
 

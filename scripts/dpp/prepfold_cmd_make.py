@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def main(kwargs):
-    from helper_prepfold import prepfold_cmd_make_main
+    from dpp.helper_prepfold import prepfold_cmd_make_main
     prepfold_cmd_make_main(kwargs)
 
 

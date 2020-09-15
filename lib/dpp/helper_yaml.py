@@ -4,7 +4,7 @@ import os
 import yaml
 import subprocess
 
-from dpp.helper_source import bin_sampling_limit, is_binary, required_bin_folds
+from dpp.helper_source_info import bin_sampling_limit, is_binary, required_bin_folds
 from dpp.helper_obs_info import find_fold_times
 from mwa_metadb_utils import get_common_obs_metadata
 from vcstools import data_load
@@ -120,9 +120,9 @@ def dump_to_yaml(pipe, label=""):
 def create_yaml_main(kwargs):
     """uses kwargs from make_pulsar_yaml.py"""
     metadata, full_meta = get_common_obs_metadata(kwargs["obsid"], return_all=True)
-    query = gma.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
+    query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
     pulsars_pointings_dict = {}
-    for psrlist, pointing in zip(kwargs["psrs"], kwargs["pointings"]):
+    for psrlist, pointing in zip(kwargs["psr"], kwargs["pointing"]):
         for psr in psrlist.split(":"):
             if psr not in pulsars_pointings_dict.keys():
                 pulsars_pointings_dict[psr] = []
