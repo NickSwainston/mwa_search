@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def main(kwargs):
-    from bestprof_helper import find_best_pointing_main
+    from helper_bestprof import find_best_pointing_main
     find_best_pointing_main(kwargs)
 
 
@@ -21,6 +21,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--pfds", type=str, nargs="+", required=True, help="The .pfd outputs from a PRESTO fold")
     parser.add_argument("--yamls", type=str, nargs="+", required=True, help="The yaml files corresponding to each pointing")
+    parser.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
     args = parser.parse_args()
     logger = logging.getLogger()
     logger.setLevel(loglevels[args.loglvl])
