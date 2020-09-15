@@ -4,8 +4,8 @@ import os
 import yaml
 import subprocess
 
-from dpp.misc_helper import bin_sampling_limit, is_binary, required_bin_folds
-from dpp.pulsar_obs_helper import find_fold_times
+from dpp.helper_source import bin_sampling_limit, is_binary, required_bin_folds
+from dpp.helper_obs_info import find_fold_times
 from mwa_metadb_utils import get_common_obs_metadata
 from vcstools import data_load
 
@@ -38,7 +38,6 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
     pipe["obs"]["end"] = kwargs["obs_end"]
 
     pipe["source"]["cand"] = kwargs["cand"]
-    pipe["source"]["pointing"] = kwargs["pointing"]
 
     if pipe["source"]["cand"] == False:
         pipe["source"]["name"] = psr
