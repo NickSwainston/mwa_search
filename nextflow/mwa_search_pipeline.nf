@@ -39,7 +39,7 @@ else {
 }
 
 if ( params.bestprof_pointings ) {
-    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect().view()
+    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
 }
 else {
     bestprof_files = Channel.from(" ")
