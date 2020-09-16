@@ -2,11 +2,12 @@
 import argparse
 import logging
 
+from dpp.helper_obs_info import find_pulsars_in_fov_main
+
 logger = logging.getLogger(__name__)
 
 
 def main(kwargs):
-    from dpp.helper_obs_info import find_pulsars_in_fov_main
     find_pulsars_in_fov_main(kwargs)
 
 

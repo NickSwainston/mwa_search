@@ -2,12 +2,14 @@
 
 import logging
 import argparse
+from dpp.helper_yaml import create_yaml_main
 
 logger = logging.getLogger(__name__)
 
+
 def main(kwargs):
-    from dpp.helper_yaml import create_yaml_main
     create_yaml_main(kwargs)
+
 
 if __name__ == '__main__':
     loglevels = dict(DEBUG=logging.DEBUG,
