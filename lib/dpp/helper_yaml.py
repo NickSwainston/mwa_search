@@ -12,7 +12,7 @@ from vcstools import data_load
 logger = logging.getLogger(__name__)
 
 
-def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
+def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=None):
     """Adds all available keys to the pipe dictionary and figures out some useful constants"""
     pipe = {"obs": {}, "source": {},
             "completed": {}, "folds": {}, "run_ops": {}, "pol": {}}
@@ -25,6 +25,8 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
     pipe["run_ops"]["thresh_sn"] = 8.0
     pipe["run_ops"]["vdif"] = None
     pipe["run_ops"]["mask"] = None
+    pipe["run_ops"]["pointing"] = pointing
+    check_run_ops(pipe)
 
     if metadata is None:
         metadata = get_common_obs_metadata(kwargs["obsid"])
@@ -36,14 +38,16 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
     pipe["obs"]["cal"] = kwargs["cal_id"]
     pipe["obs"]["beg"] = kwargs["obs_beg"]
     pipe["obs"]["end"] = kwargs["obs_end"]
+    check_obs_inputs(pipe)
 
     pipe["source"]["cand"] = kwargs["cand"]
-
     if pipe["source"]["cand"] == False:
         pipe["source"]["name"] = psr
         if query is None:
             query = psrqpy.QueryATNF(
                 psrs=pipe["source"]["name"], loadfromdb=data_load.ATNF_LOC).pandas
+        pipe["source"]["sampling_limit"] = int(bin_sampling_limit(
+            pipe["source"]["name"], query=query))
         pipe["source"]["ATNF"] = dict(query)
         pipe["source"]["ATNF_P"] = query["P0"][0]
         pipe["source"]["ATNF_DM"] = query["DM"][0]
@@ -57,18 +61,10 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
         pipe["source"]["my_DM"] = None
         pipe["source"]["my_P"] = None
         pipe["source"]["my_bins"] = None
-        pipe["source"]["sampling_limit"] = int(bin_sampling_limit(
-            pipe["source"]["name"], query=query))
+        pipe["source"]["edited_eph"] = None
+        pipe["source"]["edited_eph_name"] = None
         pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
             pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=metadata, full_meta=full_meta)
-        if pipe["source"]["enter_frac"] is None or pipe["source"]["exit_frac"] is None:
-            # Pulsar not in beam so don't make a yaml
-            return None
-        pipe["source"]["enter_frac"] = float(pipe["source"]["enter_frac"])
-        pipe["source"]["exit_frac"] = float(pipe["source"]["exit_frac"])
-        pipe["source"]["seek"] = pipe["source"]["enter_frac"] * (pipe["obs"]["end"] - pipe["obs"]["beg"])
-        pipe["source"]["total"] = (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"]) * (pipe["obs"]["end"] - pipe["obs"]["beg"])
-        pipe["source"]["power"] = float(pipe["source"]["power"])
         init, post = required_bin_folds(pipe["source"]["name"], query=query)
         pipe["folds"] = {"init":{}, "post":{}}
         for _, i in enumerate(init):
@@ -76,9 +72,13 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
         for _, i in enumerate(post):
             pipe["folds"]["post"][str(i)] = {}
         pipe["source"]["binary"] = is_binary(pipe["source"]["name"], query=query)
-        pipe["source"]["edited_eph"] = None
-        pipe["source"]["edited_eph_name"] = None
-
+        check_source_inputs(pipe)
+        pipe["source"]["seek"] = pipe["source"]["enter_frac"] * (pipe["obs"]["end"] - pipe["obs"]["beg"])
+        pipe["source"]["total"] = (pipe["source"]["exit_frac"] - pipe["source"]["enter_frac"]) * (pipe["obs"]["end"] - pipe["obs"]["beg"])
+        pipe["run_ops"]["file_precursor"] = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
+        if pipe["source"]["binary"]:
+            pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
+            pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
 
     pipe["pol"]["archive1"] = None
     pipe["pol"]["archive2"] = None
@@ -94,7 +94,100 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
     pipe["completed"]["bf"] = False
     pipe["completed"]["polarimetry"] = False
     pipe["completed"]["init_dspsr"] = False
+
     return pipe
+
+def check_run_ops(pipe):
+    """Checks that the 'run_ops' information given to the pipe is suitable"""
+    #run_dir
+    if not isinstance(pipe["run_ops"]["dir"], str):
+        raise TypeError(f"Run directory not valid: {pipe['run_ops']['dir']}")
+    if not os.path.exists(pipe["run_ops"]["dir"]):
+        raise OSError(f"Run directory does not exit: {pipe['run_ops']['dir']}")
+    #pointing
+    if not isinstance(pipe["run_ops"]["pointing"], str):
+        raise TypeError(f"Pointing not valid: {pipe['run_ops']['pointing']}")
+
+
+def check_obs_inputs(pipe):
+    """Checks that the 'obs' information given to the pipe is suitable"""
+    # Obsid
+    if not isinstance(pipe["obs"]["id"], int):
+        try:
+            pipe["obs"]["id"] = int(pipe["obs"]["id"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid Observation ID: {pipe['obs']['id']}. Cannot be converted to int"
+            raise
+        logger.warn("Obsid had to be converted to int. This may be evidence of a bug")
+    # Beg and end
+    if not isinstance(pipe["obs"]["beg"], int):
+        try:
+            pipe["obs"]["beg"] = int(pipe["obs"]["beg"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid begin time: {pipe['obs']['beg']}. Cannot be converted to int"
+            raise
+        logger.warn("Begin time had to be converted to int. This may be evidence of a bug")
+    if not isinstance(pipe["obs"]["end"], int):
+        try:
+            pipe["obs"]["end"] = int(pipe["obs"]["end"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid end time: {pipe['obs']['end']}. Cannot be converted to int"
+            raise
+        logger.warn("End time had to be converted to int. This may be evidence of a bug")
+    if beg>end:
+        raise ValueError(f"Begining time {begin} greater than end time {end}")
+
+
+def check_source_inputs(pipe):
+    """Checks if the 'source' info given to the pipe is suiutable"""
+    #ANTF stuff
+    if not isintance(pipe["source"]["ATNF_P"], float):
+        try:
+            pipe["source"]["ATNF_P"] = float(pipe["source"]["ATNF_P"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid ATNF period: {pipe['source']['ATNF_P']}. Cannot be converted to float"
+            raise
+    if not isintance(pipe["source"]["ATNF_DM"], float):
+        try:
+            pipe["source"]["ATNF_DM"] = float(pipe["source"]["ATNF_DM"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid ATNF dispersion measure: {pipe['source']['ATNF_DM']}. Cannot be converted to float"
+            raise
+    #Enter/Exit fractions
+    if not isintance(pipe["source"]["enter_frac"], float):
+        try:
+            pipe["source"]["enter_frac"] = float(pipe["source"]["enter_frac"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid beam enter fraction: {pipe['source']['enter_frac']}. Cannot be converted to float"
+            raise
+    if not isintance(pipe["source"]["exit_frac"], float):
+        try:
+            pipe["source"]["exit_frac"] = float(pipe["source"]["exit_frac"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid beam exit fraction: {pipe['source']['exit_frac']}. Cannot be converted to float"
+            raise
+    if pipe["source"]["enter_fraction"] > 1 or pipe["source"]["exit_frac"] < 0:
+        msg = f"""Enter/Exit fractions unsuitable
+                  Enter: {pipe['source']['enter_fraction']}
+                  Exit: {pipe['source']['exit_fraction']}"""
+        raise ValueError(msg)
+    #Power
+    if not isintance(pipe["source"]["power"], float):
+        try:
+            pipe["source"]["power"] = float(pipe["source"]["power"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid maximum power: {pipe['source']['power']}. Cannot be converted to float"
+            raise
+    #Sampling limit
+    if not isinstance(pipe["source"]["sampling_limit"], int):
+        try:
+            pipe["source"]["power"] = float(pipe["source"]["power"])
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid sampling limit: {pipe['source']['sampling_limit']}. Cannot be converted to float"
+            raise
+    #Binary
+    if not isinstance(pipe["source"]["binary"], bool):
+        raise ValueError(f"Invalid binary condition: {pipe['source']['binary']}")
 
 
 def create_edited_eph(pulsar_name, eph_name):
@@ -132,14 +225,12 @@ def create_yaml_main(kwargs):
             pulsars_pointings_dict[psr].append(pointing)
     for psr in pulsars_pointings_dict.keys():
         logger.info("Processing yaml for PSR: {}".format(psr))
-        pipe = initiate_pipe(kwargs, psr, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index())
-        if pipe is not None:
-            for pointing in pulsars_pointings_dict[psr]:
-                # Update the pipe with the pointing specific parameters
-                pipe["run_ops"]["pointing"] = pointing
-                if pipe["source"]["cand"] == False:
-                    pipe["run_ops"]["file_precursor"] = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
-                    if pipe["source"]["binary"]:
-                        pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
-                        pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
-                dump_to_yaml(pipe, label=kwargs["label"])
+        for pointing in pulsars_pointings_dict[psr]:
+            try:
+                pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index())
+            except (ValueError, TypeError, OSError) as e:
+                msg = f"""Exception encountered for pulsar {psr} and pointing {pointing}
+                            Error: {e} """
+                logger.warn(msg)
+                continue
+            dump_to_yaml(pipe, label=kwargs["label"])
