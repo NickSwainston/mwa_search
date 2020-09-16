@@ -61,6 +61,9 @@ def initiate_pipe(kwargs, psr, metadata=None, full_meta=None, query=None):
             pipe["source"]["name"], query=query))
         pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
             pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=metadata, full_meta=full_meta)
+        if pipe["source"]["enter_frac"] is None or pipe["source"]["exit_frac"] is None:
+            # Pulsar not in beam so don't make a yaml
+            return None
         pipe["source"]["enter_frac"] = float(pipe["source"]["enter_frac"])
         pipe["source"]["exit_frac"] = float(pipe["source"]["exit_frac"])
         pipe["source"]["seek"] = pipe["source"]["enter_frac"] * (pipe["obs"]["end"] - pipe["obs"]["beg"])
@@ -130,12 +133,13 @@ def create_yaml_main(kwargs):
     for psr in pulsars_pointings_dict.keys():
         logger.info("Processing yaml for PSR: {}".format(psr))
         pipe = initiate_pipe(kwargs, psr, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index())
-        for pointing in pulsars_pointings_dict[psr]:
-            # Update the pipe with the pointing specific parameters
-            pipe["run_ops"]["pointing"] = pointing
-            if pipe["source"]["cand"] == False:
-                pipe["run_ops"]["file_precursor"] = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
-                if pipe["source"]["binary"]:
-                    pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
-                    pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
-            dump_to_yaml(pipe, label=kwargs["label"])
+        if pipe is not None:
+            for pointing in pulsars_pointings_dict[psr]:
+                # Update the pipe with the pointing specific parameters
+                pipe["run_ops"]["pointing"] = pointing
+                if pipe["source"]["cand"] == False:
+                    pipe["run_ops"]["file_precursor"] = f"{pipe['obs']['id']}_{pipe['run_ops']['pointing']}_{pipe['source']['name']}"
+                    if pipe["source"]["binary"]:
+                        pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
+                        pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
+                dump_to_yaml(pipe, label=kwargs["label"])
