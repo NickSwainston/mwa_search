@@ -223,12 +223,12 @@ def create_yaml_main(kwargs):
             pulsars_pointings_dict[psr].append(pointing)
     for psr in pulsars_pointings_dict.keys():
         logger.info("Processing yaml for PSR: {}".format(psr))
-        enter, exit, power = find_fold_times(
+        enter_frac, exit_frac, power = find_fold_times(
                 psr, kwargs["obsid"], kwargs["obs_beg"], kwargs["obs_end"], metadata=metadata, full_meta=full_meta)
         for pointing in pulsars_pointings_dict[psr]:
             try:
                 pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index(),
-                        enter=enter, exit=exit, power=power)
+                        enter=enter_frac, exit=exit_frac, power=power)
             except (ValueError, TypeError, OSError) as e:
                 msg = f"""Exception encountered for pulsar {psr} and pointing {pointing}
                           Error: {e} """
