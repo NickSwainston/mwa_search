@@ -24,6 +24,44 @@ from mwa_search.obs_tools import calc_ta_fwhm
 
 logger = logging.getLogger(__name__)
 
+def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
+    """Checks that the arguments for find_fold_times are valid"""
+    # Pulsar
+    if not isinstance(pulsar, str):
+        raise TypeError(f"Pulsar is not a string value: {pulsar}")
+    # Obsid
+    if not isinstance(obsid, int):
+        try:
+            obsid = int(obsid)
+            logger.warn("Obsid had to be converted to int. This may be evidence of a bug")
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid Observation ID: {obsid}. Cannot be converted to int"
+            raise
+    # Beg and end
+    if not isinstance(beg, int):
+        try:
+            beg = int(beg)
+            logger.warn("Begin time had to be converted to int. This may be evidence of a bug")
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid begin time: {beg}. Cannot be converted to int"
+            raise
+    if not isinstance(end, int):
+        try:
+            end = int(end)
+            logger.warn("End time had to be converted to int. This may be evidence of a bug")
+        except (ValueError, TypeError) as e:
+            e.message = f"Invalid end time: {end}. Cannot be converted to int"
+            raise
+    if beg>end:
+        raise ValueError(f"Begining time {beg} greater than end time {end}")
+    #convert min_z_power
+    try:
+        if not isinstance(min_z_power, list):
+            min_z_power = list(min_z_power)
+    except TypeError as e:
+        e.message = f"Invalid min_z_power: {min_z_power}"
+        raise
+    return pulsar, obsid, beg, end, min_z_power
 
 def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None, full_meta=None):
     """
@@ -51,11 +89,7 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=No
         power: float
             The power for which enter and leave are calculated
     """
-    if min_z_power is None:
-        min_z_power = [0.3, 0.1]
-    if not isinstance(min_z_power, list):
-        min_z_power = list(min_z_power)
-
+    pulsar, obsid, beg, end, min_z_power = _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power)
     min_z_power = sorted(min_z_power, reverse=True)
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
     pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power,
