@@ -2,6 +2,16 @@
 
 nextflow.preview.dsl = 2
 
+// The following allows * to perform a cartesian product on lists
+class CartesianCategory {
+    static Iterable multiply(Iterable a, Iterable b) {
+        assert [a,b].every { it != null }
+        def (m,n) = [a.size(),b.size()]
+        (0..<(m*n)).inject([]) { prod, i -> prod << [a[i.intdiv(n)], b[i%n]].flatten() }
+    }
+}
+Iterable.metaClass.mixin CartesianCategory
+
 params.obsid = null
 params.calid = null
 
@@ -197,7 +207,9 @@ workflow initial_fold {
                              pulsar_prepfold_cmd_make.out[0].\
                              map{ it -> [it.flatten().findAll{ it != null }[-1].baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.groupTuple().\
                              // Group fits files by bash files with same pointings
-                             concat( fits_files ).groupTuple( size: 2, remainder: false ).view().map{ it -> it[1] } )
+                             concat( fits_files ).groupTuple( size: 2, remainder: false ).\
+                             // Then split them into a line per pulsar and format it to account for the optional .eph file
+                             map{ it -> it[1][0] * it[1][1] }.flatMap().map{ it -> [it.init(), it.last()]} )
         //if ( (params.search_radius - fwhm / 2) > (fwhm * 0.6) ){
             // If more than one loop of beams per source,
         //}
@@ -259,7 +271,7 @@ workflow {
               //Grab the pointings for slow pulsars and single pulses
               find_pointings.out.splitCsv(skip: 1, limit: 1).concat(\
               find_pointings.out.splitCsv(skip: 5, limit: 1),\
-              find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().filter{ it != " " }.collate( params.max_pointings ).view() )
+              find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().filter{ it != " " }.collate( params.max_pointings ) )
     beamform_ipfb( pre_beamform.out[0],\
                    pre_beamform.out[1],\
                    pre_beamform.out[2],\
