@@ -12,12 +12,11 @@ from vcstools import data_load
 logger = logging.getLogger(__name__)
 
 
-def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=None):
+def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=None, enter=None, exit=None, power=None):
     """Adds all available keys to the pipe dictionary and figures out some useful constants"""
     pipe = {"obs": {}, "source": {},
             "completed": {}, "folds": {}, "run_ops": {}, "pol": {}}
 
-    pipe["run_ops"]["dir"] = kwargs["run_dir"]
     pipe["run_ops"]["loglvl"] = kwargs["loglvl"]
     pipe["run_ops"]["mwa_search"] = kwargs["mwa_search"]
     pipe["run_ops"]["vcstools"] = kwargs["vcstools"]
@@ -63,8 +62,12 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=No
         pipe["source"]["my_bins"] = None
         pipe["source"]["edited_eph"] = None
         pipe["source"]["edited_eph_name"] = None
-        pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
-            pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=metadata, full_meta=full_meta)
+        pipe["source"]["enter_frac"] = enter
+        pipe["source"]["exit_frac"] = exit
+        pipe["source"]["power"] = power
+        if None in (pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"]):
+            pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
+                pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=metadata, full_meta=full_meta)
         init, post = required_bin_folds(pipe["source"]["name"], query=query)
         pipe["folds"] = {"init":{}, "post":{}}
         for _, i in enumerate(init):
@@ -99,11 +102,6 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=No
 
 def check_run_ops(pipe):
     """Checks that the 'run_ops' information given to the pipe is suitable"""
-    #run_dir
-    if not isinstance(pipe["run_ops"]["dir"], str):
-        raise TypeError(f"Run directory not valid: {pipe['run_ops']['dir']}")
-    if not os.path.exists(pipe["run_ops"]["dir"]):
-        raise OSError(f"Run directory does not exit: {pipe['run_ops']['dir']}")
     #pointing
     if not isinstance(pipe["run_ops"]["pointing"], str):
         raise TypeError(f"Pointing not valid: {pipe['run_ops']['pointing']}")
@@ -115,64 +113,64 @@ def check_obs_inputs(pipe):
     if not isinstance(pipe["obs"]["id"], int):
         try:
             pipe["obs"]["id"] = int(pipe["obs"]["id"])
+            logger.warn("Obsid had to be converted to int. This may be evidence of a bug")
         except (ValueError, TypeError) as e:
             e.message = f"Invalid Observation ID: {pipe['obs']['id']}. Cannot be converted to int"
             raise
-        logger.warn("Obsid had to be converted to int. This may be evidence of a bug")
     # Beg and end
     if not isinstance(pipe["obs"]["beg"], int):
         try:
             pipe["obs"]["beg"] = int(pipe["obs"]["beg"])
+            logger.warn("Begin time had to be converted to int. This may be evidence of a bug")
         except (ValueError, TypeError) as e:
             e.message = f"Invalid begin time: {pipe['obs']['beg']}. Cannot be converted to int"
             raise
-        logger.warn("Begin time had to be converted to int. This may be evidence of a bug")
     if not isinstance(pipe["obs"]["end"], int):
         try:
             pipe["obs"]["end"] = int(pipe["obs"]["end"])
+            logger.warn("End time had to be converted to int. This may be evidence of a bug")
         except (ValueError, TypeError) as e:
             e.message = f"Invalid end time: {pipe['obs']['end']}. Cannot be converted to int"
             raise
-        logger.warn("End time had to be converted to int. This may be evidence of a bug")
-    if beg>end:
-        raise ValueError(f"Begining time {begin} greater than end time {end}")
+    if pipe["obs"]["beg"]>pipe["obs"]["end"]:
+        raise ValueError(f"Begining time {pipe['obs']['beg']} greater than end time {pipe['obs']['end']}")
 
 
 def check_source_inputs(pipe):
     """Checks if the 'source' info given to the pipe is suiutable"""
     #ANTF stuff
-    if not isintance(pipe["source"]["ATNF_P"], float):
+    if not isinstance(pipe["source"]["ATNF_P"], float):
         try:
             pipe["source"]["ATNF_P"] = float(pipe["source"]["ATNF_P"])
         except (ValueError, TypeError) as e:
             e.message = f"Invalid ATNF period: {pipe['source']['ATNF_P']}. Cannot be converted to float"
             raise
-    if not isintance(pipe["source"]["ATNF_DM"], float):
+    if not isinstance(pipe["source"]["ATNF_DM"], float):
         try:
             pipe["source"]["ATNF_DM"] = float(pipe["source"]["ATNF_DM"])
         except (ValueError, TypeError) as e:
             e.message = f"Invalid ATNF dispersion measure: {pipe['source']['ATNF_DM']}. Cannot be converted to float"
             raise
     #Enter/Exit fractions
-    if not isintance(pipe["source"]["enter_frac"], float):
+    if not isinstance(pipe["source"]["enter_frac"], float):
         try:
             pipe["source"]["enter_frac"] = float(pipe["source"]["enter_frac"])
         except (ValueError, TypeError) as e:
             e.message = f"Invalid beam enter fraction: {pipe['source']['enter_frac']}. Cannot be converted to float"
             raise
-    if not isintance(pipe["source"]["exit_frac"], float):
+    if not isinstance(pipe["source"]["exit_frac"], float):
         try:
             pipe["source"]["exit_frac"] = float(pipe["source"]["exit_frac"])
         except (ValueError, TypeError) as e:
             e.message = f"Invalid beam exit fraction: {pipe['source']['exit_frac']}. Cannot be converted to float"
             raise
-    if pipe["source"]["enter_fraction"] > 1 or pipe["source"]["exit_frac"] < 0:
+    if pipe["source"]["enter_frac"] > 1 or pipe["source"]["exit_frac"] < 0:
         msg = f"""Enter/Exit fractions unsuitable
-                  Enter: {pipe['source']['enter_fraction']}
-                  Exit: {pipe['source']['exit_fraction']}"""
+                  Enter: {pipe['source']['enter_frac']}
+                  Exit: {pipe['source']['exit_frac']}"""
         raise ValueError(msg)
     #Power
-    if not isintance(pipe["source"]["power"], float):
+    if not isinstance(pipe["source"]["power"], float):
         try:
             pipe["source"]["power"] = float(pipe["source"]["power"])
         except (ValueError, TypeError) as e:
@@ -225,12 +223,15 @@ def create_yaml_main(kwargs):
             pulsars_pointings_dict[psr].append(pointing)
     for psr in pulsars_pointings_dict.keys():
         logger.info("Processing yaml for PSR: {}".format(psr))
+        enter, exit, power = find_fold_times(
+                psr, kwargs["obsid"], kwargs["obs_beg"], kwargs["obs_end"], metadata=metadata, full_meta=full_meta)
         for pointing in pulsars_pointings_dict[psr]:
             try:
-                pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index())
+                pipe = initiate_pipe(kwargs, psr, pointing, metadata=metadata, full_meta=full_meta, query=query[query['PSRJ'] == psr].reset_index(),
+                        enter=enter, exit=exit, power=power)
             except (ValueError, TypeError, OSError) as e:
                 msg = f"""Exception encountered for pulsar {psr} and pointing {pointing}
-                            Error: {e} """
+                          Error: {e} """
                 logger.warn(msg)
                 continue
             dump_to_yaml(pipe, label=kwargs["label"])
