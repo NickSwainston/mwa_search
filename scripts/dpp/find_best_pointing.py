@@ -3,11 +3,12 @@
 import logging
 import argparse
 
+from dpp.helper_bestprof import find_best_pointing_main
+
 logger = logging.getLogger(__name__)
 
 
 def main(kwargs):
-    from dpp.helper_bestprof import find_best_pointing_main
     find_best_pointing_main(kwargs)
 
 
