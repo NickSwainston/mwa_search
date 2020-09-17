@@ -77,7 +77,8 @@ setup(name="mwa_search",
                'nextflow/nextflow.config',
                'nextflow/candidate_TOAs.nf', 'nextflow/find_candidate_position.nf',
                'nextflow/pdmp.nf', 'nextflow/dspsr_module.nf',
-               'nextflow/mwa_search_pipeline.nf', 'nextflow/data_processing_pipeline.nf'],
+               'nextflow/mwa_search_pipeline.nf', 'nextflow/benchmark_beamformer.nf'],
+      #data_files=[('AegeanTools', [os.path.join(data_dir, 'MOC.fits')]) ],
       setup_requires=['pytest-runner'],
       tests_require=['pytest']  # , 'nose']
       )

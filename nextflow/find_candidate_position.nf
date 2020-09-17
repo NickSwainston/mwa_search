@@ -27,6 +27,9 @@ params.subint = 60
 params.nchan = 48
 
 params.no_pdmp = false
+params.fwhm_ra = "None"
+params.fwhm_dec = "None"
+
 
 include { pre_beamform; beamform } from './beamform_module'
 
@@ -225,7 +228,7 @@ process bestgridpos {
     file "*png"
 
     """
-    bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w
+    bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w -fr ${params.fwhm_ra} -fd ${params.fwhm_dec}
     """
 }
 
