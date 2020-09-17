@@ -163,6 +163,6 @@ workflow {
               bestprof_pointings.out.splitCsv().map{ it -> it[0] }.flatten().collate( params.max_pointings ) )
     pulsar_search( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
                    bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1]]}).map{ it -> [it[0].toString(), it[1]] }.\
-                   groupTuple( size: 2 ).map{ it -> [it[1][1]+"_${params.obsid}_"+it[0], it[1][0]] } )
+                   groupTuple( size: 2 ).map{ it -> [it[1][1]+"_"+it[0], it[1][0]] } )
     classifier( pulsar_search.out[1].flatten().collate( 120 ) )
 }

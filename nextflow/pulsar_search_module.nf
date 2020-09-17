@@ -261,10 +261,10 @@ process prepfold {
     output:
     file "*pfd*"
 
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
-    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ) {
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
@@ -275,7 +275,8 @@ process prepfold {
     """
     echo "${cand_line.split()}"
     # Set up the prepfold options to match the ML candidate profiler
-    period=${Float.valueOf(cand_line.split()[7])/1000}
+    temp_period=${Float.valueOf(cand_line.split()[7])/1000}
+    period=\$(printf "%.8f" \$temp_period)
     if (( \$(echo "\$period > 0.01" | bc -l) )); then
         nbins=100
         ntimechunk=120
