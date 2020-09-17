@@ -78,49 +78,32 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
                        '019', '020', '021', '022', '023', '024'] )
 
 
-
-// Handling begin and end times
-process get_beg_end {
+process beamform_setup {
     output:
     file "${params.obsid}_beg_end.txt"
-
-    script:
-    if ( params.all )
-        """
-        #!/usr/bin/env python3
-        import csv
-
-        from mwa_metadb_utils import obs_max_min
-
-        beg, end = obs_max_min(${params.obsid})
-        with open("${params.obsid}_beg_end.txt", "w") as outfile:
-            spamwriter = csv.writer(outfile, delimiter=',')
-            spamwriter.writerow([beg, end])
-        """
-    else
-        """
-        #!/usr/bin/env python3
-        import csv
-
-        beg = "$params.begin"
-        end = "$params.end"
-        with open("${params.obsid}_beg_end.txt", "w") as outfile:
-            spamwriter = csv.writer(outfile, delimiter=',')
-            spamwriter.writerow([beg, end])
-        """
-}
-
-
-process get_channels {
-    output:
     file "${params.obsid}_channels.txt"
+    file "${params.obsid}_utc.txt"
 
     """
-    #!/usr/bin/env python3
-
-    from mwa_metadb_utils import get_channels
+    #!/usr/bin/env python
     import csv
 
+    from mwa_metadb_utils import obs_max_min, get_channels
+    from process_vcs import ensure_metafits, gps_to_utc, create_link
+    from mdir import mdir
+    import csv
+
+    # Work out begin and end time of obs
+    if "${params.all}" == "true":
+        beg, end = obs_max_min(${params.obsid})
+    else:
+        beg = "$params.begin"
+        end = "$params.end"
+    with open("${params.obsid}_beg_end.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow([beg, end])
+
+    # Find the channels 
     if "$params.channels" is "null":
         channels = get_channels($params.obsid)
     else:
@@ -128,57 +111,21 @@ process get_channels {
     with open("${params.obsid}_channels.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         spamwriter.writerow(channels)
-    """
-}
-
-
-process ensure_metafits {
-
-    """
-    #!/usr/bin/env python3
-
-    from process_vcs import ensure_metafits
-    
+        
+    # Ensure the metafits files is there
     ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
                     "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
-    """
-}
 
-
-process gps_to_utc {
-    input:
-    tuple val(begin), val(end)
-
-    output:
-    file "${params.obsid}_utc.txt"
-
-    """
-    #!/usr/bin/env python3
-
-    from process_vcs import gps_to_utc
-    import csv
-
+    # Covert gps time to utc
     with open("${params.obsid}_utc.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
-        spamwriter.writerow([gps_to_utc(${begin})])
-    """
-}
+        spamwriter.writerow([gps_to_utc(beg)])
 
-
-process make_directories {
-    """
-    #!/usr/bin/env python3
-
-    from mdir import mdir
-    from process_vcs import create_link
-
+    # Make sure all the required directories are made
     mdir("${params.scratch_basedir}/${params.obsid}", "Data")
     mdir("${params.scratch_basedir}/${params.obsid}", "Products")
     mdir("${params.scratch_basedir}/batch", "Batch")
     mdir("${params.scratch_basedir}/${params.obsid}/pointings", "Pointings")
-    #mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
-    #create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
-    #            "${params.basedir}/${params.obsid}", "dpp_pointings")
     """
 }
 
@@ -379,16 +326,12 @@ process splice {
 
 workflow pre_beamform {
     main:
-        get_beg_end()
-        get_channels()
-        ensure_metafits()
-        gps_to_utc( get_beg_end.out.splitCsv() )
-        make_directories()
-        combined_data_check(get_beg_end.out.splitCsv())
+        beamform_setup()
+        combined_data_check(beamform_setup.out[0].splitCsv())
     emit:
-        get_beg_end.out.splitCsv()
-        get_channels.out.splitCsv()
-        gps_to_utc.out.splitCsv().flatten()
+        beamform_setup.out[0].splitCsv()
+        beamform_setup.out[1].splitCsv()
+        beamform_setup.out[2].splitCsv().flatten()
 }
 
 
