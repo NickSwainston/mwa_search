@@ -109,7 +109,7 @@ process bestprof_pointings {
     if "${params.bestprof_pointings}" == "null":
         pointings = ["${pointings.join('", "')}"]
         for p in pointings:
-            dm_pointings.append([p, "Blind"])
+            dm_pointings.append([p, "Blind", "None"])
     else:
         bestprof_files = glob.glob("*.bestprof")
         for bfile_loc in bestprof_files:
@@ -117,12 +117,66 @@ process bestprof_pointings {
             with open(bfile_loc,"r") as bestprof:
                 lines = bestprof.readlines()
                 dm = lines[14][22:-1]
-            dm_pointings.append([pointing, "dm_{}".format(dm)])
+                period = lines[15][22:-1]
+                period, period_uncer = period.split('  +/- ')
+            dm_pointings.append([pointing, "dm_{}".format(dm), period])
 
     with open("${params.obsid}_DM_pointing.csv", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         for dm_point in dm_pointings:
             spamwriter.writerow(dm_point)
+    """
+}
+
+process follow_up_fold {
+    label 'cpu'
+    time "6h"
+    publishDir params.out_dir, mode: 'copy'
+    errorStrategy 'retry'
+    maxRetries 1
+
+    when:
+    params.bestprof_pointings != null
+
+    input:
+    tuple file(fits_files), val(dm), val(period)
+
+    output:
+    file "*pfd*"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
+    """
+    # Set up the prepfold options to match the ML candidate profiler
+    temp_period=${Float.valueOf(period)/1000}
+    period=\$(printf "%.8f" \$temp_period)
+    if (( \$(echo "\$period > 0.01" | bc -l) )); then
+        nbins=100
+        ntimechunk=120
+        dmstep=1
+        period_search_n=1
+    else
+        # bin size is smaller than time resolution so reduce nbins
+        nbins=50
+        ntimechunk=40
+        dmstep=3
+        period_search_n=2
+    fi
+
+    # Work out how many dmfacts to use to search +/- 2 DM
+    ddm=`echo "scale=10;0.000241*138.87^2*\${dmstep} / (1/\$period *\$nbins)" | bc`
+    ndmfact=`echo "1 + 1/(\$ddm*\$nbins)" | bc`
+    echo "ndmfact: \$ndmfact   ddm: \$ddm"
+
+    prepfold -ncpus $task.cpus -o follow_up_${params.obsid}_P${period.replaceAll(~/\s/,"")}_DM${dm} -n \$nbins -dm ${dm} -p \$period -noxwin -noclip -nsub 256 \
+-npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact \$ndmfact -runavg *.fits
     """
 }
 
@@ -161,6 +215,9 @@ workflow {
               pre_beamform.out[1],\
               pre_beamform.out[2],\
               bestprof_pointings.out.splitCsv().map{ it -> it[0] }.flatten().collate( params.max_pointings ) )
+    follow_up_fold( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
+                    bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1], it[2]]}.map{ it -> [it[0].toString(), [it[1], it[2]]] }).\
+                    groupTuple( size: 2 ).map{ it -> [it[1][0], it[1][1][0].split("_")[-1], it[1][1][1]] } )
     pulsar_search( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
                    bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1]]}).map{ it -> [it[0].toString(), it[1]] }.\
                    groupTuple( size: 2 ).map{ it -> [it[1][1]+"_"+it[0], it[1][0]] } )
