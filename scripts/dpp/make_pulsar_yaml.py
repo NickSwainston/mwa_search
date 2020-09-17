@@ -20,11 +20,9 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     obsop = parser.add_argument_group("Observation Options")
-    obsop.add_argument("-d", "--run_dir", nargs='+',
-                       type=str, required=True, help="The location of the pointing directory/s")
-    obsop.add_argument("-o", "--obsid", type=str, required=True,
+    obsop.add_argument("-o", "--obsid", type=int, required=True,
                        help="The obs ID of the data")
-    obsop.add_argument("-O", "--cal_id", type=str, required=True,
+    obsop.add_argument("-O", "--cal_id", type=int, required=True,
                        help="The ID of the calibrator used to calibrate the data")
     obsop.add_argument("-p", "--psr", type=str, nargs='*',
                        help="The J name of the pulsar(s). e.g. J2241-5236")
