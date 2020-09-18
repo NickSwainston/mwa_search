@@ -1,6 +1,7 @@
 nextflow.preview.dsl = 2
 
 
+params.publish_all_classifer_cands = true
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 process feature_extract {
@@ -67,7 +68,7 @@ process classify {
 }
 
 process sort_detections {
-    publishDir params.out_dir, mode: 'copy'
+    publishDir params.out_dir, mode: 'copy', enabled: params.publish_all_classifer_cands
 
     input:
     file classifier_files

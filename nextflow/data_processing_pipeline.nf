@@ -27,6 +27,7 @@ params.mwa_search_version = 'master'
 params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = false
+params.publish_all_classifer_cands = false
 
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
@@ -127,7 +128,7 @@ process make_yamls {
 
     """
     make_pulsar_yaml.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psr ${pulsar.join(" ")}\
-    --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label make_pulsar_yaml -d ./
+    --mwa_search $params.mwa_search_version --vcstools $params.vcstools_version --label make_pulsar_yaml
     """
 }
 
