@@ -157,7 +157,7 @@ process combined_data_check {
 process make_beam {
     label 'gpu'
     //time '2h'
-    time "${mb_dur}s"
+    time "${mb_dur*task.attempt}s"
     errorStrategy 'retry'
     maxRetries 1
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
@@ -220,7 +220,7 @@ process make_beam_ipfb {
 
     label 'gpu'
     //time '2h'
-    time "${mb_ipfb_dur}s"
+    time "${mb_ipfb_dur*task.attempt}s"
     errorStrategy 'retry'
     maxRetries 1
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
