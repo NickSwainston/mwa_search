@@ -26,8 +26,8 @@ params.dm = 23.123
 params.subint = 60
 params.nchan = 48
 
-params.fwhm_ra = "None"
-params.fwhm_dec = "None"
+params.fwhm_ra = params.fwhm_deg
+params.fwhm_dec = params.fwhm_deg
 
 
 include { pre_beamform; beamform } from './beamform_module'
