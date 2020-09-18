@@ -12,7 +12,7 @@ params.all = false
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
-params.dm_max_step = 500.0
+params.dm_max_step = 0.5
 params.max_dms_per_job = 5000
 
 //Defaults for the accelsearch command
