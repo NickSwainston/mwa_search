@@ -20,6 +20,7 @@ params.end = null
 params.all = false
 
 params.search_radius = 0.02
+params.fwhm_deg = null
 
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
@@ -95,9 +96,12 @@ process fwhm_calc {
     from mwa_search.obs_tools import calc_ta_fwhm
     import csv
 
-    oap = get_obs_array_phase(${params.obsid})
-    centrefreq = 1.28 * float(${channels[0]} + ${channels[-1]}) / 2.
-    fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
+    if "${params.fwhm_deg}" == null":
+        oap = get_obs_array_phase(${params.obsid})
+        centrefreq = 1.28 * float(${channels[0]} + ${channels[-1]}) / 2.
+        fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
+    else:
+        fwhm = ${params.fwhm_deg}
 
     with open("${params.obsid}_fwhm.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
