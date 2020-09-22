@@ -96,7 +96,7 @@ process fwhm_calc {
     from mwa_search.obs_tools import calc_ta_fwhm
     import csv
 
-    if "${params.fwhm_deg}" == null":
+    if "${params.fwhm_deg}" == "null":
         oap = get_obs_array_phase(${params.obsid})
         centrefreq = 1.28 * float(${channels[0]} + ${channels[-1]}) / 2.
         fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
