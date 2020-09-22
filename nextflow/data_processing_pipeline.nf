@@ -139,15 +139,16 @@ process make_yamls {
 
 process pulsar_prepfold_cmd_make {
     input:
-    file yaml_file
+    each file(yaml_file)
+    val label
 
     output:
     file "*[sh,edited_ephemeris.eph]"
-    file "*prep_cmd_make.yaml"
+    file "*.yaml"
     // ephemeris files are formatted in the same way as the bash files
 
     """
-    prepfold_cmd_make.py --yaml $yaml_file --label prep_cmd_make
+    prepfold_cmd_make.py --yaml $yaml_file --label $label
     """
 }
 
@@ -179,11 +180,6 @@ process pulsar_prepfold_run {
 }
 
 process best_detection {
-    label 'cpu'
-    time '10m'
-    errorStrategy 'retry'
-    maxRetries 1
-
     input:
     file yaml_and_pfd
 
@@ -191,7 +187,23 @@ process best_detection {
     file "*yaml"
 
     """
-    hsdhjsj
+    find_best_pointing.py --pfds *pfd* --yamls *yaml 
+    """
+}
+
+
+
+process decide_detections {
+    input:
+    file pfds
+    file yamls
+
+    output:
+    file "*pfd*"
+    file "*post_detection.yaml"
+
+    """
+    post_fold_filter.py --yamls $yamls --pfds $pfds --label post_fold_filter
     """
 }
 
@@ -206,7 +218,8 @@ workflow initial_fold {
         fits_files
     main:
         // Create a bash file of the prepfold commands required
-        pulsar_prepfold_cmd_make( yaml_files.flatten() )
+        pulsar_prepfold_cmd_make( yaml_files.flatten(),\
+                                  Channel.from("initial_fold") )
         // Run the bash file
         pulsar_prepfold_run( // Work out pointings from the file names
                              pulsar_prepfold_cmd_make.out[0].\
@@ -229,38 +242,25 @@ workflow initial_fold {
                         map{ it -> it[1][0] + it[1][1] } )
     emit:
         //classifier.out[0] //classifier files
-        pulsar_prepfold_cmd_make.out[1] //yaml files
+        best_detection.out //yaml files
 }
-
-
-process decide_detections {
-    input:
-    file pfds
-    file yamls
-
-    output
-    file *pfd*
-    file *post_detection.yaml
-
-    """
-    post_fold_filter.py --yamls $yamls --pfds $pfds --label post_fold_filter
-    """
-
-    output:
-    file "*post_fold_filter.yaml"
-    file "*pfd*"
-
-}
-
 
 workflow post_fold{
     take:
         yaml_files
         fits_files
     main:
-        pulsar_prepfold_cmd_make(yaml_files)
-        pulsar_prepfold_run(prepfold_cmd_make.out, fits_files) //TODO: group the right prepfold commands with fits files
-        decide_detections(pulsar_prepfold_run.out, pulsar_prepfold_cmd_make.out[1]) //figures out which bestprofs are detections and updates yaml file
+        pulsar_prepfold_cmd_make( yaml_files,\
+                                  Channel.from("post_fold") )
+        pulsar_prepfold_run(// Work out pointings from the file names
+                             pulsar_prepfold_cmd_make.out[0].\
+                             map{ it -> [it.flatten().findAll{ it != null }[-1].baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.groupTuple().\
+                             // Group fits files by bash files with same pointings
+                             concat( fits_files ).groupTuple( size: 2, remainder: false ).\
+                             // Then split them into a line per pulsar and format it to account for the optional .eph file
+                             map{ it -> it[1][0] * it[1][1] }.flatMap().map{ it -> [it.init(), it.last()]} )
+         //figures out which bestprofs are detections and updates yaml file
+        decide_detections(pulsar_prepfold_run.out, pulsar_prepfold_cmd_make.out[1])
 
     emit:
     //detections

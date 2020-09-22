@@ -56,13 +56,13 @@ def bestprof_info(filename):
     return info_dict
 
 
-def _populate_master_pointings(master, kwargs):
+def _populate_master_pointings(kwargs, master_dict):
     # Populate with yamls
     for f in kwargs["yamls"]:
         pipe = from_yaml(f)
         pointing = pipe["run_ops"]["pointing"]
-        master[pointing] = {}
-        master[pointing]["pipe"] = pipe
+        master_dict[pointing] = {}
+        master_dict[pointing]["pipe"] = pipe
     # Populate with bestprof info
     bestprofs = [i for i in kwargs["pfds"] if ".pfd.bestprof" in i]
     pointings = master_dict.keys()
@@ -78,7 +78,7 @@ def _populate_master_pointings(master, kwargs):
                 break
 
 
-def _eval_master_init(master):
+def _eval_master_init(master_dict):
     best_eval = 0
     for p in master_dict:
         this_eval = master_dict[p]["bestprof"]["info"]["sn"] * master_dict[p]["bestprof"]["info"]["chi"]
@@ -95,13 +95,13 @@ def _remove_bad_pointings(best_pointing, kwargs):
             os.remove(f)
 
 
-def _populate_master_post_folds(master, kwargs):
+def _populate_master_post_folds(master_dict, kwargs):
     # Populate with yamls
     for f in kwargs["yamls"]:
         pipe = from_yaml(f)
         pointing = pipe["run_ops"]["pointing"]
-        master[pointing] = {}
-        master[pointing]["pipe"] = pipe
+        master_dict[pointing] = {}
+        master_dict[pointing]["pipe"] = pipe
     # Populate with bestprof info
     bestprofs = [i for i in kwargs["pfds"] if ".pfd.bestprof" in i]
     pointings = master_dict.keys()
@@ -167,11 +167,11 @@ def _dump_master_pointings(master, label=""):
 def find_best_pointing_main(kwargs):
     """Decides the best folding solution from bestprofs"""
     master_dict = {}
-    _populate_master(kwargs["yamls"], pfds, master_dict)
+    _populate_master_pointings(kwargs, master_dict)
     best_pointing = _eval_master_init(master_dict)
     _remove_bad_pointings(best_pointing, kwargs)
     # Update yaml file
-    dump_to_yaml(master_dict[best_pointing], label=kwargs["label"])
+    dump_to_yaml(master_dict[best_pointing]["pipe"], label=kwargs["label"])
 
 
 def post_fold_filter_main(kwargs):
