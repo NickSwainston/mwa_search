@@ -22,6 +22,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--pfds", type=str, nargs="+", required=True, help="The .pfd outputs from a PRESTO fold")
     parser.add_argument("--yamls", type=str, nargs="+", required=True, help="The yaml files corresponding to each pointing")
+    parser.add_argument("--label", type=str, default="find_best_pointing", help="The label of the new .yaml files")
     parser.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
     args = parser.parse_args()
     logger = logging.getLogger()
