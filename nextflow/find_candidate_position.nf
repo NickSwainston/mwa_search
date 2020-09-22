@@ -239,18 +239,16 @@ process bestgridpos {
 
 workflow find_pos {
     take:
-        pointing_grid
+        pointings
         pre_beamform_1
         pre_beamform_2
         pre_beamform_3
         fwhm
     main:
-        grid( pointing_grid,\
-              fwhm )
         beamform( pre_beamform_1,\
                   pre_beamform_2,\
                   pre_beamform_3,\
-                  grid.out.splitCsv().collect().flatten().collate( params.max_pointings ) )
+                  pointings )
         prepfold( beamform.out[3] )
         if ( params.no_pdmp ) {
             bestgridpos( prepfold.out[0].collect(),\
@@ -271,24 +269,25 @@ workflow {
     pre_beamform()
     fwhm_calc( pre_beamform.out[1] )
     if ( params.pointing_grid ) {
-        find_pos( pointing_grid,\
+        grid( pointing_grid,\
+              fwhm_calc.out.splitCsv().flatten() )
+        find_pos( grid.out.splitCsv().collect().flatten().collate( params.max_pointings ),\
                   pre_beamform.out[0],\
                   pre_beamform.out[1],\
                   pre_beamform.out[2],\
                   fwhm_calc.out.splitCsv().flatten() )
-        //params.summed = false
-        //publish_fits = true
-        beamform( pre_beamform.out[0],\
+    }
+    else if ( params.pointing_file || params.pointings ) {
+        find_pos( pointings,\
+                  pre_beamform.out[0],\
                   pre_beamform.out[1],\
                   pre_beamform.out[2],\
-                  find_pos.out.view() )
+                  fwhm_calc.out.splitCsv().flatten() )
     }
-    else {
-        beamform( pre_beamform.out[0],\
-                  pre_beamform.out[1],\
-                  pre_beamform.out[2],\
-                  pointings )
-    }
+    beamform( pre_beamform.out[0],\
+                pre_beamform.out[1],\
+                pre_beamform.out[2],\
+                find_pos.out.view() )
     prepfold( beamform.out[3] )
     pdmp( prepfold.out[0],
           beamform.out[1],
