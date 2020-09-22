@@ -215,10 +215,10 @@ workflow initial_fold {
         pulsar_prepfold_cmd_make.out[1] //yaml files
 }
 
-/*
+
 process decide_detections {
-    input
-    file bestprofs
+    input:
+    file pfds
     file yamls
 
     output
@@ -226,19 +226,24 @@ process decide_detections {
     file *post_detection.yaml
 
     """
-    some_python_script.py
+    post_fold_filter.py --yamls $yamls --pfds $pfds --label post_fold_filter
     """
 
+    output:
+    file "*post_fold_filter.yaml"
+    file "*pfd*"
+
 }
+
+
 workflow post_fold{
     take:
         yaml_files
         fits_files
-        classifier_out
     main:
         pulsar_prepfold_cmd_make(yaml_files)
-        pulsar_prepfold_run(prepfold_cmd_make.out, fits_files)
-        decide_detections(pulsar_prepfold_run.out, pulsar_prepfold_cmd_make.out) //figures out which bestprofs are detections and updates yaml file
+        pulsar_prepfold_run(prepfold_cmd_make.out, fits_files) //TODO: group the right prepfold commands with fits files
+        decide_detections(pulsar_prepfold_run.out, pulsar_prepfold_cmd_make.out[1]) //figures out which bestprofs are detections and updates yaml file
 
     emit:
     //detections
@@ -246,7 +251,7 @@ workflow post_fold{
     //yaml files
     decide_detections.out[1]
 }
-*/
+
 
 workflow {
     pre_beamform()
@@ -278,6 +283,10 @@ workflow {
                   beamform.out[3].concat(beamform_ipfb.out[3]) )
 
     //post_fold()
+    post_fold( //yaml files
+               initial_fold.out,\
+               // fits files
+               beamform.out[3].concat(beamform_ipfb.out[3]) )
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
