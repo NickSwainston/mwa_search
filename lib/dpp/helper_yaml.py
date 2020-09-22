@@ -20,8 +20,10 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=No
     pipe["run_ops"]["loglvl"] = kwargs["loglvl"]
     pipe["run_ops"]["mwa_search"] = kwargs["mwa_search"]
     pipe["run_ops"]["vcstools"] = kwargs["vcstools"]
-    pipe["run_ops"]["thresh_chi"] = 4.0
+    pipe["run_ops"]["thresh_chi"] = 3.5
     pipe["run_ops"]["thresh_sn"] = 8.0
+    pipe["run_ops"]["good_chi"] = 4.0
+    pipe["run_ops"]["good_sn"] = 20.0
     pipe["run_ops"]["vdif"] = None
     pipe["run_ops"]["mask"] = None
     pipe["run_ops"]["pointing"] = pointing
@@ -69,7 +71,7 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=No
             pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
                 pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=metadata, full_meta=full_meta)
         init, post = required_bin_folds(pipe["source"]["name"], query=query)
-        pipe["folds"] = {"init":{}, "post":{}}
+        pipe["folds"] = {"init":{}, "post":{}, "best":None}
         for _, i in enumerate(init):
             pipe["folds"]["init"][str(i)] = {}
         for _, i in enumerate(post):
