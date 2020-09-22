@@ -11,7 +11,7 @@ params.end = 0
 params.all = false
 
 params.pointing_grid = null
-params.fwhm_deg = 0.021
+params.fwhm_deg = null
 params.fraction = 0.8
 params.loops = 1
 
@@ -27,8 +27,12 @@ params.subint = 60
 params.nchan = 48
 
 params.no_pdmp = false
+params.fwhm_ra = "None"
+params.fwhm_dec = "None"
+
 
 include { pre_beamform; beamform } from './beamform_module'
+include { fwhm_calc } from './data_processing_pipeline'
 
 params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
@@ -126,12 +130,13 @@ else {
 process grid {
     input:
     val pointings
+    val fwhm
 
     output:
     file "*txt"
 
     """
-    grid.py -o $params.obsid -d $params.fwhm_deg -f $params.fraction -p $pointings -l $params.loops
+    grid.py -o $params.obsid -d $fwhm -f $params.fraction -p $pointings -l $params.loops
     """
 
 }
@@ -192,8 +197,6 @@ process pdmp {
         container = "nickswainston/dspsr_docker"
     }
 
-
-
     //may need to add some channel names
     """
     DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
@@ -219,37 +222,44 @@ process bestgridpos {
 
     input:
     file posn_or_bestprof
+    val fwhm
 
     output:
     file "*txt"
     file "*png"
 
     """
-    bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w
+    if [[ ${params.fwhm_ra} == None || ${params.fwhm_dec} == None ]]; then
+        bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w -fr ${fwhm} -fd ${fwhm}
+    else
+        bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w -fr ${params.fwhm_ra} -fd ${params.fwhm_dec}
+    fi
     """
 }
 
 workflow find_pos {
     take:
-        pointing_grid
+        pointings
         pre_beamform_1
         pre_beamform_2
         pre_beamform_3
+        fwhm
     main:
-        grid( pointing_grid )
         beamform( pre_beamform_1,\
                   pre_beamform_2,\
                   pre_beamform_3,\
-                  grid.out.splitCsv().collect().flatten().collate( params.max_pointings ) )
+                  pointings )
         prepfold( beamform.out[3] )
         if ( params.no_pdmp ) {
-            bestgridpos( prepfold.out[0].collect() )
+            bestgridpos( prepfold.out[0].collect(),\
+                         fwhm )
         }
         else {
             pdmp( prepfold.out[0],
                   beamform.out[1],
                   beamform.out[2] )
-            bestgridpos( pdmp.out[1].collect() )
+            bestgridpos( pdmp.out[1].collect(),\
+                         fwhm )
         }
     emit:
         bestgridpos.out[0].splitCsv().collect().flatten().collate( params.max_pointings )
@@ -257,24 +267,27 @@ workflow find_pos {
 
 workflow {
     pre_beamform()
+    fwhm_calc( pre_beamform.out[1] )
     if ( params.pointing_grid ) {
-        find_pos( pointing_grid,\
+        grid( pointing_grid,\
+              fwhm_calc.out.splitCsv().flatten() )
+        find_pos( grid.out.splitCsv().collect().flatten().collate( params.max_pointings ),\
                   pre_beamform.out[0],\
                   pre_beamform.out[1],\
-                  pre_beamform.out[2] )
-        //params.summed = false
-        //publish_fits = true
-        beamform( pre_beamform.out[0],\
+                  pre_beamform.out[2],\
+                  fwhm_calc.out.splitCsv().flatten() )
+    }
+    else if ( params.pointing_file || params.pointings ) {
+        find_pos( pointings,\
+                  pre_beamform.out[0],\
                   pre_beamform.out[1],\
                   pre_beamform.out[2],\
-                  find_pos.out.view() )
+                  fwhm_calc.out.splitCsv().flatten() )
     }
-    else {
-        beamform( pre_beamform.out[0],\
-                  pre_beamform.out[1],\
-                  pre_beamform.out[2],\
-                  pointings )
-    }
+    beamform( pre_beamform.out[0],\
+                pre_beamform.out[1],\
+                pre_beamform.out[2],\
+                find_pos.out.view() )
     prepfold( beamform.out[3] )
     pdmp( prepfold.out[0],
           beamform.out[1],

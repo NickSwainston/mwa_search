@@ -35,7 +35,7 @@ if [ ! -d $ROOT/$VERSION ]; then
 fi
 
 # Updates to the project version are explained in CHANGELOG.md
-python3 setup.py install --prefix=$ROOT/$VERSION/ --single-version-externally-managed --record=record.txt
-rm -r build
+python setup.py install --prefix="$ROOT/$VERSION" --single-version-externally-managed --record=record.txt
 rm record.txt
+rm -rf build
 find $ROOT/$VERSION/ -type d -exec chmod 775 {} \;

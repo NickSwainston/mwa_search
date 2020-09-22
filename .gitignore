@@ -5,6 +5,6 @@ bin/*
 nextflow/.nextflow*
 nextflow/.vscode*
 nextflow/work*
-build.sh
 build/
 .eggs/
+.nextflow*

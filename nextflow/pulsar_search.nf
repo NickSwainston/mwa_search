@@ -37,6 +37,15 @@ else {
     }
 }
 
+// If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
+if ( params.zmax == 0 ) {
+    total_dm_jobs = 6
+}
+else {
+    total_dm_jobs = 24
+    params.max_dms_per_job = 128
+}
+
 // Work out length of obs, may over estimate up to 200 seconds
 params.end = obs_length = nfiles * 200
 params.begin = 1
