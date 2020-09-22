@@ -34,11 +34,12 @@ if __name__ == "__main__":
     parser.add_argument('--dec_range_fwhm',type=float,nargs='+',help='A list of FWHM and ranges in the order of: "FWHM1 decmin1 decmax1 FWHM2 decmin2 decmax2"')
     parser.add_argument('-t', '--type',type=str,help='Can be put in either "hex" or "square" tiling mode. Default is hex.',default='hex')
     parser.add_argument('-l', '--loop',type=int,help='Number  of "loops" around the centre pointing the code will calculate. Default is 1',default=1)
+    parser.add_argument('--fill',type=float,help='Calculate the number of loops required to fill a circle of the input radius in degrees.')
     parser.add_argument('-a','--all_pointings',action="store_true",help='Will calculate all the pointings within the FWHM of the observations tile beam.')
     parser.add_argument('-b', '--begin',type=int,help='Begin time of the obs for the --all_pointings options')
     parser.add_argument('-e', '--end',type=int,help='End time of the obs for the --all_pointings options')
     parser.add_argument('--dec_range',type=float,nargs='+',help='Dec limits: "decmin decmax". Default -90 90', default=[-90,90])
-    parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 390', default=[0,360])
+    parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 360', default=[0,360])
     parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
     parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
     parser.add_argument('-n', '--n_pointings', type=int, default=None, help='Number of pointings per output file.')
@@ -67,6 +68,10 @@ if __name__ == "__main__":
         print("Can't use --loop and --all_poinitings as all_pointings calculates the "
               "loops required. Exiting.")
         quit()
+    if (args.loop != 1) and args.fill:
+        print("Can't use --loop and --fill as --fill calculates the "
+              "loops required. Exiting.")
+        quit()
     if args.pointing and args.all_pointings:
         print("Can't use --pointing and --all_poinntings as --all_pointings calculates "
               "the pointing. Exiting.")
@@ -79,6 +84,9 @@ if __name__ == "__main__":
               "the pointing. Exiting.")
         quit()
 
+    if args.fill:
+        args.loop = int( (args.fill - args.deg_fwhm/2.) / (args.deg_fwhm*args.fraction) )
+        print("Using {} loops to fill {} degrees".format(args.loop, args.fill ))
     #calculate pointing
     if args.all_pointings:
         #calculating loop number
