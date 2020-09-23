@@ -119,7 +119,7 @@ def _eval_post_folds(master):
     """Finds the bin count to use for the rest of the dpp pipeline for each pointing"""
     for p in master.keys():
         try:
-            best = best_post_fold(master[p]["pipe"][:])
+            best = best_post_fold(master[p]["pipe"].copy())
         except NoUsableFolds as e:
             logger.warn(f"""Exception encountered: {e.message}
                         Will use initial fold for this pointing""")
