@@ -5,3 +5,4 @@ bin/*
 nextflow/.nextflow*
 nextflow/.vscode*
 nextflow/work*
+.nextflow*

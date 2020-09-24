@@ -86,9 +86,11 @@ process prepfold_ch {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
     else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
 
     //no mask command currently
@@ -112,9 +114,11 @@ process dspsr_ch {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
     else {
-        //container = "nickswainston/dspsr_docker"
-        container = "dspsr.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
 
     //may need to add some channel names
@@ -144,9 +148,11 @@ process prepfold_time {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
     else {
-        //container = "nickswainston/presto"
-        container = "presto.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
 
     //no mask command currently
@@ -172,9 +178,11 @@ process dspsr_time {
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
     }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
     else {
-        //container = "nickswainston/dspsr_docker"
-        container = "dspsr.sif"
+        container = "nickswainston/presto:realfft_docker"
     }
 
     //may need to add some channel names

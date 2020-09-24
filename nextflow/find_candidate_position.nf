@@ -6,20 +6,19 @@ params.obsid = null
 params.calid = null
 params.pointings = null
 params.pointing_file = null
+params.begin = 0
+params.end = 0
+params.all = false
+
 params.pointing_grid = null
 params.fwhm_deg = 0.021
-
-params.begin = null
-params.end = null
-params.all = false
+params.fraction = 0.8
+params.loops = 1
 
 params.summed = true
 params.channels = null
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
-
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
 
 params.bins = 128
 params.period = 0.90004
@@ -27,28 +26,15 @@ params.dm = 23.123
 params.subint = 60
 params.nchan = 48
 
-if ( params.pointing_file ) {
-    pointings = Channel
-        .fromPath(params.pointing_file)
-        .splitCsv()
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else if ( params.pointings ) {
-    pointings = Channel
-        .from(params.pointings.split(","))
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else if ( params.pointing_grid ) {
-    pointing_grid = Channel.from(params.pointing_grid).view()
-}
-else {
-    println "No pointings given. Either use --pointing_file, --pointings or --pointing_grid. Exiting"
-    exit(1)
-}
+params.fwhm_ra = "None"
+params.fwhm_dec = "None"
+
+
+include { pre_beamform; beamform } from './beamform_module'
+
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
+
 
 params.help = false
 if ( params.help ) {
@@ -72,10 +58,14 @@ if ( params.help ) {
              |              A file containing pointings with the RA and Dec seperated by _
              |              in the format HH:MM:SS_+DD:MM:SS on each line, e.g.
              |              "19:23:48.53_-20:31:52.95\\n19:23:40.00_-20:31:50.00" [default: None]
+             |
+             |Pointing grid arguments:
              | --pointing_grid
              |              Pointing which grid.py will make a loop of pointings around eg.
              |              "19:23:48.53_-20:31:52.95" [default: None]
              | --fwhm_deg   The FWHM of the observation in degrees (used by grid.py) [default: 0.021]
+             | --fraction   The fraction of the FWHM to space the grid by [default: 0.8]
+             | --loops      The number of loops of beamd to surround the centre pointing [default: 1]
              |
              |Presto and dspsr options:
              | --bins       Number of bins to use [default: 128]
@@ -105,6 +95,29 @@ if ( params.help ) {
     exit(0)
 }
 
+if ( params.pointing_file ) {
+    pointings = Channel
+        .fromPath(params.pointing_file)
+        .splitCsv()
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else if ( params.pointings ) {
+    pointings = Channel
+        .from(params.pointings.split(","))
+        .collect()
+        .flatten()
+        .collate( params.max_pointings )
+}
+else if ( params.pointing_grid ) {
+    pointing_grid = Channel.from(params.pointing_grid).view()
+}
+else {
+    println "No pointings given. Either use --pointing_file, --pointings or --pointing_grid. Exiting"
+    exit(1)
+}
+
 process grid {
     input:
     val pointings
@@ -113,7 +126,7 @@ process grid {
     file "*txt"
 
     """
-    grid.py -o $params.obsid -d $params.fwhm_deg -f 0.5 -p $pointings -l 2
+    grid.py -o $params.obsid -d $params.fwhm_deg -f $params.fraction -p $pointings -l $params.loops
     """
 
 }
@@ -130,7 +143,15 @@ process prepfold {
     file "*bestprof"
     file "*png"
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
 
     //no mask command currently
     """
@@ -153,7 +174,17 @@ process pdmp {
     file "*ps"
     file "*posn"
 
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
+    else {
+        container = "nickswainston/dspsr_docker"
+    }
+
+
 
     //may need to add some channel names
     """
@@ -165,6 +196,8 @@ process pdmp {
     samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
     #One subint per 30 seconds
     subint=\$(python -c "print('{:d}'.format(int(\$samples/300000)))")
+    if [ \$subint -lt 30 ]; then subint=30; fi
+    echo "subint: \$subint"
     dspsr -t $task.cpus -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
     psradd *.subint -o ${params.obsid}_${pointings}.ar
     pam --setnchn ${params.nchan} -m ${params.obsid}_${pointings}.ar
@@ -184,11 +217,9 @@ process bestgridpos {
     file "*png"
 
     """
-    bestgridpos.py -o ${params.obsid} -p ./ -w
+    bestgridpos.py -o ${params.obsid} -p ./ -w -fr ${params.fwhm_ra} -fd ${params.fwhm_dec}
     """
 }
-
-include { pre_beamform; beamform } from './beamform_module'
 
 workflow find_pos {
     take:

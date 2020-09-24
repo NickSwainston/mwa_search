@@ -352,10 +352,10 @@ def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
                 rad = np.degrees(num[0])
                 decd = np.degrees(num[1])
 
-                if decd > 90.:
-                    decd = decd - 180.
-                rads.append(rad)
-                decds.append(decd)
+                if (decd < 90.) and (decd > -90.):
+                    # Only include ra and dec within the real decs
+                    rads.append(rad)
+                    decds.append(decd)
     return rads, decds
 
 

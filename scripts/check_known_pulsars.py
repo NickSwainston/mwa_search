@@ -216,6 +216,9 @@ def calc_ta_fwhm(freq, array_phase='P2C'):
         max_baseline = 360.
     elif array_phase == 'P2E':
         max_baseline = 5300.
+    else:
+        logger.warn("Array phase is OTHER so assumeing the array is in phase 2 extended mode.")
+        max_baseline = 5300.
 
     wavelength = c / (freq * 1e6)
     fwhm = degrees(wavelength / max_baseline)
