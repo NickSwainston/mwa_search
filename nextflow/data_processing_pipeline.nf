@@ -128,7 +128,7 @@ process make_yamls {
     tuple val(pointing), val(pulsar)
 
     output:
-    file "*.yaml"
+    file "*make_pulsar_yaml.yaml"
 
     """
     make_pulsar_yaml.py -o $params.obsid -O $params.calid --obs_beg $begin --obs_end $end --pointing ${pointing.join(" ")} --psr ${pulsar.join(" ")}\
@@ -144,11 +144,11 @@ process pulsar_prepfold_cmd_make {
 
     output:
     file "*[sh,edited_ephemeris.eph]"
-    file "*.yaml"
+    file "*${label}.yaml"
     // ephemeris files are formatted in the same way as the bash files
 
     """
-    prepfold_cmd_make.py --yaml $yaml_file --label $label
+    prepfold_cmd_make.py --yaml $yaml_file --label prepfold_cmd_make_${label}
     """
 }
 
@@ -187,7 +187,7 @@ process best_detection {
     file "*yaml"
 
     """
-    find_best_pointing.py --pfds *pfd* --yamls *yaml 
+    find_best_pointing.py --pfds *pfd* --yamls *yaml
     """
 }
 
@@ -200,7 +200,7 @@ process decide_detections {
 
     output:
     file "*pfd*"
-    file "*post_detection.yaml"
+    file "*post_fold_filter.yaml"
 
     """
     post_fold_filter.py --yamls $yamls --pfds $pfds --label post_fold_filter
