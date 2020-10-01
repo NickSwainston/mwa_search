@@ -971,7 +971,7 @@ def prepdata(search_opts):
 
     #new lfDDplan method #TODO make this more robust
 
-    from lfDDplan import dd_plan
+    from mwa_search.dispersion_tools import dd_plan
     dm_list = dd_plan(centrefreq, 30.72, 3072, 0.1, search_opts.dm_min, search_opts.dm_max,
                       min_DM_step=search_opts.dm_min_step)
     #dm_list = [[low_dm, high_dm, DM_step, number_of_steps, time_res]]

@@ -72,7 +72,7 @@ process ddplan {
     #!/usr/bin/env python3
 
     import find_pulsar_in_obs as fpio
-    from lfDDplan import dd_plan
+    from mwa_search.dispersion_tools import dd_plan
     import csv
     
     #obsid_pointing = "${fits_files[0]}".split("/")[-1].split("_ch")[0]
