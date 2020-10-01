@@ -143,7 +143,7 @@ process grid {
 
 process prepfold {
     label 'cpu'
-    time '2h'
+    time '3h'
     publishDir params.out_dir, mode: 'copy'
 
     input:
