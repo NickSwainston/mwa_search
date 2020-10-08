@@ -192,7 +192,6 @@ process best_detection {
 }
 
 
-
 process decide_detections {
     input:
     file pfds
@@ -236,7 +235,7 @@ workflow initial_fold {
         // Find the best detection for each pulsar
         best_detection( // Pair the classifier output witht their yaml file
                         classifier.out[0].flatten().map{ it -> [ it.baseName.split("_b")[0], it ]}.groupTuple().concat(
-                        yaml_files.flatten().map{ it -> [ it.baseName.split("make_pulsar_yaml")[0], it ]}.groupTuple()).\
+                        pulsar_prepfold_cmd_make.out[1].flatten().map{ it -> [ it.baseName.split("prepfold_cmd_make")[0], it ]}.groupTuple()).\
                         // Group by pulsar
                         map{ it -> [ it[0].split("_")[-1], it[1] ]}.groupTuple( size: 2, remainder: false  ).\
                         map{ it -> it[1][0] + it[1][1] } )
@@ -263,12 +262,23 @@ workflow post_fold{
         decide_detections(pulsar_prepfold_run.out, pulsar_prepfold_cmd_make.out[1])
 
     emit:
-    //detections
+    //detections (pfds)
     decide_detections.out[0]
     //yaml files
     decide_detections.out[1]
 }
+/*
+workflow post_processing{
+    take:
+        yaml_files
+        fits_files
+    main:
 
+    emit:
+
+
+}
+*/
 
 workflow {
     pre_beamform()
