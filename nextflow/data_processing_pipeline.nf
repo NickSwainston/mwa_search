@@ -185,6 +185,7 @@ process best_detection {
 
     output:
     file "*yaml"
+    file "*pfd*" includeInputs true
 
     """
     find_best_pointing.py --pfds *pfd* --yamls *yaml
@@ -194,15 +195,14 @@ process best_detection {
 
 process decide_detections {
     input:
-    file pfds
-    file yamls
+    file pfds_yamls
 
     output:
-    file "*pfd*"
+    file "*pfd*" includeInputs true
     file "*post_fold_filter.yaml"
 
     """
-    post_fold_filter.py --yamls $yamls --pfds $pfds --label post_fold_filter
+    post_fold_filter.py --yamls *yaml --pfds *pfd* --label post_fold_filter
     """
 }
 
@@ -233,7 +233,7 @@ workflow initial_fold {
         // Run through the classfier
         classifier( pulsar_prepfold_run.out.flatten().collate( 120 ) )
         // Find the best detection for each pulsar
-        best_detection( // Pair the classifier output witht their yaml file
+        best_detection( // Pair the classifier output with their yaml file
                         classifier.out[0].flatten().map{ it -> [ it.baseName.split("_b")[0], it ]}.groupTuple().concat(
                         pulsar_prepfold_cmd_make.out[1].flatten().map{ it -> [ it.baseName.split("prepfold_cmd_make")[0], it ]}.groupTuple()).\
                         // Group by pulsar
@@ -241,25 +241,30 @@ workflow initial_fold {
                         map{ it -> it[1][0] + it[1][1] } )
     emit:
         //classifier.out[0] //classifier files
-        best_detection.out //yaml files
+        best_detection.out[0] //yaml files
+        best_detection.out[1] //pfd files
 }
 
 workflow post_fold{
     take:
         yaml_files
+        init_pfd_files
         fits_files
     main:
         pulsar_prepfold_cmd_make( yaml_files,\
                                   Channel.from("post_fold") )
         pulsar_prepfold_run(// Work out pointings from the file names
-                             pulsar_prepfold_cmd_make.out[0].\
+                             pulsar_prepfold_cmd_make.out[0].flatten().\
                              map{ it -> [it.flatten().findAll{ it != null }[-1].baseName.split("_J")[0].split("prepfold_cmd_${params.obsid}_")[1], it ] }.groupTuple().\
                              // Group fits files by bash files with same pointings
                              concat( fits_files ).groupTuple( size: 2, remainder: false ).\
                              // Then split them into a line per pulsar and format it to account for the optional .eph file
                              map{ it -> it[1][0] * it[1][1] }.flatMap().map{ it -> [it.init(), it.last()]} )
          //figures out which bestprofs are detections and updates yaml file
-        decide_detections(pulsar_prepfold_run.out, pulsar_prepfold_cmd_make.out[1])
+        decide_detections(// Group the one yaml file and the ~4 groups of pfd files for each pulsar
+                          pulsar_prepfold_cmd_make.out[1].flatten().map{ it -> [ it.baseName.split("_prepfold")[0], it ] }.concat(
+                          init_pfd_files.concat(pulsar_prepfold_run.out).flatten().map{ it -> [ it.baseName.split("_b")[0], it ] } ).groupTuple().
+                          map{ it -> it[1]} )
 
     emit:
     //detections (pfds)
@@ -311,7 +316,9 @@ workflow {
 
     //post_fold()
     post_fold( //yaml files
-               initial_fold.out,\
+               initial_fold.out[0],\
+               //initial pfd files
+               initial_fold.out[1],\
                // fits files
                beamform.out[3].concat(beamform_ipfb.out[3]) )
 
