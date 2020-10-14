@@ -50,7 +50,7 @@ else {
 if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
     search_dd_fft_acc_dur = obs_length * 5.0
-    prepfold_dur = obs_length * 2.0
+    prepfold_dur = obs_length * 16.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
 }
 else {
@@ -223,7 +223,6 @@ process accelsift {
 process single_pulse_searcher {
     label 'cpu_large_mem'
     time '2h'
-    stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
     errorStrategy 'ignore'
 
