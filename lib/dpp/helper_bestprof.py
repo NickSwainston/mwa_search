@@ -8,7 +8,12 @@ logger = logging.getLogger(__name__)
 
 class NoUsableFolds(Exception):
     """Raise when no usable folds are found in a pipe"""
-    pass
+    def __init__(self, *args):
+        if args:
+            self.message = args[0]
+        else:
+            self.message = ""
+
 
 
 def bestprof_info(filename):
@@ -153,8 +158,8 @@ def best_post_fold(pipe):
     if best == None:
         raise NoUsableFolds(f"""No folds meeting the minumum requirements found for pointing {pipe['run_ops']['pointing']}
                             Minimum requirements:
-                            S/N: {pipe['run_ops']['sn_thresh']}
-                            Chi: {pipe['run_ops']['chi_thresh']}""")
+                            S/N: {pipe['run_ops']['thresh_sn']}
+                            Chi: {pipe['run_ops']['thresh_chi']}""")
     return best
 
 

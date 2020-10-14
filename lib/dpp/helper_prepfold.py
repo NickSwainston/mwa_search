@@ -57,13 +57,13 @@ def add_prepfold_to_commands(prep_kwargs, eph=None, eph_name=None):
             f.write(eph)
         options += f" -par {eph_name}"
     options += " *fits"
-    commands.append("prepfold {}".format(options))
+    commands.append(f"prepfold {options}")
     return commands
 
 
-def write_cmd_to_file(pipe, commands):
+def write_cmd_to_file(pipe, commands, name):
     """Writes the prepfold command to a text file"""
-    with open(f"prepfold_cmd_{pipe['run_ops']['file_precursor']}.sh", 'w') as f:
+    with open(name, 'w') as f:
         for cmd in commands:
             f.write(cmd)
 
@@ -85,7 +85,8 @@ def prepfold_cmd_make_main(kwargs):
         pipe["completed"]["post_folds"] = True
     for bin_count in folds:
         prep_kwargs = common_kwargs(pipe, bin_count)
-        cmd = add_prepfold_to_commands(prep_kwargs, pipe["source"]["edited_eph"], pipe["source"]["edited_eph_name"])
-        write_cmd_to_file(pipe, cmd)
+        cmd = add_prepfold_to_commands(prep_kwargs, eph=pipe["source"]["edited_eph"], eph_name=pipe["source"]["edited_eph_name"])
+        name = f"prepfold_cmd_{pipe['run_ops']['file_precursor']}_{bin_count}b.sh"
+        write_cmd_to_file(pipe, cmd, name)
     #update yaml file
     dump_to_yaml(pipe, label=kwargs["label"])
