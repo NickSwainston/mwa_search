@@ -61,30 +61,11 @@ def get_psrcat_ra_dec(pulsar_list=None, max_dm=1000., include_dm=False, query=No
     return pulsar_ra_dec
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="""
-    A plotting script that can be used to plot the SMART surveys progress.
-    python plot_SMART_progress.py --ra_offset --shade 1221832280 1222697776 1255197408 --shade_light 1224252736
-    """)
-    parser.add_argument('--shade', type=int, nargs='+',
-                           help='The space seperated obsIDs to be shaded.')
-    parser.add_argument('--shade_light', type=int, nargs='*',
-                           help='The space seperated obsIDs to be shaded lightly. Used for observations in progress.')
-    parser.add_argument('--pulsar', type=str, nargs='+',
-                           help='A list of pulsar J names to mark on the plot.')
-    parser.add_argument('--pulsar_cand', type=str, nargs='+',
-                           help='A list of pulsar cands in the format "HH:MM:SS +DD:MM:SS HH:MM:SS +DD:MM:SS".')
-    parser.add_argument('-r', '--resolution', type=int, default=1,
-                            help='The resolution in degrees of the final plot (must be an integer). Default = 1')
-    parser.add_argument('-p', '--plot_type', type=str,
-                            help='Determines the output plot type, Default="png".',default='png')
-    parser.add_argument('--ra_offset', action='store_true',
-                            help='Offsets the RA by 180 so that 0h is in the centre')
-    args=parser.parse_args()
-
+def main(shade, shade_light, pulsar, pulsar_cand, res=1, plot_type='svg', ra_offset=False):
+    
     #Setting up some of the plots
-    fig = plt.figure(figsize=(6, 4))
-    plt.rc("font", size=8)
+    fig = plt.figure(figsize=(12, 8))
+    plt.rc("font", size=16)
     fig.add_subplot(111)
     ax = plt.axes(projection='mollweide')
 
@@ -172,15 +153,15 @@ if __name__ == "__main__":
                       [69, "B10", 1227009976, 10.6, -72.0]]
 
 
-    map_dec_range = range(-90, 91, args.resolution)
-    map_ra_range = range(0, 361, args.resolution)
+    map_dec_range = range(-90, 91, res)
+    map_ra_range = range(0, 361, res)
     RA=[]; Dec=[]; x = []; y = []
     for i in map_dec_range:
         for j in map_ra_range:
             Dec.append(i)
             RA.append(j)
     for c in range(len(RA)):
-        if args.ra_offset:
+        if ra_offset:
             if RA[c] > 180:
                 x.append(-RA[c]/180.*np.pi+2*np.pi)
             else:
@@ -196,19 +177,35 @@ if __name__ == "__main__":
         for i in range(70):
             smart_nz.append(np.load(f))
 
+    links_ras = []
+    links_decs = []
+    links_colors = []
+    links_links = []
     for sobs in SMART_metadata:
         print(sobs)
         sid, sname, sobsid, sra, sdec = sobs
         nz = np.array(smart_nz[sid])
         
         # plot the contour
-        plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha = 0.6,
+        s = plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha = 0.6,
                         colors=smart_colours[sname[0]]['dark'],
                         linewidths=linewidths, zorder=0.25)
         
+        # Set up links scatter plot
+        if ra_offset:
+            if sra > 180:
+                links_ras.append(-sra/180.*np.pi+2*np.pi)
+            else:
+                links_ras.append(-sra/180.*np.pi)
+        else:
+            links_ras.append(-sra/180.*np.pi+np.pi)
+        links_decs.append(sdec/180.*np.pi)
+        links_colors.append(smart_colours[sname[0]]['dark'])
+        links_links.append('http://www.google.com')
+        
         #Shade selected obs
-        if args.shade_light:
-            if sobsid in args.shade_light:
+        if shade_light:
+            if sobsid in shade_light:
                 cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
@@ -217,8 +214,8 @@ if __name__ == "__main__":
                                                 edgecolor='gray', lw=0.5, alpha=0.3, zorder=0.5)
                     ax.add_patch(spch_0)
 
-        if args.shade:
-            if sobsid in args.shade:
+        if shade:
+            if sobsid in shade:
                 cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
@@ -227,14 +224,18 @@ if __name__ == "__main__":
                                                 edgecolor=smart_colours[sname[0]]['dark'], lw=0.5, alpha=0.85, zorder=0.5)
                     ax.add_patch(spch_0)
 
+    # Plot the scatter links
+    s = plt.scatter(links_ras, links_decs, c=links_colors, s=50)
+    s.set_urls(links_links)
+
     # Add pulsars
-    if args.pulsar:
+    if pulsar:
         ra_PCAT = []
         dec_PCAT = []
-        pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
+        pulsar_list = get_psrcat_ra_dec(pulsar_list = pulsar)
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
-            if args.ra_offset:
+            if ra_offset:
                 if ra_temp > 180:
                     ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
                 else:
@@ -244,13 +245,13 @@ if __name__ == "__main__":
             dec_PCAT.append(dec_temp/180.*np.pi)
         ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=2)
 
-    if args.pulsar_cand:
+    if pulsar_cand:
         ra_PCAT = []
         dec_PCAT = []
-        for pulsar in args.pulsar_cand:
+        for pulsar in pulsar_cand:
             pulsar = pulsar.split('_')
             ra_temp, dec_temp = sex2deg(pulsar[0], pulsar[1])
-            if args.ra_offset:
+            if ra_offset:
                 if ra_temp > 180:
                     ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
                 else:
@@ -264,7 +265,7 @@ if __name__ == "__main__":
     plt.ylabel("Declination")
 
     #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
-    if args.ra_offset:
+    if ra_offset:
         xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
         xticks = [150., 120., 90., 60., 30., 0., 330., 300., 270., 240., 210. ]
     else:
@@ -274,7 +275,30 @@ if __name__ == "__main__":
     ax.set_xticklabels(xtick_labels, zorder=150)
     plt.grid(True, color='gray', lw=0.5, linestyle='dotted')
 
-    plot_type = args.plot_type
+
     plot_name = "SMART_progress"
     print("saving {}.{}".format(plot_name, plot_type))
     fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000, bbox_inches='tight')
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="""
+    A plotting script that can be used to plot the SMART surveys progress.
+    python plot_SMART_progress.py --ra_offset --shade 1221832280 1222697776 1255197408 --shade_light 1224252736
+    """)
+    parser.add_argument('--shade', type=int, nargs='+',
+                           help='The space seperated obsIDs to be shaded.')
+    parser.add_argument('--shade_light', type=int, nargs='*',
+                           help='The space seperated obsIDs to be shaded lightly. Used for observations in progress.')
+    parser.add_argument('--pulsar', type=str, nargs='+',
+                           help='A list of pulsar J names to mark on the plot.')
+    parser.add_argument('--pulsar_cand', type=str, nargs='+',
+                           help='A list of pulsar cands in the format "HH:MM:SS +DD:MM:SS HH:MM:SS +DD:MM:SS".')
+    parser.add_argument('-r', '--resolution', type=int, default=1,
+                            help='The resolution in degrees of the final plot (must be an integer). Default = 1')
+    parser.add_argument('-p', '--plot_type', type=str,
+                            help='Determines the output plot type, Default="png".',default='png')
+    parser.add_argument('--ra_offset', action='store_true',
+                            help='Offsets the RA by 180 so that 0h is in the centre')
+    args=parser.parse_args()
+
+    main(args.shade, args.shade_light, args.pulsar, args.pulsar_cand, res=args.resolution, plot_type=args.plot_type, ra_offset=args.ra_offset)
