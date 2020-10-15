@@ -36,7 +36,6 @@ else
     END=${end}
 fi
 
-cd /fred/oz125/nswainst/pulsar_search
 grid.py -o $OBSID -a -b $BEGIN -e $END -d 0.3 -f 0.9 -n 1080 --out_file_name SMART_${NAME}_grid
 
 for SMART_job in $(ls SMART_${NAME}_grid*txt); do
