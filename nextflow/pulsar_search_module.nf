@@ -4,6 +4,7 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
+params.publish_all_prepfold = false
 
 params.begin = 0
 params.end = 0
@@ -249,6 +250,7 @@ process single_pulse_searcher {
 
 
 process prepfold {
+    publishDir params.out_dir, mode: 'copy', enabled: params.publish_all_prepfold
     label 'cpu'
     time "${prepfold_dur}s"
     errorStrategy 'retry'
