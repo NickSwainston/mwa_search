@@ -215,7 +215,7 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     if run_params.no_ephem:
         launch_line += " --no_ephem"
     if run_params.dspsr_ops != "":
-        launch_line += " --dspsr_ops {}".format(run_params.dspsr_ops)
+        launch_line += " --dspsr_ops '{}'".format(run_params.dspsr_ops)
     if run_params.cand:
         launch_line += " --cand"
     if run_params.rvmres:
