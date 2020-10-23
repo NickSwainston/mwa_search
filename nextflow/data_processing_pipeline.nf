@@ -212,7 +212,7 @@ process polarimetry_call { //calls polarimetry which returns the apporpriate cmd
     file yaml
     val label
 
-    ouput:
+    output:
     file "*cmds.txt"
     file "*${label}.yaml"
 
@@ -404,35 +404,35 @@ workflow polarimetry{
     main:
         //polarimetry 1 - convert fits to archive, back to fits, baseline removal, RM synthesis
         polarimetry_call(fits_files, yaml_files, "polarimetry_one")
-        fits_to_ar_and_back(fits_files, polarimetry_call.out.filter( ~/$"dspsr_fold_cmds.sh"/), polarimetry_call.out.filter( ~/$"to_fits_cmds.sh"/))
-        baseline_removal(fits_to_ar_and_back.out, polarimetry_call.out.filter(~/$"debase_cmds.sh"/))
-        rm_synthesis(baseline_removal.out, polarimetry_call.out.filter(~/$"initial_rm_synthesis_cmds.sh"/))
+        fits_to_ar_and_back(fits_files, polarimetry_call.out[0].filter( ~/$"dspsr_fold_cmds.sh"/), polarimetry_call.out.filter( ~/$"to_fits_cmds.sh"/))
+        baseline_removal(fits_to_ar_and_back.out, polarimetry_call.out[0].filter(~/$"debase_cmds.sh"/))
+        rm_synthesis(baseline_removal.out, polarimetry_call.out.filter[0](~/$"initial_rm_synthesis_cmds.sh"/))
         //polarimetry 2 - Final RM synthesis
-        polarimetry_call(fits_files, polarimetry_call.out.filter~/$".yaml"/, "polarimetry_two")
-        rm_synthesis(baseline_removal.out, polarimetry_call.out.filter(~/$"final_rm_synthesis_cmds.sh"/)
+        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_two")
+        rm_synthesis(baseline_removal.out, polarimetry_call.out[0].filter(~/$"final_rm_synthesis_cmds.sh"/))
         //polarimetry 3 - Defaraday rotation
-        polarimetry_call(fits_files, polarimetry_call.out.filter~/$".yaml"/, "polarimetry_three")
-        defaraday_rotate(baseline_removal.out, polarimetry_call.out.filter(~/$"defarad_cmds.sh"/)
+        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_three")
+        defaraday_rotate(baseline_removal.out, polarimetry_call.out[0].filter(~/$"defarad_cmds.sh"/))
         // polarimetry 4 - Initial RVM fitting
-        polarimetry_call(fits_files, polarimetry_call.out.filter~/$".yaml"/, "polarimetry_four")
-        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out.filter~/$"initial_rvmfit_cmds.sh"/)
+        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_four")
+        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0].filter(~/$"initial_rvmfit_cmds.sh"/))
         // polarimetry 5 - Final RVM fitting
-        polarimetry_call(fits_files, polarimetry_call.out.filter~/$".yaml"/, "polarimetry_five")
-        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out.filter~/$"final_rvmfit_cmds.sh"/)
+        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_five")
+        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0].filter(~/$"final_rvmfit_cmds.sh"/))
         // polarimetry 6 - Reading the final RVM fit
-        polarimetry_call(fits_files, polarimetry_call.out.filter~/$".yaml"/, "polarimetry_six")
+        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_six")
 
     emit:
-        file polarimetry_call.out.filter~/$".yaml"/ //yaml file
-        fits_to_ar_and_back.out[0] // converted fits file
-        file baseline_removal.out[0] // baseline femoved fits file
-        file rm_synthesis.out[0] // RMsynth plot
-        file rm_synthesis.out[1] // RMsynth map plot
-        file rm_synthesis.out[2] // RMtable
-        file defaraday_rotate.out[1] // polarimetry profile
-        file defaraday_rotate.out[2] // paswing
-        file rvm_fit.out[0] // Chi grid
-        file rvm_fit.out[1] // Fit information
+        file polarimetry_call.out[1]    //yaml file
+        fits_to_ar_and_back.out[0]      // converted fits file
+        file baseline_removal.out[0]    // baseline femoved fits file
+        file rm_synthesis.out[0]        // RMsynth plot
+        file rm_synthesis.out[1]        // RMsynth map plot
+        file rm_synthesis.out[2]        // RMtable
+        file defaraday_rotate.out[1]    // polarimetry profile
+        file defaraday_rotate.out[2]    // paswing
+        file rvm_fit.out[0]             // Chi grid
+        file rvm_fit.out[1]             // Fit information
 
 }
 
@@ -473,6 +473,12 @@ workflow {
                initial_fold.out[1],\
                // fits files
                beamform.out[3].concat(beamform_ipfb.out[3]) )
+
+    // Polarimetry
+    polarimetry(//yaml files
+                post_fold.out[1],
+                //fits files
+                beamform.out[3].concat(beamform_ipfb.out[3]) )
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
