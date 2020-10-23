@@ -208,16 +208,15 @@ process decide_detections {
 
 process polarimetry_call { //calls polarimetry which returns the apporpriate cmd file(s)
     input:
-    file fits
-    file yaml
+    tuple file (yaml) file(fits)
     val label
 
     output:
-    file "*cmds.txt"
-    file "*${label}.yaml"
+    tuple "*cmds.txt"
+    tuple "*${label}.yaml", "*fits" includeInputs true
 
     """
-    pulsar_polarimetry.py --yaml *yaml --fits *fits --label $label
+    pulsar_polarimetry.py --yaml $yaml --fits $fits --label $label
     """
 }
 
@@ -395,35 +394,32 @@ workflow post_fold{
     decide_detections.out[1]
 }
 
-
-
 workflow polarimetry{
     take:
-        yaml_files
-        fits_files
+        yaml_fits_tuple
     main:
         //polarimetry 1 - convert fits to archive, back to fits, baseline removal, RM synthesis
-        polarimetry_call(fits_files.map{ it -> [it.findAll{ it != null}[-1].baseName.split("_J")[0], it]}.view(), yaml_files, "polarimetry_one")
-        fits_to_ar_and_back(fits_files.map{ it -> [it.findAll{ it != null}[-1].baseName.split("_J")[0], it]}.view(), polarimetry_call.out[0])// ~/$"dspsr_fold_cmds.sh"/), polarimetry_call.out.filter( ~/$"to_fits_cmds.sh"/))
-        baseline_removal(fits_to_ar_and_back.out, polarimetry_call.out[0])//.filter(~/$"debase_cmds.sh"/))
-        rm_synthesis(baseline_removal.out, polarimetry_call.out.filter[0])//(~/$"initial_rm_synthesis_cmds.sh"/))
+        polarimetry_call(yaml_fits_tuple, "polarimetry_one")
+        fits_to_ar_and_back(polarimetry_call.out[1][1],  polarimetry_call.out[0].filter(~/$"dspsr_fold_cmds.sh"/), polarimetry_call.out[0].filter( ~/$"to_fits_cmds.sh"/))
+        baseline_removal(fits_to_ar_and_back.out[0], polarimetry_call.out[0].filter(~/$"debase_cmds.sh"/))
+        rm_synthesis(baseline_removal.out[0], polarimetry_call.out.filter[0].filter(~/$"initial_rm_synthesis_cmds.sh"/))
         //polarimetry 2 - Final RM synthesis
-        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_two")
-        rm_synthesis(baseline_removal.out, polarimetry_call.out[0])//.filter(~/$"final_rm_synthesis_cmds.sh"/))
+        polarimetry_call(polarimetry_call.out[1], "polarimetry_two")
+        rm_synthesis(baseline_removal.out[0], polarimetry_call.out[0].filter(~/$"final_rm_synthesis_cmds.sh"/))
         //polarimetry 3 - Defaraday rotation
-        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_three")
-        defaraday_rotate(baseline_removal.out, polarimetry_call.out[0])//.filter(~/$"defarad_cmds.sh"/))
+        polarimetry_call(polarimetry_call.out[1], "polarimetry_three")
+        defaraday_rotate(baseline_removal.out[0], polarimetry_call.out[0].filter(~/$"defarad_cmds.sh"/))
         // polarimetry 4 - Initial RVM fitting
-        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_four")
-        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0].filter)//(~/$"initial_rvmfit_cmds.sh"/))
+        polarimetry_call(polarimetry_call.out[1], "polarimetry_four")
+        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0].filter(~/$"initial_rvmfit_cmds.sh"/))
         // polarimetry 5 - Final RVM fitting
-        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_five")
-        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0])//.filter(~/$"final_rvmfit_cmds.sh"/))
+        polarimetry_call(polarimetry_call.out[1], "polarimetry_five")
+        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0].filter(~/$"final_rvmfit_cmds.sh"/))
         // polarimetry 6 - Reading the final RVM fit
-        polarimetry_call(fits_files, polarimetry_call.out[1], "polarimetry_six")
+        polarimetry_call(polarimetry_call.out[1], "polarimetry_six")
 
     emit:
-        polarimetry_call.out[1]     //yaml file
+        polarimetry_call.out[1][0]  //yaml file
         fits_to_ar_and_back.out[0]  // converted fits file
         baseline_removal.out[0]     // baseline femoved fits file
         rm_synthesis.out[0]         // RMsynth plot
@@ -435,7 +431,6 @@ workflow polarimetry{
         rvm_fit.out[1]              // Fit information
 
 }
-
 
 workflow {
     pre_beamform()
@@ -475,10 +470,11 @@ workflow {
                beamform.out[3].concat(beamform_ipfb.out[3]) )
 
     // Polarimetry
-    polarimetry(//yaml files
-                post_fold.out[1],
-                //fits files
-                beamform.out[3].concat(beamform_ipfb.out[3]) )
+    polarimetry(//yaml + fits file tuple
+                post_fold.out[1].map{ it -> [it.flatten().findAll{ it != null }[-1].split("_J").split("post_fold_filter_${params.obsid}_")[1], it]}.groupTuple().\
+                                concat( beamform.out[3].concat(beamform_ipfb.out[3]) ).groupTuple( size: 2, remainder: false ).\
+                                map{ it -> it[1][0] * it[1][1] }.flatMap().map{ it -> [it.init(), it.last()]} )
+
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
