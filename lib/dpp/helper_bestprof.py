@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+import numpy as np
 
 from dpp.helper_yaml import from_yaml, dump_to_yaml
 
@@ -57,6 +58,7 @@ def bestprof_info(filename):
     info_dict["dm"] = float(lines[14].split()[4])
     info_dict["period"] = float(lines[15].split()[4])/1e3 #in seconds
     info_dict["period_error"] = float(lines[15].split()[6])/1e3
+    info_dict["profile"] = list(np.genfromtxt(filename)[:,1])
     f.close()
     return info_dict
 
@@ -130,7 +132,7 @@ def _eval_post_folds(master):
                         Will use initial fold for this pointing""")
             best = [int(i) for i in master[p]["pipe"]["folds"]["init"].keys()]
             best = max(best)
-        master[p]["pipe"]["folds"]["best"] = best
+        master[p]["pipe"]["folds"]["best"]["bestprof"] = master[p]["pipe"]["folds"][str(best)]
 
 
 def best_post_fold(pipe):
