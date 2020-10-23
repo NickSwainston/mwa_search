@@ -55,10 +55,6 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=No
         pipe["source"]["RM_type"] = None
         pipe["source"]["synth_RM"] = None
         pipe["source"]["synth_RM_e"] = None
-        pipe["source"]["fit_RM"] = None
-        pipe["source"]["fit_RM_e"] = None
-        pipe["source"]["my_RM"] = None
-        pipe["source"]["my_RM_e"] = None
         pipe["source"]["my_DM"] = None
         pipe["source"]["my_P"] = None
         pipe["source"]["my_bins"] = None
@@ -71,7 +67,7 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=No
             pipe["source"]["enter_frac"], pipe["source"]["exit_frac"], pipe["source"]["power"] = find_fold_times(
                 pipe["source"]["name"], pipe["obs"]["id"], pipe["obs"]["beg"], pipe["obs"]["end"], metadata=metadata, full_meta=full_meta)
         init, post = required_bin_folds(pipe["source"]["name"], query=query)
-        pipe["folds"] = {"init":{}, "post":{}, "best":None}
+        pipe["folds"] = {"init":{}, "post":{}, "best":{}}
         for _, i in enumerate(init):
             pipe["folds"]["init"][str(i)] = {}
         for _, i in enumerate(post):
@@ -85,20 +81,24 @@ def initiate_pipe(kwargs, psr, pointing, metadata=None, full_meta=None, query=No
             pipe["source"]["edited_eph_name"] = f"{pipe['run_ops']['file_precursor']}.eph"
             pipe["source"]["edited_eph"] = create_edited_eph(pipe["source"]["name"], pipe["source"]["edited_eph_name"])
 
-    pipe["pol"]["archive1"] = None
-    pipe["pol"]["archive2"] = None
-    pipe["pol"]["rmfit"] = None
-    pipe["pol"]["rmsynth"] = None
-    pipe["pol"]["rvmfit"] = None
-    pipe["pol"]["rvmres"] = kwargs["rvmres"]
+    pipe["pol"]["alpha"] = None
+    pipe["pol"]["beta"] = None
+    pipe["pol"]["l0"] = None
+    pipe["pol"]["pa0"] = None
+    pipe["pol"]["chi"] = None
 
     pipe["completed"] = {}
     pipe["completed"]["init_folds"] = False
     pipe["completed"]["post_folds"] = False
     pipe["completed"]["upload_and_move"] = False
     pipe["completed"]["bf"] = False
-    pipe["completed"]["polarimetry"] = False
-    pipe["completed"]["init_dspsr"] = False
+    pipe["completed"]["polarimetry_1"] = False
+    pipe["completed"]["polarimetry_2"] = False
+    pipe["completed"]["polarimetry_3"] = False
+    pipe["completed"]["polarimetry_4"] = False
+    pipe["completed"]["polarimetry_5"] = False
+    pipe["completed"]["polarimetry_6"] = False
+
 
     return pipe
 
