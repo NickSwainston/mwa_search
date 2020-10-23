@@ -67,7 +67,7 @@ setup(name="mwa_search",
                # dpp
                'scripts/dpp/make_pulsar_yaml.py', 'scripts/dpp/find_best_pointing.py',
                'scripts/dpp/pulsars_in_fov.py', 'scripts/dpp/prepfold_cmd_make.py',
-               'scripts/dpp/post_fold_filter.py',
+               'scripts/dpp/post_fold_filter.py', 'scripts/dpp/pulsar_polarimetry.py',
                # plotting
                'scripts/plotting/plot_obs_pulsar.py',
                'scripts/plotting/position_sn_heatmap_fwhm.py',
