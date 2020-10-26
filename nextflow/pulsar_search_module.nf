@@ -133,7 +133,8 @@ process search_dd_fft_acc {
                    "86400s"}
     }
     //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
+    errorStrategy { task.attempt > 2 ? 'ignore' : 'retry' }
+    maxRetries 2
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         maxForks 400
     }
