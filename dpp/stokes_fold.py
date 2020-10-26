@@ -490,9 +490,9 @@ def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, archive_out, ascii_out
     if commands is None:
         commands = []
 
-    dspsr_coms = "dspsr -U 1000 -A -cont -no_dyn"
+    dspsr_coms = "dspsr -t 24 -U 1000 -A -cont -no_dyn"
     dspsr_coms += " -L {}".format(tscrunch)
-    if not dm or not period: #fold with custom dm and period if supplied
+    if (not dm or not period) and not "-E" in dspsr_ops: #fold with custom dm and period if supplied
         dspsr_coms += " -E {}.eph".format(pulsar)
     dspsr_coms += " -b {}".format(nbins)
     if dm:
@@ -569,7 +569,7 @@ def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
         dspsr_ops += " -D {}".format(dm)
     if period:
         dspsr_ops += " -c {}".format(period)
-    if not dm or not period:
+    if (not dm or not period) and not '-E' in dspsr_ops:
         dspsr_ops += " -E {}.eph".format(ospj(run_dir, pulsar))
     if subint:
         dspsr_ops += " -L {}".format(subint)
@@ -912,9 +912,10 @@ if __name__ == '__main__':
         if not args.no_ephem:
             logger.warn("no_ephem tag needs to be used for candidate folds, but is turned off. Overriding.")
             args.no_ephem = True
-        rounded_period = round(args.period, 5)
-        rounded_dm = round(args.dm, 4)
-        args.pulsar="cand".format(rounded_period, rounded_dm)
+        if args.period and args.dm:
+            rounded_period = round(args.period, 5)
+            rounded_dm = round(args.dm, 4)
+            args.pulsar="cand".format(rounded_period, rounded_dm)
 
     else:
         if not args.beg or not args.end:
