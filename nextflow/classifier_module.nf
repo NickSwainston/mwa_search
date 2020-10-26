@@ -5,6 +5,7 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 process feature_extract {
     label 'cpu'
+    time '1h'
     errorStrategy 'retry'
     maxRetries 1
     
