@@ -241,7 +241,7 @@ process make_beam_ipfb {
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
