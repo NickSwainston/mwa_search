@@ -399,38 +399,126 @@ workflow polarimetry{
         yaml_fits_tuple
     main:
         //polarimetry 1 - convert fits to archive, back to fits, baseline removal, RM synthesis
+        polarimetry_one(yaml_fits_tuple)
+        //polarimetry 2 - Final RM synthesis
+        polarimetry_two(
+            polarimetry_one.out[1],                     // yaml_fits tuple
+            polarimetry_one.out[3])                     // baseline removed fits file
+        //polarimetry 3 - Defaraday rotation
+        polarimetry_three(
+            polarimetry_two.out[1],                     // yaml_fits tuple
+            polarimetry_one.out[3])                     // baseline removed fits file
+        // polarimetry 4 - Initial RVM fitting
+        polarimetry_four(
+            polarimetry_three.out[1],                   // yaml_fits tuple
+            polarimetry_three.out[2])                   // paswing file
+        // polarimetry 5 - Final RVM fitting
+        polarimetry_five(
+            polarimetry_four.out[1],                    // yaml_fits tuple
+            polarimetry_three.out[2],                   // paswing file
+            polarimetry_four.out[2])                    // RVM fit information
+        // polarimetry 6 - Reading the final RVM fit
+        polarimetry_six(
+            yaml_fits_tuple,
+            polarimetry_five.out[2])                    // RVM fit information
+
+    emit:
+        polarimetry_six.out[0]          // yaml_fits_tuple file
+        polarimetry_one.out[0]          // converted fits file
+        polarimetry_one.out[3]          // baseline femoved fits file
+        polarimetry_two.out[2]          // RMsynth plot
+        polarimetry_two.out[3]          // RMsynth map plot
+        polarimetry_two.out[4]          // RMtable
+        polarimetry_three.out[1]        // polarimetry profile
+        polarimetry_three.out[2]        // paswing file
+        polarimetry_five.out[1]         // Chi grid
+        polarimerty_five.out[2]         // Fit information
+
+}
+
+workflow polarimetry_one{
+    take:
+        yaml_fits_tuple
+    main:
         polarimetry_call(yaml_fits_tuple, "polarimetry_one")
         fits_to_ar_and_back(polarimetry_call.out[1][1],  polarimetry_call.out[0].filter(~/$"dspsr_fold_cmds.sh"/), polarimetry_call.out[0].filter( ~/$"to_fits_cmds.sh"/))
         baseline_removal(fits_to_ar_and_back.out[0], polarimetry_call.out[0].filter(~/$"debase_cmds.sh"/))
         rm_synthesis(baseline_removal.out[0], polarimetry_call.out.filter[0].filter(~/$"initial_rm_synthesis_cmds.sh"/))
-        //polarimetry 2 - Final RM synthesis
-        polarimetry_call(polarimetry_call.out[1], "polarimetry_two")
-        rm_synthesis(baseline_removal.out[0], polarimetry_call.out[0].filter(~/$"final_rm_synthesis_cmds.sh"/))
-        //polarimetry 3 - Defaraday rotation
-        polarimetry_call(polarimetry_call.out[1], "polarimetry_three")
-        defaraday_rotate(baseline_removal.out[0], polarimetry_call.out[0].filter(~/$"defarad_cmds.sh"/))
-        // polarimetry 4 - Initial RVM fitting
-        polarimetry_call(polarimetry_call.out[1], "polarimetry_four")
-        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0].filter(~/$"initial_rvmfit_cmds.sh"/))
-        // polarimetry 5 - Final RVM fitting
-        polarimetry_call(polarimetry_call.out[1], "polarimetry_five")
-        rvm_fit(defaraday_rotate.out[2], polarimetry_call.out[0].filter(~/$"final_rvmfit_cmds.sh"/))
-        // polarimetry 6 - Reading the final RVM fit
-        polarimetry_call(polarimetry_call.out[1], "polarimetry_six")
-
     emit:
-        polarimetry_call.out[1][0]  //yaml file
+        polarimetry_call.out[0]     // cmd files
+        polarimetry_call.out[1]     // yaml_fits tuple
         fits_to_ar_and_back.out[0]  // converted fits file
-        baseline_removal.out[0]     // baseline femoved fits file
+        baseline_removal.out[0]     // baseline removed fits file
         rm_synthesis.out[0]         // RMsynth plot
         rm_synthesis.out[1]         // RMsynth map plot
         rm_synthesis.out[2]         // RMtable
+}
+
+workflow polarimetry_two{
+    take:
+        yaml_fits_tuple
+        baseline_removed_fits
+    main:
+        polarimetry_call(yaml_fits_tuple, "polarimetry_two")
+        rm_synthesis(baseline_removed_fits, polarimetry_call.out.filter[0].filter(~/$"final_rm_synthesis_cmds.sh"/))
+    emit:
+        polarimetry_call.out[0]     // cmd files
+        polarimetry_call.out[1]     // yaml_fits tuple
+        rm_synthesis.out[0]         // RMsynth plot
+        rm_synthesis.out[1]         // RMsynth map plot
+        rm_synthesis.out[2]         // RMtable
+}
+
+workflow polarimetry_three{
+    take:
+        yaml_fits_tuple
+        baseline_removed_fits
+    main:
+        polarimetry_call(yaml_fits_tuple, "polarimetry_three")
+        defaraday_rotate(baseline_removed_fits, polarimetry_call.out[0].filter(~/$"defarad_cmds.sh"/))
+    emit:
+        polarimetry_call.out[1]     // yaml_fits tuple
         defaraday_rotate.out[1]     // polarimetry profile
         defaraday_rotate.out[2]     // paswing
+}
+
+workflow polarimetry_four{
+    take:
+        yaml_fits_tuple
+        paswing
+    main:
+        polarimetry_call(yaml_fits_tuple, "polarimetry_four")
+        rvm_fit(paswing, polarimetry_call.out[0].filter(~/$"initial_rvmfit_cmds.sh"/))
+    emit:
+        polarimetry_call.out[1]     // yaml_fits tuple
         rvm_fit.out[0]              // Chi grid
         rvm_fit.out[1]              // Fit information
-
 }
+
+workflow polarimetry_five{
+    take:
+        yaml_fits_tuple
+        paswing
+        fit_info
+    main:
+        polarimetry_call(yaml_fits_tuple, "polarimetry_five")
+        rvm_fit(paswing, polarimetry_call.out[0].filter(~/$"final_rvmfit_cmds.sh"/))
+    emit:
+        polarimetry_call.out[1]     // yaml_fits tuple
+        rvm_fit.out[0]              // Chi grid
+        rvm_fit.out[1]              // Fit information
+}
+
+workflow polarimetry_six{
+    take:
+        yaml_fits_tuple
+        fit_info
+    main:
+        polarimetry_call(yaml_fits_tuple, "polarimetry_six")
+    emit:
+        polarimetry_call.out[1] // yaml_fits tuple
+}
+
 
 workflow {
     pre_beamform()
