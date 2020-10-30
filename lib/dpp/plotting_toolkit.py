@@ -14,16 +14,9 @@ import glob
 import sys
 
 import prof_utils
-import binfinder
-import stokes_fold
+from dpp import stokes_fold
 
 logger = logging.getLogger(__name__)
-
-try:
-    ATNF_LOC = os.environ['PSRCAT_FILE']
-except KeyError:
-    logger.warning("ATNF database could not be found on disk.")
-    ATNF_LOC = None
 EPNDB_LOC = os.environ["EPNDB_LOC"]
 
 #---------------------------------------------------------------
@@ -95,10 +88,10 @@ def read_ascii_archive(archive, roll=True, norm=True):
         lin_pol                 = roll_data(lin_pol, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
         pa                      = roll_data(pa, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
         pa_err                  = roll_data(pa_err, idx_to_roll=roll_idx, roll_to=roll_to)[-1]
-    else: 
+    else:
         roll_idx = 0
         roll_to = 0
-        
+
     return I, Q, U, V, lin_pol, pa, pa_err, roll_idx, roll_to
 
 #--------------------------------------------------------------------------
@@ -244,6 +237,7 @@ def plot_bestprof(bestprof, freq=None, out_dir="./"):
     fig_path: string
         The path of the .png plot
     """
+    from dpp import binfinder
     #retrieve data from bestprof
     logger.info("Plotting profile from file: {0}".format(bestprof))
     y = prof_utils.get_from_bestprof(bestprof)[-2]
@@ -463,7 +457,7 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
         ax_2.scatter(x_pa, pa, s=6, color="0.2", label="Position Angle", marker=".")
     else:
         ax_2.errorbar(x_pa, pa, yerr=pa_err, markersize=8, color="0.2", label="Position Angle", fmt=".")
-        
+
 
     if rvm_fit:
         #plot the rvm fit
@@ -717,12 +711,12 @@ def plot_rvm_chi_map(chis, alphas, betas, name="RVM_chi_map_plot.png", my_chi=No
     levels=np.linspace(0,maxcolour,1000)
     fig=plt.figure(figsize=(12, 12))
     ax=fig.add_subplot(1, 1, 1, aspect="equal")
-    
+
     #Make circle
     if my_alpha is not None and my_beta is not None:
         mycircle = plt.Circle((my_alpha, my_beta), 2, color='r', fill=False)
         plt.gcf().gca().add_artist(mycircle)
-    
+
     #plot data
     plt.contourf(alphas, betas, chis, levels=levels, cmap="gnuplot")
     plt.xlim(min(alphas), max(alphas))
@@ -734,8 +728,8 @@ def plot_rvm_chi_map(chis, alphas, betas, name="RVM_chi_map_plot.png", my_chi=No
     #plot colourbar
     divider = make_axes_locatable(ax)
     cax1 = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = plt.colorbar(cax = cax1)   
-    
+    cbar = plt.colorbar(cax = cax1)
+
     #save & close
     plt.savefig(name, bbox_inches='tight')
     plt.close()
@@ -1027,7 +1021,7 @@ if __name__ == '__main__':
     if args.plt_pol:
         if args.archive:
             prof_utils.subprocess_pdv(args.archive, outfile="archive.txt", pdvops="-FTtlZ")
-            ascii_prof = "archive.txt"    
+            ascii_prof = "archive.txt"
             plot_archive_stokes(ascii_prof, pulsar=args.pulsar, freq=args.freq, obsid=args.obsid, out_dir=args.out_dir)
             os.remove("archive.txt")
         else:

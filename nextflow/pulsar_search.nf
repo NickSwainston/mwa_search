@@ -5,6 +5,7 @@ nextflow.preview.dsl = 2
 params.obsid = null
 params.pointings = null
 params.fitsdir = "/group/mwavcs/vcs/${params.obsid}/pointings"
+params.fits_files
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
@@ -24,7 +25,11 @@ params.max_period = 30 // max period to search for in sec  (ANTF max = 23.5)
 pointing = Channel.from( params.pointings )
 if ( params.fits_file_dir ) {
     fits_files = Channel.fromPath( "${params.fits_file_dir}/${params.obsid}_*.fits", checkIfExists: true )
-        nfiles = new File("${params.fits_file_dir}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+    nfiles = new File("${params.fits_file_dir}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+}
+else if ( params.fits_files ) {
+    fits_files = Channel.fromPath( "${params.fits_files}", checkIfExists: true )
+    nfiles = new File("${params.fits_files}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
 }
 else {
     if ( params.scratch ) {
@@ -88,7 +93,8 @@ include { classifier }   from './classifier_module'
 
 workflow {
     if ( params.sp ) {
-        single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
+        //single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.view() )
+        single_pulse_search( fits_files.map{ it -> [ params.cand + '_' + it.getBaseName().split("/")[-1].split("_ch")[0], it ] } )
     }
     else {
         pulsar_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )

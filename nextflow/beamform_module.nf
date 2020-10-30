@@ -140,7 +140,7 @@ process combined_data_check {
     #!/usr/bin/env python
 
     import sys
-    from check_known_pulsars import check_data
+    from mwa_search.obs_tools import check_data
 
     #Perform data checks
     dur = $end-$begin + 1
@@ -289,7 +289,7 @@ process splice {
     publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits
     publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
-    time '2h'
+    time '3h'
     maxForks 300
     errorStrategy 'retry'
     maxRetries 1
@@ -374,4 +374,5 @@ workflow beamform_ipfb {
         make_beam_ipfb.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[1]
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("_ch")[0].split("${params.obsid}_")[-1], it ] } | groupTuple()
 }
