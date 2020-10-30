@@ -10,16 +10,12 @@ import numpy as np
 import glob
 from config_vcs import load_config_file
 import psrqpy
-from shutil import copyfile as cp
 
-from mwa_pulsar_client import client
-import mwa_metadb_utils
 from job_submit import submit_slurm
 import data_processing_pipeline as dpp
 import plotting_toolkit
 import binfinder
 import rm_synthesis
-import submit_to_database as std
 
 logger = logging.getLogger(__name__)
 
@@ -494,9 +490,9 @@ def add_pfb_inversion_to_commands(run_dir, pulsar, obsid, archive_out, ascii_out
     if commands is None:
         commands = []
 
-    dspsr_coms = "dspsr -U 1000 -A -cont -no_dyn"
+    dspsr_coms = "dspsr -t 24 -U 1000 -A -cont -no_dyn"
     dspsr_coms += " -L {}".format(tscrunch)
-    if not dm or not period: #fold with custom dm and period if supplied
+    if (not dm or not period) and not "-E" in dspsr_ops: #fold with custom dm and period if supplied
         dspsr_coms += " -E {}.eph".format(pulsar)
     dspsr_coms += " -b {}".format(nbins)
     if dm:
@@ -573,7 +569,7 @@ def add_dspsr_fold_to_commands(pulsar, run_dir, nbins,\
         dspsr_ops += " -D {}".format(dm)
     if period:
         dspsr_ops += " -c {}".format(period)
-    if not dm or not period:
+    if (not dm or not period) and not '-E' in dspsr_ops:
         dspsr_ops += " -E {}.eph".format(ospj(run_dir, pulsar))
     if subint:
         dspsr_ops += " -L {}".format(subint)
@@ -779,12 +775,12 @@ def create_filenames(run_params):
     """
     Creates a dictionary of filenames to use. This is here to ensure the filenames are identical between fucntions and runs
     Note: these are file names only and do not contain the path
-
+    
     Parameters:
     -----------
     run_params: object
         The run_params object defined by data_procesing_pipeline
-
+    
     Returns:
     --------
     filenames_dict: dictionary
@@ -811,6 +807,7 @@ def create_filenames(run_params):
         filenames_dict["rvmfit"]    = "{0}_RVM_fit.txt".format(run_params.file_prefix)
     filenames_dict["rmfit"]         = "{}_rmfit.txt".format(run_params.file_prefix)
     filenames_dict["rmsynth"]       = "{}_RMsynthesis.txt".format(run_params.file_prefix)
+    filenames_dict["rvmfit"]        = "{}_RVMfit.txt".format(run_params.file_prefix)   
     filenames_dict["chimap"]        = "{}_chi_map.txt".format(run_params.file_prefix)
 
     return filenames_dict
@@ -828,20 +825,8 @@ def work_out_what_to_do(run_params):
     fits_files_in_dir   = glob.glob("*.fits")
     hdr_files_in_dir    = glob.glob("*.hdr")
     filenames_dict      = create_filenames(run_params)
-    is_ar_rm            = isfile(filenames_dict["rmfit"])   and isfile(filenames_dict["archive1"])
-    is_ar2_rvm          = isfile(filenames_dict["rvmfit"])  and isfile(filenames_dict["archive2"])
-
-    #Try uploads
-    if not run_params.cand:
-        try:
-            if is_ar_rm:
-                dpp.upload_formatted_file(filenames_dict["archive1"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
-                                    extension=".ar")
-            if is_ar2_rvm:
-                dpp.upload_formatted_file(filenames_dict["archive2"], run_params.obsid, run_params.pulsar, run_params.stokes_bins, run_params.cal_id, 1,\
-                                    extension=".ar2", name_info="RMcorrected")
-        except std.NoAuthError as e:
-            logger.warn(e)
+    is_ar_rm            = isfile(filenames_dict["rmfit"]) and isfile(filenames_dict["archive1"])
+    is_ar2_rvm          = isfile(filenames_dict["rvmfit"]) and isfile(filenames_dict["archive2"])
 
     #Main logic structure
     if hdr_files_in_dir or fits_files_in_dir:
@@ -893,7 +878,6 @@ if __name__ == '__main__':
     foldop.add_argument("-b", "--nbins", type=int, default=0, help="The number of bins to fold the profile with")
     foldop.add_argument("-s", "--subint", type=float, default=None, help="The length of the integrations in seconds")
     foldop.add_argument("-o", "--obsid", type=str, help="The obsid of the observation")
-    foldop.add_argument("-O", "--cal_id", type=str, help="The canlibrator ID")
     foldop.add_argument("--beg", type=int, help="The beginning of the observation time in gps time")
     foldop.add_argument("--end", type=int, help="The end of the observation time in gps time")
     foldop.add_argument("--dm", type=float, default=None, help="The dispersion measure to fold around")
@@ -928,9 +912,10 @@ if __name__ == '__main__':
         if not args.no_ephem:
             logger.warn("no_ephem tag needs to be used for candidate folds, but is turned off. Overriding.")
             args.no_ephem = True
-        rounded_period = round(args.period, 5)
-        rounded_dm = round(args.dm, 4)
-        args.pulsar="cand".format(rounded_period, rounded_dm)
+        if args.period and args.dm:
+            rounded_period = round(args.period, 5)
+            rounded_dm = round(args.dm, 4)
+            args.pulsar="cand".format(rounded_period, rounded_dm)
 
     else:
         if not args.beg or not args.end:
@@ -941,10 +926,7 @@ if __name__ == '__main__':
         logger.error("Pointing directory not supplied. Please run again and specify a pointing directory")
         sys.exit(1)
     if not args.obsid:
-        logger.error("Obs ID not supplied. Please run again and specify an observation ID")
-        sys.exit(1)
-    if not args.cal_id:
-        logger.error("Cal ID not supplied. Please run again and specify an observation ID")
+        logger.error("Obsid not supplied. Please run again and specify an observation ID")
         sys.exit(1)
     if not args.pulsar:
         logger.error("Pulsar name not supplied. Please run again and specify pulsar name")
@@ -974,7 +956,6 @@ if __name__ == '__main__':
     rp["period"]            = args.period
     rp["cand"]              = args.cand
     rp["rvmres"]            = args.rvmres
-    rp["cal_id"]            = args.cal_id
     rp["ipfb"]              = ipfb
     run_params = dpp.run_params_class(**rp)
 

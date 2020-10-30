@@ -352,10 +352,10 @@ def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
                 rad = np.degrees(num[0])
                 decd = np.degrees(num[1])
 
-                if decd > 90.:
-                    decd = decd - 180.
-                rads.append(rad)
-                decds.append(decd)
+                if (decd < 90.) and (decd > -90.):
+                    # Only include ra and dec within the real decs
+                    rads.append(rad)
+                    decds.append(decd)
     return rads, decds
 
 
@@ -478,6 +478,8 @@ if __name__ == "__main__":
         obs_metadata = [obs, ra, dec, duration, xdelays, centrefreq, channels]
         names_ra_dec = []
         for ni in range(len(rads)):
+            if float(decds[ni]) < -90.:
+                continue
             names_ra_dec.append(["name", rads[ni], decds[ni]])
         names_ra_dec = np.array(names_ra_dec)
         power = fpio.get_beam_power_over_time(obs_metadata,
@@ -487,7 +489,7 @@ if __name__ == "__main__":
         radls = []
         decdls = []
         tFWHM = np.amax(power)/2. #assumed half power point of the tile beam
-        for ni in range(len(rads)):
+        for ni in range(len(names_ra_dec)):
             if max(power[ni]) > tFWHM:
                 radls.append(rads[ni])
                 decdls.append(decds[ni])

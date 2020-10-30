@@ -12,13 +12,14 @@ params.end = null
 params.all = false
 
 params.summed = false
+params.channels = null
 params.ipfb = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.publish_fits = true
-params.publish_fits_scratch = false
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.publish_fits = false
+params.publish_fits_scratch = true
 
 params.no_combined_check = false
 

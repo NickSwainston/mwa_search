@@ -12,7 +12,7 @@ params.all = false
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
 params.publish_fits_scratch = true
 
@@ -68,7 +68,7 @@ process find_pointings {
 
 include { pre_beamform; beamform; beamform_ipfb; get_beg_end } from './beamform_module'
 include { pulsar_search; single_pulse_search } from './pulsar_search_module'
-include classifier from './classifier_module'
+include { classifier } from './classifier_module'
 
 workflow {
     get_beg_end()
@@ -80,7 +80,7 @@ workflow {
               //Grab the pointings for slow pulsars and single pulses
               find_pointings.out.splitCsv(skip: 1, limit: 1).mix(\
               find_pointings.out.splitCsv(skip: 5, limit: 1),\
-              find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().collate( 15 ) )
+              find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().collate( params.max_pointings ) )
     beamform_ipfb( pre_beamform.out[0],\
                    pre_beamform.out[1],\
                    pre_beamform.out[2],\

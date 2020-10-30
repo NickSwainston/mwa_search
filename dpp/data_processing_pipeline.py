@@ -6,13 +6,11 @@ import argparse
 from config_vcs import load_config_file
 import glob
 import sys
-import shutil
 
 from job_submit import submit_slurm
 from mwa_metadb_utils import get_common_obs_metadata
 import stokes_fold
 import binfinder
-import submit_to_database as std
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +66,7 @@ class run_params_class:
         if not self.freq and self.obsid:
             self.set_freq_from_metadata(obsid)
         self.generate_file_prefix()
-
+        
 
     def set_beg(self, beg):
         self.beg = beg
@@ -115,7 +113,7 @@ class run_params_class:
 #----------------------------------------------------------------------
 def binfinder_launch_line(run_params, dpp=False):
     """
-    Creates a launch command using the run_params class
+    Creates a launch command using the run_params class 
 
     Parameters:
     -----------
@@ -168,7 +166,7 @@ def binfinder_launch_line(run_params, dpp=False):
 #----------------------------------------------------------------------
 def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     """
-    Creates a launch command using the run_params class
+    Creates a launch command using the run_params class 
 
     Parameters:
     -----------
@@ -194,9 +192,9 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     else:
         p = run_params.pointing_dir
 
-    launch_line += " -d {0} -p {1} -L {2} -o {3} -O {4} --mwa_search {5} --vcs_tools {5}"\
+    launch_line += " -d {0} -p {1} -L {2} -o {3} --mwa_search {4} --vcs_tools {5}"\
                     .format(p, run_params.pulsar, run_params.loglvl, run_params.obsid,
-                    run_params.cal_id, run_params.mwa_search, run_params.vcs_tools)
+                    run_params.mwa_search, run_params.vcs_tools)
 
     if run_params.stokes_bins:
         launch_line += " -b {}".format(run_params.stokes_bins)
@@ -217,7 +215,7 @@ def stokes_launch_line(run_params, dpp=False, custom_pointing=None):
     if run_params.no_ephem:
         launch_line += " --no_ephem"
     if run_params.dspsr_ops != "":
-        launch_line += " --dspsr_ops {}".format(run_params.dspsr_ops)
+        launch_line += " --dspsr_ops '{}'".format(run_params.dspsr_ops)
     if run_params.cand:
         launch_line += " --cand"
     if run_params.rvmres:
@@ -298,51 +296,10 @@ def copy_data(data_path, target_directory):
     """
     os.makedirs(target_directory, exist_ok=True)
     try:
-        shutil.copy(data_path, target_directory)
+        os.popen("cp {0} {1}".format(data_path, target_directory))
     except RuntimeError as error:
         logger.warning("File:{0} could not be copied to {1}".format(data_path, target_directory))
         logger.warning("Error message: {0}".format(error))
-
-def upload_formatted_file(filename, obsid, pulsar, bins, cal_id, filetype, name_info="", extension=""):
-    """
-    Creates a new filename and uploads an archive file to the pulsar database if the same named
-    file does not already exist on the database
-
-    Parameters:
-    -----------
-    archive: string
-        The name of the archive file to upload
-    obsid: int
-        The observation ID
-    pulsar: string
-        Then name of the pulsar
-    bins: int
-        The Number of bins
-    cal_id: int
-        The calibrator ID
-    filetype: int
-        The type of file to upload: 1: Archive, 2: Timeseries, 3: Diagnostics, 4: Calibration Solution, 5: Bestprof
-    name_info: str
-        OPTIONAL - additional info to add to the name of the uploaded file. Default: ''
-    extention: str
-        OPTIONAL - The file extension of the uploaded file. Default: ''
-    """
-    all_ftypes = std.get_filetypes_from_db(obsid, pulsar, filetype)
-    fname_pref = std.filename_prefix(obsid, pulsar, bins=bins, cal=cal_id)
-    upname = "{}".format(fname_pref)
-    upname += name_info
-    upname += extension
-
-    metadata = get_common_obs_metadata(obsid)
-    subbands = std.get_subbands(metadata)
-
-    if os.path.basename(upname) not in all_ftypes:
-        logger.info("Archive file not on databse. Uploading...")
-        shutil.copy(filename, upname)
-        std.upload_file_to_db(obsid, pulsar, upname, filetype, metadata=metadata, coh=True)
-        os.remove(upname)
-    else:
-        logger.info("file on database. Not uploading")
 
 #----------------------------------------------------------------------
 def stokes_fold(run_params):
