@@ -97,8 +97,8 @@ process beamform_setup {
     if "${params.all}" == "true":
         beg, end = obs_max_min(${params.obsid})
     else:
-        beg = "$params.begin"
-        end = "$params.end"
+        beg = $params.begin
+        end = $params.end
     with open("${params.obsid}_beg_end.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         spamwriter.writerow([beg, end])
@@ -241,7 +241,7 @@ process make_beam_ipfb {
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
@@ -306,7 +306,7 @@ process splice {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"

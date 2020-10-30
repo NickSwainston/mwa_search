@@ -4,6 +4,7 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
+params.publish_all_prepfold = false
 
 params.begin = 0
 params.end = 0
@@ -50,8 +51,14 @@ else {
 if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
     search_dd_fft_acc_dur = obs_length * 5.0
-    prepfold_dur = obs_length * 2.0
+    prepfold_dur = obs_length * 16.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+}
+else if ( "$HOSTNAME".startsWith("garrawarla") ) {
+    // In seconds
+    search_dd_fft_acc_dur = obs_length * 5.0
+    prepfold_dur = obs_length * 16.0
+    presto_python_load = ""
 }
 else {
     search_dd_fft_acc_dur = 14400
@@ -126,7 +133,8 @@ process search_dd_fft_acc {
                    "86400s"}
     }
     //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
+    errorStrategy { task.attempt > 2 ? 'ignore' : 'retry' }
+    maxRetries 2
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         maxForks 400
     }
@@ -155,7 +163,7 @@ process search_dd_fft_acc {
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.12 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
@@ -223,7 +231,6 @@ process accelsift {
 process single_pulse_searcher {
     label 'cpu_large_mem'
     time '2h'
-    stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
     errorStrategy 'ignore'
 
@@ -250,6 +257,7 @@ process single_pulse_searcher {
 
 
 process prepfold {
+    publishDir params.out_dir, mode: 'copy', enabled: params.publish_all_prepfold
     label 'cpu'
     time "${prepfold_dur}s"
     errorStrategy 'retry'
@@ -375,18 +383,17 @@ workflow pulsar_search {
                                // Add fits files
                                concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]} )
         prepfold( name_fits_files.cross(
+                  // Group all the accelsift lines together
+                  accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_ACCEL")[0], it ] }.cross(
                   // Group all the .cand and .inf files by their base names
-                  search_dd_fft_acc.out.map{ it -> [it[2]].flatten().findAll { it != null } }.\
+                  search_dd_fft_acc.out.map{ it -> [it[2]].flatten().findAll { it != null } }.
                   flatten().map{ it -> [it.baseName.split(".inf")[0], it ] }.concat(
-                  search_dd_fft_acc.out.map{ it -> [it[4]].flatten().findAll { it != null } }.\
-                  flatten().map{ it -> [it.baseName.split("_ACCEL")[0], it ] },\
-                  // Group them with a matching accelsift line
-                  accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_ACCEL")[0], it ] }).\
-                  groupTuple( size: 3, remainder: false ).map{ it -> [it[0].split("_DM")[0], [it[1][0], it[1][1], it[1][2]]]}\
-                  // Match with fits files
-                  ).\
-                  // Reogranise to val(cand_line), file(cand_file), file(cand_inf), file(fits_files)
-                  map{ it -> [it[1][1][2], it[1][1][1], it[1][1][0], it[0][1]] } )
+                  search_dd_fft_acc.out.map{ it -> [it[4]].flatten().findAll { it != null } }.
+                  flatten().map{ it -> [it.baseName.split("_ACCEL")[0], it ] }).groupTuple( size: 2 )
+                  // match the cand and inf file with each accelsift line and reoraganise
+                  ).map{ it -> [it[0][0].split("_DM")[0], [it[0][1], it[1][1][0], it[1][1][1]]] }
+                  // Match with fits files and eogranise to val(cand_line), file(cand_file), file(cand_inf), file(fits_files)
+                  ).map{ it -> [it[1][1][0], it[1][1][2], it[1][1][1], it[0][1]] } )
     emit:
         accelsift.out 
         prepfold.out

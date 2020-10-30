@@ -185,15 +185,11 @@ if ( params.pointing_file ) {
         .fromPath(params.pointing_file)
         .splitCsv()
         .collect()
-        .flatten()
-        .collate( params.max_pointings )
 }
 else if ( params.pointings ) {
     pointings = Channel
         .from(params.pointings.split(","))
         .collect()
-        .flatten()
-        .collate( params.max_pointings )
 }
 else if ( params.bestprof_pointings ) {
     pointings = Channel.from("null")

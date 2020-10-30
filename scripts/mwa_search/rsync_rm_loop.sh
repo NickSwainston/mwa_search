@@ -36,7 +36,6 @@ else
     END=${end}
 fi
 
-cd /fred/oz125/nswainst/pulsar_search
 grid.py -o $OBSID -a -b $BEGIN -e $END -d 0.3 -f 0.9 -n 1080 --out_file_name SMART_${NAME}_grid
 
 n_grids=$(ls SMART_${NAME}_grid*txt | wc -l)
@@ -53,7 +52,11 @@ while [ $n_done -lt $n_grids ]; do
             n_done=$(expr $n_done + 1)
             if [ -d "${SMART_job%.txt}_cands" ]; then
                 echo "Syncing ${SMART_job%.txt}_cands"
-                rsync --copy-links -zru ${SMART_job%.txt}_cands pulsar-desktop:~/SMART_cand_sorting/${OBSID}
+                rsync --copy-links -zru ${SMART_job%.txt}_cands prometheus:/data/nswainston/SMART_cand_sorting/${OBSID}
+                if [ $? != 0 ]; then
+                    echo "rsync error exiting"
+                    exit
+                fi
                 echo "Syncing ${SMART_job%.txt}_cands done"
                 echo "Deleting ${SMART_job%.txt}_cands"
                 rm -rf ${SMART_job%.txt}_cands
@@ -68,7 +71,7 @@ while [ $n_done -lt $n_grids ]; do
         # Even if it isn't done start using rysnc update
         if [ -d "${SMART_job%.txt}_cands" ]; then
             echo "Syncing ${SMART_job%.txt}_cands"
-            rsync --copy-links -zru ${SMART_job%.txt}_cands pulsar-desktop:~/SMART_cand_sorting/${OBSID}
+            rsync --copy-links -zru ${SMART_job%.txt}_cands prometheus:/data/nswainston/SMART_cand_sorting/${OBSID}
             echo "Syncing ${SMART_job%.txt}_cands done"
         fi
         cd ..
