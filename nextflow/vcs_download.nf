@@ -139,6 +139,8 @@ process volt_download {
 
 process untar {
     label 'cpu'
+    time { "${50*params.increment*task.attempt + 900}s" }
+    errorStrategy 'retry'
     beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
 
     input:
