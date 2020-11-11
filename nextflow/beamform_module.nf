@@ -37,7 +37,7 @@ else {
 //Work out total obs time
 if ( params.all ) {
     // an estimation since there's no easy way to make this work
-    obs_length = 4805
+    obs_length = 5400
 }
 else {
     obs_length = params.end - params.begin + 1
