@@ -24,7 +24,7 @@ import submit_to_database as std
 from dpp import pulsar_obs_helper as poh
 from config_vcs import load_config_file
 from vcstools import data_load
-
+from vcstools.pointing_utils import format_ra_dec
 
 import logging
 comp_config = load_config_file()
@@ -196,7 +196,7 @@ def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
                 temp = [line]
 
         #temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
-        temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
+        temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
         period = periods[pi]

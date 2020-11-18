@@ -19,6 +19,7 @@ import process_vcs as pvcs
 from job_submit import submit_slurm
 from config_vcs import load_config_file
 import data_processing_pipeline
+from vcstools.pointing_utils import format_ra_dec
 
 import logging
 logger = logging.getLogger(__name__)
@@ -931,7 +932,7 @@ def prepdata(search_opts):
             print("RRAT {} not found on database, processing as a pulsar instead".format(search_opts.cand_name))
             temp = fpio.grab_source_alog(source_type="Pulsar", pulsar_list=[search_opts.cand_name],
                                      include_dm=True)
-        dm = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)[0][-1]
+        dm = format_ra_dec(temp, ra_col = 1, dec_col = 2)[0][-1]
         #I don't need to make a set class command because this is the last time I use this function
         #For that reason I also shouldn't have to update the relaunch script
         search_opts.dm_min = float(dm) - 2.0
@@ -1956,7 +1957,7 @@ if __name__ == "__main__":
         import find_pulsar_in_obs as fpio
         temp = fpio.grab_source_alog(source_type=args.cand_type, pulsar_list=[args.cand_name],
                                      include_dm=True)
-        temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
+        temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj, dm = temp[0]
         if not args.pointing:
             args.pointing = '{0}_{1}'.format(raj, decj)
