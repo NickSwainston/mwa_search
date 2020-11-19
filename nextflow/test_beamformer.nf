@@ -49,8 +49,17 @@ if ( params.help ) {
     exit(0)
 }
 
+// Option input checks
+def folder = new File(params.version_compare_dir)
+if ( folder.exists() && params.publish_version ) {
+    println("This version has already been published in ${params.version_compare_dir}. Please label your version differently if you'd like to publish it")
+    exit(0)
+}
+
 
 process make_beam {
+    publishDir "${params.version_compare_dir}", mode: 'copy', enabled: params.publish_version
+
     label 'gpu'
     //time '2h'
     time "${mb_dur*task.attempt}s"
@@ -101,9 +110,9 @@ process make_beam {
 
     """
     make_beam -o $obsid -b $begin -e $end -a 128 -n 128 \
--f ${channel_pair[0]} -J ${params.scratch_basedir}/${obsid}/cal/${calid}/rts/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.scratch_basedir}/${obsid}_beamformer_test_data/combined -P ${point.join(",")} \
--r 10000 -m ${params.scratch_basedir}/${obsid}/${obsid}_metafits_ppds.fits \
+-f ${channel_pair[0]} -J ${params.version_compare_base_dir}/${obsid}/cal/${calid}/rts/DI_JonesMatrices_node${channel_pair[1]}.dat \
+-d ${params.version_compare_base_dir}/${obsid}/combined -P ${point.join(",")} \
+-r 10000 -m ${params.version_compare_base_dir}/${obsid}/${obsid}_metafits_ppds.fits \
 ${bf_out} -t 6000 -z $utc
     
     # Label all outputs
@@ -113,8 +122,7 @@ ${bf_out} -t 6000 -z $utc
 
 
 process make_beam_ipfb {
-    publishDir "${params.basedir}/${obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_version, pattern: "*hdr"
-    publishDir "${params.basedir}/${obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_version, pattern: "*vdif"
+    publishDir "${params.version_compare_dir}", mode: 'copy', enabled: params.publish_version
 
     label 'gpu'
     //time '2h'
@@ -163,16 +171,21 @@ process make_beam_ipfb {
     output:
     file "*fits"
     file "*vdif"
+    file "*hdr"
 
     """
     make_beam -o $obsid -b $begin -e $end -a 128 -n 128 \
--f ${channel_pair[0]} -J ${params.scratch_basedir}/${obsid}/cal/${calid}/rts/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.scratch_basedir}/${obsid}_beamformer_test_data/combined -P ${point} \
--r 10000 -m ${params.scratch_basedir}/${obsid}/${obsid}_metafits_ppds.fits \
+-f ${channel_pair[0]} -J ${params.version_compare_base_dir}/${obsid}/cal/${calid}/rts/DI_JonesMatrices_node${channel_pair[1]}.dat \
+-d ${params.version_compare_base_dir}/${obsid}/combined -P ${point} \
+-r 10000 -m ${params.version_compare_base_dir}/${obsid}/${obsid}_metafits_ppds.fits \
 -p -v -t 6000 -z $utc
     # Label all outputs
     for i in \$(ls */*); do mv \${i} ${label}_\${i##*/}; done
-    for i in \$(ls *vdif); do mv \${i} ${label}_\${i##*/}; done
+    vdif_file=\$(ls *vdif)
+    mv \${vdif_file} ${label}_\${vdif_file}
+    mv \${vdif_file%.vdif}.hdr ${label}_\${vdif_file%.vdif}.hdr
+    # Update header DATAFILE name
+    sed -i "s/\${vdif_file}/${label}_\${vdif_file}/" ${label}_\${vdif_file%.vdif}.hdr
     """
 }
 
@@ -189,13 +202,10 @@ process compare_repeats {
     file vdif_3
 
     """
-    # Remove headers
+    # Remove headers from fits files
     tail -n +2 ${fits_1} > no_header_1.fits
     tail -n +2 ${fits_2} > no_header_2.fits
     tail -n +2 ${fits_3} > no_header_3.fits
-    tail -n +2 ${vdif_1} > no_header_1.vdif
-    tail -n +2 ${vdif_2} > no_header_2.vdif
-    tail -n +2 ${vdif_3} > no_header_3.vdif
 
     # Fits check
     fits_diff_success=True
@@ -209,15 +219,137 @@ process compare_repeats {
   
     # vdif check
     vdif_diff_success=True
-    diff no_header_1.vdif no_header_2.vdif
+    diff ${vdif_1} ${vdif_2}
     if [ \$? != 0 ]; then vdif_diff_success=False; fi
-    diff no_header_3.vdif no_header_2.vdif
+    diff ${vdif_3} ${vdif_2}
     if [ \$? != 0 ]; then vdif_diff_success=False; fi
-    diff no_header_1.vdif no_header_3.vdif
+    diff ${vdif_1} ${vdif_3}
     if [ \$? != 0 ]; then vdif_diff_success=False; fi
     if [ \$vdif_diff_success == True ]; then echo "PASS: vdif files are repeatable"; fi
     """
 
+}
+
+process prepfold_and_compare {
+    echo true
+    publishDir "${params.version_compare_dir}", mode: 'copy', enabled: params.publish_version
+
+    label 'cpu'
+    time "1h"
+    errorStrategy 'retry'
+    maxRetries 1
+
+    input:
+    tuple val(label), val(pulsar), file(fits)
+
+    output:
+    file "*pfd*"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
+    
+    script:
+    if ( params.publish_version ) 
+        """
+        psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
+        prepfold -n 100 -noxwin -noclip -o ${label}_${pulsar} -nsub 8 -timing ${pulsar}.eph \
+    -npart 120 -npfact 1 -pstep 1 -pdstep 2 -ndmfact 1 -runavg -noxwin *.fits  &> prepfold.out
+        """
+    else
+        """
+        psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
+        prepfold -n 100 -noxwin -noclip -o ${label}_${pulsar} -nsub 8 -timing ${pulsar}.eph \
+    -npart 120 -npfact 1 -pstep 1 -pdstep 2 -ndmfact 1 -runavg -noxwin *.fits  &> prepfold.out
+
+        # Get sigma from current detection
+        sigma_line=\$(grep sigma *prof)
+        sigma_line_2=\${sigma_line#*~}
+        current_sn=\${sigma_line_2% sigma)}
+
+        # Get sigma from comparison detection
+        sigma_line=\$(grep sigma ${params.version_compare_dir}/${label}_${pulsar}*prof)
+        sigma_line_2=\${sigma_line#*~}
+        compare_sn=\${sigma_line_2% sigma)}
+
+        # Compare the signal to noise ratios
+        if [ \$current_sn == \$compare_sn ]; then
+            echo "PASS: ${label} prepfold detections of ${pulsar} have the same SN"
+        else
+            echo "WARN: ${label} prepfold detections of ${pulsar} have different SN!"
+            echo "      Current SN: \$current_sn"
+            echo "      ${params.version_compare} SN: \$compare_sn"
+        fi
+        """
+}
+
+process dspsr_and_compare {
+    echo true
+    publishDir "${params.version_compare_dir}", mode: 'copy', enabled: params.publish_version
+
+    label 'cpu'
+    time "1h"
+    errorStrategy 'retry'
+    maxRetries 1
+    //stageInMode 'copy'
+
+    input:
+    tuple val(label), val(pulsar), file(vdif), file(hdr)
+
+    output:
+    file "*ps"
+    file "*posn"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
+    else {
+        container = "nickswainston/dspsr_docker"
+    }
+    
+    script:
+    if ( params.publish_version ) 
+        """
+        psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
+        dspsr -t ${task.cpus} -b 100 -E ${pulsar}.eph -L 30 -e subint -cont -U 4000 *.hdr &> dspsr.out
+        psradd *.subint -o ${label}_${pulsar}.ar &> prsadd.out
+        pam --setnchn 8 -m ${label}_${pulsar}.ar &> pam.out
+        pdmp -g ${label}_${pulsar}_pdmp.ps/cps ${label}_${pulsar}.ar &> pdmp.out
+        mv pdmp.posn ${label}_${pulsar}_pdmp.posn
+        """
+    else
+        """
+        psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
+        dspsr -t ${task.cpus} -b 100 -E ${pulsar}.eph -L 30 -e subint -cont -U 4000 *.hdr &> dspsr.out
+        psradd *.subint -o ${label}_${pulsar}.ar &> prsadd.out
+        pam --setnchn 8 -m ${label}_${pulsar}.ar &> pam.out
+        pdmp -g ${label}_${pulsar}_pdmp.ps/cps ${label}_${pulsar}.ar &> pdmp.out
+        mv pdmp.posn ${label}_${pulsar}_pdmp.posn
+
+        # Get sigma from current detection
+        current_sn=\$(cat *.posn | cut -d ' ' -f 7)
+
+        # Get sigma from comparison detection
+        compare_sn=\$(cat ${params.version_compare_dir}/${label}_${pulsar}*.posn | cut -d ' ' -f 7)
+
+        # Compare the signal to noise ratios
+        if [ \$current_sn == \$compare_sn ]; then
+            echo "PASS: ${label} dsprs detections of ${pulsar} have the same SN"
+        else
+            echo "WARN: ${label} dsps detections of ${pulsar} have different SN!"
+            echo "      Current SN: \$current_sn"
+            echo "      ${params.version_compare} SN: \$compare_sn"
+        fi
+        """
 }
 
 workflow repeat_1 {
@@ -269,10 +401,6 @@ workflow repeatability_test {
                      repeat_3.out[1] )
 }
 
-workflow prepfold_compare {
-
-}
-
 workflow tests_1150234552 {
     make_beam( // obsid
                Channel.from("1150234552"),
@@ -288,6 +416,13 @@ workflow tests_1150234552 {
                Channel.of(["00:34:21.83_-05:34:36.72", "00:34:08.87_-07:21:53.40"]),
                // begin, end
                Channel.of([1150235202, 1150235501]) )
+    prepfold_and_compare( // [label, pulsar, fits]
+                          Channel.of(["00:34:21.83_-05:34:36.72", "1150234552"],
+                                     ["00:34:08.87_-07:21:53.40", "1150234552"],
+                                     ["00:34:21.83_-05:34:36.72", "J0034-0534"],
+                                     ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
+                          make_beam.out.flatten().map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
+                          groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2]]})
     make_beam_ipfb( // obsid
                     Channel.from("1150234552"),
                     // calid
@@ -299,14 +434,22 @@ workflow tests_1150234552 {
                     // utc
                     Channel.from("2016-06-17T21:46:25"),
                     // pointings
-                    Channel.of(["00:34:21.83_-05:34:36.72", "00:34:08.87_-07:21:53.40"]),
+                    Channel.of(["00:34:21.83_-05:34:36.72", "00:34:08.87_-07:21:53.40"]).flatten(),
                     // begin, end
                     Channel.of([1150235202, 1150235501]) )
+    dspsr_and_compare( // [label, pulsar, fits]
+                       Channel.of(["00:34:21.83_-05:34:36.72", "1150234552"],
+                                  ["00:34:08.87_-07:21:53.40", "1150234552"],
+                                  ["00:34:21.83_-05:34:36.72", "J0034-0534"],
+                                  ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
+                       make_beam_ipfb.out[1].flatten().concat(make_beam_ipfb.out[2].flatten()).\
+                       map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
+                       groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2], it[1][3]]} )
 }
 
 workflow {
     // Test that multiple runs of the beamformer creates the same result
     repeatability_test()
-    // J0034-0721 and J0034-0721 tests
+    // J0034-0534 and J0034-0721 tests
     tests_1150234552()
 }
