@@ -191,7 +191,7 @@ process make_beam_ipfb {
 
 process compare_repeats {
     echo true
-    validExitStatus 0,2
+    errorStrategy { task.exitStatus=2 ? 'ignore' : 'terminate' }
 
     input:
     file fits_1
@@ -236,8 +236,6 @@ process prepfold_and_compare {
 
     label 'cpu'
     time "1h"
-    errorStrategy 'retry'
-    maxRetries 1
 
     input:
     tuple val(label), val(pulsar), file(fits)
@@ -417,6 +415,33 @@ process compare_ascii {
         """
 }
 
+process compare_fits {
+    echo true
+
+    input:
+    tuple val(label), val(pulsar), file(fits)
+
+    """
+    # Compare fits files binaries
+    tail -n +2 ${fits} > no_header.fits
+    tail -n +2 ${params.version_compare_dir}/${fits} > no_header_compare.fits
+    trap 'if [[ \$? == 2 ]]; then echo "WARN: ${label} ${pulsar} fits files differ!"; exit 0; else echo "PASS: ${label} ${pulsar} fits files do not differ"; fi' EXIT
+    diff no_header.fits no_header_compare.fits &> fits_diff.txt
+    """
+}
+
+process compare_vdif {
+    echo true
+
+    input:
+    tuple val(label), val(pulsar), file(vdif), file(hdr)
+
+    """
+    # Compare fits files binaries
+    trap 'if [[ \$? == 2 ]]; then echo "WARN: ${label} ${pulsar} vdif files differ!"; exit 0; else echo "PASS: ${label} ${pulsar} vdif files do not differ"; fi' EXIT
+    diff ${vdif} ${params.version_compare_dir}/${vdif} &> vdif_diff.txt
+    """
+}
 
 workflow repeat_1 {
     main:
@@ -489,6 +514,13 @@ workflow tests_1150234552 {
                                      ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
                           make_beam.out.flatten().map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
                           groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2]]})
+    compare_fits( // [label, pulsar, fits]
+                  Channel.of(["00:34:21.83_-05:34:36.72", "1150234552"],
+                             ["00:34:08.87_-07:21:53.40", "1150234552"],
+                             ["00:34:21.83_-05:34:36.72", "J0034-0534"],
+                             ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
+                  make_beam.out.flatten().map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
+                  groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2]]})
     // We don't test J0034-0534 because it's not bright enough to fit a good SN with dspsr
     make_beam_ipfb( // obsid
                     Channel.from("1150234552"),
@@ -504,13 +536,19 @@ workflow tests_1150234552 {
                     Channel.of(["00:34:08.87_-07:21:53.40"]).flatten(),
                     // begin, end
                     Channel.of([1150235202, 1150235501]) )
-    dspsr( // [label, pulsar, fits]
+    dspsr( // [label, pulsar, vdif, hdr]
            Channel.of(["00:34:08.87_-07:21:53.40", "1150234552"],
                       ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
            make_beam_ipfb.out[1].flatten().concat(make_beam_ipfb.out[2].flatten()).\
            map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
            groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2], it[1][3]]} )
     compare_ascii( dspsr.out.flatten() )
+    compare_vdif( // [label, pulsar, vdif, hdr]
+                  Channel.of(["00:34:08.87_-07:21:53.40", "1150234552"],
+                             ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
+                  make_beam_ipfb.out[1].flatten().concat(make_beam_ipfb.out[2].flatten()).\
+                  map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
+                  groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2], it[1][3]]} )
 }
 
 workflow tests_1260302416 {
