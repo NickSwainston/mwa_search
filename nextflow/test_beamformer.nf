@@ -113,7 +113,7 @@ process make_beam {
 -f ${channel_pair[0]} -J ${params.version_compare_base_dir}/${obsid}/cal/${calid}/rts/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.version_compare_base_dir}/${obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.version_compare_base_dir}/${obsid}/${obsid}_metafits_ppds.fits \
-${bf_out} -t 6000 -z $utc
+${bf_out} -t 6000 -F ${params.version_compare_base_dir}/${obsid}/cal/${calid}/rts/flagged_tiles.txt -z $utc
     
     # Label all outputs
     for i in \$(ls */*); do mv \${i} ${label}_\${i##*/}; done
@@ -178,7 +178,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.version_compare_base_dir}/${obsid}/cal/${calid}/rts/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.version_compare_base_dir}/${obsid}/combined -P ${point} \
 -r 10000 -m ${params.version_compare_base_dir}/${obsid}/${obsid}_metafits_ppds.fits \
--p -v -t 6000 -z $utc
+-p -v -t 6000 -F ${params.version_compare_base_dir}/${obsid}/cal/${calid}/rts/flagged_tiles.txt -z $utc
     # Label all outputs
     for i in \$(ls */*); do mv \${i} ${label}_\${i##*/}; done
     vdif_file=\$(ls *vdif)
@@ -254,9 +254,9 @@ process prepfold_and_compare {
     else {
         container = "nickswainston/presto:realfft_docker"
     }
-    
+
     script:
-    if ( params.publish_version ) 
+    if ( params.publish_version )
         """
         psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
         prepfold -n 100 -noxwin -noclip -o ${label}_${pulsar} -nsub 8 -timing ${pulsar}.eph \
@@ -289,7 +289,7 @@ process prepfold_and_compare {
         """
 }
 
-process dspsr_and_compare {
+process pdmp_and_compare {
     echo true
     publishDir "${params.version_compare_dir}", mode: 'copy', enabled: params.publish_version
 
@@ -315,14 +315,14 @@ process dspsr_and_compare {
     else {
         container = "nickswainston/dspsr_docker"
     }
-    
+
     script:
-    if ( params.publish_version ) 
+    if ( params.publish_version )
         """
         psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
         dspsr -t ${task.cpus} -b 100 -E ${pulsar}.eph -L 30 -e subint -cont -U 4000 *.hdr &> dspsr.out
         psradd *.subint -o ${label}_${pulsar}.ar &> prsadd.out
-        pam --setnchn 8 -m ${label}_${pulsar}.ar &> pam.out
+        pam --setnchn 32 -m ${label}_${pulsar}.ar &> pam.out
         pdmp -g ${label}_${pulsar}_pdmp.ps/cps ${label}_${pulsar}.ar &> pdmp.out
         mv pdmp.posn ${label}_${pulsar}_pdmp.posn
         """
@@ -331,7 +331,7 @@ process dspsr_and_compare {
         psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
         dspsr -t ${task.cpus} -b 100 -E ${pulsar}.eph -L 30 -e subint -cont -U 4000 *.hdr &> dspsr.out
         psradd *.subint -o ${label}_${pulsar}.ar &> prsadd.out
-        pam --setnchn 8 -m ${label}_${pulsar}.ar &> pam.out
+        pam --setnchn 32 -m ${label}_${pulsar}.ar &> pam.out
         pdmp -g ${label}_${pulsar}_pdmp.ps/cps ${label}_${pulsar}.ar &> pdmp.out
         mv pdmp.posn ${label}_${pulsar}_pdmp.posn
 
@@ -343,14 +343,80 @@ process dspsr_and_compare {
 
         # Compare the signal to noise ratios
         if [ \$current_sn == \$compare_sn ]; then
-            echo "PASS: ${label} dsprs detections of ${pulsar} have the same SN"
+            echo "PASS: ${label} pdmp detections of ${pulsar} have the same SN"
         else
-            echo "WARN: ${label} dsps detections of ${pulsar} have different SN!"
+            echo "WARN: ${label} pdmp detections of ${pulsar} have different SN!"
             echo "      Current SN: \$current_sn"
             echo "      ${params.version_compare} SN: \$compare_sn"
         fi
         """
 }
+
+process dspsr {
+    publishDir "${params.version_compare_dir}", mode: 'copy', enabled: params.publish_version
+
+    label 'cpu'
+    time "1h"
+    errorStrategy 'retry'
+    maxRetries 1
+
+    input:
+    tuple val(label), val(pulsar), file(vdif), file(hdr)
+
+    output:
+    file "*ascii"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
+    else {
+        container = "nickswainston/dspsr_docker"
+    }
+
+    """
+    psrcat -e ${pulsar} | grep -v TCB > ${pulsar}.eph
+    dspsr -O ${label}_${pulsar} -t ${task.cpus} -b 100 -E ${pulsar}.eph -cont -U 4000 *.hdr
+    pdv -tK ${label}_${pulsar}.ar > ${label}_${pulsar}.ascii
+    """
+}
+
+
+process compare_ascii {
+    echo true
+
+    when:
+    params.publish_version == false
+
+    input:
+    file ascii
+
+    """
+    ascii_file=${ascii}
+    label_pulsar=\${ascii_file%*.ascii}
+    period=\$(psrcat -e2 \${label_pulsar#*_} | grep P0 | cut -d ' ' -f15)
+
+    # Get sigma from current detection
+    prof_utils.py --ascii ${ascii} --auto --period \$period &> prof_utils.out
+    current_sn=\$(grep estimate prof_utils.out | cut -d ':' -f 6 | cut -d '+' -f 1 | xargs)
+
+    # Get sigma from comparison detection
+    prof_utils.py --ascii ${params.version_compare_dir}/${ascii} --auto --period \$period &> prof_utils.out
+    compare_sn=\$(grep estimate prof_utils.out | cut -d ':' -f 6 | cut -d '+' -f 1 | xargs)
+
+    # Compare the signal to noise ratios
+    if [ \$current_sn == \$compare_sn ]; then
+        echo "PASS: \${label_pulsar%_*} dspsr detections of \${label_pulsar#*_} have the same SN"
+    else
+        echo "WARN: \${label_pulsar%_*} dspsr detections of \${label_pulsar#*_} have different SN!"
+        echo "      Current SN: \$current_sn"
+        echo "      ${params.version_compare} SN: \$compare_sn"
+    fi
+        """
+}
+
 
 workflow repeat_1 {
     main:
@@ -423,6 +489,7 @@ workflow tests_1150234552 {
                                      ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
                           make_beam.out.flatten().map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
                           groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2]]})
+    // We don't test J0034-0534 because it's not bright enough to fit a good SN with dspsr
     make_beam_ipfb( // obsid
                     Channel.from("1150234552"),
                     // calid
@@ -434,17 +501,59 @@ workflow tests_1150234552 {
                     // utc
                     Channel.from("2016-06-17T21:46:25"),
                     // pointings
-                    Channel.of(["00:34:21.83_-05:34:36.72", "00:34:08.87_-07:21:53.40"]).flatten(),
+                    Channel.of(["00:34:08.87_-07:21:53.40"]).flatten(),
                     // begin, end
                     Channel.of([1150235202, 1150235501]) )
-    dspsr_and_compare( // [label, pulsar, fits]
-                       Channel.of(["00:34:21.83_-05:34:36.72", "1150234552"],
-                                  ["00:34:08.87_-07:21:53.40", "1150234552"],
-                                  ["00:34:21.83_-05:34:36.72", "J0034-0534"],
-                                  ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
-                       make_beam_ipfb.out[1].flatten().concat(make_beam_ipfb.out[2].flatten()).\
-                       map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
-                       groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2], it[1][3]]} )
+    dspsr( // [label, pulsar, fits]
+           Channel.of(["00:34:08.87_-07:21:53.40", "1150234552"],
+                      ["00:34:08.87_-07:21:53.40", "J0034-0721"]).concat(\
+           make_beam_ipfb.out[1].flatten().concat(make_beam_ipfb.out[2].flatten()).\
+           map { it -> [it.baseName.split("_ch")[0].split("1150234552_")[-1], it ] }).\
+           groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2], it[1][3]]} )
+    compare_ascii( dspsr.out.flatten() )
+}
+
+workflow tests_1260302416 {
+    make_beam( // obsid
+               Channel.from("1260302416"),
+               // calid
+               Channel.from("1260305032"),
+               // label
+               Channel.from("tests_1260302416"),
+               // coarse channels id and number
+               Channel.of(["119", "011"]),
+               // utc
+               Channel.from("2019-12-13T20:06:22"),
+               // pointings
+               Channel.of(["09:53:09.31_+07:55:35.75"]),
+               // begin, end
+               Channel.of([1260302800, 1260302899]) )
+    prepfold_and_compare( // [label, pulsar, fits]
+                          Channel.of(["09:53:09.31_+07:55:35.75", "1260302416"],
+                                     ["09:53:09.31_+07:55:35.75", "J0953+0755"],).concat(\
+                          make_beam.out.flatten().map { it -> [it.baseName.split("_ch")[0].split("1260302416_")[-1], it ] }).\
+                          groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2]]})
+    make_beam_ipfb( // obsid
+                    Channel.from("1260302416"),
+                    // calid
+                    Channel.from("1260305032"),
+                    // label
+                    Channel.from("tests_1260302416_vdif"),
+                    // coarse channels id and number
+                    Channel.of(["119", "011"]),
+                    // utc
+                    Channel.from("2019-12-13T20:06:22"),
+                    // pointings
+                    Channel.of(["09:53:09.31_+07:55:35.75"]).flatten(),
+                    // begin, end
+                    Channel.of([1260302800, 1260302899]) )
+    dspsr( // [label, pulsar, fits]
+           Channel.of(["09:53:09.31_+07:55:35.75", "1260302416"],
+                       ["09:53:09.31_+07:55:35.75", "J0953+0755"]).concat(\
+           make_beam_ipfb.out[1].flatten().concat(make_beam_ipfb.out[2].flatten()).\
+           map { it -> [it.baseName.split("_ch")[0].split("1260302416_")[-1], it ] }).\
+           groupTuple().map{ it -> [it[1][0], it[1][1], it[1][2], it[1][3]]} )
+    compare_ascii( dspsr.out.flatten() )
 }
 
 workflow {
@@ -452,4 +561,6 @@ workflow {
     repeatability_test()
     // J0034-0534 and J0034-0721 tests
     tests_1150234552()
+    // J0953+0755 test
+    tests_1260302416()
 }
