@@ -212,8 +212,8 @@ process polarimetry_call { //calls polarimetry which returns the apporpriate cmd
     val label
 
     output:
-    tuple "*cmds.txt"
-    tuple "*${label}.yaml", "*fits" includeInputs true
+    file "*cmds.txt"
+    tuple file("*${label}.yaml"), file("*fits")// includeInputs true
 
     """
     pulsar_polarimetry.py --yaml $yaml --fits $fits --label $label
@@ -399,9 +399,9 @@ workflow polarimetry_one{
         yaml_fits_tuple
     main:
         polarimetry_call(yaml_fits_tuple, Channel.from("polarimetry_one"))
-        fits_to_ar_and_back(polarimetry_call.out[1][1],  polarimetry_call.out[0].filter(~/$"dspsr_fold_cmds.sh"/), polarimetry_call.out[0].filter( ~/$"to_fits_cmds.sh"/))
+        fits_to_ar_and_back(polarimetry_call.out[1],  polarimetry_call.out[0].filter(~/$"dspsr_fold_cmds.sh"/), polarimetry_call.out[0].filter( ~/$"to_fits_cmds.sh"/))
         baseline_removal(fits_to_ar_and_back.out[0], polarimetry_call.out[0].filter(~/$"debase_cmds.sh"/))
-        rm_synthesis(baseline_removal.out[0], polarimetry_call.out.filter[0].filter(~/$"initial_rm_synthesis_cmds.sh"/))
+        rm_synthesis(baseline_removal.out[0], polarimetry_call.out[0].filter(~/$"initial_rm_synthesis_cmds.sh"/))
     emit:
         polarimetry_call.out[0]     // cmd files
         polarimetry_call.out[1]     // yaml_fits tuple
@@ -418,7 +418,7 @@ workflow polarimetry_two{
         baseline_removed_fits
     main:
         polarimetry_call(yaml_fits_tuple, Channel.from("polarimetry_two"))
-        rm_synthesis(baseline_removed_fits, polarimetry_call.out.filter[0].filter(~/$"final_rm_synthesis_cmds.sh"/))
+        rm_synthesis(baseline_removed_fits, polarimetry_call.out[0].filter(~/$"final_rm_synthesis_cmds.sh"/))
     emit:
         polarimetry_call.out[0]     // cmd files
         polarimetry_call.out[1]     // yaml_fits tuple
@@ -516,8 +516,8 @@ workflow polarimetry{
         polarimetry_three.out[2]        // paswing file
         polarimetry_five.out[1]         // Chi grid
         polarimetry_five.out[2]         // Fit information
-
 }
+
 workflow {
     pre_beamform()
     fwhm_calc( pre_beamform.out[1] )
@@ -560,7 +560,6 @@ workflow {
                 post_fold.out[1].map{ it -> [it.flatten().findAll{ it != null }[-1].split("_J").split("post_fold_filter_${params.obsid}_")[1], it]}.groupTuple().\
                                 concat( beamform.out[3].concat(beamform_ipfb.out[3]) ).groupTuple( size: 2, remainder: false ).\
                                 map{ it -> it[1][0] * it[1][1] }.flatMap().map{ it -> [it.init(), it.last()]} )
-
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
