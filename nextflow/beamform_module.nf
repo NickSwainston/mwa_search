@@ -201,13 +201,12 @@ process make_beam {
     file "*fits"
 
 
-    //TODO add other beamform options and flags -F
     """
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -t 6000 -z $utc
+${bf_out} -t 6000 -F ${params.didir}/flagged_tiles.txt  -z $utc
     mv */*fits .
     """
 }
@@ -265,10 +264,7 @@ process make_beam_ipfb {
 
     output:
     file "*fits"
-    //file "*hdr"
-    //file "*vdif"
 
-    //TODO add other beamform options and flags -F
     """
     if $params.publish_fits; then
         mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
@@ -281,7 +277,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -t 6000 -z $utc
+-p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z $utc
     ls *
     mv */*fits .
     """
