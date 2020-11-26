@@ -16,6 +16,8 @@ from mwa_pb.mwa_tile import h2e
 # vcstools imports
 import mwa_metadb_utils as meta
 import find_pulsar_in_obs as fpio
+from find_pulsar_in_obs import get_psrcat_ra_dec
+from vcstools.pointing_utils import sex2deg, format_ra_dec
 
 # mwa_search imports
 from mwa_search.obs_tools import getTargetAZZA
@@ -105,7 +107,7 @@ if __name__ == "__main__":
         dec = np.radians(dec)
     elif args.pulsar:
         temp = fpio.get_psrcat_ra_dec(pulsar_list=args.pulsar)
-        _, raj, decj = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)[0]
+        _, raj, decj = format_ra_dec(temp, ra_col = 1, dec_col = 2)[0]
         coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
         ra = coord.ra.radian #in radians
         dec = coord.dec.radian
@@ -181,7 +183,7 @@ if __name__ == "__main__":
         rag = rags_uf[i]
         decg = decgs_uf[i]
 
-        temp = fpio.format_ra_dec([[rag,decg]])
+        temp = format_ra_dec([[rag,decg]])
         rag = temp[0][0]
         decg = temp[0][1]
 
@@ -271,8 +273,6 @@ if __name__ == "__main__":
             #                     color='r', lw=0.1,fill=False)
     plt.scatter(rads,decds,s=0.1,c='black')
 
-    #add pulsars
-    from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
     #add some pulsars
     if args.pulsar:
         ra_PCAT = []

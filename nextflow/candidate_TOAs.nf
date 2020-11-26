@@ -29,28 +29,31 @@ params.subint = ""
 params.eph = ""
 
 params.no_beamform = false
+params.J0036_fits = false
 params.no_combined_check = false
 
-std_profile = Channel.fromPath("/group/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
+std_profile = Channel.fromPath("/astro/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
 
-if ( params.pointing_file ) {
-    pointings = Channel
-        .fromPath(params.pointing_file)
-        .splitCsv()
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else if ( params.pointings ) {
-    pointings = Channel
-        .from(params.pointings.split(","))
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else {
-    println "No pointings given. Either use --pointing_file or --pointings. Exiting"
-    exit(1)
+if ( params.no_beamform == false ) {
+    if ( params.pointing_file ) {
+        pointings = Channel
+            .fromPath(params.pointing_file)
+            .splitCsv()
+            .collect()
+            .flatten()
+            .collate( params.max_pointings )
+    }
+    else if ( params.pointings ) {
+        pointings = Channel
+            .from(params.pointings.split(","))
+            .collect()
+            .flatten()
+            .collate( params.max_pointings )
+    }
+    else {
+        println "No pointings given. Either use --pointing_file or --pointings. Exiting"
+        exit(1)
+    }
 }
 
 if ( ! ( params.chan_split || params.time_split) ) {
@@ -164,8 +167,8 @@ process prepfold_time {
 
 
 process dspsr_time {
-    cpus = 5
-    label 'cpu'
+    label 'cpu_any'
+    cpus = 10
     time '6h'
 
     input:
@@ -179,12 +182,8 @@ process dspsr_time {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
     }
     else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
-        container = "file:///${params.containerDir}/presto/presto.sif"
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
     }
-    else {
-        container = "nickswainston/presto:realfft_docker"
-    }
-
     //may need to add some channel names
     """
     sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
@@ -209,7 +208,12 @@ process get_toas {
     file "*tim"
     file "*ps"
 
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
 
     """
     archive_name=${archive}
@@ -237,7 +241,12 @@ process combine_toas {
 workflow {
     pre_beamform()
     if ( params.no_beamform ) {
-        fits_files = Channel.fromPath("${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}*fits").collect()
+        if ( params.J0036_fits ) {
+            fits_files = Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/${params.obsid}/*fits").collect()
+        }
+        else {
+            fits_files = Channel.fromPath("${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}*fits").collect()
+        }
     }
     else {
         beamform( pre_beamform.out[0],\
@@ -255,10 +264,17 @@ workflow {
                   std_profile )
     }
     else if ( params.time_split ) {
-        prepfold_time( fits_files )
-        dspsr_time( prepfold_time.out[0],\
-                    fits_files.collect() )
-        get_toas( dspsr_time.out,\
+        if ( params.eph == "" ) {
+            prepfold_time( fits_files )
+            dspsr_time( prepfold_time.out[0],\
+                        fits_files.collect() )
+        }
+        else {
+            dspsr_time( // dummy bestprof
+                        Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/1275085816_00:36:11.58_-10:33:56.44_900.04ms_Cand.pfd.bestprof"),\
+                        fits_files.collect() )
+        }
+        get_toas( dspsr_time.out.flatten(),\
                     std_profile )
     }
     combine_toas( get_toas.out[0].collect() )

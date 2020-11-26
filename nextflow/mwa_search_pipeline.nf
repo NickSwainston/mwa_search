@@ -23,17 +23,23 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
+params.max_dms_per_job = 5000
 params.zmax = 0
 
 params.no_combined_check = false
 
 
+if ( params.max_dms_per_job != 5000 ) {
+    // If using non default max_dms_per_job then use a make the groupTuple size sudo infinite
+    total_dm_jobs = 10000
+}
 // If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
-if ( params.zmax == 0 ) {
+else if ( params.zmax == 0 ) {
+    // Periodic search defaults
     total_dm_jobs = 6
-    params.max_dms_per_job = 5000
 }
 else {
+    // Accel search defaults
     total_dm_jobs = 24
     params.max_dms_per_job = 128
 }
@@ -210,10 +216,10 @@ workflow {
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
-              bestprof_pointings.out.splitCsv().map{ it -> it[0] }.flatten().collate( params.max_pointings ) )
-    follow_up_fold( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
+              bestprof_pointings.out.splitCsv().map{ it -> it[0] }.flatten().unique().collate( params.max_pointings ) )
+    follow_up_fold( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.cross(
                     bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1], it[2]]}.map{ it -> [it[0].toString(), [it[1], it[2]]] }).\
-                    groupTuple( size: 2 ).map{ it -> [it[1][0], it[1][1][0].split("_")[-1], it[1][1][1]] } )
+                    map{ it -> [it[0][1], it[1][1][0].split("_")[-1], it[1][1][1]] } )
     pulsar_search( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
                    bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1]]}).map{ it -> [it[0].toString(), it[1]] }.\
                    groupTuple( size: 2 ).map{ it -> [it[1][1]+"_"+it[0], it[1][0]] } )

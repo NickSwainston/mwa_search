@@ -37,7 +37,7 @@ else {
 //Work out total obs time
 if ( params.all ) {
     // an estimation since there's no easy way to make this work
-    obs_length = 4805
+    obs_length = 5400
 }
 else {
     obs_length = params.end - params.begin + 1
@@ -181,7 +181,8 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -200,13 +201,12 @@ process make_beam {
     file "*fits"
 
 
-    //TODO add other beamform options and flags -F
     """
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -t 6000 -z $utc
+${bf_out} -t 6000 -F ${params.didir}/flagged_tiles.txt  -z $utc
     mv */*fits .
     """
 }
@@ -243,7 +243,8 @@ process make_beam_ipfb {
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -263,10 +264,7 @@ process make_beam_ipfb {
 
     output:
     file "*fits"
-    //file "*hdr"
-    //file "*vdif"
 
-    //TODO add other beamform options and flags -F
     """
     if $params.publish_fits; then
         mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
@@ -279,7 +277,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -t 6000 -z $utc
+-p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z $utc
     ls *
     mv */*fits .
     """
@@ -309,7 +307,8 @@ process splice {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"

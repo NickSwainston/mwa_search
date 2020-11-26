@@ -7,10 +7,11 @@ import numpy as np
 import csv
 from scipy.interpolate import UnivariateSpline
 
-#vcstools/mwapy
+#vcstools
 import find_pulsar_in_obs as fpio
+from find_pulsar_in_obs import get_psrcat_ra_dec
 import mwa_metadb_utils as meta
-from find_pulsar_in_obs import get_psrcat_ra_dec, sex2deg
+from vcstools.pointing_utils import sex2deg, deg2sex
 
 #matplotlib
 import matplotlib.pyplot as plt
@@ -86,7 +87,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
     pointing_count = 0
     for i in range(len(dec_range)):
         #calculating the FWHM at this dec
-        ra_sex, deg_sex = fpio.deg2sex(start_ra, dec_range[i])
+        ra_sex, deg_sex = deg2sex(start_ra, dec_range[i])
         cord = [start_obsid, str(ra_sex), str(deg_sex), 1, delays_range[i],centrefreq, channels]
         #powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
         names_ra_dec = np.column_stack((['source']*len(RA_FWHM_calc), RA_FWHM_calc, Dec_FWHM_calc))

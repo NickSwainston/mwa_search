@@ -9,8 +9,7 @@ import sys
 
 from mwa_search.obs_tools import calc_ta_fwhm
 from mwa_metadb_utils import get_common_obs_metadata, get_obs_array_phase
-from submit_to_database import sex2deg
-from find_pulsar_in_obs import deg2sex, format_ra_dec
+from vcstools.pointing_utils import sex2deg, deg2sex, format_ra_dec
 
 import matplotlib.pyplot as plt
 from matplotlib import patches

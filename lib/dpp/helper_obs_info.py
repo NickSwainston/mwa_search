@@ -17,6 +17,7 @@ from mwa_metadb_utils import get_common_obs_metadata
 from mwa_metadb_utils import obs_max_min, get_obs_array_phase
 import checks
 from vcstools import data_load
+from vcstools.pointing_utils import format_ra_dec
 
 # mwa_search imports
 from mwa_search.grid_tools import get_grid
@@ -232,7 +233,7 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
     temp = []
     for raj, decj in zip(rajs, decjs):
         temp.append([raj, decj])
-    pointing_list_list = fpio.format_ra_dec(temp, ra_col = 0, dec_col = 1)
+    pointing_list_list = format_ra_dec(temp, ra_col = 0, dec_col = 1)
     return pointing_list_list
 
 
@@ -368,7 +369,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
                 temp = [line]
 
         #temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
-        temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
+        temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
         period = period_query[period_query['PSRJ'] == PSRJ].reset_index()["P0"][0]
