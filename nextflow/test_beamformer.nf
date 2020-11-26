@@ -56,6 +56,12 @@ if ( folder.exists() && params.publish_version ) {
     exit(0)
 }
 
+process print_version {
+    echo true
+    """
+    echo "Comparing the beamformer in branch ${params.vcstools_version} with the previous run labeled ${params.version_compare}."
+    """
+}
 
 process make_beam {
     publishDir "${params.version_compare_dir}", mode: 'copy', enabled: params.publish_version
@@ -215,7 +221,7 @@ process compare_repeats {
     if [ \$? != 0 ]; then fits_diff_success=False; fi
     diff no_header_1.fits no_header_3.fits
     if [ \$? != 0 ]; then fits_diff_success=False; fi
-    if [ \$fits_diff_success == True ]; then echo "PASS: fits files are repeatable"; fi
+    if [ \$fits_diff_success == True ]; then echo "PASS: fits files are repeatable 3 times"; fi
   
     # vdif check
     vdif_diff_success=True
@@ -225,7 +231,7 @@ process compare_repeats {
     if [ \$? != 0 ]; then vdif_diff_success=False; fi
     diff ${vdif_1} ${vdif_3}
     if [ \$? != 0 ]; then vdif_diff_success=False; fi
-    if [ \$vdif_diff_success == True ]; then echo "PASS: vdif files are repeatable"; fi
+    if [ \$vdif_diff_success == True ]; then echo "PASS: vdif files are repeatable 3 times"; fi
     """
 
 }
@@ -595,6 +601,7 @@ workflow tests_1260302416 {
 }
 
 workflow {
+    print_version()
     // Test that multiple runs of the beamformer creates the same result
     repeatability_test()
     // J0034-0534 and J0034-0721 tests
