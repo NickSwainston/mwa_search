@@ -130,9 +130,9 @@ def _eval_post_folds(master):
         except NoUsableFolds as e:
             logger.warn(f"""Exception encountered: {e.message}
                         Will use initial fold for this pointing""")
-            best = [int(i) for i in master[p]["pipe"]["folds"]["init"].keys()]
+            best = [int(i) for i in master[p]["pipe"]["folds"]["post"].keys()]
             best = max(best)
-        master[p]["pipe"]["folds"]["best"]["bestprof"] = master[p]["pipe"]["folds"][str(best)]
+        master[p]["pipe"]["folds"]["best"]["bestprof"] = master[p]["pipe"]["folds"]["post"][str(best)]
 
 
 def best_post_fold(pipe):

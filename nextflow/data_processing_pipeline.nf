@@ -502,7 +502,7 @@ workflow polarimetry{
             polarimetry_four.out[2])                    // RVM fit information
         // polarimetry 6 - Reading the final RVM fit
         polarimetry_six(
-            yaml_fits_tuple,
+            polarimetry_five.out[1],
             polarimetry_five.out[2])                    // RVM fit information
 
     emit:
@@ -557,7 +557,7 @@ workflow {
 
     // Polarimetry
     polarimetry(//yaml + fits file tuple
-                post_fold.out[1].map{ it -> [it.flatten().findAll{ it != null }[-1].split("_J").split("post_fold_filter_${params.obsid}_")[1], it]}.groupTuple().\
+                post_fold.out[1].map{ it -> [it.flatten().findAll{ it != null }[-1].baseName.split("_J")[0].split("${params.obsid}_")[1], it]}.groupTuple().\
                                 concat( beamform.out[3].concat(beamform_ipfb.out[3]) ).groupTuple( size: 2, remainder: false ).\
                                 map{ it -> it[1][0] * it[1][1] }.flatMap().map{ it -> [it.init(), it.last()]} )
 

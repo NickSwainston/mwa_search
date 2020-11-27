@@ -88,10 +88,10 @@ def tofile_fold_fits_w_dspsr(pipe, fits):
     cmd += f" -S {pipe['source']['seek']}" # Where to begin fold
     cmd += f" -T {pipe['source']['total']}" # Total fold time
     cmd += f" -L {pipe['source']['total']}" # Single sub integration
-    cmd += f" -b {pipe['folds']['best']['nbins']}" # Number of bins
-    cmd += f" -c {pipe['folds']['best']['period'] * 1000}" # DSPSR needs period in seconds
-    cmd += f" -D {pipe['folds']['best']['dm']}" #dm
-    cmd += f" -O {pipe['run_ops']['file_percursor']}.ar" #output archive name
+    cmd += f" -b {pipe['folds']['best']['bestprof']['nbins']}" # Number of bins
+    cmd += f" -c {pipe['folds']['best']['bestprof']['period'] * 1000}" # DSPSR needs period in seconds
+    cmd += f" -D {pipe['folds']['best']['bestprof']['dm']}" #dm
+    cmd += f" -O {pipe['run_ops']['file_precursor']}.ar" #output archive name
     cmd += f" {fits}"
     with open(myfile, "w+") as f:
         f.write(cmd)
@@ -101,8 +101,8 @@ def tofile_archive_to_fits(pipe):
     """Creates a file containing a command to revert an archive back to a fits file using pam"""
     myfile = f"{pipe['run_ops']['file_precursor']}_{archive_to_fits_label}_cmds.sh"
     cmd = "pam -a PSRFITS -T -e newfits"
-    cmd += f" {pipe['run_ops']['file_percursor']}.ar"
-    move_cmd = f"mv *.newfits {pipe['run_ops']['file_percursor']}.newfits"
+    cmd += f" {pipe['run_ops']['file_precursor']}.ar"
+    move_cmd = f"mv *.newfits {pipe['run_ops']['file_precursor']}.newfits"
     with open(myfile, "w+") as f:
         f.write(f"{cmd}\n\n")
         f.write(move_cmd)
@@ -111,7 +111,8 @@ def tofile_archive_to_fits(pipe):
 def tofile_remove_baseline(pipe):
     """Removes baseline RFI from a fits file"""
     myfile = f"{pipe['run_ops']['file_precursor']}_{remove_baseline_label}_cmds.sh"
-    on_pulse = pipe["folds"]["best"]["gfit"]["comp_idx"]["0"]
+    print(pipe["folds"]["best"]["gfit"]["comp_idx"], pipe["folds"]["best"]["gfit"]["comp_idx"].keys())
+    on_pulse = pipe["folds"]["best"]["gfit"]["comp_idx"]['component_1']
     cmd = "pmod -debase"
     cmd += f" -onpulsef '{min(on_pulse)} {max(on_pulse)}'"
     cmd += f" -device {pipe['run_ops']['file_precursor']}_debase.ps/cps" # is a useless line plot but needs to be here
@@ -200,10 +201,10 @@ def tofile_rvm(pipe):
         f.write(cmd)
 
 
-def pulsar_polarimetry_one(pipe):
+def pulsar_polarimetry_one(pipe, kwargs):
     """Creates files containing files needed to do an initial RM synthesis run"""
     pipe["folds"]["best"]["gfit"] = auto_gfit(pipe["folds"]["best"]["bestprof"]["profile"]) #gaussian fit the best fold
-    tofile_fold_fits_w_dspsr(pipe, kwargs["fits"], f) # Fold using dspsr
+    tofile_fold_fits_w_dspsr(pipe, kwargs["fits"]) # Fold using dspsr
     tofile_archive_to_fits(pipe) # Convert from archive to fits file (this needs to be done to get header information)
     tofile_remove_baseline(pipe) # Remove baseline RFI/noise
     tofile_rmsynthesis(pipe) # Run RM synthesis for the first time
@@ -251,9 +252,9 @@ def pulsar_polarimetry_six(pipe):
 
 
 def pulsar_polarimetry_main(kwargs):
-    pipe = from_yaml(kwags["yaml"])
+    pipe = from_yaml(kwargs["yaml"])
     if not pipe["completed"]["polarimetry_1"]: #A bunch of stuff + initial RM synthesis
-        pulsar_polarimetry_one(pipe)
+        pulsar_polarimetry_one(pipe, kwargs)
         pipe["completed"]["polarimetry_1"] = True
     elif not pipe["completed"]["polarimetry_2"]: # Final RM synthesis
         pulsar_polarimetry_two(pipe)
