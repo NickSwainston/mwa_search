@@ -88,9 +88,8 @@ process beamform_setup {
     #!/usr/bin/env python
     import csv
 
-    from mwa_metadb_utils import obs_max_min, get_channels
-    from process_vcs import ensure_metafits, gps_to_utc, create_link
-    from mdir import mdir
+    from vcstools.metadb_utils import obs_max_min, get_channels, ensure_metafits
+    from vcstools.general_utils import mdir, gps_to_utc
     import csv
 
     # Work out begin and end time of obs
@@ -104,7 +103,7 @@ process beamform_setup {
         spamwriter.writerow([beg, end])
 
     # Find the channels 
-    if "$params.channels" is "null":
+    if "$params.channels" == "null":
         channels = get_channels($params.obsid)
     else:
         channels = [$params.channels]
@@ -245,6 +244,7 @@ process make_beam_ipfb {
         scratch '/nvmetmp'
         //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+        afterScript "lfs setstripe -S ${temp_mem_single}GB -c 1 ${pwd}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"

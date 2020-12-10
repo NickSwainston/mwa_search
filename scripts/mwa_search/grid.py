@@ -14,10 +14,10 @@ from matplotlib import patches
 from mwa_pb.mwa_tile import h2e
 
 # vcstools imports
-import mwa_metadb_utils as meta
-import find_pulsar_in_obs as fpio
-from find_pulsar_in_obs import get_psrcat_ra_dec
+import vcstools.metadb_utils as meta
+from vcstools.catalogue_utils import get_psrcat_ra_dec
 from vcstools.pointing_utils import sex2deg, format_ra_dec
+from vcstools.beam_calc import get_beam_power_over_time
 
 # mwa_search imports
 from mwa_search.obs_tools import getTargetAZZA
@@ -106,7 +106,7 @@ if __name__ == "__main__":
             ra = np.radians(ra)
         dec = np.radians(dec)
     elif args.pulsar:
-        temp = fpio.get_psrcat_ra_dec(pulsar_list=args.pulsar)
+        temp = get_psrcat_ra_dec(pulsar_list=args.pulsar)
         _, raj, decj = format_ra_dec(temp, ra_col = 1, dec_col = 2)[0]
         coord = SkyCoord(raj, decj, unit=(u.hourangle,u.deg))
         ra = coord.ra.radian #in radians
@@ -154,8 +154,8 @@ if __name__ == "__main__":
                 continue
             names_ra_dec.append(["name", rads[ni], decds[ni]])
         names_ra_dec = np.array(names_ra_dec)
-        power = fpio.get_beam_power_over_time(obs_metadata,
-                                              names_ra_dec, degrees=True)
+        power = get_beam_power_over_time(obs_metadata,
+                                         names_ra_dec, degrees=True)
 
         #check each pointing is within the tile beam
         radls = []

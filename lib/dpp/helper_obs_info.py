@@ -9,15 +9,15 @@ import psrqpy
 import sys
 
 # vcstools imports
-import find_pulsar_in_obs as fpio
-import sn_flux_est as snfe
-from config_vcs import load_config_file
-comp_config = load_config_file()
-from mwa_metadb_utils import get_common_obs_metadata
-from mwa_metadb_utils import obs_max_min, get_obs_array_phase
-import checks
+import vcstools.sn_flux_est as snfe
+from vcstools.metadb_utils import get_common_obs_metadata
+from vcstools.metadb_utils import obs_max_min, get_obs_array_phase
 from vcstools import data_load
 from vcstools.pointing_utils import format_ra_dec
+from vcstools.catalogue_utils import grab_source_alog
+from vcstools.beam_calc import find_sources_in_obs
+from vcstools.config import load_config_file
+comp_config = load_config_file()
 
 # mwa_search imports
 from mwa_search.grid_tools import get_grid
@@ -92,7 +92,7 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=No
     """
     pulsar, obsid, beg, end, min_z_power = _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power)
     min_z_power = sorted(min_z_power, reverse=True)
-    names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
+    names_ra_dec = grab_source_alog(pulsar_list=[pulsar])
     pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power,
                                      names_ra_dec=names_ra_dec, metadata_list=[[metadata, full_meta]])
     for power in pow_dict.keys():
@@ -122,7 +122,7 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
     powers: list/tuple
         OPTIONAL - A list of minimum beam powers to evaluate the pulsar coverage at. If none, will use [0.3, 0.1]. Default: None
     names_ra_dec: list
-        OPTIONAL - A list of puslars and their RA and Dec values to evaluate (generated from fpio.get_source_alog).
+        OPTIONAL - A list of puslars and their RA and Dec values to evaluate (generated from get_source_alog).
                    If none, will look for all pulsars. Default: None
     metadata: list
         A list of the output of get_common_obs_metadata for the input obsid
@@ -144,11 +144,11 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
         powers = list(powers)
 
     if names_ra_dec is None:
-        names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
+        names_ra_dec = np.array(grab_source_alog(max_dm=250))
 
     pulsar_power_dict = {}
     for pwr in powers:
-        obs_data, meta_data = fpio.find_sources_in_obs(
+        obs_data, meta_data = find_sources_in_obs(
             [obsid], names_ra_dec,
             dt_input=100, min_power=pwr, metadata_list=metadata_list)
         pulsar_power_dict[pwr] = obs_data
@@ -246,7 +246,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     obsid: str
         observation ID to search in
     source_type: str
-        the source type input to fpio.grab_source_alog
+        the source type input to grab_source_alog
     fwhm: float
         FWHM of the tied-array beam in degrees.
         Can be calculated in the calc_ta_fwhm function
@@ -259,8 +259,8 @@ def get_sources_in_fov(obsid, source_type, fwhm):
         pointing_list: list
             A list of pointings corresponding to the pulsars in name_list
     """
-    names_ra_dec = fpio.grab_source_alog(source_type=source_type)
-    obs_data, meta_data = fpio.find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    names_ra_dec = grab_source_alog(source_type=source_type)
+    obs_data, meta_data = find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     name_list = []
     pointing_list = []
     for pulsar_line in obs_data[obsid]:
@@ -309,7 +309,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
     """
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
-    names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
+    names_ra_dec = np.array(grab_source_alog(max_dm=250))
     pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
     channels = meta_data[-1][-1]
     obs_psrs = pow_dict[0.3][obsid]
@@ -368,7 +368,6 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
             if PSRJ == line[0]:
                 temp = [line]
 
-        #temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
         temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
