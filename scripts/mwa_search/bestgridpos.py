@@ -8,7 +8,7 @@ import glob
 import sys
 
 from mwa_search.obs_tools import calc_ta_fwhm
-from mwa_metadb_utils import get_common_obs_metadata, get_obs_array_phase
+from vcstools.metadb_utils import get_common_obs_metadata, get_obs_array_phase
 from vcstools.pointing_utils import sex2deg, deg2sex, format_ra_dec
 
 import matplotlib.pyplot as plt

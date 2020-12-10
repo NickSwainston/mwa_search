@@ -6,7 +6,7 @@ import subprocess
 
 from dpp.helper_source_info import bin_sampling_limit, is_binary, required_bin_folds
 from dpp.helper_obs_info import find_fold_times
-from mwa_metadb_utils import get_common_obs_metadata
+from vcstools.metadb_utils import get_common_obs_metadata
 from vcstools import data_load
 
 logger = logging.getLogger(__name__)

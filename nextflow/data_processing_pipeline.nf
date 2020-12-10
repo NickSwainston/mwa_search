@@ -92,7 +92,7 @@ process fwhm_calc {
     """
     #!/usr/bin/env python3
 
-    from mwa_metadb_utils import get_obs_array_phase
+    from vcstools.metadb_utils import get_obs_array_phase
     from mwa_search.obs_tools import calc_ta_fwhm
     import csv
 

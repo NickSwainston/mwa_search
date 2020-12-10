@@ -403,11 +403,11 @@ process compare_ascii {
     period=\$(psrcat -e2 \${label_pulsar#*_} | grep P0 | cut -d ' ' -f15)
 
     # Get sigma from current detection
-    prof_utils.py --ascii ${ascii} --auto --period \$period &> prof_utils.out
+    prof_estimate.py --ascii ${ascii} --auto --period \$period &> prof_utils.out
     current_sn=\$(grep estimate prof_utils.out | cut -d ':' -f 6 | cut -d '+' -f 1 | xargs)
 
     # Get sigma from comparison detection
-    prof_utils.py --ascii ${params.version_compare_dir}/${ascii} --auto --period \$period &> prof_utils.out
+    prof_estimate.py --ascii ${params.version_compare_dir}/${ascii} --auto --period \$period &> prof_utils.out
     compare_sn=\$(grep estimate prof_utils.out | cut -d ':' -f 6 | cut -d '+' -f 1 | xargs)
 
     # Compare the signal to noise ratios

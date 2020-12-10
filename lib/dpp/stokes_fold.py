@@ -6,14 +6,15 @@ from os.path import join as ospj
 from os.path import isfile as isfile
 import numpy as np
 import glob
-from config_vcs import load_config_file
 import psrqpy
 
-from job_submit import submit_slurm
-import data_processing_pipeline as dpp
+from vcstools.config import load_config_file
+from vcstools.job_submit import submit_slurm
+from vcstools.rm_synth_utils import read_rmsynth_out
+
 from dpp import plotting_toolkit
 from dpp import binfinder
-import rm_synthesis
+import data_processing_pipeline as dpp
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def plot_everything(run_params):
 
     #get RM
     if isfile(filenames_dict["rmsynth"]):
-        rm_dict     = rm_synthesis.read_rmsynth_out(filenames_dict["rmsynth"])
+        rm_dict     = read_rmsynth_out(filenames_dict["rmsynth"])
         rm          = rm_dict["0"]["rm"]
         rm_e        = rm_dict["0"]["rm_e"]
     elif isfile(filenames_dict["rmfit"]):
@@ -301,7 +302,7 @@ def submit_rmcor(pipe, dep_id=None, dep_type="afterany"):
         pipe["source"]["my_RM"] = pipe["source"]["fit_RM"]
         pipe["source"]["my_RM_e"] = pipe["source"]["fit_RM_e"]
         pipe["source"]["RM_method"] = "RM_fit"
-    synth_dict = rm_synthesis.read_rmsynth_out(pipe["pol"]["rmsynth"])
+    synth_dict = read_rmsynth_out(pipe["pol"]["rmsynth"])
     if "rm" in synth_dict.keys():
         pipe["source"]["synth_RM"], pipe["source"]["synth_RM_e"] = read_rmfit(pipe["pol"]["rmfit"])
         pipe["source"]["my_RM"] = pipe["source"]["synth_RM"]

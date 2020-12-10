@@ -8,10 +8,10 @@ import csv
 from scipy.interpolate import UnivariateSpline
 
 #vcstools
-import find_pulsar_in_obs as fpio
-from find_pulsar_in_obs import get_psrcat_ra_dec
-import mwa_metadb_utils as meta
+from vcstools.beam_calc import get_beam_power_over_time
+from vcstools.catalogue_utils import get_psrcat_ra_dec
 from vcstools.pointing_utils import sex2deg, deg2sex
+from vcstools.metadb_utils import find_obsids_meta_pages, get_common_obs_metadata
 
 #matplotlib
 import matplotlib.pyplot as plt
@@ -91,7 +91,7 @@ def SMART_obs_calc(degree_overlap, manual_overlap):
         cord = [start_obsid, str(ra_sex), str(deg_sex), 1, delays_range[i],centrefreq, channels]
         #powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
         names_ra_dec = np.column_stack((['source']*len(RA_FWHM_calc), RA_FWHM_calc, Dec_FWHM_calc))
-        powout = fpio.get_beam_power_over_time(cord, names_ra_dec, dt=600, degrees = True)
+        powout = get_beam_power_over_time(cord, names_ra_dec, dt=600, degrees = True)
         powout_RA_line = []
         powout_Dec_line = []
         RA_line = []
@@ -278,8 +278,7 @@ if __name__ == "__main__":
 
     #Working out the observations required -----------------------------------------------
     if args.all_obsids:
-        #observations= find_pulsar_in_obs.find_obsids_meta_pages()
-        observations = fpio.find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
+        observations = find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
         #print(observations)
         #observations = [o for o in observations if o <=  1104109216]
         #print(observations)
@@ -346,7 +345,7 @@ if __name__ == "__main__":
             if not obs_foun_check:
                 print("Getting metadata for {}".format(ob))
                 ob, ra, dec, time, delays,centrefreq, channels =\
-                    meta.get_common_obs_metadata(ob)
+                    get_common_obs_metadata(ob)
 
                 with open('obs_meta.csv', 'a') as csvfile:
                     spamwriter = csv.writer(csvfile)
@@ -369,7 +368,7 @@ if __name__ == "__main__":
         #print(max(Dec), min(RA), Dec.dtype)
         time_intervals = 600 # seconds
         names_ra_dec = np.column_stack((['source']*len(RA), RA, Dec))
-        powout = fpio.get_beam_power_over_time(cord, names_ra_dec, dt=time_intervals, degrees = True)
+        powout = get_beam_power_over_time(cord, names_ra_dec, dt=time_intervals, degrees = True)
         #grab a line of beam power for the pointing declination
         #if i == 0:
         #    print("len powers list: " + str(powout.shape))

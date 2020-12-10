@@ -13,11 +13,11 @@ import numpy as np
 
 #vcstools imports
 #import search_database
-import mwa_metadb_utils as meta
-from mwa_metadb_utils import get_channels
+import vcstools.metadb_utils as meta
+from vcstools.metadb_utils import get_channels
 import process_vcs as pvcs
-from job_submit import submit_slurm
-from config_vcs import load_config_file
+from vcstools.job_submit import submit_slurm
+from vcstools.config import load_config_file
 import data_processing_pipeline
 from vcstools.pointing_utils import format_ra_dec
 
@@ -924,13 +924,13 @@ def prepdata(search_opts):
     print("cand_type: {}   cand_name: {}".format(search_opts.cand_type,
                                                         search_opts.cand_name))
     if not search_opts.cand_type in ['Blind', 'Fermi'] and search_opts.cand_name is not None:
-        import find_pulsar_in_obs as fpio
-        temp = fpio.grab_source_alog(source_type=search_opts.cand_type, pulsar_list=[search_opts.cand_name],
+        from vcstools.catalogue_utils import grab_source_alog
+        temp = grab_source_alog(source_type=search_opts.cand_type, pulsar_list=[search_opts.cand_name],
                                      include_dm=True)
         #sometimes rrat not in database, if so process it as a pulsar
         if len(temp)==0:
             print("RRAT {} not found on database, processing as a pulsar instead".format(search_opts.cand_name))
-            temp = fpio.grab_source_alog(source_type="Pulsar", pulsar_list=[search_opts.cand_name],
+            temp = grab_source_alog(source_type="Pulsar", pulsar_list=[search_opts.cand_name],
                                      include_dm=True)
         dm = format_ra_dec(temp, ra_col = 1, dec_col = 2)[0][-1]
         #I don't need to make a set class command because this is the last time I use this function
@@ -1954,8 +1954,8 @@ if __name__ == "__main__":
 
     if args.cand_name and args.cand_type not in ['Blind', 'Fermi']:
         #if no pointing given grab it from psrcat
-        import find_pulsar_in_obs as fpio
-        temp = fpio.grab_source_alog(source_type=args.cand_type, pulsar_list=[args.cand_name],
+        from vcstools.catalogue_utils import grab_source_alog
+        temp = grab_source_alog(source_type=args.cand_type, pulsar_list=[args.cand_name],
                                      include_dm=True)
         temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj, dm = temp[0]

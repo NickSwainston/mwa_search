@@ -13,7 +13,7 @@ import os
 import glob
 import sys
 
-import prof_utils
+from vcstools import prof_utils
 from dpp import stokes_fold
 
 logger = logging.getLogger(__name__)

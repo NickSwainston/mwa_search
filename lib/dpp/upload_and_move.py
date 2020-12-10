@@ -4,7 +4,7 @@ import logging
 from binfinder import NoSuitableProfileError, bestprof_info
 from dpp import plotting_toolkit
 import data_processing_pipeline as dpp
-from config_vcs import load_config_file
+from vcstools.config import load_config_file
 
 
 comp_config = load_config_file()

@@ -42,6 +42,8 @@ for SMART_job in $(ls SMART_${NAME}_grid*txt); do
     mkdir -p ${SMART_job%.txt}
     cd ${SMART_job%.txt}
     if [ ! -f "${SMART_job%.txt}_done" ]; then
+        echo mwa_search_pipeline.nf --obsid $OBSID --calid $CALID --pointing_file ../${SMART_job} --begin $BEGIN --end $END -resume \
+            --vcstools_version devel --mwa_search_version devel --summed -with-report ${SMART_job%.txt}.html -w ${SMART_job%.txt}_work --out_dir ${SMART_job%.txt}_cands
         mwa_search_pipeline.nf --obsid $OBSID --calid $CALID --pointing_file ../${SMART_job} --begin $BEGIN --end $END -resume \
             --vcstools_version devel --mwa_search_version devel --summed -with-report ${SMART_job%.txt}.html -w ${SMART_job%.txt}_work --out_dir ${SMART_job%.txt}_cands
         errorcode=$?

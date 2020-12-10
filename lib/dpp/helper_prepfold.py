@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
 
-from config_vcs import load_config_file
+from vcstools.config import load_config_file
 
 comp_config = load_config_file()
 logger = logging.getLogger(__name__)

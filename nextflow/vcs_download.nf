@@ -77,8 +77,8 @@ process check_data_format {
     import os
     import csv
 
-    import mwa_metadb_utils as meta
-    from mdir import mdir
+    import vcstools.metadb_utils as meta
+    from vcstools.general_utils import mdir
 
     data_dir = '${params.scratch_basedir}/${params.obsid}'
     obsinfo = meta.getmeta(service='obs', params={'obs_id':'${params.obsid}'})
