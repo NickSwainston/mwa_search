@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
 from vcstools import data_load
 import psrqpy
+
 import logging
 import math
 
@@ -11,7 +13,8 @@ def bin_sampling_limit(pulsar, sampling_rate=1e-4, query=None):
     if query is None:
         query = psrqpy.QueryATNF(params=["P0"], psrs=[
                                  pulsar], loadfromdb=data_load.ATNF_LOC).pandas
-    period = query["P0"][0]
+    query_index = list(query["JNAME"]).index(pulsar)
+    period = query["P0"][query_index]
     bin_lim = math.ceil(period/sampling_rate) #round up the limit
     return bin_lim
 
@@ -21,7 +24,8 @@ def is_binary(pulsar, query=None):
     if query is None:
         query = psrqpy.QueryATNF(params=["BINARY"], psrs=[
                                  pulsar], loadfromdb=data_load.ATNF_LOC).pandas
-    if isinstance(query["BINARY"][0], str):
+    query_index = list(query["JNAME"]).index(pulsar)
+    if isinstance(query["BINARY"][query_index], str):
         return True
     else:
         return False
