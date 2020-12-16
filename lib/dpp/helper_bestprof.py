@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import logging
 import numpy as np
+from glob import glob
+from os.path import join
 
-from dpp.helper_yaml import from_yaml, dump_to_yaml
+from dpp.helper_config import from_yaml, dump_to_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +16,6 @@ class NoUsableFolds(Exception):
             self.message = args[0]
         else:
             self.message = ""
-
 
 
 def bestprof_info(filename):
@@ -50,8 +51,8 @@ def bestprof_info(filename):
     f.close()
     lines = lines.split("\n")
     #info:
-    info_dict["obsid"] = int(lines[0].split()[4].split("_")[0])
-    info_dict["pulsar"] = lines[1].split()[3].split("_")[1]
+    #info_dict["obsid"] = int(lines[0].split()[4].split("_")[0])
+    #info_dict["pulsar"] = lines[1].split()[3].split("_")[1]
     info_dict["nbins"] = int(lines[9].split()[4])
     info_dict["chi"] = float(lines[12].split()[4])
     info_dict["sn"] = float(lines[13].split()[4][2:])
@@ -63,133 +64,76 @@ def bestprof_info(filename):
     return info_dict
 
 
-def _populate_master_pointings(kwargs, master_dict):
-    # Populate with yamls
-    for f in kwargs["yamls"]:
-        pipe = from_yaml(f)
-        pointing = pipe["run_ops"]["pointing"]
-        master_dict[pointing] = {}
-        master_dict[pointing]["pipe"] = pipe
-    # Populate with bestprof info
-    bestprofs = [i for i in kwargs["pfds"] if ".pfd.bestprof" in i]
-    pointings = master_dict.keys()
-    for p in pointings:
-        for b in bestprofs:
-            if b.find(p)>=0:
-                master_dict[p]["bestprof"] = {}
-                master_dict[p]["bestprof"]["name"] = b
-                info = bestprof_info(b)
-                master_dict[p]["bestprof"]["info"] = info
-                # Add bprof info to pipe
-                master_dict[p]["pipe"]["folds"]["init"][str(info["nbins"])] = info
-                break
+def find_best_pointing(cfg):
+    """Decides the best folding solution from bestprofs and updates cfg"""
+    # Populate cfg with initial fold info
+    for pointing in cfg["folds"].keys():
+        nbins = list(cfg["folds"][pointing]["init"].keys())[0]
+        bestprof_name = glob(join(cfg["folds"][pointing]["dir"], f"*_b{nbins}*.pfd.bestprof"))[0]
+        cfg["folds"][pointing]["init"][nbins] = bestprof_info(bestprof_name)
+
+    # Search for pointings with positive classifications (>=3 out of 5 is positive classification)
+    positive_pointings = [pointing for pointing in cfg["folds"].keys() if cfg["folds"][pointing]["classifier"]>=3]
+
+    # Throw exception if there aren't any positive detections
+    if len(positive_pointings) == 0:
+        raise NoUsableFolds(f"No positive classifications found in pulsar directory {cfg['run_ops']['psr_dir']}")
+    else:
+        best_chi = 0
+        for pointing in positive_pointings:
+            nbins = list(cfg["folds"][pointing]["init"].keys())[0]
+            if cfg["folds"][pointing]["init"][nbins]["chi"] > best_chi:
+                cfg["source"]["my_pointing"] = pointing
+        logger.info(f"Best pointing found with chi value of {best_chi}: {cfg['source']['my_pointing']}")
 
 
-def _eval_master_init(master_dict):
-    best_eval = 0
-    for p in master_dict:
-        this_eval = master_dict[p]["bestprof"]["info"]["sn"] * master_dict[p]["bestprof"]["info"]["chi"]
-        if this_eval > best_eval:
-            best_eval = this_eval
-            best_pointing = p
-    return best_pointing
-
-
-def _remove_bad_pointings(best_pointing, kwargs):
-    import os
-    for f in kwargs["yamls"] + kwargs["pfds"]:
-        if f.find(best_pointing) == -1:
-            os.remove(f)
-
-
-def _populate_master_post_folds(master_dict, kwargs):
-    # Populate with yamls
-    for f in kwargs["yamls"]:
-        pipe = from_yaml(f)
-        pointing = pipe["run_ops"]["pointing"]
-        master_dict[pointing] = {}
-        master_dict[pointing]["pipe"] = pipe
-    # Populate with bestprof info
-    bestprofs = [i for i in kwargs["pfds"] if ".pfd.bestprof" in i]
-    pointings = master_dict.keys()
-    for p in pointings:
-        for b in bestprofs:
-            if b.find(p)>=0:
-                master_dict[p]["bestprof"] = {}
-                info = bestprof_info(b)
-                master_dict[p]["bestprof"][str(info["nbins"])] = info
-                # Add bprof info to pipe
-                master_dict[p]["pipe"]["folds"]["post"][str(info["nbins"])] = info
-
-
-def _eval_post_folds(master):
-    """Finds the bin count to use for the rest of the dpp pipeline for each pointing"""
-    for p in master.keys():
+def populate_folds(cfg):
+    """Fills the cfg with info on all of the folds"""
+    pointing_dir = join(cfg["run_ops"]["psr_dir"], cfg["source"]["my_pointing"])
+    my_pointing = cfg["source"]["my_pointing"]
+    for bins in cfg["folds"][my_pointing]["init"].keys():
         try:
-            best = best_post_fold(master[p]["pipe"].copy())
-        except NoUsableFolds as e:
-            logger.warn(f"""Exception encountered: {e.message}
-                        Will use initial fold for this pointing""")
-            best = [int(i) for i in master[p]["pipe"]["folds"]["init"].keys()]
-            best = max(best)
-        master[p]["pipe"]["folds"]["best"]["bestprof"] = master[p]["pipe"]["folds"][str(best)]
+            bprof = glob(join(pointing_dir, f"{cfg['run_ops']['file_precursor']}*b{bins}*.bestprof"))[0]
+        except IndexError as _:
+            raise IndexError(f"Could not find fold for {bins} bins in {pointing_dir}")
+        cfg["folds"]["init"][bins] = bestprof_info(bprof)
+    for bins in cfg["folds"][my_pointing]["post"].keys():
+        try:
+            bprof = glob(join(pointing_dir, f"{cfg['run_ops']['file_precursor']}*b{bins}*.bestprof"))[0]
+        except IndexError as _:
+            raise IndexError(f"Could not find fold for {bins} bins in {pointing_dir}")
+        cfg["folds"]["post"][bins] = bestprof_info(bprof)
 
 
-def best_post_fold(pipe):
-    """Finds the best fold to use in the pipe and returns the bin count"""
-    min_chi = pipe["run_ops"]["thresh_chi"]
-    min_sn = pipe["run_ops"]["thresh_sn"]
-    good_chi = pipe["run_ops"]["good_chi"]
-    good_sn = pipe["run_ops"]["good_sn"]
-    post_folds = [int(i) for i in pipe["folds"]["post"].keys()]
-    post_folds = sorted(post_folds, reverse=True)
+def best_post_fold(cfg):
+    """Finds the best fold to use in the cfg"""
+    min_chi = cfg["run_ops"]["thresh_chi"]
+    min_sn = cfg["run_ops"]["thresh_sn"]
+    good_chi = cfg["run_ops"]["good_chi"]
+    good_sn = cfg["run_ops"]["good_sn"]
+    post_folds = [int(i) for i in cfg["folds"]["post"].keys()]
+    post_folds = sorted(post_folds, reverse=True) # Sort from highest to lowest bins
+
     # "good" loop
     best = None
     for bin_count in post_folds:
-        info = pipe["folds"]["post"][str(bin_count)]
+        info = cfg["folds"]["post"][str(bin_count)]
         if info["sn"] >= good_sn and info["chi"] >= good_chi:
-            best = bin_count
+            cfg["source"]["my_bins"] = bin_count
             break
+
     # "minimum requirements" loop
     if best == None:
+        logger.info("No folds meet 'good' criteria")
         for bin_count in post_folds:
-            info = pipe["folds"]["post"][str(bin_count)]
+            info = cfg["folds"]["post"][str(bin_count)]
             if info["sn"] >= min_sn and info["chi"] >= min_chi:
-                best = bin_count
+                cfg["source"]["my_bins"] = bin_count
                 break
+
     if best == None:
-        raise NoUsableFolds(f"""No folds meeting the minumum requirements found for pointing {pipe['run_ops']['pointing']}
-                            Minimum requirements:
-                            S/N: {pipe['run_ops']['thresh_sn']}
-                            Chi: {pipe['run_ops']['thresh_chi']}""")
-    return best
-
-
-def _dump_master_pointings(master, label=""):
-    """Dumps all of the pipes in master to yaml files"""
-    for p in master.keys():
-        dump_to_yaml(master[p]["pipe"], label=label)
-
-
-def find_best_pointing_main(kwargs):
-    """Decides the best folding solution from bestprofs"""
-    master_dict = {}
-    _populate_master_pointings(kwargs, master_dict)
-    best_pointing = _eval_master_init(master_dict)
-    _remove_bad_pointings(best_pointing, kwargs)
-    # Update yaml file
-    dump_to_yaml(master_dict[best_pointing]["pipe"], label=kwargs["label"])
-
-
-def post_fold_filter_main(kwargs):
-    """Decides the best post-fold detection from bestprofs for each pointing supplied"""
-    # Master dict heirarchy:
-    #   Pointing
-    #       bestprof
-    #           info
-    #       pipe
-    #           *pipe_info
-    master_dict = {}
-    _populate_master_post_folds(master_dict, kwargs)
-    _eval_post_folds(master_dict)
-    _dump_master_pointings(master_dict, label=kwargs["label"])
+        # The classifier still gave a positive detection somewhere. Continue with lowest bin post fold
+        logger.warn("No folds meet minimum requirements. Will continue with lowest bin fold")
+        cfg["source"]["my_bins"] = post_folds[-1]
+    else:
+        logger.info(f"Continuing with bin count: {cfg['source']['my_bins']}")
