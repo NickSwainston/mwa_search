@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
 import logging
 import numpy as np
 
-from dpp.helper_yaml import from_yaml, dump_to_yaml
+from dpp.helper_config import from_yaml, dump_to_yaml
 from prof_utils import auto_gfit
 from config_vcs import load_config_file
 
