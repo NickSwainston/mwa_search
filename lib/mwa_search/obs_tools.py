@@ -6,7 +6,7 @@ import astropy.units as u
 
 # vcstools imports
 import checks
-from config_vcs import load_config_file
+from vcstools.config import load_config_file
 
 # mwa_search imports
 from mwa_search.grid_tools import get_grid
