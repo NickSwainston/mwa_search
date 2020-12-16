@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import logging
 from astropy.coordinates import SkyCoord
 import astropy.units as u
@@ -10,11 +11,9 @@ import sys
 
 # vcstools imports
 import find_pulsar_in_obs as fpio
-import sn_flux_est as snfe
-from config_vcs import load_config_file
-comp_config = load_config_file()
-from mwa_metadb_utils import get_common_obs_metadata
-from mwa_metadb_utils import obs_max_min, get_obs_array_phase
+import vcstools.sn_flux_est as snfe
+from vcstools.config import load_config_file
+from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
 import checks
 from vcstools import data_load
 
@@ -23,6 +22,7 @@ from mwa_search.grid_tools import get_grid
 from mwa_search.obs_tools import calc_ta_fwhm
 
 logger = logging.getLogger(__name__)
+comp_config = load_config_file()
 
 def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
     """Checks that the arguments for find_fold_times are valid"""
@@ -33,7 +33,6 @@ def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
     if not isinstance(obsid, int):
         try:
             obsid = int(obsid)
-            logger.warn("Obsid had to be converted to int. This may be evidence of a bug")
         except (ValueError, TypeError) as e:
             e.message = f"Invalid Observation ID: {obsid}. Cannot be converted to int"
             raise
@@ -63,7 +62,19 @@ def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
         raise
     return pulsar, obsid, beg, end, min_z_power
 
-def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None, full_meta=None):
+
+def reformat_psrs_pointings(psr_pointing_list):
+    """Reformats the output from find_pulsars_in_fov for the dpp"""
+    _dict = {}
+    # Loop over the concatenated lists of regular and vdif pulsars/pointings
+    for psr, pointing in zip(psr_pointing_list[0] + psr_pointing_list[2], psr_pointing_list[1] + psr_pointing_list[3]):
+        if psr not in _dict.keys():
+            _dict[psr] = []
+        _dict[psr].append(pointing)
+    return _dict
+
+
+def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None, full_meta=None, query=None):
     """
     Finds the fractional time the pulsar is in the beam at some zenith normalized power
 
@@ -89,22 +100,19 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=No
         power: float
             The power for which enter and leave are calculated
     """
+    if not metadata or not full_meta:
+        metadata, full_meta = get_common_obs_metadata(obsid, return_all=True)
     pulsar, obsid, beg, end, min_z_power = _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power)
     min_z_power = sorted(min_z_power, reverse=True)
     names_ra_dec = fpio.grab_source_alog(pulsar_list=[pulsar])
-    pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power,
-                                     names_ra_dec=names_ra_dec, metadata_list=[[metadata, full_meta]])
+    pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec, metadata_list=[[metadata, full_meta]])
     for power in pow_dict.keys():
         psr_list = pow_dict[power][obsid]
-        enter = None
-        leave = None
         if psr_list:  # if pulsar is in beam for this power coverage
-            this_enter, this_leave = snfe.pulsar_beam_coverage(
+            enter, leave = snfe.pulsar_beam_coverage(
                 obsid, pulsar, beg=beg, end=end, min_z_power=power,
-                metadata=metadata, full_meta=full_meta)
-            if this_enter is not None and this_leave is not None:
-                enter = this_enter
-                leave = this_leave
+                metadata=metadata, full_meta=full_meta, query=query)
+            if enter is not None and leave is not None:
                 break
 
     return [enter, leave, power]
@@ -374,14 +382,14 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
         period = period_query[period_query['PSRJ'] == PSRJ].reset_index()["P0"][0]
 
         if math.isnan(period):
-            print("WARNING: Period not found in ephermeris for {0} so assuming "
+            logger.warn("Period not found in ephermeris for {0} so assuming "
                   "it's an RRAT".format(jname))
             sp_check = True
             period = 0.
         elif float(period) < .05:
             vdif_check = True
         period = float(period)*1000.
-        print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(PSRJ,
+        logger.info("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(PSRJ,
                raj, decj, period, psrbeg, psrend))
 
         jname_temp_list = []
@@ -426,14 +434,14 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
     # Find all of the Fermi candidates
     #-----------------------------------------------------------------------------------------------------------
     fermi_list = get_sources_in_fov(obsid, 'Fermi', fwhm)
-    print(fermi_list)
+    logger.info(f"Fermi candidates: {fermi_list}")
     pulsar_search_name_list = pulsar_search_name_list + fermi_list[0]
     pulsar_search_pointing_list = pulsar_search_pointing_list + fermi_list[1]
 
     # Find all of the points of interest candidates
     #-----------------------------------------------------------------------------------------------
     poi_list = get_sources_in_fov(obsid, 'POI', fwhm)
-    print(poi_list)
+    logger.info(f"Points of interest: {poi_list}")
     pulsar_search_name_list = pulsar_search_name_list + poi_list[0]
     pulsar_search_pointing_list = pulsar_search_pointing_list + poi_list[1]
 
