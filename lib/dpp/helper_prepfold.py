@@ -161,7 +161,7 @@ def post_folds(cfg):
     jids = []
     pointing = cfg["source"]["my_pointing"]
     for nbins in cfg["folds"][pointing]["post"].keys():
-        jid, name = submit_prepfold(cfg, nbins, cfg["run_ops"]["psr_dir"], pointing_dir=cfg["folds"][pointing]["dir"])
+        jid, name = submit_prepfold(cfg, nbins, pointing, cfg["run_ops"]["psr_dir"])
         jids.append(jid)
         logger.info(f"Submitted prepfold job: {name}")
         logger.info(f"Job ID: {jid}")
