@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
 
-from job_submit import submit_slurm
+from vcstools.job_submit import submit_slurm
 
 logger = logging.getLogger(__name__)
 
