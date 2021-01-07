@@ -18,16 +18,16 @@ comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
-def initiate_cfg(kwargs, psr, pointings, metadata=None, full_meta=None, query=None):
+def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metadata=None):
     """
     Adds all available keys to the cfg dictionary and figures out some useful constants
     Takes kwargs from observation_processing_pipeline
     """
     cfg = {"obs": {}, "source": {}, "completed": {}, "folds": {}, "run_ops": {}, "pol": {}}
-    if metadata is None or full_meta is None:
-        metadata, full_meta = get_common_obs_metadata(kwargs["obsid"], return_all=True)
     if query is None:
         query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
+    if metadata is None:
+        metadata = get_common_obs_metadata(kwargs["obsid"])
 
     query_index = list(query["JNAME"]).index(psr)
 
@@ -57,7 +57,16 @@ def initiate_cfg(kwargs, psr, pointings, metadata=None, full_meta=None, query=No
     cfg["run_ops"]["batch_dir"] = join(comp_config['base_data_dir'], cfg["obs"]["id"], "batch")
     cfg["run_ops"]["classify_dir"] = join(cfg["run_ops"]["psr_dir"], "classifier_ppp")
 
+    cfg["source"]["enter_frac"] = None
+    cfg["source"]["exit_frac"] = None
+    cfg["source"]["power"] = None
     cfg["source"]["name"] = psr
+    try:
+        cfg["source"]["enter_frac"] = float(enter)
+        cfg["source"]["exit_frac"] = float(leave)
+        cfg["source"]["power"] = float(power)
+    except TypeError as _: #If any of these are nones, the pulsar isn't in the beam for given beg, end
+        raise TypeError(f"{cfg['source']['name']} not in beam for given times")
     cfg["source"]["sampling_limit"] = int(bin_sampling_limit(cfg["source"]["name"], query=query))
     cfg["source"]["ATNF_P"] = float(query["P0"][query_index])
     cfg["source"]["ATNF_DM"] = float(query["DM"][query_index])
@@ -66,28 +75,14 @@ def initiate_cfg(kwargs, psr, pointings, metadata=None, full_meta=None, query=No
     cfg["source"]["my_DM"] = None
     cfg["source"]["my_P"] = None
     cfg["source"]["my_bins"] = None
-    cfg["source"]["enter_frac"] = None
-    cfg["source"]["exit_frac"] = None
-    cfg["source"]["power"] = None
     cfg["source"]["my_pointing"] = None
     cfg["source"]["my_bins"] = None
-
-    cfg["source"]["enter_frac"], cfg["source"]["exit_frac"], cfg["source"]["power"] = find_fold_times(
-        cfg["source"]["name"], cfg["obs"]["id"], cfg["obs"]["beg"], cfg["obs"]["end"], metadata=metadata, full_meta=full_meta)
-    try:
-        cfg["source"]["enter_frac"] = float(cfg["source"]["enter_frac"])
-        cfg["source"]["exit_frac"] = float(cfg["source"]["exit_frac"])
-        cfg["source"]["power"] = float(cfg["source"]["power"])
-    except ValueError as _: #If any of these are nones, the pulsar isn't in the beam for given beg, end
-        raise ValueError(f"{cfg['source']['name']} not in beam for given times")
     cfg["source"]["binary"] = is_binary(cfg["source"]["name"], query=query)
     cfg["source"]["seek"] = cfg["source"]["enter_frac"] * (cfg["obs"]["end"] - cfg["obs"]["beg"])
     cfg["source"]["total"] = (cfg["source"]["exit_frac"] - cfg["source"]["enter_frac"]) * (cfg["obs"]["end"] - cfg["obs"]["beg"])
     if cfg["source"]["binary"]:
         cfg["source"]["edited_eph_name"] = join(cfg["run_ops"]["psr_dir"], f"{cfg['run_ops']['file_precursor']}.eph")
         cfg["source"]["edited_eph"] = create_edited_eph(cfg["source"]["name"])
-        with open(cfg["source"]["edited_eph_name"], "w") as f:
-            f.write(cfg["source"]["edited_eph"])
     else:
         cfg["source"]["edited_eph"] = None
         cfg["source"]["edited_eph_name"] = None
@@ -163,12 +158,18 @@ def create_cfgs_main(kwargs, psrs_pointing_dict):
     metadata, full_meta = get_common_obs_metadata(kwargs["obsid"], return_all=True)
     query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
     cfgs = []
-    for psr in progress_bar(psrs_pointing_dict.keys(), "Initiating pulsar configs: "):
+    # Make the fold times dictionary (it's done for all pulsars simultaneously for speed)
+    psr_list = list(psrs_pointing_dict.keys())
+    fold_times_dict = find_fold_times(psr_list, kwargs["obsid"], kwargs["beg"], kwargs["end"], metadata=metadata, full_meta=full_meta, query=query)
+    for psr in progress_bar(psr_list, "Initiating pulsar configs: "):
         logger.info(psr)
         pointing_list = psrs_pointing_dict[psr]
+        enter = fold_times_dict[psr]["enter"]
+        leave = fold_times_dict[psr]["leave"]
+        power = fold_times_dict[psr]["power"]
         try:
-            cfgs.append(initiate_cfg(kwargs, psr, pointing_list, metadata=metadata, full_meta=full_meta, query=query))
-        except ValueError as e:
+            cfgs.append(initiate_cfg(kwargs, psr, pointing_list, enter, leave, power, query=query, metadata=metadata))
+        except TypeError as e:
             logger.info(e)
             continue
     return cfgs
