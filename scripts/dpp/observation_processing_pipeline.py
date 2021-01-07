@@ -13,6 +13,7 @@ import pulsar_processing_pipeline as ppp
 comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
+
 def main(kwargs):
     """Initialises the pipeline and begins the run"""
     if kwargs["relaunch"]:
@@ -31,16 +32,16 @@ def main(kwargs):
 
         cfg_names = []
         for cfg in progress_bar(cfgs, "Setting up config directories: "):
-            setup_dpp_dirs(cfgs)
+            setup_cfg_dirs(cfg)
             clean_cfg(cfg)
             if cfg: # If there are valid pointing directories
-                dump_to_yaml(cfg, cfg["run_ops"]["my_name"])
-                cfg_names.append(cfg["run_ops"]["my_name"])
+                dump_to_yaml(cfg)
+                cfg_names.append(cfg["run_ops"]["myname"])
 
     # Launch ppp for each pulsar
     for name in progress_bar(cfg_names, "Launching processing for pulsars: "):
         cfg = from_yaml(name)
-        relaunch_ppp(cfg, fresh_run=kwargs["force_rerun"], reset_logs=bssssssssssool(not kwargs["keep_logs"]))
+        relaunch_ppp(cfg, fresh_run=kwargs["force_rerun"], reset_logs=bool(not kwargs["keep_logs"]))
 
 
 if __name__ == '__main__':
