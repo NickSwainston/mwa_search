@@ -3,7 +3,7 @@ from os.path import join
 import logging
 from glob import glob
 
-from config_vcs import load_config_file
+from vcstools.config import load_config_file
 
 
 comp_config = load_config_file()
