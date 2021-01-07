@@ -5,6 +5,7 @@ from glob import glob
 from os.path import join
 
 from dpp.helper_config import from_yaml, dump_to_yaml
+from dpp.helper_files import glob_pfds
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,6 @@ class NoUsableFolds(Exception):
             self.message = args[0]
         else:
             self.message = ""
-
 
 def bestprof_info(filename):
     """
@@ -69,11 +69,10 @@ def find_best_pointing(cfg):
     # Populate cfg with initial fold info
     for pointing in cfg["folds"].keys():
         nbins = list(cfg["folds"][pointing]["init"].keys())[0]
-        glob_dir = join(cfg["run_ops"]["psr_dir"], f"*_b{nbins}*.pfd.bestprof")
         try:
-            bestprof_name = glob(glob_dir)[0]
+            bestprof_name = glob_pfds(cfg, pointing, nbins, pfd_type="pfd.bestprof")[0]
         except IndexError as e:
-            raise IndexError(f"No .bestprofs found: {glob_dir}")
+            raise IndexError(f"No .bestprofs found: {cfg['run_ops']['psr_dir']}")
         cfg["folds"][pointing]["init"][nbins] = bestprof_info(bestprof_name)
 
     # Search for pointings with positive classifications (>=3 out of 5 is positive classification)
@@ -93,20 +92,19 @@ def find_best_pointing(cfg):
 
 def populate_folds(cfg):
     """Fills the cfg with info on all of the folds"""
-    pointing_dir = join(cfg["run_ops"]["psr_dir"], cfg["source"]["my_pointing"])
     my_pointing = cfg["source"]["my_pointing"]
     for bins in cfg["folds"][my_pointing]["init"].keys():
         try:
-            bprof = glob(join(pointing_dir, f"{cfg['run_ops']['file_precursor']}*b{bins}*.bestprof"))[0]
+            bestprof_name = glob_pfds(cfg, my_pointing, bins, pfd_type="pfd.bestprof")[0]
         except IndexError as _:
-            raise IndexError(f"Could not find fold for {bins} bins in {pointing_dir}")
-        cfg["folds"]["init"][bins] = bestprof_info(bprof)
+            raise IndexError(f"No .bestprofs found: {cfg['run_ops']['psr_dir']}")
+        cfg["folds"][my_pointing]["init"][bins] = bestprof_info(bestprof_name)
     for bins in cfg["folds"][my_pointing]["post"].keys():
         try:
-            bprof = glob(join(pointing_dir, f"{cfg['run_ops']['file_precursor']}*b{bins}*.bestprof"))[0]
+            bestprof_name = glob_pfds(cfg, my_pointing, bins, pfd_type="pfd.bestprof")[0]
         except IndexError as _:
-            raise IndexError(f"Could not find fold for {bins} bins in {pointing_dir}")
-        cfg["folds"]["post"][bins] = bestprof_info(bprof)
+            raise IndexError(f"No .bestprofs found: {cfg['run_ops']['psr_dir']}")
+        cfg["folds"][my_pointing]["post"][bins] = bestprof_info(bestprof_name)
 
 
 def best_post_fold(cfg):

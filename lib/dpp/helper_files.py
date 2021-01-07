@@ -78,11 +78,9 @@ def setup_classify(cfg):
         if int(init_bins) not in (50, 100):
             raise ValueError(f"Initial bins for {cfg['source']['name']} is invalid: {init_bins}")
         try:
-            # See helper_prepfold.generate_prep_name() for glob dir reference
-            glob_dir = join(f"*{cfg['run_ops']['file_precursor']}*{pointing}*b{init_bins}*.pfd")
-            pfd_name = glob(glob_dir)[0]
+            pfd_name = glob_pfds(cfg, pointing, init_bins, pfd_type=".pfd")[0]
         except IndexError as e:
-            raise IndexError(f"No suitable pfds found: {glob_dir}")
+            raise IndexError(f"No suitable pfds found: {cfg['run_ops']['psr_dir']}")
         # Copy pdf file to classify directory
         newfilename=join(cfg["run_ops"]["classify_dir"], basename(pfd_name))
         copyfile(pfd_name, newfilename)
@@ -97,3 +95,10 @@ def find_config_files(obsid, label=""):
     if not config_pathnames:
         raise ValueError(f"No config files found: {yaml_files}")
     return config_pathnames
+
+
+def glob_pfds(cfg, pointing, bins, pfd_type=".pfd"):
+    """Globs the appropriate directory for the given pointing and bins for .pfds and returns the list"""
+    # See helper_prepfold.generate_prep_name() for glob dir reference
+    glob_dir = join(f"*{cfg['run_ops']['file_precursor']}*{pointing}*b{bins}*{pfd_type}")
+    return glob(glob_dir)
