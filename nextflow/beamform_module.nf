@@ -88,9 +88,9 @@ process beamform_setup {
     #!/usr/bin/env python
     import csv
 
-    from mwa_metadb_utils import obs_max_min, get_channels
-    from process_vcs import ensure_metafits, gps_to_utc, create_link
-    from mdir import mdir
+    from vcstools.metadb_utils import obs_max_min, get_channels, ensure_metafits
+    from process_vcs import create_link
+    from vcstools.general_utils import gps_to_utc, mdir
     import csv
 
     # Work out begin and end time of obs
@@ -103,7 +103,7 @@ process beamform_setup {
         spamwriter = csv.writer(outfile, delimiter=',')
         spamwriter.writerow([beg, end])
 
-    # Find the channels 
+    # Find the channels
     if "$params.channels" is "null":
         channels = get_channels($params.obsid)
     else:
@@ -111,7 +111,7 @@ process beamform_setup {
     with open("${params.obsid}_channels.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         spamwriter.writerow(channels)
-        
+
     # Ensure the metafits files is there
     ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
                     "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
@@ -229,7 +229,7 @@ process make_beam_ipfb {
     else {
         maxForks 120
     }
-    
+
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
@@ -336,7 +336,7 @@ workflow pre_beamform {
 
 
 workflow beamform {
-    take: 
+    take:
         obs_beg_end
         channels
         utc
