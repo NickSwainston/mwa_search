@@ -7,6 +7,7 @@ from os.path import join
 from dpp.helper_config import from_yaml, dump_to_yaml
 from dpp.helper_files import glob_pfds
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,31 +110,31 @@ def populate_folds(cfg):
 
 def best_post_fold(cfg):
     """Finds the best fold to use in the cfg"""
+    pointing = cfg["source"]["my_pointing"]
     min_chi = cfg["run_ops"]["thresh_chi"]
     min_sn = cfg["run_ops"]["thresh_sn"]
     good_chi = cfg["run_ops"]["good_chi"]
     good_sn = cfg["run_ops"]["good_sn"]
-    post_folds = [int(i) for i in cfg["folds"]["post"].keys()]
+    post_folds = [int(i) for i in cfg["folds"][pointing]["post"].keys()]
     post_folds = sorted(post_folds, reverse=True) # Sort from highest to lowest bins
 
     # "good" loop
-    best = None
     for bin_count in post_folds:
-        info = cfg["folds"]["post"][str(bin_count)]
+        info = cfg["folds"][pointing]["post"][str(bin_count)]
         if info["sn"] >= good_sn and info["chi"] >= good_chi:
             cfg["source"]["my_bins"] = bin_count
             break
 
     # "minimum requirements" loop
-    if best == None:
+    if cfg["source"]["my_bins"] == None:
         logger.info("No folds meet 'good' criteria")
         for bin_count in post_folds:
-            info = cfg["folds"]["post"][str(bin_count)]
+            info = cfg["folds"][pointing]["post"][str(bin_count)]
             if info["sn"] >= min_sn and info["chi"] >= min_chi:
                 cfg["source"]["my_bins"] = bin_count
                 break
 
-    if best == None:
+    if cfg["source"]["my_bins"] == None:
         # The classifier still gave a positive detection somewhere. Continue with lowest bin post fold
         logger.warn("No folds meet minimum requirements. Will continue with lowest bin fold")
         cfg["source"]["my_bins"] = post_folds[-1]
