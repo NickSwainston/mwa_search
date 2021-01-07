@@ -2,7 +2,7 @@
 import logging
 from os.path import join, exists
 
-from job_submit import submit_slurm
+from vcstools.job_submit import submit_slurm
 from dpp.helper_files import setup_classify
 from dpp.helper_relaunch import relaunch_ppp
 from dpp.helper_config import dump_to_yaml
