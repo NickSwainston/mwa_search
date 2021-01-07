@@ -245,7 +245,7 @@ process make_beam_ipfb {
         scratch '/nvmetmp'
         //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-        afterScript "lfs setstripe -S ${temp_mem_single}GB -c 1 ${pwd}"
+
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
