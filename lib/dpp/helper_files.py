@@ -19,37 +19,40 @@ def create_dpp_dir(kwargs):
 def setup_cfg_dirs(cfg):
     """Creates the necessary folders and symlinks for dpp"""
     # Create pulsar directory
-    psr_dir = join(dpp_dir, cfg['run_ops']['file_precursor'])
-    makedirs(psr_dir, exist_ok=True)
+    makedirs(cfg["run_ops"]["psr_dir"], exist_ok=True)
     # Create classify dir
     makedirs(cfg["run_ops"]["classify_dir"], exist_ok=True)
+    # Create edited .eph if necessary
+    if cfg["source"]["binary"]:
+        with open(cfg["source"]["edited_eph_name"], "w") as f:
+            f.write(cfg["source"]["edited_eph"])
     # Create symlinks to pointing dirs
+    remove_pointings = []
     for pointing in cfg['folds'].keys():
-        real = join(comp_config["base_data_dir"], str(kwargs["obsid"]), "pointings", pointing)
-        sym = join(psr_dir, pointing)
+        real = join(comp_config["base_data_dir"], str(cfg["obs"]["id"]), "pointings", pointing)
+        sym = join(cfg["run_ops"]["psr_dir"], pointing)
         if exists(real):
             if not exists(sym):
                 symlink(real, sym)
         else: # Remove the pointing from the dictionary if the real pointing directory isn't found
             logger.warn(f"Expected pointing directory not found: {pointing}. Skipping")
-            cfg["folds"].remove(pointing)
+    for pointing in remove_pointings:
+        del cfg["folds"][pointing]
 
 
-def clean_cfg(cfgs):
+def clean_cfg(cfg):
     """Remove any lists in the cfg that are empty and deletes the directories"""
-    dpp_dir = join(comp_config["base_data_dir"], str(kwargs["obsid"]), "dpp")
-    if cfg["folds"] == {}:
+    if not cfg["folds"]:
         logger.warn(f"No pointings available for {cfg['source']['name']}. Removing")
         cfg = None # Delete directory
 
 
 def remove_old_results(cfg):
     """Removes old results from previous ppp runs"""
-    psr_dir = cfg["run_ops"]["psr_dir"]
     for f in glob(join(cfg["run_ops"]["classify_dir"], "*")):
         remove(f)
-    for pointing in cfg["folds"].keys():
-        stuff = glob(join(psr_dir, pointing, f"*{cfg['run_ops']['file_precursor']}*"))
+    for pointing in cfg["folds"].keys(): # Remove every 'thing'
+        stuff = glob(join(cfg["run_ops"]["psr_dir"], f"*{cfg['run_ops']['file_precursor']}*.pfd*"))
         for thing in stuff:
             remove(thing)
 
@@ -75,10 +78,12 @@ def setup_classify(cfg):
         if int(init_bins) not in (50, 100):
             raise ValueError(f"Initial bins for {cfg['source']['name']} is invalid: {init_bins}")
         try:
-            glob_dir = join(pointing, f"*b{init_bins}*.pfd")
+            # See helper_prepfold.generate_prep_name() for glob dir reference
+            glob_dir = join(f"*{cfg['run_ops']['file_precursor']}*{pointing}*b{init_bins}*.pfd")
             pfd_name = glob(glob_dir)[0]
         except IndexError as e:
             raise IndexError(f"No suitable pfds found: {glob_dir}")
+        # Copy pdf file to classify directory
         newfilename=join(cfg["run_ops"]["classify_dir"], basename(pfd_name))
         copyfile(pfd_name, newfilename)
     chdir(owd)
