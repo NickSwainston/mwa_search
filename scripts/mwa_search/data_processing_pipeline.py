@@ -5,13 +5,13 @@ from os.path import join as ospj
 from os import getcwd as cwd
 import logging
 import argparse
-from config_vcs import load_config_file
+from vcstools.config import load_config_file
 import glob
 import sys
 import shutil
 
-from job_submit import submit_slurm
-from mwa_metadb_utils import get_common_obs_metadata
+from vcstools.job_submit import submit_slurm
+from vcstools.metadb_utils import get_common_obs_metadata
 import submit_to_database as std
 from dpp import yaml_helper
 from dpp import dpp_check_args

@@ -77,8 +77,8 @@ process check_data_format {
     import os
     import csv
 
-    import mwa_metadb_utils as meta
-    from mdir import mdir
+    import vcstools.metadb_utils as meta
+    from vcstools.general_utils import mdir
 
     data_dir = '${params.scratch_basedir}/${params.obsid}'
     obsinfo = meta.getmeta(service='obs', params={'obs_id':'${params.obsid}'})
@@ -145,7 +145,6 @@ process untar {
 
     input:
     val data_type
-    val dl_dir
     val begin_time_increment
 
     when:
@@ -162,20 +161,23 @@ process recombine {
     time { "${500*params.increment + 900}s" }
     
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        if ( { 8 > begin_time_increment[1] } ) {
-            // I suspect the node calc is wrong but I copied it from process_vcs.py
-            clusterOptions {"--gres=gpu:1 --nodes=${(params.increment+(-params.increment%begin_time_increment[1]))/begin_time_increment[1] + 1} --ntasks-per-node=${begin_time_increment[1]}"}
+        if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
+            clusterOptions {"--gres=gpu:1 --nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
+                            "--ntasks-per-node=${begin_time_increment[1] / 2}"}
         }
         else {
-            clusterOptions {"--gres=gpu:1 --nodes=${(params.increment+(-params.increment%8))/8 + 1} --ntasks-per-node=8"}
+            clusterOptions {"--gres=gpu:1 --nodes=${1} "+\
+                            "--ntasks-per-node=${params.max_cpus_per_node}"}
         }
     }
     else {
-        if ( { 8 > begin_time_increment[1] }  ) {
-            clusterOptions {"--nodes=${(params.increment+(-params.increment%begin_time_increment[1]))/begin_time_increment[1] + 1} --ntasks-per-node=${begin_time_increment[1]}"}
+        if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
+            clusterOptions {"--nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
+                            "--ntasks-per-node=${begin_time_increment[1] / 2}"}
         }
         else {
-            clusterOptions {"--nodes=${(params.increment+(-params.increment%8))/8 + 1} --ntasks-per-node=8"}
+            clusterOptions {"--nodes=${1} "+\
+                            "--ntasks-per-node=${params.max_cpus_per_node}"}
         }
     }
 
@@ -183,7 +185,6 @@ process recombine {
     
     input:
     val data_type
-    val dl_dir
     val begin_time_increment
 
     when:
@@ -191,8 +192,8 @@ process recombine {
 
     script:
     """
-    srun --export=all recombine.py -o $params.obsid -s ${begin_time_increment[0]} -w ${params.scratch_basedir}/${params.obsid} -e recombine
-    checks.py -m recombine -o $params.obsid -w ${params.scratch_basedir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
+    srun --export=all recombine.py -o ${params.obsid} -s ${begin_time_increment[0]} -w ${params.scratch_basedir}/${params.obsid} -e recombine
+    checks.py -m recombine -o ${params.obsid} -w ${params.scratch_basedir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
     """
 }
 
@@ -205,9 +206,7 @@ workflow {
                    check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
                    check_data_format.out[1].splitCsv().map{ it -> [Integer.valueOf(it[0]), Integer.valueOf(it[1])] } )
     untar( check_data_format.out[0].splitCsv().collect().map{ it -> it[0] },
-           check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
            volt_download.out )
     recombine( check_data_format.out[0].splitCsv().collect().map{ it -> it[0] },
-               check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
                volt_download.out )
 }

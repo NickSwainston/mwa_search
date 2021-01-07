@@ -9,6 +9,7 @@ from vcstools.job_submit import submit_slurm
 from dpp.helper_config import dump_to_yaml
 from dpp.helper_relaunch import relaunch_ppp
 
+
 comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 

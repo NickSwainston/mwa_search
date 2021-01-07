@@ -12,7 +12,7 @@ import math
 from scipy.interpolate import UnivariateSpline
 import glob
 
-from config_vcs import load_config_file
+from vcstools.config import load_config_file
 
 def find_fwhm_and_plot(obsid, pointing):
     pointing_list = []

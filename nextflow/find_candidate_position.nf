@@ -31,12 +31,6 @@ params.fwhm_ra = "None"
 params.fwhm_dec = "None"
 
 
-include { pre_beamform; beamform } from './beamform_module'
-include { fwhm_calc } from './data_processing_pipeline'
-
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
-
 
 params.help = false
 if ( params.help ) {
@@ -96,6 +90,12 @@ if ( params.help ) {
     println(help)
     exit(0)
 }
+
+include { pre_beamform; beamform } from './beamform_module'
+include { fwhm_calc } from './data_processing_pipeline'
+
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
 
 if ( params.pointing_file ) {
     pointings = Channel

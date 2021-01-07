@@ -2,9 +2,9 @@
 import logging
 import numpy as np
 
-from dpp.helper_config import from_yaml, dump_to_yaml
-from prof_utils import auto_gfit
-from config_vcs import load_config_file
+from dpp.helper_yaml import from_yaml, dump_to_yaml
+from vcstools.prof_utils import auto_gfit
+from vcstools.config import load_config_file
 
 
 logger = logging.getLogger(__name__)

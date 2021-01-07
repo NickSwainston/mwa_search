@@ -10,21 +10,22 @@ import psrqpy
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
-# vcstools and mwa_search imports
-import find_pulsar_in_obs as fpio
-import mwa_search_pipeline as search_pipe
-from mwa_metadb_utils import get_common_obs_metadata as get_meta
-from mwa_metadb_utils import obs_max_min, get_obs_array_phase
-from config_vcs import load_config_file
-from mwa_search.grid_tools import get_grid
-import checks
-import sn_flux_est as snfe
 from mwa_pulsar_client import client
-import submit_to_database as std
-from dpp import pulsar_obs_helper as poh
-from config_vcs import load_config_file
-from vcstools import data_load
 
+# vcstools
+from vcstools.catalogue_utils import grab_source_alog
+from vcstools.metadb_utils import get_common_obs_metadata as get_meta
+from vcstools.metadb_utils import obs_max_min, get_obs_array_phase
+from vcstools.config import load_config_file
+import vcstools.sn_flux_est as snfe
+import submit_to_database as std
+from vcstools.config import load_config_file
+from vcstools import data_load
+from vcstools.pointing_utils import format_ra_dec
+
+# mwa_search
+import mwa_search_pipeline as search_pipe
+from mwa_search.grid_tools import get_grid
 
 import logging
 comp_config = load_config_file()
@@ -142,7 +143,7 @@ def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
         nfiles += 1
 
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
-    names_ra_dec = np.array(fpio.grab_source_alog(max_dm=250))
+    names_ra_dec = np.array(grab_source_alog(max_dm=250))
     pow_dict, meta_data = poh.find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
     channels = meta_data[-1][-1]
     obs_psrs = pow_dict[0.3][obsid]
@@ -195,8 +196,7 @@ def submit_folds(obsid, DI_dir, cal_obs, args, psrbeg, psrend,
             if PSRJ == line[0]:
                 temp = [line]
 
-        #temp = fpio.get_psrcat_ra_dec(pulsar_list=[PSRJ])
-        temp = fpio.format_ra_dec(temp, ra_col = 1, dec_col = 2)
+        temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
         #get pulsar period
         period = periods[pi]

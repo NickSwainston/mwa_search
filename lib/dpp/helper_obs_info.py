@@ -11,13 +11,14 @@ import sys
 
 # vcstools imports
 import vcstools.sn_flux_est as snfe
-from vcstools.config import load_config_file
-from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
-import checks
+from vcstools.metadb_utils import get_common_obs_metadata
+from vcstools.metadb_utils import obs_max_min, get_obs_array_phase
 from vcstools import data_load
-from vcstools.beam_calc import find_sources_in_obs
-from vcstools.catalogue_utils import grab_source_alog
 from vcstools.pointing_utils import format_ra_dec
+from vcstools.catalogue_utils import grab_source_alog
+from vcstools.beam_calc import find_sources_in_obs
+from vcstools.config import load_config_file
+comp_config = load_config_file()
 
 # mwa_search imports
 from mwa_search.grid_tools import get_grid
@@ -131,7 +132,6 @@ def find_fold_times(pulsars, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=N
                     break
 
     return fold_time_dict
-
 
 def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None):
     """

@@ -5,7 +5,7 @@ from astropy.time import Time
 import astropy.units as u
 
 # vcstools imports
-import checks
+from vcstools.check_files import check_recombine
 from vcstools.config import load_config_file
 
 # mwa_search imports
@@ -120,10 +120,10 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
     if beg is not None and dur is not None:
         logger.info("Checking recombined files beginning at {0} and ending at {1}. Duration: {2} seconds"\
                     .format(beg, (beg+dur), dur))
-        error = checks.check_recombine(obsid, startsec=beg, n_secs=dur, directory=comb_dir)
+        error = check_recombine(obsid, startsec=beg, n_secs=dur, directory=comb_dir)
     else:
         logger.warn("No start time information supplied. Comparing files with full obs")
-        error = checks.check_recombine(obsid, directory=comb_dir)
+        error = check_recombine(obsid, directory=comb_dir)
 
     if error == True:
         check = False

@@ -3,7 +3,7 @@
 import argparse
 import os
 from mwa_search_pipeline import your_slurm_queue_check
-from job_submit import submit_slurm
+from vcstools.job_submit import submit_slurm
 
 def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
     print(file_list)

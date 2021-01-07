@@ -78,7 +78,7 @@ process ddplan {
     """
     #!/usr/bin/env python3
 
-    import find_pulsar_in_obs as fpio
+    from vcstools.catalogue_utils import grab_source_alog
     from mwa_search.dispersion_tools import dd_plan
     import csv
     
