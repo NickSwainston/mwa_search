@@ -4,8 +4,8 @@ from os.path import join
 from os import chdir, getcwd
 import datetime
 
-from config_vcs import load_config_file
-from job_submit import submit_slurm
+from vcstools.config import load_config_file
+from vcstools.job_submit import submit_slurm
 from dpp.helper_config import dump_to_yaml
 from dpp.helper_relaunch import relaunch_ppp
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_prep_name(cfg, bins, pointing):
-    return f"pf_{cfg['obs']['id']}_{cfg['obs']['cal']}_{pointing}_b{bins}"
+    return f"pf_{cfg['run_ops']['file_precursor']}_{pointing}_b{bins}"
 
 
 def common_kwargs(cfg, bin_count, pointing):
@@ -56,7 +56,7 @@ def common_kwargs(cfg, bin_count, pointing):
     return prep_kwargs
 
 
-def add_prepfold_to_commands(prep_kwargs, psr_name, eph=None, eph_name=None, presto_container="", binary=False):
+def add_prepfold_to_commands(prep_kwargs, psr_name, pointing, eph=None, eph_name=None, presto_container="", binary=False):
     """Adds prepfold commands to a list. If eph is not None, will use -par"""
     commands = []
     kwarg_cmds = "" # Just the important stuff
@@ -67,8 +67,8 @@ def add_prepfold_to_commands(prep_kwargs, psr_name, eph=None, eph_name=None, pre
     if eph and eph_name: # For -par (binary)
         par_cmds += f" -par {eph_name}"
     psr_cmds += f" -psr {psr_name}"
-    par_cmds += " *fits"
-    psr_cmds += " *fits"
+    par_cmds += f" {join(pointing, '*fits')}"
+    psr_cmds += f" {join(pointing, '*fits')}"
     # Make the commands
     commands.append(f"{presto_container} prepfold {par_cmds} ")
     commands.append("errorcode=$?")
@@ -121,12 +121,12 @@ def prepfold_time_alloc(cfg, prepfold_kwargs):
     return time
 
 
-def submit_prepfold(cfg, nbins, pointing, pointing_dir="./", depends_on=None, depend_type="afterany"):
+def submit_prepfold(cfg, nbins, pointing, psr_dir, depends_on=None, depend_type="afterany"):
     """Creates the commands for a prepfold job and submits it to the queue"""
     # Make the commands for the job
     prep_kwargs = common_kwargs(cfg, int(nbins), pointing)
-    cmds = [f"cd {pointing_dir}"]
-    cmds += add_prepfold_to_commands(prep_kwargs, cfg["source"]["name"], eph=cfg["source"]["edited_eph"],
+    cmds = [f"cd {psr_dir}"]
+    cmds += add_prepfold_to_commands(prep_kwargs, cfg["source"]["name"], pointing, eph=cfg["source"]["edited_eph"],
         eph_name=cfg["source"]["edited_eph_name"], presto_container="/pawsey/mwa/singularity/presto/presto.sif", binary=cfg["source"]["binary"])
     # TODO: get rid of the container hard-code ^^
 
@@ -149,7 +149,7 @@ def initial_folds(cfg):
     jids = []
     for pointing in cfg["folds"].keys():
         for nbins in cfg["folds"][pointing]["init"].keys():
-            jid, name = submit_prepfold(cfg, nbins, pointing, pointing_dir=cfg["folds"][pointing]["dir"])
+            jid, name = submit_prepfold(cfg, nbins, pointing, cfg["run_ops"]["psr_dir"])
             jids.append(jid)
             logger.info(f"Submitted prepfold job: {name}")
             logger.info(f"Job ID: {jid}")
@@ -161,7 +161,7 @@ def post_folds(cfg):
     jids = []
     pointing = cfg["source"]["my_pointing"]
     for nbins in cfg["folds"][pointing]["post"].keys():
-        jid, name = submit_prepfold(cfg, nbins, pointing, pointing_dir=cfg["folds"][pointing]["dir"])
+        jid, name = submit_prepfold(cfg, nbins, cfg["run_ops"]["psr_dir"], pointing_dir=cfg["folds"][pointing]["dir"])
         jids.append(jid)
         logger.info(f"Submitted prepfold job: {name}")
         logger.info(f"Job ID: {jid}")
