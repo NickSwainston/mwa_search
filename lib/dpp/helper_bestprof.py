@@ -69,7 +69,11 @@ def find_best_pointing(cfg):
     # Populate cfg with initial fold info
     for pointing in cfg["folds"].keys():
         nbins = list(cfg["folds"][pointing]["init"].keys())[0]
-        bestprof_name = glob(join(cfg["folds"][pointing]["dir"], f"*_b{nbins}*.pfd.bestprof"))[0]
+        glob_dir = join(cfg["run_ops"]["psr_dir"], f"*_b{nbins}*.pfd.bestprof")
+        try:
+            bestprof_name = glob(glob_dir)[0]
+        except IndexError as e:
+            raise IndexError(f"No .bestprofs found: {glob_dir}")
         cfg["folds"][pointing]["init"][nbins] = bestprof_info(bestprof_name)
 
     # Search for pointings with positive classifications (>=3 out of 5 is positive classification)
