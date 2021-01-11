@@ -2,6 +2,7 @@
 import logging
 
 from vcstools.job_submit import submit_slurm
+from dpp.helper_config import dump_to_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -12,12 +13,14 @@ def launch_label(cfg):
     return order[counter]
 
 
-def relaunch_ppp(cfg, depends_on=None, depend_type="afterany", fresh_run=False, reset_logs=False):
+def relaunch_ppp(cfg, depends_on=None, depend_type="afterany", fresh_run=False, reset_logs=False, time="00:30:00"):
     """Relaunches the pulsar processing pipeline using the supplied cfg file"""
+    # dump the new cfg
+    dump_to_yaml(cfg)
     label = launch_label(cfg)
     name = f"ppp_{cfg['run_ops']['file_precursor']}_{label}"
     batch_dir = cfg['run_ops']['batch_dir']
-    slurm_kwargs = {"time": "00:30:00"}
+    slurm_kwargs = {"time": time}
     mem=8192
     ppp_launch = "pulsar_processing_pipeline.py"
     ppp_launch += f" --cfg {cfg['run_ops']['myname']}"
