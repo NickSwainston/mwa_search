@@ -70,13 +70,12 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["source"]["sampling_limit"] = int(bin_sampling_limit(cfg["source"]["name"], query=query))
     cfg["source"]["ATNF_P"] = float(query["P0"][query_index])
     cfg["source"]["ATNF_DM"] = float(query["DM"][query_index])
-    cfg["source"]["synth_RM"] = None
-    cfg["source"]["synth_RM_e"] = None
     cfg["source"]["my_DM"] = None
     cfg["source"]["my_P"] = None
+    cfg["source"]["my_Pdot"] = None
     cfg["source"]["my_bins"] = None
     cfg["source"]["my_pointing"] = None
-    cfg["source"]["my_bins"] = None
+    cfg["source"]["gfit"] = None
     cfg["source"]["binary"] = is_binary(cfg["source"]["name"], query=query)
     cfg["source"]["seek"] = cfg["source"]["enter_frac"] * (cfg["obs"]["end"] - cfg["obs"]["beg"])
     cfg["source"]["total"] = (cfg["source"]["exit_frac"] - cfg["source"]["enter_frac"]) * (cfg["obs"]["end"] - cfg["obs"]["beg"])
@@ -96,6 +95,8 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
         for _, i in enumerate(post):
             cfg["folds"][pointing]["post"][str(i)] = {}
 
+    cfg["pol"]["RM"] = None
+    cfg["pol"]["RM_e"] = None
     cfg["pol"]["alpha"] = None
     cfg["pol"]["beta"] = None
     cfg["pol"]["l0"] = None
@@ -107,12 +108,9 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["completed"]["classify"] = False
     cfg["completed"]["post_folds"] = False
     cfg["completed"]["upload"] = False
-    cfg["completed"]["polarimetry_1"] = False
-    cfg["completed"]["polarimetry_2"] = False
-    cfg["completed"]["polarimetry_3"] = False
-    cfg["completed"]["polarimetry_4"] = False
-    cfg["completed"]["polarimetry_5"] = False
-    cfg["completed"]["polarimetry_6"] = False
+    cfg["completed"]["RM"] = False
+    cfg["completed"]["RVM_initial"] = False
+    cfg["completed"]["RVM_final"] = False
     return cfg
 
 
