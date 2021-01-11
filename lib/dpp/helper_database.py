@@ -45,4 +45,5 @@ def submit_prepfold_products_db(cfg, dep_id=None, dep_type="afterany"):
         logger.info(f"Submission script on queue for profile: {bestprof}")
         logger.info(f"Job Name: {name}")
         logger.info(f"Job ID: {this_id}")
+        cfg["completed"]["upload"] = True
     return jids
