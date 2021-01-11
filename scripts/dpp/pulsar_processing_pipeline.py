@@ -6,12 +6,15 @@ import os
 
 from dpp.helper_config import from_yaml, reset_cfg
 from dpp.helper_prepfold import ppp_prepfold
-from dpp.helper_classify import classify_main
+from dpp.helper_classify import classify_main, read_classifications
 from dpp.helper_bestprof import find_best_pointing, NoUsableFolds, populate_folds, best_post_fold
 from dpp.helper_logging import initiate_logs
 from dpp.helper_terminate import finish_unsuccessful
 from dpp.helper_files import remove_old_results
 from dpp.helper_database import submit_prepfold_products_db
+from dpp.helper_archive import to_ar_and_back
+from dpp.helper_relaunch import relaunch_ppp
+from dpp.helper_RM import RM_synth, RM_cor
 
 logger = logging.getLogger(__name__)
 
@@ -35,20 +38,23 @@ def main(kwargs):
     # Do the next step in the pipeline
     if cfg["completed"]["init_folds"] == False:
         # Do the initial folds
-        ppp_prepfold(cfg)
+        dep_jids = ppp_prepfold(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jids)
     elif cfg["completed"]["classify"] == False:
         # Classify the intial folds
-        classify_main(cfg)
+        dep_jid = classify_main(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jid)
     elif cfg["completed"]["post_folds"] == False:
         # Read the output of the classifier
-        classify_main(cfg)
+        read_classifications(cfg)
         # Decide on next folds
         try:
             find_best_pointing(cfg)
         except NoUsableFolds as e:
             finish_unsuccessful(cfg, e)
         # Submit post folds
-        ppp_prepfold(cfg)
+        dep_jids = ppp_prepfold(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jids)
     elif cfg["completed"]["upload"] == False:
         # Update cfg with fold info
         populate_folds(cfg)
@@ -56,8 +62,21 @@ def main(kwargs):
         best_post_fold(cfg)
         # Upload stuff to database
         submit_prepfold_products_db(cfg)
-        # Begin polarimetry
-        logger.info("Complete. Now make polarimetry pipeline")
+        # Launch archive/fits creation job
+        dep_jid, _ = to_ar_and_back(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jid, time="02:00:00") # RM synth might take a while - give it more time
+    elif cfg["completed"]["RM"] == False:
+        # Perform RM synthesis
+        RM_synth(cfg)
+        # Correct for RM
+        dep_jid, _ = RM_cor(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jid)
+    elif cfg["completed"]["RVM_initial"] == False:
+        logger.info("TODO: RVM fitting")
+
+
+
+
 
 
 if __name__ == '__main__':
