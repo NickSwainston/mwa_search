@@ -77,11 +77,7 @@ def read_classifications(cfg):
 
 def classify_main(cfg):
     """initiates and launches a classify job"""
-    if cfg["completed"]["classify"] == False:
-        setup_classify(cfg)
-        jid, _ = submit_classify(cfg)
-        cfg["completed"]["classify"] = True
-        dump_to_yaml(cfg)
-        relaunch_ppp(cfg, depends_on=jid)
-    else:
-        read_classifications(cfg)
+    setup_classify(cfg)
+    jid, _ = submit_classify(cfg)
+    cfg["completed"]["classify"] = True
+    return jid
