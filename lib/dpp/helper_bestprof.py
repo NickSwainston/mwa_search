@@ -60,6 +60,8 @@ def bestprof_info(filename):
     info_dict["dm"] = float(lines[14].split()[4])
     info_dict["period"] = float(lines[15].split()[4])/1e3 #in seconds
     info_dict["period_error"] = float(lines[15].split()[6])/1e3
+    info_dict["pdot"] = float(lines[16].split()[4])/1e3
+    info_dict["pdot_error"] = float(lines[16].split()[6])/1e3
     info_dict["profile"] = list(np.genfromtxt(filename)[:,1])
     f.close()
     return info_dict
@@ -123,6 +125,9 @@ def best_post_fold(cfg):
         info = cfg["folds"][pointing]["post"][str(bin_count)]
         if info["sn"] >= good_sn and info["chi"] >= good_chi:
             cfg["source"]["my_bins"] = bin_count
+            cfg["source"]["my_DM"] = info["dm"]
+            cfg["source"]["my_P"] = info["period"]
+            cfg["source"]["my_Pdot"] = info["pdot"]
             break
 
     # "minimum requirements" loop
@@ -132,11 +137,19 @@ def best_post_fold(cfg):
             info = cfg["folds"][pointing]["post"][str(bin_count)]
             if info["sn"] >= min_sn and info["chi"] >= min_chi:
                 cfg["source"]["my_bins"] = bin_count
+                cfg["source"]["my_DM"] = info["dm"]
+                cfg["source"]["my_P"] = info["period"]
+                cfg["source"]["my_Pdot"] = info["pdot"]
                 break
 
     if cfg["source"]["my_bins"] == None:
         # The classifier still gave a positive detection somewhere. Continue with lowest bin post fold
         logger.warn("No folds meet minimum requirements. Will continue with lowest bin fold")
-        cfg["source"]["my_bins"] = post_folds[-1]
+        bin_count = post_folds[-1]
+        info = cfg["folds"][pointing]["post"][str(bin_count)]
+        cfg["source"]["my_bins"] = bin_count
+        cfg["source"]["my_DM"] = info["dm"]
+        cfg["source"]["my_P"] = info["period"]
+        cfg["source"]["my_Pdot"] = info["pdot"]
     else:
         logger.info(f"Continuing with bin count: {cfg['source']['my_bins']}")
