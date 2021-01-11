@@ -180,8 +180,4 @@ def ppp_prepfold(cfg):
         logger.info("Creating command for post folds")
         dep_jids = post_folds(cfg)
         cfg["completed"]["post_folds"] = True
-
-    # Update yaml file
-    dump_to_yaml(cfg)
-    # Relaunch pulsar_processing_pipeline
-    relaunch_ppp(cfg, depends_on=dep_jids)
+    return dep_jids
