@@ -45,13 +45,13 @@ def submit_classify(cfg):
     # Make the commands for the job
     cmds = add_classify_to_commands(cfg)
     # Work out some things for the job
-    name = f"{cfg['run_ops']['file_precursor']}_classify"
+    name = f"{cfg['files']['file_precursor']}_classify"
     slurm_kwargs = {"time":"00:30:00"}
     modules = ["singularity"]
     mem = 8192
     # Submit Job
     jid = submit_slurm(name, cmds,
-        slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["run_ops"]["batch_dir"], load_vcstools=False, submit=True)
+        slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["files"]["batch_dir"], load_vcstools=False, submit=True)
     logger.info(f"Submitted classiy job: {name}")
     logger.info(f"Job ID: {jid}")
     return jid, name
@@ -59,8 +59,8 @@ def submit_classify(cfg):
 
 def read_classifications(cfg):
     """Reads the output of the classifier and updates cfg with the information"""
-    negfile = join(cfg["run_ops"]["classify_dir"], "feature_extraction.negative")
-    posfile = join(cfg["run_ops"]["classify_dir"], "feature_extraction.positive")
+    negfile = join(cfg["files"]["classify_dir"], "feature_extraction.negative")
+    posfile = join(cfg["files"]["classify_dir"], "feature_extraction.positive")
     try:
         with open(posfile, "r") as f:
             pos = f.readlines()

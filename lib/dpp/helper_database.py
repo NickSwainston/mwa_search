@@ -20,21 +20,21 @@ def submit_prepfold_products_db(cfg, dep_id=None, dep_type="afterany"):
     jids = []
     for bin_count in bin_list:
         commands = []
-        commands.append(f"cd {cfg['run_ops']['psr_dir']}")
+        commands.append(f"cd {cfg['files']['psr_dir]}")
         # Get the files to upload
         try:
             ppps = glob_pfds(cfg, my_pointing, bin_count, pfd_type=".ps")[0]
         except IndexError as e:
-            raise IndexError(f"No ppps files found in dir: {cfg['run_ops']['psr_dir']} for pointing {my_pointing} and bin count {bin_count}")
+            raise IndexError(f"No ppps files found in dir: {cfg['files']['psr_dir]} for pointing {my_pointing} and bin count {bin_count}")
         try:
             bestprof = glob_pfds(cfg, my_pointing, bin_count, pfd_type=".bestprof")[0]
         except IndexError as e:
-            raise IndexError(f"No bestprof files found in dir: {cfg['run_ops']['psr_dir']} for pointing {my_pointing} and bin count {bin_count}")
+            raise IndexError(f"No bestprof files found in dir: {cfg['files']['psr_dir]} for pointing {my_pointing} and bin count {bin_count}")
         commands.append(f"echo 'Submitting profile to database with {bin_count} bins'")
         commands.append(f"submit_to_database.py -o {cfg['obs']['id']} --cal_id {cfg['obs']['cal']} -p {cfg['source']['name']} --bestprof {bestprof} --ppps {ppps}")
 
         # Submit this job
-        name = f"Submit_db_{cfg['run_ops']['file_precursor']}_{bin_count}"
+        name = f"Submit_db_{cfg['files']['file_precursor']}_{bin_count}"
         batch_dir = join(comp_config['base_data_dir'], cfg['obs']['id'], "batch")
         this_id = submit_slurm(name, commands,
                         batch_dir=batch_dir, slurm_kwargs={"time": "00:30:00"}, depend=dep_id,

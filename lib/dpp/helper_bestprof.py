@@ -75,7 +75,7 @@ def find_best_pointing(cfg):
         try:
             bestprof_name = glob_pfds(cfg, pointing, nbins, pfd_type="pfd.bestprof")[0]
         except IndexError as e:
-            raise IndexError(f"No .bestprofs found: {cfg['run_ops']['psr_dir']}")
+            raise IndexError(f"No .bestprofs found: {cfg['files']['psr_dir]}")
         cfg["folds"][pointing]["init"][nbins] = bestprof_info(bestprof_name)
 
     # Search for pointings with positive classifications (>=3 out of 5 is positive classification)
@@ -83,13 +83,15 @@ def find_best_pointing(cfg):
 
     # Throw exception if there aren't any positive detections
     if len(positive_pointings) == 0:
-        raise NoUsableFolds(f"No positive classifications found in pulsar directory {cfg['run_ops']['psr_dir']}")
+        raise NoUsableFolds(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir]}")
     else:
         best_chi = 0
         for pointing in positive_pointings:
             nbins = list(cfg["folds"][pointing]["init"].keys())[0]
             if cfg["folds"][pointing]["init"][nbins]["chi"] > best_chi:
                 cfg["source"]["my_pointing"] = pointing
+                # Check if there are header files for vdif processing
+                cfg["run_ops"]["vdif"] = bool(glob(join(cfg["files"]["psr_dir"], pointing, "*.hdr")))
         logger.info(f"Best pointing found with chi value of {best_chi}: {cfg['source']['my_pointing']}")
 
 
@@ -100,7 +102,7 @@ def populate_post_folds(cfg):
         try:
             bestprof_name = glob_pfds(cfg, my_pointing, bins, pfd_type="pfd.bestprof")[0]
         except IndexError as _:
-            raise IndexError(f"No .bestprofs found: {cfg['run_ops']['psr_dir']}")
+            raise IndexError(f"No .bestprofs found: {cfg['files']['psr_dir]}")
         cfg["folds"][my_pointing]["post"][bins] = bestprof_info(bestprof_name)
 
 

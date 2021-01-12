@@ -23,7 +23,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     Adds all available keys to the cfg dictionary and figures out some useful constants
     Takes kwargs from observation_processing_pipeline
     """
-    cfg = {"obs": {}, "source": {}, "completed": {}, "folds": {}, "run_ops": {}, "pol": {}}
+    cfg = {"obs": {}, "source": {}, "completed": {}, "folds": {}, "run_ops": {}, "pol": {}, "files":{}}
     if query is None:
         query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
     if metadata is None:
@@ -50,12 +50,27 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["run_ops"]["good_sn"] = 20.0
     cfg["run_ops"]["vdif"] = None
     cfg["run_ops"]["mask"] = None
-    cfg["run_ops"]["file_precursor"] = file_precursor(kwargs, psr)
-    cfg["run_ops"]["psr_dir"] = join(comp_config["base_data_dir"], str(cfg["obs"]["id"]), "dpp", cfg["run_ops"]["file_precursor"])
-    cfg["run_ops"]["myname"] = join(cfg["run_ops"]["psr_dir"], f"{cfg['run_ops']['file_precursor']}_cfg.yaml")
-    cfg["run_ops"]["logfile"] = join(cfg["run_ops"]["psr_dir"], f"{cfg['run_ops']['file_precursor']}_logs.txt")
-    cfg["run_ops"]["batch_dir"] = join(comp_config['base_data_dir'], cfg["obs"]["id"], "batch")
-    cfg["run_ops"]["classify_dir"] = join(cfg["run_ops"]["psr_dir"], "classifier_ppp")
+
+    cfg["files"]["file_precursor"] = file_precursor(kwargs, psr)
+    cfg["files"]["psr_dir"] = join(comp_config["base_data_dir"], str(cfg["obs"]["id"]), "dpp", cfg["files"]["file_precursor"])
+    cfg["files"]["batch_dir"] = join(comp_config['base_data_dir'], cfg["obs"]["id"], "batch")
+    cfg["files"]["classify_dir"] = join(cfg["files"]["psr_dir"], "classifier_ppp")
+    cfg["files"]["myname"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_cfg.yaml")
+    cfg["files"]["logfile"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_logs.txt")
+    cfg["files"]["archive"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.ar")
+    cfg["files"]["archive_ascii"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.txt")
+    cfg["files"]["gfit_plot"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_gfit.png")
+    cfg["files"]["converted_fits"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive_converted.fits")
+    cfg["files"]["debased_fits"] = Nojoin(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_baseline_removed.debase.gg")
+    cfg["files"]["chigrid_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_chigrid_initial.ps")
+    cfg["files"]["paswing_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_initial.ps")
+    cfg["files"]["RVM_fit_initial"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_RVM_fit_initial.out")
+    cfg["files"]["chigrid_final_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_chigrid_final.ps")
+    cfg["files"]["paswing_final_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_final.ps")
+    cfg["files"]["RVM_fit_final"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_RVM_fit_final.out")
+    cfg["files"]["ppol_profile_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_profile.ps"
+    cfg["files"]["ppol_polar_profile_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_polarimetry_profile.ps/cps"
+
 
     cfg["source"]["enter_frac"] = None
     cfg["source"]["exit_frac"] = None
@@ -80,7 +95,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["source"]["seek"] = cfg["source"]["enter_frac"] * (cfg["obs"]["end"] - cfg["obs"]["beg"])
     cfg["source"]["total"] = (cfg["source"]["exit_frac"] - cfg["source"]["enter_frac"]) * (cfg["obs"]["end"] - cfg["obs"]["beg"])
     if cfg["source"]["binary"]:
-        cfg["source"]["edited_eph_name"] = join(cfg["run_ops"]["psr_dir"], f"{cfg['run_ops']['file_precursor']}.eph")
+        cfg["source"]["edited_eph_name"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}.eph")
         cfg["source"]["edited_eph"] = create_edited_eph(cfg["source"]["name"])
     else:
         cfg["source"]["edited_eph"] = None
@@ -89,7 +104,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     for pointing in pointings:
         cfg["folds"] = {pointing: {"init":{}, "post":{}}}
         cfg["folds"][pointing]["classifier"] = 0
-        cfg["folds"][pointing]["dir"] = join(cfg["run_ops"]["psr_dir"], pointing)
+        cfg["folds"][pointing]["dir"] = join(cfg["files"]["psr_dir"], pointing)
         for _, i in enumerate(init):
             cfg["folds"][pointing]["init"][str(i)] = {}
         for _, i in enumerate(post):

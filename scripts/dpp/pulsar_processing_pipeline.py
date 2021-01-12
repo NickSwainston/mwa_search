@@ -12,7 +12,7 @@ from dpp.helper_logging import initiate_logs
 from dpp.helper_terminate import finish_unsuccessful
 from dpp.helper_files import remove_old_results
 from dpp.helper_database import submit_prepfold_products_db
-from dpp.helper_archive import to_ar_and_back
+from dpp.helper_archive import ppp_file_creation
 from dpp.helper_relaunch import relaunch_ppp
 from dpp.helper_RM import RM_synth, RM_cor
 
@@ -27,7 +27,7 @@ def main(kwargs):
     writemode = "a"
     if kwargs["reset_logs"]:
         writemode = "w+"
-    initiate_logs(cfg["run_ops"]["loglvl"], outfile=cfg["run_ops"]["logfile"], writemode=writemode, stderr=True)
+    initiate_logs(cfg["run_ops"]["loglvl"], outfile=cfg["files"]["logfile"], writemode=writemode, stderr=True)
 
     # Check if a fresh run is forced
     if kwargs["force_rerun"]:
@@ -63,7 +63,7 @@ def main(kwargs):
         # Upload stuff to database
         submit_prepfold_products_db(cfg)
         # Launch archive/fits creation job
-        dep_jid, _ = to_ar_and_back(cfg)
+        dep_jid, _ = ppp_file_creation(cfg)
         relaunch_ppp(cfg, depends_on=dep_jid, time="02:00:00") # RM synth might take a while - give it more time
     elif cfg["completed"]["RM"] == False:
         # Perform RM synthesis

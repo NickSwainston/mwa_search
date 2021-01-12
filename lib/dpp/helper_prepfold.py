@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_prep_name(cfg, bins, pointing):
-    return f"pf_{cfg['run_ops']['file_precursor']}_{pointing}_b{bins}"
+    return f"pf_{cfg['files']['file_precursor']}_{pointing}_b{bins}"
 
 
 def common_kwargs(cfg, bin_count, pointing):
@@ -140,7 +140,7 @@ def submit_prepfold(cfg, nbins, pointing, psr_dir, depends_on=None, depend_type=
 
     # Submit Job
     jid = submit_slurm(name, cmds,
-        slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["run_ops"]["batch_dir"], depend=depends_on,
+        slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["files"]["batch_dir"], depend=depends_on,
         depend_type=depend_type, vcstools_version=cfg["run_ops"]["vcstools"], submit=True)
     return jid, name
 
@@ -150,7 +150,7 @@ def initial_folds(cfg):
     jids = []
     for pointing in cfg["folds"].keys():
         for nbins in cfg["folds"][pointing]["init"].keys():
-            jid, name = submit_prepfold(cfg, nbins, pointing, cfg["run_ops"]["psr_dir"])
+            jid, name = submit_prepfold(cfg, nbins, pointing, cfg["files"]["psr_dir"])
             jids.append(jid)
             logger.info(f"Submitted prepfold job: {name}")
             logger.info(f"Job ID: {jid}")
@@ -162,7 +162,7 @@ def post_folds(cfg):
     jids = []
     pointing = cfg["source"]["my_pointing"]
     for nbins in cfg["folds"][pointing]["post"].keys():
-        jid, name = submit_prepfold(cfg, nbins, pointing, cfg["run_ops"]["psr_dir"])
+        jid, name = submit_prepfold(cfg, nbins, pointing, cfg["files"]["psr_dir"])
         jids.append(jid)
         logger.info(f"Submitted prepfold job: {name}")
         logger.info(f"Job ID: {jid}")
