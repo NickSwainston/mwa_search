@@ -7,7 +7,7 @@ import os
 from dpp.helper_config import from_yaml, reset_cfg
 from dpp.helper_prepfold import ppp_prepfold
 from dpp.helper_classify import classify_main, read_classifications
-from dpp.helper_bestprof import find_best_pointing, NoUsableFolds, populate_folds, best_post_fold
+from dpp.helper_bestprof import find_best_pointing, NoUsableFolds, populate_post_folds, best_post_fold
 from dpp.helper_logging import initiate_logs
 from dpp.helper_terminate import finish_unsuccessful
 from dpp.helper_files import remove_old_results
@@ -57,7 +57,7 @@ def main(kwargs):
         relaunch_ppp(cfg, depends_on=dep_jids)
     elif cfg["completed"]["upload"] == False:
         # Update cfg with fold info
-        populate_folds(cfg)
+        populate_post_folds(cfg)
         # Find the best post-fold
         best_post_fold(cfg)
         # Upload stuff to database

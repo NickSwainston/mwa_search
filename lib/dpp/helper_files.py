@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import logging
-from os import makedirs, symlink, rmdir, unlink, getcwd, chdir, remove
+from os import symlink, rmdir, unlink, getcwd, chdir, remove
 from os.path import exists, join, basename
 from shutil import copyfile
 from glob import glob
 
 from vcstools.config import load_config_file
+from vcstools.general_utils import mdir
 
 comp_config = load_config_file()
 logger = logging.getLogger(__name__)
@@ -13,15 +14,15 @@ logger = logging.getLogger(__name__)
 
 def create_dpp_dir(kwargs):
     dpp_dir = join(comp_config["base_data_dir"], str(kwargs["obsid"]), "dpp")
-    makedirs(dpp_dir, exist_ok=True)
+    mdir(dpp_dir, dpp_dir)
 
 
 def setup_cfg_dirs(cfg):
     """Creates the necessary folders and symlinks for dpp"""
     # Create pulsar directory
-    makedirs(cfg["run_ops"]["psr_dir"], exist_ok=True)
+    mdir(cfg["run_ops"]["psr_dir"], cfg["run_ops"]["psr_dir"])
     # Create classify dir
-    makedirs(cfg["run_ops"]["classify_dir"], exist_ok=True)
+    mdir(cfg["run_ops"]["classify_dir"], cfg["run_ops"]["classify_dir"])
     # Create edited .eph if necessary
     if cfg["source"]["binary"]:
         with open(cfg["source"]["edited_eph_name"], "w") as f:
@@ -72,7 +73,7 @@ def setup_classify(cfg):
     """Creates the required directories and copies files for the lotaas classifier"""
     owd = getcwd()
     chdir(cfg["run_ops"]["psr_dir"])
-    makedirs(cfg["run_ops"]["classify_dir"], exist_ok=True) # This should already exist but keep it anyway
+    mdir(cfg["run_ops"]["classify_dir"], cfg["run_ops"]["classify_dir"]) # This should already exist but keep it anyway
     for pointing in cfg["folds"].keys():
         init_bins = list(cfg["folds"][pointing]["init"].keys())[0]
         if int(init_bins) not in (50, 100):
