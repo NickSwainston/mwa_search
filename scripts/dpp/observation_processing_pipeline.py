@@ -61,9 +61,10 @@ if __name__ == '__main__':
     required.add_argument("--end", type=int, help="The end of the observation")
 
     otherop = parser.add_argument_group("Other Options")
-    otherop.add_argument("--relaunch", action="store_true", help="Use this tag to relaunch a partially completed opp run.")
+    otherop.add_argument("--relaunch", action="store_true", help="Use this tag to relaunch a partially completed opp run.") #TODO: sort out cases for only half present files
     otherop.add_argument("--keep_logs", action="store_true", help="Use this tag to keep the old logs of previous ppp runs")
-    otherop.add_argument("--force_rerun", action="store_true", help="Forces a fresh run of the pipeline")
+    otherop.add_argument("--force_rerun", action="store_true", help="Use this tag to force a fresh run of each pulsar processing pipeline\
+                         by overwriting the config files. Else, will continue from any found config files.")
     otherop.add_argument("--label", type=str, default="", help="A label to use to identify the results from this run")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
     otherop.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use")
