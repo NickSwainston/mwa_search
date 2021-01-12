@@ -91,15 +91,9 @@ def find_best_pointing(cfg):
         logger.info(f"Best pointing found with chi value of {best_chi}: {cfg['source']['my_pointing']}")
 
 
-def populate_folds(cfg):
-    """Fills the cfg with info on all of the folds"""
+def populate_post_folds(cfg):
+    """Fills the cfg with info on all of the post folds"""
     my_pointing = cfg["source"]["my_pointing"]
-    for bins in cfg["folds"][my_pointing]["init"].keys():
-        try:
-            bestprof_name = glob_pfds(cfg, my_pointing, bins, pfd_type="pfd.bestprof")[0]
-        except IndexError as _:
-            raise IndexError(f"No .bestprofs found: {cfg['run_ops']['psr_dir']}")
-        cfg["folds"][my_pointing]["init"][bins] = bestprof_info(bestprof_name)
     for bins in cfg["folds"][my_pointing]["post"].keys():
         try:
             bestprof_name = glob_pfds(cfg, my_pointing, bins, pfd_type="pfd.bestprof")[0]
