@@ -38,6 +38,11 @@ fi
 
 grid.py -o $OBSID -a -b $BEGIN -e $END -d 0.3 -f 0.9 -n 1080 --out_file_name SMART_${NAME}_grid
 
+if [[ $HOSTNAME == garrawarla* ]] ; then
+    # If on garrwarla set up striping to help with I/O
+    lfs setstripe -E 1M -c 1 -E 256M -c 4 -E -1 -c -1 $PWD
+fi
+
 for SMART_job in $(ls SMART_${NAME}_grid*txt); do
     mkdir -p ${SMART_job%.txt}
     cd ${SMART_job%.txt}
