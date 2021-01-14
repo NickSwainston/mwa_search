@@ -11,6 +11,7 @@ params.all = false
 
 params.search_radius = 0.02
 params.fwhm_deg = null
+params.only_cand_search = false
 
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
@@ -39,6 +40,9 @@ if ( params.help ) {
              |  --search_radius
              |              The radius to search (create beams within) in degrees to account for ionosphere.
              |              [default: 0.02 degrees]
+             |  --only_cand_search
+             |              Only search for pulsar candidates (no known pulsar processing
+             |              [default: False]
              |  --publish_fits
              |              Publish to the fits directory (/group on Galaxy). Use this instead
              |              of --publish_fits_scratch
@@ -59,6 +63,12 @@ if ( params.help ) {
     exit(0)
 }
 
+if ( params.only_cand_search ) {
+    no_known_pulsar_command = "--no_known_pulsar"
+}
+else {
+    no_known_pulsar_command = ""
+}
 
 process fwhm_calc {
     input:
@@ -96,7 +106,7 @@ process find_pointings {
     file "${params.obsid}_fov_sources.csv"
 
     """
-    pulsars_in_fov.py -o $params.obsid -b $begin -e $end --fwhm $fwhm --search_radius ${params.search_radius}
+    pulsars_in_fov.py -o $params.obsid -b $begin -e $end --fwhm $fwhm --search_radius ${params.search_radius} ${no_known_pulsar_command}
     """
 }
 

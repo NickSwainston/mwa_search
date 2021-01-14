@@ -11,8 +11,7 @@ import sys
 
 # vcstools imports
 import vcstools.sn_flux_est as snfe
-from vcstools.metadb_utils import get_common_obs_metadata
-from vcstools.metadb_utils import obs_max_min, get_obs_array_phase
+from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
 from vcstools import data_load
 from vcstools.pointing_utils import format_ra_dec
 from vcstools.catalogue_utils import grab_source_alog
@@ -302,9 +301,14 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     return [name_list, pointing_list]
 
 
-def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02, query=None, meta_data=None, full_meta=None):
+def find_pulsars_in_fov(obsid, psrbeg, psrend,
+                        fwhm=None, search_radius=0.02,
+                        meta_data=None, full_meta=None,
+                        no_known_pulsars=False, no_search_cands=False):
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
+
+    Parameters:
     -----------
     obsid: int
         The observation ID
@@ -312,12 +316,25 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02, qu
         The begining of the observation you are processing in GPS time
     psrend: int
         The end of the observation you are processing in GPS time
+
     fwhm: float
-        The FWHM of the beam in degrees.
+        OPTIONAL - The FWHM of the beam in degrees.
         Default None: Value will be estimated
     search_radius: float
-        The radius to search (create beams within) in degrees to account for ionosphere.
+        OPTIONAL - The radius to search (create beams within) in degrees to account for ionosphere.
         Default: 0.02 degrees
+    meta_data: list
+        OPTIONAL - Comon observation metadata in the format from vcstools.metadb_utils.get_common_obs_metadata
+        Default None: Will perform the metadata call
+    full_meta: dict
+        OPTIONAL - Full observation metadata in the format from vcstools.metadb_utils.getmeta
+        Default None: Will perform the metadata call
+    no_known_pulsars: bool
+        OPTIONAL - Will return no known pulsars
+        Default: False
+    no_search_cands: bool
+        OPTIONAL - Will return no search candidates
+        Default: False
 
     Returns:
     --------
@@ -331,34 +348,41 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02, qu
     """
     if not meta_data or not full_meta:
         meta_data, full_meta = get_common_obs_metadata(obsid, return_all=True)
-    #Find all pulsars in beam at at least 0.3 of zenith normlaized power
-    names_ra_dec = np.array(grab_source_alog(max_dm=250))
-    pow_dict, _ = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
     channels = meta_data[-1]
-    obs_psrs = pow_dict[0.3][obsid]
-    psrs_list_03 = [x[0] for x in obs_psrs]
-    #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
-    psrs_01 = [x[0] for x in pow_dict[0.1][obsid]]
-    sn_dict_01 = snfe.multi_psr_snfe(psrs_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
-    for psr in pow_dict[0.1][obsid]:
-        if psr[0] not in psrs_list_03:
-            sn, sn_err = sn_dict_01[psr[0]]
-            if sn is not None and sn_err is not None:
-                if sn - sn_err >= 10.:
-                    obs_psrs.append(psr)
-
-    #get all the pulsars periods
-    pulsar_list = []
-    for o in obs_psrs:
-        pulsar_list.append(o[0])
-    period_query = psrqpy.QueryATNF(params=["PSRJ", "P0"], psrs=pulsar_list,
-                               loadfromdb=data_load.ATNF_LOC).pandas
 
     if fwhm is None:
         # Estimate FWHM
         oap = get_obs_array_phase(obsid)
         centrefreq = 1.28 * float(min(channels) + max(channels)) / 2.
         fwhm = calc_ta_fwhm(centrefreq, array_phase=oap)
+
+    # Find all pulsars in beam at at least 0.3 and 0.1 of zenith normlaized power
+    names_ra_dec = np.array(grab_source_alog(max_dm=250))
+    pow_dict, _ = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
+    obs_psrs = pow_dict[0.3][obsid]
+    # Find pulsars with power between 0.3 and 0.1 and calculate their SN
+    psrs_list_03 = [x[0] for x in obs_psrs]
+    psrs_list_01 = [x[0] for x in pow_dict[0.1][obsid]]
+    psrs_03_01 = psrs_list_01
+    for psr in psrs_list_03:
+        if psr in psrs_list_01:
+            psrs_03_01.remove(psr)
+    sn_dict_01 = snfe.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
+    # Include all bright pulsars in beam at at least 0.1 of zenith normalized power
+    for psr in psrs_03_01:
+        sn, sn_err = sn_dict_01[psr]
+        if sn is not None and sn_err is not None:
+            if sn - sn_err >= 10.:
+                for psr_list in pow_dict[0.1][obsid]:
+                    if psr in psr_list:
+                        obs_psrs.append(psr_list)
+
+    #get all the pulsars periods
+    pulsar_list = []
+    for o in obs_psrs:
+        pulsar_list.append(o[0])
+    period_query = psrqpy.QueryATNF(params=["PSRJ", "P0"], psrs=pulsar_list,
+                                    loadfromdb=data_load.ATNF_LOC).pandas
 
     # Sort all the sources into 3 categories, pulsars which is for slow pulsars, vdif
     # for fast pulsars that require vdif and sp for singple pulse searches (FRBs,
@@ -458,11 +482,29 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02, qu
     sp_pointing_list = list(dict.fromkeys(sp_pointing_list))
 
     # Changing the format of the names list to make it easier to format
-    return [[ ":".join(s) for s in pulsar_name_list],
+    pulsar_name_list        = [ ":".join(s) for s in pulsar_name_list]
+    vdif_name_list          = [ ":".join(s) for s in vdif_name_list]
+    pulsar_search_name_list = [ ":".join(s) for s in pulsar_search_name_list]
+
+    if no_known_pulsars:
+        # Return empty list for all known pulsar categories
+        pulsar_name_list = []
+        pulsar_pointing_list = []
+        vdif_name_list = []
+        vdif_pointing_list = []
+
+    if no_search_cands:
+        # Return empty list for all search candidate categories
+        pulsar_search_name_list = []
+        pulsar_search_pointing_list = []
+        sp_name_list = []
+        sp_pointing_list = []
+
+    return [pulsar_name_list,
             pulsar_pointing_list,
-            [ ":".join(s) for s in vdif_name_list],
+            vdif_name_list,
             vdif_pointing_list,
-            [ ":".join(s) for s in pulsar_search_name_list],
+            pulsar_search_name_list,
             pulsar_search_pointing_list,
             sp_name_list,
             sp_pointing_list]
@@ -475,9 +517,12 @@ def find_pulsars_in_fov_main(kwargs):
         raise ValueError("Please input observation id by setting -o or --obsid. Exiting")
 
     if not (kwargs["begin"] and kwargs["end"]):
-        kwargs["beg"], kwargs["end"] = obs_max_min(args.obsid)
+        kwargs["beg"], kwargs["end"] = obs_max_min(kwargs["obsid"])
 
-    output_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["begin"], kwargs["end"], fwhm=kwargs["fwhm"], search_radius=kwargs["search_radius"])
+    output_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["begin"], kwargs["end"],
+                                      fwhm=kwargs["fwhm"], search_radius=kwargs["search_radius"],
+                                      no_known_pulsars=kwargs["no_known_pulsars"],
+                                      no_search_cands=kwargs["no_search_cands"])
     with open(f"{kwargs['obsid']}_fov_sources_temp.csv", 'w', newline='') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter=',')
         for ol in output_list:
@@ -489,6 +534,7 @@ def find_pulsars_in_fov_main(kwargs):
 
     with open(f'{kwargs["obsid"]}_fov_sources_temp.csv', 'r') as readfile:
         csv_read = readfile.readlines()
+    os.remove(f'{kwargs["obsid"]}_fov_sources_temp.csv')
 
     with open(f'{kwargs["obsid"]}_fov_sources.csv', 'w') as csvfile:
         for line in csv_read:
