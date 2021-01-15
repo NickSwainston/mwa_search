@@ -74,14 +74,14 @@ process ddplan {
 
     output:
     file 'DDplan.txt'
-    
+
     """
     #!/usr/bin/env python3
 
     from vcstools.catalogue_utils import grab_source_alog
     from mwa_search.dispersion_tools import dd_plan
     import csv
-    
+
     #obsid_pointing = "${fits_files[0]}".split("/")[-1].split("_ch")[0]
     #print(obsid_pointing)
 
@@ -93,15 +93,15 @@ process ddplan {
         if '$name'.startswith('dm_'):
             dm = float('$name'.split('dm_')[-1].split('_')[0])
         elif '$name'.startswith('FRB'):
-            dm = fpio.grab_source_alog(source_type='FRB',
+            dm = grab_source_alog(source_type='FRB',
                  pulsar_list=['$name'.split("_")[0]], include_dm=True)[0][-1]
         else:
             # Try RRAT first
-            rrat_temp = fpio.grab_source_alog(source_type='RRATs',
+            rrat_temp = grab_source_alog(source_type='RRATs',
                         pulsar_list=['$name'.split("_")[0]], include_dm=True)
             if len(rrat_temp) == 0:
                 #No RRAT so must be pulsar
-                dm = fpio.grab_source_alog(source_type='Pulsar',
+                dm = grab_source_alog(source_type='Pulsar',
                      pulsar_list=['$name'.split("_")[0]], include_dm=True)[0][-1]
             else:
                 dm = rrat_temp[0][-1]
@@ -116,7 +116,7 @@ process ddplan {
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
             spamwriter.writerow(['${name}'] + o)
-    """ 
+    """
 }
 
 
@@ -303,7 +303,7 @@ process prepfold {
     ndmfact=`echo "1 + 1/(\$ddm*\$nbins)" | bc`
     echo "ndmfact: \$ndmfact   ddm: \$ddm"
 
-    #-p \$period 
+    #-p \$period
     prepfold -ncpus $task.cpus -o ${cand_line.split()[0]} -n \$nbins -dm ${cand_line.split()[1]} -noxwin -noclip -nsub 256 \
 -accelfile ${cand_line.split()[0].substring(0, cand_line.split()[0].lastIndexOf(":"))}.cand -accelcand ${cand_line.split()[0].split(":")[-1]} \
 -npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact \$ndmfact -runavg *.fits
@@ -395,7 +395,7 @@ workflow pulsar_search {
                   // Match with fits files and eogranise to val(cand_line), file(cand_file), file(cand_inf), file(fits_files)
                   ).map{ it -> [it[1][1][0], it[1][1][2], it[1][1][1], it[0][1]] } )
     emit:
-        accelsift.out 
+        accelsift.out
         prepfold.out
 }
 

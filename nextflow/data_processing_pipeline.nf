@@ -393,7 +393,7 @@ workflow post_fold{
     //yaml files
     decide_detections.out[1]
 }
-
+/*
 workflow polarimetry{
     take:
         yaml_fits_tuple
@@ -518,7 +518,7 @@ workflow polarimetry_six{
     emit:
         polarimetry_call.out[1] // yaml_fits tuple
 }
-
+*/
 
 workflow {
     pre_beamform()
@@ -537,7 +537,7 @@ workflow {
                    pre_beamform.out[2],\
                    //Grab the pointings for slow pulsars and single pulses
                    find_pointings.out.splitCsv(skip: 3, limit: 1) )
-
+    /*
     // Make a yaml_file with all necessary info for each pointing
     make_yamls( pre_beamform.out[0],\
                 find_pointings.out.splitCsv(skip: 1, limit: 1).concat( find_pointings.out.splitCsv(skip: 3, limit: 1) ).collect().map{ it -> [it] }.concat(\
@@ -563,7 +563,7 @@ workflow {
                                 concat( beamform.out[3].concat(beamform_ipfb.out[3]) ).groupTuple( size: 2, remainder: false ).\
                                 map{ it -> it[1][0] * it[1][1] }.flatMap().map{ it -> [it.init(), it.last()]} )
 
-
+    */
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
     pulsar_search( find_pointings.out.splitCsv(skip: 5, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 4, limit: 1).flatten()).\

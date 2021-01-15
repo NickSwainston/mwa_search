@@ -24,6 +24,7 @@ from mwa_search.grid_tools import get_grid
 from mwa_search.obs_tools import calc_ta_fwhm
 
 logger = logging.getLogger(__name__)
+comp_config = load_config_file()
 
 def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
     """Checks that the arguments for find_fold_times are valid"""
@@ -34,7 +35,6 @@ def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
     if not isinstance(obsid, int):
         try:
             obsid = int(obsid)
-            logger.warn("Obsid had to be converted to int. This may be evidence of a bug")
         except (ValueError, TypeError) as e:
             e.message = f"Invalid Observation ID: {obsid}. Cannot be converted to int"
             raise
@@ -64,14 +64,29 @@ def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
         raise
     return pulsar, obsid, beg, end, min_z_power
 
-def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None, full_meta=None):
+
+def reformat_psrs_pointings(psr_pointing_list):
+    """Reformats the output from find_pulsars_in_fov for the dpp"""
+    _dict = {}
+    # Loop over the concatenated lists of regular and vdif pulsars/pointings
+    # Multiple pulsars per pointing are listed as psr1:psr2 etc... so we need to fix for that
+    for psr_per_point, pointing in zip(psr_pointing_list[0] + psr_pointing_list[2], psr_pointing_list[1] + psr_pointing_list[3]):
+        psr_list = psr_per_point.split(":")
+        for psr in psr_list:
+            if psr not in _dict.keys():
+                _dict[psr] = []
+            _dict[psr].append(pointing)
+    return _dict
+
+
+def find_fold_times(pulsars, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=None, full_meta=None, query=None):
     """
     Finds the fractional time the pulsar is in the beam at some zenith normalized power
 
     Parameters:
     -----------
-    pulsar: string
-        Pulsar J name
+    pulsar: list
+        Pulsar J names of pulsars to evaluate
     obsid: int
         The observation ID
     beg: int
@@ -82,34 +97,40 @@ def find_fold_times(pulsar, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=No
         OPTIONAL - evaluated the pulsar as 'in the beam' at this normalized zenith power. If None will use [0.3, 0.1] Default: None
 
     Returns:
-    [enter, leave, power]: list
-        enter: float
-            The time the pulsar enters the beam as a normalized fraction of beg and end. None if pulsar not in beam
-        leave: float
-            The time the pulsar leaves the beam as a normalized fraction of beg and end. None if pulsar not in beam
-        power: float
-            The power for which enter and leave are calculated
+    fold_times_dict: dict
+        keys:
+            psr: dict
+                keys:
+                    power: float
+                        The power of the recorded enter and leave times
+                    enter: float
+                        The normalised time the pulsar enters the beam
+                    exit: float
+                        The normalisd time the pulsar leaves the beam
     """
-    pulsar, obsid, beg, end, min_z_power = _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power)
+    if not metadata or not full_meta:
+        metadata, full_meta = get_common_obs_metadata(obsid, return_all=True)
     min_z_power = sorted(min_z_power, reverse=True)
-    names_ra_dec = grab_source_alog(pulsar_list=[pulsar])
-    pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power,
-                                     names_ra_dec=names_ra_dec, metadata_list=[[metadata, full_meta]])
-    for power in pow_dict.keys():
-        psr_list = pow_dict[power][obsid]
-        enter = None
-        leave = None
-        if psr_list:  # if pulsar is in beam for this power coverage
-            this_enter, this_leave = snfe.pulsar_beam_coverage(
-                obsid, pulsar, beg=beg, end=end, min_z_power=power,
-                metadata=metadata, full_meta=full_meta)
-            if this_enter is not None and this_leave is not None:
-                enter = this_enter
-                leave = this_leave
-                break
+    names_ra_dec = grab_source_alog(pulsar_list=pulsars)
+    pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec, metadata_list=[[metadata, full_meta]])
+    fold_time_dict = {}
+    for psr in pulsars:
+        fold_time_dict[psr] = {}
+        for power in pow_dict.keys():
+            fold_time_dict[psr]["power"] = power
+            fold_time_dict[psr]["enter"] = None
+            fold_time_dict[psr]["leave"] = None
+            psr_list = pow_dict[power][obsid]
+            if psr_list:  # if pulsar is in beam for this power coverage
+                enter, leave = snfe.pulsar_beam_coverage(
+                    obsid, psr, beg=beg, end=end, min_z_power=power,
+                    metadata=metadata, full_meta=full_meta, query=query)
+                if enter is not None and leave is not None:
+                    fold_time_dict[psr]["enter"] = enter
+                    fold_time_dict[psr]["leave"] = leave
+                    break
 
-    return [enter, leave, power]
-
+    return fold_time_dict
 
 def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None):
     """
@@ -246,7 +267,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     obsid: str
         observation ID to search in
     source_type: str
-        the source type input to grab_source_alog
+        the source type input to grab_source_alog()
     fwhm: float
         FWHM of the tied-array beam in degrees.
         Can be calculated in the calc_ta_fwhm function
@@ -260,7 +281,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
             A list of pointings corresponding to the pulsars in name_list
     """
     names_ra_dec = grab_source_alog(source_type=source_type)
-    obs_data, meta_data = find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
+    obs_data, _ = find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     name_list = []
     pointing_list = []
     for pulsar_line in obs_data[obsid]:
@@ -280,7 +301,7 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     return [name_list, pointing_list]
 
 
-def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
+def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02, query=None, meta_data=None, full_meta=None):
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
     -----------
@@ -307,16 +328,17 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
             sp_name_list,
             sp_pointing_list]
     """
-
+    if not meta_data or not full_meta:
+        meta_data, full_meta = get_common_obs_metadata(obsid, return_all=True)
     #Find all pulsars in beam at at least 0.3 of zenith normlaized power
     names_ra_dec = np.array(grab_source_alog(max_dm=250))
-    pow_dict, meta_data = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
-    channels = meta_data[-1][-1]
+    pow_dict, _ = find_pulsars_power(obsid, powers=[0.3, 0.1], names_ra_dec=names_ra_dec)
+    channels = meta_data[-1]
     obs_psrs = pow_dict[0.3][obsid]
     psrs_list_03 = [x[0] for x in obs_psrs]
     #Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     psrs_01 = [x[0] for x in pow_dict[0.1][obsid]]
-    sn_dict_01 = snfe.multi_psr_snfe(psrs_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1)
+    sn_dict_01 = snfe.multi_psr_snfe(psrs_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
     for psr in pow_dict[0.1][obsid]:
         if psr[0] not in psrs_list_03:
             sn, sn_err = sn_dict_01[psr[0]]
@@ -354,13 +376,6 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
         sp_check = False
 
         PSRJ = pulsar_line[0]
-        #See if pulsar is in beam for times
-        #enter, exit = snfe.pulsar_beam_coverage(obsid, PSRJ, beg=psrbeg, end=psrend)
-        #if enter is None or exit is None:
-        #    print("{0} is not in beam for time range. Not beamforming".format(PSRJ))
-        #    continue
-        #TODO: uncomment this section when sn_flux_est is pulled to vcstools master
-
         if not (len(PSRJ) < 11 or PSRJ[-1] == 'A' or PSRJ[-2:] == 'aa'):
             continue
 
@@ -374,14 +389,14 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
         period = period_query[period_query['PSRJ'] == PSRJ].reset_index()["P0"][0]
 
         if math.isnan(period):
-            print("WARNING: Period not found in ephermeris for {0} so assuming "
+            logger.warn("Period not found in ephermeris for {0} so assuming "
                   "it's an RRAT".format(jname))
             sp_check = True
             period = 0.
         elif float(period) < .05:
             vdif_check = True
         period = float(period)*1000.
-        print("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(PSRJ,
+        logger.debug("{0:12} RA: {1} Dec: {2} Period: {3:8.2f} (ms) Begin {4} End {5}".format(PSRJ,
                raj, decj, period, psrbeg, psrend))
 
         jname_temp_list = []
@@ -426,14 +441,14 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02):
     # Find all of the Fermi candidates
     #-----------------------------------------------------------------------------------------------------------
     fermi_list = get_sources_in_fov(obsid, 'Fermi', fwhm)
-    print(fermi_list)
+    logger.info(f"{obsid} Fermi candidates: {fermi_list}")
     pulsar_search_name_list = pulsar_search_name_list + fermi_list[0]
     pulsar_search_pointing_list = pulsar_search_pointing_list + fermi_list[1]
 
     # Find all of the points of interest candidates
     #-----------------------------------------------------------------------------------------------
     poi_list = get_sources_in_fov(obsid, 'POI', fwhm)
-    print(poi_list)
+    logger.info(f"{obsid} Points of interest: {poi_list}")
     pulsar_search_name_list = pulsar_search_name_list + poi_list[0]
     pulsar_search_pointing_list = pulsar_search_pointing_list + poi_list[1]
 
