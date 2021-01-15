@@ -12,11 +12,11 @@ def generate_archive_name(cfg):
     return f"{cfg['obs']['id']}_{cfg['source']['my_pointing']}_{cfg['source']['name']}_b{cfg['source']['my_bins']}"
 
 
-def fits_to_archive(fits_dir, ar_name, bins, dm, period, memory=4000, total=1.0, seek=0, vdif=False):
+def fits_to_archive(fits_dir, ar_name, bins, dm, period, memory=4000, total=1.0, seek=0, vdif=False, container=comp_config['prschive_container']):
     """Returns bash commands to fold on a fits file usinf dspsr"""
     commands = []
-    commands.append(f"singularity shell {comp_config['prschive_container']}") # Open the container
-    dspsr_cmd = "dspsr  -A -K -cont"
+    container_launch = (f"singularity exec -e {container}") # Open the container
+    dspsr_cmd = f"{container_launch} dspsr  -A -K -cont"
     dspsr_cmd += f" -U {memory}"
     dspsr_cmd += f" -b {bins}"
     dspsr_cmd += f" -c {period}"
@@ -36,19 +36,17 @@ def fits_to_archive(fits_dir, ar_name, bins, dm, period, memory=4000, total=1.0,
         dspsr_com += f" -O {ar_name}"
         dspsr_com += f" {fits_dir}/*.fits"
         commands.append(dspsr_cmd)
-    commands.append("exit") # Exit the container
     return commands
 
 
-def archive_to_fits(ar_file, extension="fits"):
+def archive_to_fits(ar_file, extension="fits", container=comp_config['prschive_container']):
     """Returns bash commands to turn an arhive file to a fits file"""
     comands = []
-    commands.append(f"singularity shell {comp_config['prschive_container']}") # Open the container
-    pam_cmd = "pam -a PSRFITS"
+    container_launch = f"singularity exec -e {container}"
+    pam_cmd = f"{container_launch} pam -a PSRFITS"
     pam_cmd += f" -e {extension}"
     pam_cmd += f" {ar_file}"
     commands.append(pam_cmd)
-    commands.append("exit") # Exit the container
     return commands
 
 
@@ -78,9 +76,9 @@ def ppp_file_creation(cfg, depends_on=None, depend_type="afterany"):
     # Change to working directory
     commands = [f"cd {cfg['files']['psr_dir]}"]
     # Add folds to commands
-    commands.append(fits_to_archive(fits_dir, ar_name, bins, dm, period, total=total, seek=seek, vdif=cfg["run_ops"]["vdif"]))
+    commands.append(fits_to_archive(fits_dir, ar_name, bins, dm, period, total=total, seek=seek, vdif=cfg["run_ops"]["vdif"]), container=comp_config["psrchive_container"])
     # Add ar -> fits conversion to commands
-    commands.append(archive_to_fits(ar_file))
+    commands.append(archive_to_fits(ar_file, container=comp_config['prschive_container']))
     # Add the baseline removal commands
     commands.append(remove_baseline(cfg))
     #Submit_job
