@@ -78,3 +78,7 @@ while [ $n_done -lt $n_grids ]; do
     done
     sleep 600
 done
+echo "Done! Syncing benchmarking html records"
+rsync --copy-links -zru SMART_${NAME}_grid*/SMART_${NAME}_grid*html* prometheus:/data/nswainston/SMART_cand_sorting/${OBSID}/benchmark_htmls
+rm SMART_${NAME}_grid*/SMART_${NAME}_grid*html*
+echo "Done!"
