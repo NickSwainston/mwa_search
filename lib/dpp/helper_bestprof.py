@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import logging
 import numpy as np
 from glob import glob

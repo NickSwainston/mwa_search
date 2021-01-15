@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import logging
 
 from vcstools.job_submit import submit_slurm
