@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import logging
 from os import symlink, rmdir, unlink, getcwd, chdir, remove
 from os.path import exists, join, basename

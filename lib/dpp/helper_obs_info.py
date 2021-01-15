@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import logging
 from astropy.coordinates import SkyCoord
 import astropy.units as u
