@@ -177,6 +177,7 @@ process dspsr_time {
 
     output:
     file "*pTDF"
+    file "*subint"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
@@ -192,7 +193,7 @@ process dspsr_time {
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
     DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     echo "DM: \$DM   Period: \$period   SN: \$sn"
-    dspsr -t $task.cpus -b ${params.bins} ${eph_command} -L ${subint_command} -e subint -cont -U 4000 ${params.obsid}*fits
+    dspsr -t $task.cpus -b ${params.bins} ${eph_command} -L ${subint_command} -e subint -cont -U 600 ${params.obsid}*fits
     pam -pTF -e pTDF --name J0036-1033 *.subint
     """
 }
@@ -227,13 +228,23 @@ process combine_toas {
 
     input:
     file toa_tims
+    file subints
 
     output:
     file "*all.tim"
+    file "*.ar"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
 
     """
     cat *tim > temp.tim
     awk  '/FORMAT 1/&&c++>0 {next} 1' temp.tim > ${params.obsid}_all.tim
+    psradd -f ${params.obsid}.ar *.subint
     """
 }
 
@@ -264,7 +275,7 @@ workflow {
                   std_profile )
     }
     else if ( params.time_split ) {
-        if ( params.eph == "" ) {
+        if ( params.subint == "" ) {
             prepfold_time( fits_files )
             dspsr_time( prepfold_time.out[0],\
                         fits_files.collect() )
@@ -274,8 +285,9 @@ workflow {
                         Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/1275085816_00:36:11.58_-10:33:56.44_900.04ms_Cand.pfd.bestprof"),\
                         fits_files.collect() )
         }
-        get_toas( dspsr_time.out.flatten(),\
-                    std_profile )
+        get_toas( dspsr_time.out[0].flatten(),
+                  std_profile )
     }
-    combine_toas( get_toas.out[0].collect() )
+    combine_toas( get_toas.out[0].collect(),
+                  dspsr_time.out[1].collect() )
 }
