@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def add_classify_to_commands(cfg, container="/pawsey/mwa/singularity/lofar_pulsar_ml/lofar_pulsar_ml.sif"):
     """Makes the classify commands"""
     container_launch = f"singularity exec -e {container}"
-    cmds = [f"cd {cfg['run_ops']['classify_dir']}"]
+    cmds = [f"cd {cfg['files']['classify_dir']}"]
     # The container needs all this stuff to run properly for some reason
     #singularity_launch = 'set +u; env - PATH="$PATH"'
     #singularity_launch += ' SINGULARITYENV_TMP="$TMP"'
@@ -65,7 +65,7 @@ def read_classifications(cfg):
             pos = f.readlines()
     except FileNotFoundError as e:
         if not exists(negfile): # A least one of the pos and neg files should exist
-                raise FileNotFoundError(f"Classifier outputs not found in dir: {cfg['run_ops']['classify_dir']}")
+                raise FileNotFoundError(f"Classifier outputs not found in dir: {cfg['files']['classify_dir']}")
         else:
             pos = []
     for pointing in cfg["folds"].keys():
