@@ -12,8 +12,9 @@ def RVM_fit(cfg):
         alpha_range = np.array((0, 180))
         beta_range = np.array((-30, 30))
         #Decide the longitude range to fit
-        component_min = cfg["source"["gfit"]["comp_idx"]["0"][0] * 360/len(cfg["source"]["gfit"]["profile"])
-        component_max = cfg["source"["gfit"]["comp_idx"]["0"][-1] * 360/len(cfg["source"]["gfit"]["profile"])
+        my_comp = cfg["source"]["my_component"]
+        component_min = cfg["source"["gfit"]["comp_idx"][my_comp][0] * 360/len(cfg["source"]["gfit"]["profile"])
+        component_max = cfg["source"["gfit"]["comp_idx"][my_comp][-1] * 360/len(cfg["source"]["gfit"]["profile"])
         l_cmd = f" -l {component_min} 1"
         maxdl_cmd = f" -maxdl {component_max - component_min}"
         chigrid_file = cfg['file']['chigrid_initial_ps']
@@ -31,7 +32,7 @@ def RVM_fit(cfg):
         paswing_file = cfg['file']['paswing_final_ps']
         outfile = cfg['file']['RVM_fit_final']
     # Create the job commands
-    cmds = [f"cd {cfg['files']['psr_dir]"}]
+    cmds = [f"cd {cfg['files']['psr_dir']}"]
     ppol_cmd = "ppolFit -showwedge"
     ppol_cmd += f" -g '{trials} {trials}'"
     ppol_cmd += f" -A '{alpha_range[0]} {alpha_range[1]}'" # Alpha range
