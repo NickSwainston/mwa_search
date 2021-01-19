@@ -5,6 +5,7 @@ from os.path import join
 
 from dpp.helper_config import from_yaml, dump_to_yaml
 from dpp.helper_files import glob_pfds
+from vcstools.prof_utils import subprocess_pdv, get_from_ascii, auto_gfit
 
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ class NoUsableFolds(Exception):
             self.message = args[0]
         else:
             self.message = ""
+
 
 def bestprof_info(filename):
     """
@@ -66,6 +68,26 @@ def bestprof_info(filename):
     return info_dict
 
 
+def bestprof_fit(cfg, cliptype="verbose"):
+    """Fits a profile to the best bestprof and adds it to cfg. Cliptype options found in prof_utils.py"""
+    gfit_kwargs = {"cliptype":cliptype, "period":cfg["source"]["my_P"], "plot_name":cfg["files"]["gfit_plot"]}
+    # Get the profile
+    bins = str(cfg["source"]["my_bins"])
+    pointing = cfg["source"]["my_pointing"]
+    profile = cfg["folds"][pointing]["post"][bins]["profile"]
+    # Gaussian fit
+    fit = auto_gfit(profile, **gfit_kwargs)
+    # Find the longest component
+    longest_comp = 0
+    for comp_name in fit["comp_idx"].keys():
+        comp = fit["comp_idx"][comp_name]
+        if len(comp) > longest_comp:
+            longest_comp = len(comp)
+            cfg["source"]["my_component"] = comp_name
+    # Add the fit to cfg
+    cfg["source"]["gfit"] = fit
+
+
 def find_best_pointing(cfg):
     """Decides the best folding solution from bestprofs and updates cfg"""
     # Populate cfg with initial fold info
@@ -74,7 +96,7 @@ def find_best_pointing(cfg):
         try:
             bestprof_name = glob_pfds(cfg, pointing, nbins, pfd_type="pfd.bestprof")[0]
         except IndexError as e:
-            raise IndexError(f"No .bestprofs found: {cfg['files']['psr_dir]}")
+            raise IndexError(f"No .bestprofs found: {cfg['files']['psr_dir']}")
         cfg["folds"][pointing]["init"][nbins] = bestprof_info(bestprof_name)
 
     # Search for pointings with positive classifications (>=3 out of 5 is positive classification)
@@ -82,7 +104,7 @@ def find_best_pointing(cfg):
 
     # Throw exception if there aren't any positive detections
     if len(positive_pointings) == 0:
-        raise NoUsableFolds(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir]}")
+        raise NoUsableFolds(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir']}")
     else:
         best_chi = 0
         for pointing in positive_pointings:
@@ -101,7 +123,7 @@ def populate_post_folds(cfg):
         try:
             bestprof_name = glob_pfds(cfg, my_pointing, bins, pfd_type="pfd.bestprof")[0]
         except IndexError as _:
-            raise IndexError(f"No .bestprofs found: {cfg['files']['psr_dir]}")
+            raise IndexError(f"No .bestprofs found: {cfg['files']['psr_dir']}")
         cfg["folds"][my_pointing]["post"][bins] = bestprof_info(bestprof_name)
 
 
