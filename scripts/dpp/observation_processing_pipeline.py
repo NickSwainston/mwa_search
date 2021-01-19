@@ -36,7 +36,7 @@ def main(kwargs):
             clean_cfg(cfg)
             if cfg: # If there are valid pointing directories
                 dump_to_yaml(cfg)
-                cfg_names.append(cfg["run_ops"]["myname"])
+                cfg_names.append(cfg["files"]["my_name"])
 
     # Launch ppp for each pulsar
     for name in progress_bar(cfg_names, "Launching processing for pulsars: "):

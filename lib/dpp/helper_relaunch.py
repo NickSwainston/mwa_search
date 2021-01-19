@@ -17,21 +17,21 @@ def relaunch_ppp(cfg, depends_on=None, depend_type="afterany", fresh_run=False, 
     # dump the new cfg
     dump_to_yaml(cfg)
     label = launch_label(cfg)
-    name = f"ppp_{cfg['run_ops']['file_precursor']}_{label}"
-    batch_dir = cfg['run_ops']['batch_dir']
+    name = f"ppp_{cfg['files']['file_precursor']}_{label}"
+    batch_dir = cfg['files']['batch_dir']
     slurm_kwargs = {"time": time}
     mem=8192
     ppp_launch = "pulsar_processing_pipeline.py"
-    ppp_launch += f" --cfg {cfg['run_ops']['myname']}"
+    ppp_launch += f" --cfg {cfg['files']['my_name']}"
     if fresh_run:
         ppp_launch += " --force_rerun"
     if reset_logs:
         ppp_launch += " --reset_logs"
-    cmds = [f"cd {cfg['files']['psr_dir]}"]
+    cmds = [f"cd {cfg['files']['psr_dir']}"]
     cmds.append(ppp_launch)
     modules = [f"mwa_search/{cfg['run_ops']['mwa_search']}"]
     jid = submit_slurm(name, cmds,
-            slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["run_ops"]["batch_dir"], depend=depends_on,
+            slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["files"]["batch_dir"], depend=depends_on,
             depend_type=depend_type, vcstools_version=cfg["run_ops"]["vcstools"], submit=True)
     logger.info(f"Submitted relaunch of ppp: {name}")
     logger.info(f"job ID: {jid}")

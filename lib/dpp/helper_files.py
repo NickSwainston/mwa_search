@@ -80,7 +80,7 @@ def setup_classify(cfg):
         try:
             pfd_name = glob_pfds(cfg, pointing, init_bins, pfd_type=".pfd")[0]
         except IndexError as e:
-            raise IndexError(f"No suitable pfds found: {cfg['files']['psr_dir]}")
+            raise IndexError(f"No suitable pfds found: {cfg['files']['psr_dir']}")
         # Copy pdf file to classify directory
         newfilename=join(cfg["files"]["classify_dir"], basename(pfd_name))
         copyfile(pfd_name, newfilename)
