@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 def launch_label(cfg):
     """Returns a label based on how far the piepline has progressed"""
-    order = ["initial", "classify", "post", "upload", "polarimetry"]
+    order = ["Initial", "Classify", "Post", "Upload", "RM", "RVM_initial", "RVM_final"]
     counter = sum(cfg["completed"].values()) # Number of True statements
     return order[counter]
 
