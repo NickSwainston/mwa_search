@@ -18,7 +18,6 @@ def relaunch_ppp(cfg, depends_on=None, depend_type="afterany", fresh_run=False, 
     dump_to_yaml(cfg)
     label = launch_label(cfg)
     name = f"ppp_{cfg['files']['file_precursor']}_{label}"
-    batch_dir = cfg['files']['batch_dir']
     slurm_kwargs = {"time": time}
     mem=8192
     ppp_launch = "pulsar_processing_pipeline.py"
