@@ -52,7 +52,7 @@ def remove_baseline(cfg):
     on_pulse = cfg["source"]["gfit"]["comp_idx"][my_comp]
     debase_cmd = "pmod -debase"
     debase_cmd += f" -onpulse '{on_pulse[0]} {on_pulse[-1]}'" # Measured in bins
-    debase_cmd += "-ext debase.gg" # Aligns with what's written in the config - Don't touch unless you know what you're doing
+    debase_cmd += " -ext debase.gg" # Aligns with what's written in the config - Don't touch unless you know what you're doing
     debase_cmd += f" -device /null"
     debase_cmd += f" {cfg['files']['converted_fits']}"
     return debase_cmd
@@ -82,7 +82,7 @@ def ppp_file_creation(cfg, depends_on=None, depend_type="afterany"):
     name = f"{cfg['obs']['id']}_{cfg['source']['name']}_archive_creation_and_debase"
     slurm_kwargs = {"time":"08:00:00"}
     modules = ["singularity", "psrsalsa"]
-    mem=8192
+    mem=32768
     jid = submit_slurm(name, commands,
         slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["files"]["batch_dir"], depend=depends_on,
         depend_type=depend_type, vcstools_version=cfg["run_ops"]["vcstools"], submit=True)
