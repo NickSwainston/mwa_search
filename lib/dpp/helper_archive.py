@@ -81,7 +81,7 @@ def ppp_file_creation(cfg, depends_on=None, depend_type="afterany"):
     #Submit_job
     name = f"{cfg['obs']['id']}_{cfg['source']['name']}_archive_creation_and_debase"
     slurm_kwargs = {"time":"08:00:00"}
-    modules = ["singularity"]
+    modules = ["singularity", "psrsalsa"]
     mem=8192
     jid = submit_slurm(name, commands,
         slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["files"]["batch_dir"], depend=depends_on,
