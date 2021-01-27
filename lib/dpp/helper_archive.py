@@ -1,6 +1,7 @@
 import logging
 from os.path import join
 
+from vcstools.prof_utils import auto_gfit, subprocess_pdv, get_from_ascii, ProfileLengthError
 from vcstools.job_submit import submit_slurm
 from vcstools.config import load_config_file
 from dpp.helper_bestprof import bestprof_fit
@@ -9,8 +10,27 @@ comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
+def archive_fit(cfg, archive_path, cliptype="verbose"):
+    """Fits a profile to the supplied archive and adds it to cfg. Cliptype options found in prof_utils.py"""
+    gfit_kwargs = {"cliptype":cliptype, "period":cfg["source"]["my_P"], "plot_name":cfg["files"]["gfit_plot"]}
+    # Get the profile
+    subprocess_pdv(archive_path, outfile=cfg["files"]["archive_ascii"])
+    profile, _ = get_from_ascii(cfg["files"]["archive_ascii"])
+    # Gaussian fit
+    fit = auto_gfit(profile, **gfit_kwargs)
+    # Find the longest component
+    longest_comp = 0
+    for comp_name in fit["comp_idx"].keys():
+        comp = fit["comp_idx"][comp_name]
+        if len(comp) > longest_comp:
+            longest_comp = len(comp)
+            cfg["source"]["my_component"] = comp_name
+    # Add the fit to cfg
+    cfg["source"]["gfit"] = fit
+
+
 def fits_to_archive(fits_dir, ar_name, bins, dm, period, memory=4000, total=1.0, seek=0, vdif=False, container="/pawsey/mwa/singularity/dspsr/dspsr.sif"):
-    """Returns bash commands to fold on a fits file usinf dspsr"""
+    """Returns bash commands to fold on a fits file using dspsr"""
     commands = []
     container_launch = (f"singularity exec -e {container}") # Open the container
     dspsr_cmd = f"{container_launch} dspsr  -A -K -cont"
@@ -53,34 +73,57 @@ def remove_baseline(cfg):
     debase_cmd = "pmod -debase"
     debase_cmd += f" -onpulse '{on_pulse[0]} {on_pulse[-1]}'" # Measured in bins
     debase_cmd += " -ext debase.gg" # Aligns with what's written in the config - Don't touch unless you know what you're doing
-    debase_cmd += f" -device /null"
+    debase_cmd += f" -device /null" # Don't make an image (it's not a very interesing one anyway)
     debase_cmd += f" {cfg['files']['converted_fits']}"
     return debase_cmd
 
 
-def ppp_file_creation(cfg, depends_on=None, depend_type="afterany"):
-    """Makes commands for converting ot archive file, converting back to fits and then removing baseline"""
+def ppp_archive_creation(cfg, depends_on=None, depend_type="afterany"):
+    """Makes commands for converting ot archive file then converting back to fits"""
     fits_dir = join(cfg["files"]["psr_dir"], cfg["source"]["my_pointing"])
     bins = cfg["source"]["my_bins"]
     dm = cfg["source"]["my_DM"]
     period = cfg["source"]["my_P"]
     total = cfg["source"]["total"]
     seek = cfg["source"]["seek"]
-    # Fit the profile with gaussian
-    bestprof_fit(cfg, cliptype="verbose")
     # Change to working directory
     commands = [f"cd {cfg['files']['psr_dir']}"]
     # Add folds to commands
     psrchive_container = comp_config['prschive_container']
-    commands.append(fits_to_archive(fits_dir, cfg["files"]["archive_basename"], bins, dm, period,
+    archive_base = cfg["files"]["archive"].split(".ar")[0] # Archive without .ar extension
+    commands.append(fits_to_archive(fits_dir, archive_base, bins, dm, period,
                     total=total, seek=seek, vdif=cfg["run_ops"]["vdif"], container=psrchive_container))
     # Add ar -> fits conversion to commands
     commands.append(archive_to_fits(cfg["files"]["archive"], container=psrchive_container))
+    #Submit_job
+    name = f"to_archive_{cfg['source']['name']}_{cfg['obs']['id']}"
+    slurm_kwargs = {"time":"08:00:00"} # dspsr folding can take some time
+    modules = ["singularity"]
+    mem=32768
+    jid = submit_slurm(name, commands,
+        slurm_kwargs=slurm_kwargs, module_list=modules, mem=mem, batch_dir=cfg["files"]["batch_dir"], depend=depends_on,
+        depend_type=depend_type, vcstools_version=cfg["run_ops"]["vcstools"], submit=True)
+    logger.info(f"Submitted archive/fits creation job: {name}")
+    logger.info(f"job ID: {jid}")
+    if depends_on:
+        logger.info(f"Job depends on job id(s): {depends_on}")
+    return jid, name
+
+
+def ppp_baseline_removal(cfg, depends_on=None, depend_type="afterany"):
+    """Submits a job that removes baseline RFI"""
+    # Change to working directory
+    commands = [f"cd {cfg['files']['psr_dir']}"]
+    # Fit the profile with gaussian
+    try:
+        archive_fit(cfg, cfg["files"]["archive"], cliptype="verbose")
+    except ProfileLengthError as e:
+        raise prof_utils.ProfileLengthError("No VDIF files available and profile is not long enough to fit Gaussian")
     # Add the baseline removal commands
     commands.append(remove_baseline(cfg))
     #Submit_job
-    name = f"{cfg['obs']['id']}_{cfg['source']['name']}_archive_creation_and_debase"
-    slurm_kwargs = {"time":"08:00:00"}
+    name = f"debase_{cfg['source']['name']}_{cfg['obs']['id']}"
+    slurm_kwargs = {"time":"01:00:00"}
     modules = ["singularity", "psrsalsa"]
     mem=32768
     jid = submit_slurm(name, commands,
@@ -90,4 +133,5 @@ def ppp_file_creation(cfg, depends_on=None, depend_type="afterany"):
     logger.info(f"job ID: {jid}")
     if depends_on:
         logger.info(f"Job depends on job id(s): {depends_on}")
+    cfg["completed"]["debase"] = True
     return jid, name
