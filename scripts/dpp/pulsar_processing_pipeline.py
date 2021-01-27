@@ -4,6 +4,7 @@ import argparse
 import sys
 import os
 
+from vcstools.prof_utils import ProfileLengthError
 from dpp.helper_config import from_yaml, reset_cfg
 from dpp.helper_prepfold import ppp_prepfold
 from dpp.helper_classify import classify_main, read_classifications
@@ -12,9 +13,10 @@ from dpp.helper_logging import initiate_logs
 from dpp.helper_terminate import finish_unsuccessful
 from dpp.helper_files import remove_old_results
 from dpp.helper_database import submit_prepfold_products_db
-from dpp.helper_archive import ppp_file_creation
+from dpp.helper_archive import ppp_archive_creation, ppp_baseline_removal
 from dpp.helper_relaunch import relaunch_ppp
 from dpp.helper_RM import RM_synth, RM_cor
+from dpp.helper_RVMfit import RVM_fit, RVM_file_to_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,14 @@ def main(kwargs):
         # Upload stuff to database
         submit_prepfold_products_db(cfg)
         # Launch archive/fits creation job
-        dep_jid, _ = ppp_file_creation(cfg)
+        dep_jid, _ = ppp_archive_creation(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jid)
+    elif cfg["completed"]["debase"] == False:
+        # Baseline RFI removal
+        try:
+            dep_jid, _ = ppp_baseline_removal(cfg)
+        except ProfileLengthError as e:
+            finish_unsuccessful(cfg, e)
         relaunch_ppp(cfg, depends_on=dep_jid, time="02:00:00") # RM synth might take a while - give it more time
     elif cfg["completed"]["RM"] == False:
         # Perform RM synthesis
@@ -72,11 +81,19 @@ def main(kwargs):
         dep_jid, _ = RM_cor(cfg)
         relaunch_ppp(cfg, depends_on=dep_jid)
     elif cfg["completed"]["RVM_initial"] == False:
-        logger.info("TODO: RVM fitting")
-
-
-
-
+        # Initial RVM fit
+        dep_jid = RVM_fit(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jid)
+    elif cfg["completed"]["RVM_final"] == False:
+        # Read Initial RVM
+        RVM_file_to_cfg(cfg)
+        # Final RVM fit
+        dep_jid = RVM_fit(cfg)
+        relaunch_ppp(cfg, depends_on=dep_jid)
+    else:
+        # Read Initial RVM
+        RVM_file_to_cfg(cfg)
+        logger.info("All Done (for now)")
 
 
 if __name__ == '__main__':
