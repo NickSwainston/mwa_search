@@ -55,14 +55,14 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["files"]["batch_dir"] = join(comp_config['base_data_dir'], cfg["obs"]["id"], "batch")
     cfg["files"]["classify_dir"] = join(cfg["files"]["psr_dir"], "classifier_ppp")
     cfg["files"]["my_name"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_cfg.yaml")
-    cfg["files"]["logfile"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_logs.txt")
+    cfg["files"]["logfile"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}.log")
     cfg["files"]["archive"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.ar")
-    cfg["files"]["archive_basename"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive")
     cfg["files"]["archive_ascii"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.txt")
     cfg["files"]["gfit_plot"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_gfit.png")
     cfg["files"]["converted_fits"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.fits")
     # debased fits file needs to be the same except for the extension
-    cfg["files"]["debased_fits"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.debase.gg")
+    arch = cfg["files"]["archive"].split(".ar")[0]
+    cfg["files"]["debased_fits"] = f"{arch}.debase.gg"
     cfg["files"]["chigrid_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_chigrid_initial.ps")
     cfg["files"]["paswing_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_initial.ps")
     cfg["files"]["RVM_fit_initial"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_RVM_fit_initial.out")
@@ -70,8 +70,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["files"]["paswing_final_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_final.ps")
     cfg["files"]["RVM_fit_final"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_RVM_fit_final.out")
     cfg["files"]["ppol_profile_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_profile.ps")
-    cfg["files"]["ppol_polar_profile_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_polarimetry_profile.ps/cps")
-
+    cfg["files"]["ppol_polar_profile_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_pol.ps")
 
     cfg["source"]["enter_frac"] = None
     cfg["source"]["exit_frac"] = None
@@ -125,6 +124,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["completed"]["classify"] = False
     cfg["completed"]["post_folds"] = False
     cfg["completed"]["upload"] = False
+    cfg["completed"]["debase"] = False
     cfg["completed"]["RM"] = False
     cfg["completed"]["RVM_initial"] = False
     cfg["completed"]["RVM_final"] = False
@@ -145,13 +145,10 @@ def reset_cfg(cfg):
     cfg["completed"]["classify"] = False
     cfg["completed"]["post_folds"] = False
     cfg["completed"]["upload"] = False
-    cfg["completed"]["bf"] = False
-    cfg["completed"]["polarimetry_1"] = False
-    cfg["completed"]["polarimetry_2"] = False
-    cfg["completed"]["polarimetry_3"] = False
-    cfg["completed"]["polarimetry_4"] = False
-    cfg["completed"]["polarimetry_5"] = False
-    cfg["completed"]["polarimetry_6"] = False
+    cfg["completed"]["debase"] = False
+    cfg["completed"]["RM"] = False
+    cfg["completed"]["RVM_initial"] = False
+    cfg["completed"]["RVM_final"] = False
 
 
 def from_yaml(filepath):
