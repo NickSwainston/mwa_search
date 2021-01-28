@@ -1,7 +1,8 @@
 import logging
+import sys
 from os.path import join
 
-from vcstools.prof_utils import auto_gfit, subprocess_pdv, get_from_ascii, ProfileLengthError
+from vcstools.prof_utils import auto_gfit, subprocess_pdv, get_from_ascii, ProfileLengthError, NoFitError
 from vcstools.job_submit import submit_slurm
 from vcstools.config import load_config_file
 from dpp.helper_bestprof import bestprof_fit
@@ -117,8 +118,12 @@ def ppp_baseline_removal(cfg, depends_on=None, depend_type="afterany"):
     # Fit the profile with gaussian
     try:
         archive_fit(cfg, cfg["files"]["archive"], cliptype="verbose")
-    except ProfileLengthError as e:
-        raise prof_utils.ProfileLengthError("No VDIF files available and profile is not long enough to fit Gaussian")
+    except (ProfileLengthError, NoFitError) as e:
+        ex_type, _, _ = sys.exc_info() # Raise different messages for different errors
+        if ex_type == NoFitError:
+            raise NoFitError("A Gaussian fit to this profile could not be made. This profile is likely too noisy")
+        elif ex_type == ProfileLengthError:
+            raise ProfileLengthError("No VDIF files available and profile is not long enough to fit Gaussian")
     # Add the baseline removal commands
     commands.append(remove_baseline(cfg))
     #Submit_job
