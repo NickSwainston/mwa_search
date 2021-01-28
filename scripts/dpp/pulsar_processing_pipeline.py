@@ -4,13 +4,13 @@ import argparse
 import sys
 import os
 
-from vcstools.prof_utils import ProfileLengthError
+from vcstools.prof_utils import ProfileLengthError, NoFitError
 from dpp.helper_config import from_yaml, reset_cfg
 from dpp.helper_prepfold import ppp_prepfold
 from dpp.helper_classify import classify_main, read_classifications
 from dpp.helper_bestprof import find_best_pointing, NoUsableFolds, populate_post_folds, best_post_fold
 from dpp.helper_logging import initiate_logs
-from dpp.helper_terminate import finish_unsuccessful
+from dpp.helper_terminate import finish_unsuccessful, finish_successful
 from dpp.helper_files import remove_old_results
 from dpp.helper_database import submit_prepfold_products_db
 from dpp.helper_archive import ppp_archive_creation, ppp_baseline_removal
@@ -71,7 +71,7 @@ def main(kwargs):
         # Baseline RFI removal
         try:
             dep_jid, _ = ppp_baseline_removal(cfg)
-        except ProfileLengthError as e:
+        except (ProfileLengthError, NoFitError) as e:
             finish_unsuccessful(cfg, e)
         relaunch_ppp(cfg, depends_on=dep_jid, time="02:00:00") # RM synth might take a while - give it more time
     elif cfg["completed"]["RM"] == False:
@@ -93,7 +93,7 @@ def main(kwargs):
     else:
         # Read Initial RVM
         RVM_file_to_cfg(cfg)
-        logger.info("All Done (for now)")
+        finish_successful(cfg)
 
 
 if __name__ == '__main__':
