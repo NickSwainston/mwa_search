@@ -341,7 +341,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend, fwhm=None, search_radius=0.02, qu
     sn_dict_01 = snfu.multi_psr_snfe(psrs_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
     for psr in pow_dict[0.1][obsid]:
         if psr[0] not in psrs_list_03:
-            sn, sn_err = sn_dict_01[psr[0]]
+            sn, sn_err, _, _ = sn_dict_01[psr[0]]
             if sn is not None and sn_err is not None:
                 if sn - sn_err >= 10.:
                     obs_psrs.append(psr)
