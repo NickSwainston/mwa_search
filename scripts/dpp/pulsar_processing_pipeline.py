@@ -17,6 +17,7 @@ from dpp.helper_archive import ppp_archive_creation, ppp_baseline_removal
 from dpp.helper_relaunch import relaunch_ppp
 from dpp.helper_RM import RM_synth, RM_cor
 from dpp.helper_RVMfit import RVM_fit, RVM_file_to_cfg
+from dpp.helper_checks import check_pipe_integrity
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,9 @@ def main(kwargs):
         logger.info("Forcing a fresh run")
         reset_cfg(cfg)
         remove_old_results(cfg) # Remove old files so that they don't interfere with this run
+
+    # Run cfg through the checks pipeline
+    check_pipe_integrity(cfg)
 
     # Do the next step in the pipeline
     if cfg["completed"]["init_folds"] == False:
