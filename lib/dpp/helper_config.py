@@ -60,9 +60,12 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["files"]["archive_ascii"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.txt")
     cfg["files"]["gfit_plot"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_gfit.png")
     cfg["files"]["converted_fits"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.fits")
-    # debased fits file needs to be the same except for the extension
+    # debased fits file needs to be the same as archive except for the extension
     arch = cfg["files"]["archive"].split(".ar")[0]
     cfg["files"]["debased_fits"] = f"{arch}.debase.gg"
+    # paswing file needs to be the same as debase except for the .gg extension
+    debase = cfg["files"]["archive"].split(".gg")[0]
+    cfg["files"]["paswing"] = f"{debase}.paswing"
     cfg["files"]["chigrid_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_chigrid_initial.ps")
     cfg["files"]["paswing_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_initial.ps")
     cfg["files"]["RVM_fit_initial"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_RVM_fit_initial.out")
