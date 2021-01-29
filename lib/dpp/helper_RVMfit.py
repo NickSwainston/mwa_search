@@ -113,7 +113,7 @@ def read_RVM_fit(RVM_file):
             break
     if None in (alpha, beta, l0, pa0, chi):
         raise ValueError(f"""
-                        None value in file: {rvmfit}
+                        None value in file: {RVM_file}
                         alpha:  {alpha}
                         beta:   {beta}
                         l0:     {l0}
