@@ -89,8 +89,7 @@ process beamform_setup {
     import csv
 
     from vcstools.metadb_utils import obs_max_min, get_channels, ensure_metafits
-    from process_vcs import create_link
-    from vcstools.general_utils import gps_to_utc, mdir
+    from vcstools.general_utils import gps_to_utc, mdir, create_link
     import csv
 
     # Work out begin and end time of obs

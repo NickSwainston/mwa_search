@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from vcstools import data_load
 import psrqpy
 
