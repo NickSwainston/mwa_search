@@ -9,7 +9,7 @@ import psrqpy
 import sys
 
 # vcstools imports
-import vcstools.sn_flux_est as snfe
+import vcstools.sn_flux_utils as snfe
 from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
 from vcstools import data_load
 from vcstools.pointing_utils import format_ra_dec
@@ -244,7 +244,7 @@ def get_pointings_required(source_ra, source_dec, fwhm, search_radius):
     if loops < 0:
         loops = 0
     logger.debug("loops: {}".format(loops))
-    rads, decds = get_grid(rar, decr, np.radians(grid_sep), loops)
+    rads, decds = get_grid(rar, decr, np.radians(grid_sep), loops, verbose=False)
 
     #convert back to sexidecimals
     coord = SkyCoord(rads,decds,unit=(u.deg,u.deg))
@@ -369,7 +369,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
     sn_dict_01 = snfe.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
     # Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     for psr in psrs_03_01:
-        sn, sn_err = sn_dict_01[psr]
+        sn, sn_err, _, _ = sn_dict_01[psr]
         if sn is not None and sn_err is not None:
             if sn - sn_err >= 10.:
                 for psr_list in pow_dict[0.1][obsid]:
@@ -522,22 +522,31 @@ def find_pulsars_in_fov_main(kwargs):
                                       fwhm=kwargs["fwhm"], search_radius=kwargs["search_radius"],
                                       no_known_pulsars=kwargs["no_known_pulsars"],
                                       no_search_cands=kwargs["no_search_cands"])
-    with open(f"{kwargs['obsid']}_fov_sources_temp.csv", 'w', newline='') as csvfile:
-        spamwriter = csv.writer(csvfile, delimiter=',')
-        for ol in output_list:
-            if len(ol) == 0:
-                # Print a space to the line which prevents Nextflow formatting erorrs
-                spamwriter.writerow([" "])
-            else:
-                spamwriter.writerow(ol)
-
-    with open(f'{kwargs["obsid"]}_fov_sources_temp.csv', 'r') as readfile:
-        csv_read = readfile.readlines()
-    os.remove(f'{kwargs["obsid"]}_fov_sources_temp.csv')
-
-    with open(f'{kwargs["obsid"]}_fov_sources.csv', 'w') as csvfile:
-        for line in csv_read:
-            if len(line) == 0:
-                csvfile.write(" \n")
-            else:
-                csvfile.write(line)
+    if kwargs['n_pointings'] is None:
+        with open(f"{kwargs['obsid']}_fov_sources.csv", 'w', newline='') as csvfile:
+            spamwriter = csv.writer(csvfile, delimiter=',')
+            for ol in output_list:
+                if len(ol) == 0:
+                    # Print a space to the line which prevents Nextflow formatting erorrs
+                    #spamwriter.writerow([" "])
+                    csvfile.write(" \n")
+                else:
+                    spamwriter.writerow(ol)
+    else:
+        name_pointing_pairs = [output_list[i:i + 2] for i in range(0, len(output_list), 2)]
+        pair_names = ["pulsar", "vdif", "pulsar_search", "single_pulse"]
+        # Loop over each output type
+        for i, name in enumerate(pair_names):
+            name_list     = output_list[2*i]
+            pointing_list = output_list[2*i+1]
+            if len(name_list) != 0:
+                # split each file into the required length
+                pointing_list_chunks = [pointing_list[x:x+kwargs['n_pointings']] for x in range(0, len(pointing_list), kwargs['n_pointings'])]
+                for ci in range(len(pointing_list_chunks)):
+                    first_id = ci * kwargs['n_pointings'] + 1
+                    last_id  = ci * kwargs['n_pointings'] + len(pointing_list_chunks[ci])
+                    out_file_name = f"{kwargs['obsid']}_fov_{name}_sources_{first_id}_{last_id}.txt"
+                    print(f"Recording {name} sources in {out_file_name}")
+                    with open(out_file_name, 'w') as out_file:
+                        for out_pointing in pointing_list_chunks[ci]:
+                            out_file.write(f"{out_pointing}\n")

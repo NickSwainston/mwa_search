@@ -32,6 +32,9 @@ if __name__ == "__main__":
             help="Do no include known pulsars. Default: False")
     parser.add_argument("-c", "--no_search_cands", action="store_true", default=False,
             help="Do no include search_cands. Default: False")
+    parser.add_argument('-n', '--n_pointings', type=int, default=None,
+            help='Number of pointings per output file. This is used to limit the size of the output pointings which is 0.007 TB '
+                 'per pointing per minute. For example an 80 mins obs with 120 pointings is 67.5 TB.')
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
                         default="INFO")
     args=parser.parse_args()
