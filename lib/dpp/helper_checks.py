@@ -21,14 +21,14 @@ def check_pipe_integrity(cfg):
 
     # Confitional
     if cfg["completed"]["init_folds"] == False:
-        check_beamformed_fits(cfg)
+        check_all_beamformed_fits(cfg)
     elif cfg["completed"]["classify"] == False:
-        check_beamformed_fits(cfg)
+        check_all_beamformed_fits(cfg)
         check_file_dir_exists(cfg["files"]["classify_dir"])
     elif cfg["completed"]["post_folds"] == False:
-        check_beamformed_fits(cfg)
+        check_all_beamformed_fits(cfg)
     elif cfg["completed"]["upload"] == False:
-        check_beamformed_fits(cfg)
+        check_all_beamformed_fits(cfg)
     elif cfg["completed"]["debase"] == False:
         check_file_dir_exists(cfg["files"]["archive"])
         check_file_dir_exists(cfg["files"]["converted_fits"])
@@ -52,7 +52,7 @@ def check_all_beamformed_fits(cfg):
     psr_dir = cfg["files"]["psr_dir"]
     for pointing in cfg["folds"].keys():
         pointing_dir = join(psr_dir, pointing)
-        fits_in_pointing_dir = join(poining_dir, "*.fits")
+        fits_in_pointing_dir = join(pointing_dir, "*.fits")
         if not glob(fits_in_pointing_dir):
             raise FileNotFoundError(f".fits files not found in pointing directory: {pointing_dir}")
 
