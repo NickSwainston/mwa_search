@@ -64,7 +64,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     arch = cfg["files"]["archive"].split(".ar")[0]
     cfg["files"]["debased_fits"] = f"{arch}.debase.gg"
     # paswing file needs to be the same as debase except for the .gg extension
-    debase = cfg["files"]["archive"].split(".gg")[0]
+    debase = cfg["files"]["debased_fits"].split(".gg")[0]
     cfg["files"]["paswing"] = f"{debase}.paswing"
     cfg["files"]["chigrid_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_chigrid_initial.ps")
     cfg["files"]["paswing_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_initial.ps")
