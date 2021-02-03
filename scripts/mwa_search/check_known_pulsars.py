@@ -17,7 +17,7 @@ from vcstools.catalogue_utils import grab_source_alog
 from vcstools.metadb_utils import get_common_obs_metadata as get_meta
 from vcstools.metadb_utils import obs_max_min, get_obs_array_phase
 from vcstools.config import load_config_file
-import vcstools.sn_flux_est as snfe
+import vcstools.sn_flux_utils as snfe
 import submit_to_database as std
 from vcstools.config import load_config_file
 from vcstools import data_load

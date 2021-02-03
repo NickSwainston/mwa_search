@@ -28,6 +28,13 @@ if __name__ == "__main__":
             help="FWHM of the observation in degrees. If no value given the FWHM will be estimated.")
     parser.add_argument("-s", "--search_radius", type=float, default=0.02,
             help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.02 degrees")
+    parser.add_argument("-k", "--no_known_pulsars", action="store_true", default=False,
+            help="Do no include known pulsars. Default: False")
+    parser.add_argument("-c", "--no_search_cands", action="store_true", default=False,
+            help="Do no include search_cands. Default: False")
+    parser.add_argument('-n', '--n_pointings', type=int, default=None,
+            help='Number of pointings per output file. This is used to limit the size of the output pointings which is 0.007 TB '
+                 'per pointing per minute. For example an 80 mins obs with 120 pointings is 67.5 TB.')
     parser.add_argument("-L", "--loglvl", type=str, help="Logger verbosity level. Default: INFO",
                         default="INFO")
     args=parser.parse_args()
