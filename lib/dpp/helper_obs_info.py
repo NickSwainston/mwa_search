@@ -11,7 +11,6 @@ import sys
 # vcstools imports
 import vcstools.sn_flux_utils as snfu
 from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
-from vcstools.metadb_utils import 
 from vcstools import data_load
 from vcstools.pointing_utils import format_ra_dec
 from vcstools.catalogue_utils import grab_source_alog
