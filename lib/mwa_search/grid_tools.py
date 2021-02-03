@@ -56,7 +56,7 @@ def cross_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    print("Calculating the tile positions")
+
     for l in range(loop):
         loop_temp = []
         for c in range(4):
@@ -87,7 +87,6 @@ def hex_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (6 for hexagon 4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    print("Calculating the tile positions")
 
     for l in range(loop):
         #different step for each corner
@@ -169,7 +168,6 @@ def square_grid(ra0,dec0,centre_fwhm, loop):
     #start location list [loop number][shape corner (4 for square)][number from corner]
     #each item has [ra,dec,fwhm] in radians
     pointing_list = [[[[ra0,dec0,centre_fwhm]]]]
-    print("Calculating the tile positions")
 
     for l in range(loop):
         #different step for each corner
@@ -221,7 +219,7 @@ def square_grid(ra0,dec0,centre_fwhm, loop):
     return pointing_list
 
 
-def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
+def get_grid(ra, dec, grid_sep, loop, grid_type='hex', verbose=True):
     """
     ra: Right Acension in radians
     dec: Declination in radians
@@ -233,6 +231,8 @@ def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
     RAs and Decs in degrees
     """
     #calc grid positions
+    if verbose:
+        print("Calculating the tile positions")
     if grid_type == 'hex':
         pointing_list = hex_grid(   ra, dec, grid_sep, loop)
     elif grid_type == 'cross':
@@ -246,7 +246,8 @@ def get_grid(ra, dec, grid_sep, loop, grid_type='hex'):
 
     rads = []; decds = []
 
-    print("Converting ra dec to degrees")
+    if verbose:
+        print("Converting ra dec to degrees")
     for loop in pointing_list:
         for corner in loop:
             for num in corner:

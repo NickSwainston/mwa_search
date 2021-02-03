@@ -167,6 +167,7 @@ process prepfold_time {
 
 
 process dspsr_time {
+    publishDir params.out_dir, mode: 'copy'
     label 'cpu_any'
     cpus = 10
     time '6h'
@@ -275,7 +276,7 @@ workflow {
                   std_profile )
     }
     else if ( params.time_split ) {
-        if ( params.subint == "" ) {
+        if ( params.subint == "" || params.eph == "") {
             prepfold_time( fits_files )
             dspsr_time( prepfold_time.out[0],\
                         fits_files.collect() )
