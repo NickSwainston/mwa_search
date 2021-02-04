@@ -366,7 +366,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
     for psr in psrs_list_03:
         if psr in psrs_list_01:
             psrs_03_01.remove(psr)
-    sn_dict_01 = snfe.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
+    sn_dict_01 = snfu.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
     # Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     for psr in psrs_03_01:
         sn, sn_err, _, _ = sn_dict_01[psr]
