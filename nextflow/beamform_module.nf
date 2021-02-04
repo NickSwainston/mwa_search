@@ -89,8 +89,7 @@ process beamform_setup {
     import csv
 
     from vcstools.metadb_utils import obs_max_min, get_channels, ensure_metafits
-    from process_vcs import create_link
-    from vcstools.general_utils import gps_to_utc, mdir
+    from vcstools.general_utils import gps_to_utc, mdir, create_link
     import csv
 
     # Work out begin and end time of obs
@@ -264,6 +263,8 @@ process make_beam_ipfb {
 
     output:
     file "*fits"
+    file "*hdr"
+    file "*vdif"
 
     """
     if $params.publish_fits; then
@@ -370,7 +371,7 @@ workflow beamform_ipfb {
                 make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
                 groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
-        make_beam_ipfb.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
+        make_beam_ipfb.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[1]
         splice.out[0] | flatten() | map { it -> [it.baseName.split("_ch")[0].split("${params.obsid}_")[-1], it ] } | groupTuple()
