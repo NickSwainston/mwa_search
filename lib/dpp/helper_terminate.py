@@ -20,9 +20,12 @@ def finish_successful(cfg):
     logger.info("-------------------------------------------------------------------")
     logger.info(f"Pipeline has completed its run on pulsar {cfg['source']['name']}")
     logger.info(f"Pipeline successfully completed a full run")
+    my_bins = cfg['source']['my_bins']
+    my_pointing = cfg['source']['my_pointing']
     logger.info("Run Results:")
-    logger.info(f"Pointing used:            {cfg['source']['my_pointing']}")
-    logger.info(f"Bin count used:           {cfg['source']['my_bins']}")
+    logger.info(f"Pointing used:            {my_pointing}")
+    logger.info(f"Bin count used:           {my_bins}")
+    logger.info(f"Presto SN for bin count:  {cfg['folds'][my_pointing]['post'][my_bins]["sn"]}")
     logger.info(f"Fold DM:                  {cfg['source']['my_DM']}")
     logger.info(f"Fold Period:              {cfg['source']['my_P']}")
     logger.info(f"Fold Period Derivative:   {cfg['source']['my_Pdot']}")
