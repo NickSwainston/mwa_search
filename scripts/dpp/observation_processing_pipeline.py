@@ -24,7 +24,7 @@ def main(kwargs):
         create_dpp_dir(kwargs)
 
         logger.info("Calculating pulsars in beam...")
-        psrs_pointing_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["beg"], kwargs["end"])
+        psrs_pointing_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["beg"], kwargs["end"], search_radius=kwargs["search_radius"])
         psrs_pointing_dict = reformat_psrs_pointings(psrs_pointing_list)
 
         logger.info("Initialising config files...")
@@ -61,6 +61,8 @@ if __name__ == '__main__':
     required.add_argument("--end", type=int, help="The end of the observation")
 
     otherop = parser.add_argument_group("Other Options")
+    otherop.add_argument("-s", "--search_radius", type=float, default=0.02,
+                         help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.02 degrees")
     otherop.add_argument("--relaunch", action="store_true", help="Use this tag to relaunch a partially completed opp run.") #TODO: sort out cases for only half present files
     otherop.add_argument("--keep_logs", action="store_true", help="Use this tag to keep the old logs of previous ppp runs")
     otherop.add_argument("--force_rerun", action="store_true", help="Use this tag to force a fresh run of each pulsar processing pipeline\
