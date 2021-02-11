@@ -14,6 +14,7 @@ params.increment = 64
 params.parallel_dl = 3
 params.untar_jobs = 2
 params.keep_tarball = false
+params.keep_raw = false
 
 params.vcstools_version = 'master'
 
@@ -41,6 +42,8 @@ if ( params.help ) {
              |              Number of parallel jobs when untaring downloaded tarballs. [default: 2]
              |  --keep_tarball
              |              Keep the tarballs after unpacking. [default: false]
+             |  --keep_raw
+             |              Keep the raw data after recombining. [default: false]
              |  --vcstools_version
              |              The vcstools module version to use [default: master]
              |  -w          The Nextflow work directory. Delete the directory once the processs
@@ -139,8 +142,10 @@ process volt_download {
 
 process untar {
     label 'cpu'
-    time { "${50*params.increment*task.attempt + 900}s" }
-    errorStrategy 'retry'
+    time { "${200*params.increment*task.attempt + 900}s" }
+    errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
+    maxRetries 3
+
     beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
 
     input:
@@ -158,7 +163,9 @@ process untar {
 
 process recombine {
     label 'gpu'
-    time { "${500*params.increment + 900}s" }
+    time { "${500*params.increment*task.attempt + 900}s" }
+    errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
+    maxRetries 3
     
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
@@ -194,6 +201,12 @@ process recombine {
     """
     srun --export=all recombine.py -o ${params.obsid} -s ${begin_time_increment[0]} -w ${params.scratch_basedir}/${params.obsid} -e recombine
     checks.py -m recombine -o ${params.obsid} -w ${params.scratch_basedir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
+    if ! ${params.keep_raw}; then
+        # Loop over each second and delete raw files
+        for gps in \$(seq ${begin_time_increment[0]} ${begin_time_increment[0] + begin_time_increment[1] - 1}); do
+            rm ${params.scratch_basedir}/${params.obsid}/raw/${params.obsid}_\${gps}_vcs*.dat
+        done
+    fi
     """
 }
 
