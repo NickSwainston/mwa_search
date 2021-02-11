@@ -10,7 +10,7 @@ def launch_label(cfg):
     """Returns a label based on how far the piepline has progressed"""
     order = ["Initial", "Classify", "Post", "Upload", "Debase", "RM", "RVM_initial", "RVM_final"]
     counter = sum(cfg["completed"].values()) # Number of True statements
-    return order[counter-1]
+    return order[counter]
 
 
 def relaunch_ppp(cfg, depends_on=None, depend_type="afterany", fresh_run=False, reset_logs=False, time="00:30:00"):
