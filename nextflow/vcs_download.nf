@@ -204,7 +204,7 @@ process recombine {
     if ! ${params.keep_raw}; then
         # Loop over each second and delete raw files
         for gps in \$(seq ${begin_time_increment[0]} ${begin_time_increment[0] + begin_time_increment[1] - 1}); do
-            rm ${params.obsid}_\${gps}_vcs*.dat
+            rm ${params.scratch_basedir}/${params.obsid}/raw/${params.obsid}_\${gps}_vcs*.dat
         done
     fi
     """
