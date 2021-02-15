@@ -117,6 +117,7 @@ def prepfold_time_alloc(cfg, prepfold_kwargs):
     if time > 86399.:
         logger.warn("Estimation for prepfold time greater than one day")
         time = 86399
+    time = time*2 # Double time alloc just because pawsey is weird and sometimes this isn't enough
     time = str(datetime.timedelta(seconds=int(time)))
     return time
 
