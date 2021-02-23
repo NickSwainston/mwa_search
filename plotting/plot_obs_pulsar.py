@@ -678,23 +678,6 @@ if __name__ == "__main__":
         #print(min(ra_PCAT), max(ra_PCAT))
         ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color ='b', zorder=90)
 
-    if args.pulsar:
-        #add some pulsars
-        ra_PCAT = []
-        dec_PCAT = []
-        pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
-        for pulsar in pulsar_list:
-            ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
-            if args.ra_offset:
-                if ra_temp > 180:
-                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
-                else:
-                    ra_PCAT.append(-ra_temp/180.*np.pi)
-            else:
-                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
-            dec_PCAT.append(dec_temp/180.*np.pi)
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
-
     if args.pulsar_detected:
         #add some pulsars
         ra_PCAT = []
@@ -718,6 +701,22 @@ if __name__ == "__main__":
             dec_PCAT.append(dec_temp/180.*np.pi)
         ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
 
+    if args.pulsar:
+        #add some pulsars
+        ra_PCAT = []
+        dec_PCAT = []
+        pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
+        for pulsar in pulsar_list:
+            ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+            if args.ra_offset:
+                if ra_temp > 180:
+                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+                else:
+                    ra_PCAT.append(-ra_temp/180.*np.pi)
+            else:
+                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+            dec_PCAT.append(dec_temp/180.*np.pi)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=100)
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")

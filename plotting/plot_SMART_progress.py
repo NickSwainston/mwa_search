@@ -202,14 +202,14 @@ if __name__ == "__main__":
         nz = np.array(smart_nz[sid])
         
         # plot the contour
-        plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha = 0.6,
+        plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha=0.6,
                         colors=smart_colours[sname[0]]['dark'],
                         linewidths=linewidths, zorder=0.25)
         
         #Shade selected obs
         if args.shade_light:
             if sobsid in args.shade_light:
-                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs = plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
                 for cspath in cspaths:
@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
         if args.shade:
             if sobsid in args.shade:
-                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs = plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
                 for cspath in cspaths:
