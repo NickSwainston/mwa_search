@@ -35,7 +35,6 @@ if [ ! -d $ROOT/$VERSION ]; then
 fi
 
 # Updates to the project version are explained in CHANGELOG.md
-#python setup.py build --build-scripts=$ROOT/$VERSION/
 python setup.py install --prefix="$ROOT/$VERSION" --single-version-externally-managed --record=record.txt
 rm record.txt
 rm -rf build

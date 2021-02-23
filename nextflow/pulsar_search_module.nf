@@ -4,6 +4,7 @@ params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
+params.publish_all_prepfold = false
 
 params.begin = 0
 params.end = 0
@@ -12,7 +13,7 @@ params.all = false
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
-params.dm_max_step = 500.0
+params.dm_max_step = 0.5
 params.max_dms_per_job = 5000
 
 //Defaults for the accelsearch command
@@ -50,8 +51,14 @@ else {
 if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
     search_dd_fft_acc_dur = obs_length * 5.0
-    prepfold_dur = obs_length * 2.0
+    prepfold_dur = obs_length * 16.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
+}
+else if ( "$HOSTNAME".startsWith("garrawarla") ) {
+    // In seconds
+    search_dd_fft_acc_dur = obs_length * 5.0
+    prepfold_dur = obs_length * 16.0
+    presto_python_load = ""
 }
 else {
     search_dd_fft_acc_dur = 14400
@@ -67,14 +74,14 @@ process ddplan {
 
     output:
     file 'DDplan.txt'
-    
+
     """
     #!/usr/bin/env python3
 
-    import find_pulsar_in_obs as fpio
-    from lfDDplan import dd_plan
+    from vcstools.catalogue_utils import grab_source_alog
+    from mwa_search.dispersion_tools import dd_plan
     import csv
-    
+
     #obsid_pointing = "${fits_files[0]}".split("/")[-1].split("_ch")[0]
     #print(obsid_pointing)
 
@@ -83,16 +90,18 @@ process ddplan {
                          min_DM_step=$params.dm_min_step, max_DM_step=$params.dm_max_step,
                          max_dms_per_job=$params.max_dms_per_job)
     else:
-        if '$name'.startswith('FRB'):
-            dm = fpio.grab_source_alog(source_type='FRB',
+        if '$name'.startswith('dm_'):
+            dm = float('$name'.split('dm_')[-1].split('_')[0])
+        elif '$name'.startswith('FRB'):
+            dm = grab_source_alog(source_type='FRB',
                  pulsar_list=['$name'.split("_")[0]], include_dm=True)[0][-1]
         else:
             # Try RRAT first
-            rrat_temp = fpio.grab_source_alog(source_type='RRATs',
+            rrat_temp = grab_source_alog(source_type='RRATs',
                         pulsar_list=['$name'.split("_")[0]], include_dm=True)
             if len(rrat_temp) == 0:
                 #No RRAT so must be pulsar
-                dm = fpio.grab_source_alog(source_type='Pulsar',
+                dm = grab_source_alog(source_type='Pulsar',
                      pulsar_list=['$name'.split("_")[0]], include_dm=True)[0][-1]
             else:
                 dm = rrat_temp[0][-1]
@@ -107,7 +116,7 @@ process ddplan {
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
             spamwriter.writerow(['${name}'] + o)
-    """ 
+    """
 }
 
 
@@ -124,7 +133,8 @@ process search_dd_fft_acc {
                    "86400s"}
     }
     //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
+    errorStrategy { task.attempt > 2 ? 'ignore' : 'retry' }
+    maxRetries 2
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         maxForks 400
     }
@@ -153,7 +163,7 @@ process search_dd_fft_acc {
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.12 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '/nvmetmp'
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
@@ -198,11 +208,8 @@ process accelsift {
     output:
     tuple val(name), file("cands_*greped.txt")
 
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module};"+\
-                     "module use $params.module_dir; module load mwa_search/py2_scripts"
-    }
-    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
+              "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
@@ -224,7 +231,6 @@ process accelsift {
 process single_pulse_searcher {
     label 'cpu_large_mem'
     time '2h'
-    stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
     errorStrategy 'ignore'
 
@@ -251,6 +257,7 @@ process single_pulse_searcher {
 
 
 process prepfold {
+    publishDir params.out_dir, mode: 'copy', enabled: params.publish_all_prepfold
     label 'cpu'
     time "${prepfold_dur}s"
     errorStrategy 'retry'
@@ -262,10 +269,10 @@ process prepfold {
     output:
     file "*pfd*"
 
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
-    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ) {
         container = "file:///${params.containerDir}/presto/presto.sif"
     }
     else {
@@ -276,7 +283,8 @@ process prepfold {
     """
     echo "${cand_line.split()}"
     # Set up the prepfold options to match the ML candidate profiler
-    period=${Float.valueOf(cand_line.split()[7])/1000}
+    temp_period=${Float.valueOf(cand_line.split()[7])/1000}
+    period=\$(printf "%.8f" \$temp_period)
     if (( \$(echo "\$period > 0.01" | bc -l) )); then
         nbins=100
         ntimechunk=120
@@ -292,12 +300,13 @@ process prepfold {
 
     # Work out how many dmfacts to use to search +/- 2 DM
     ddm=`echo "scale=10;0.000241*138.87^2*\${dmstep} / (1/\$period *\$nbins)" | bc`
-    ndmfact=`echo "2/(\$ddm*\$nbins)" | bc`
+    ndmfact=`echo "1 + 1/(\$ddm*\$nbins)" | bc`
+    echo "ndmfact: \$ndmfact   ddm: \$ddm"
 
-    #-p \$period 
+    #-p \$period
     prepfold -ncpus $task.cpus -o ${cand_line.split()[0]} -n \$nbins -dm ${cand_line.split()[1]} -noxwin -noclip -nsub 256 \
 -accelfile ${cand_line.split()[0].substring(0, cand_line.split()[0].lastIndexOf(":"))}.cand -accelcand ${cand_line.split()[0].split(":")[-1]} \
--npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact 1 -runavg *.fits
+-npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact \$ndmfact -runavg *.fits
     """
 }
 
@@ -374,20 +383,19 @@ workflow pulsar_search {
                                // Add fits files
                                concat(name_fits_files).groupTuple( size: 2 ).map{ it -> [it[0], it[1][0], it[1][1]]} )
         prepfold( name_fits_files.cross(
+                  // Group all the accelsift lines together
+                  accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_ACCEL")[0], it ] }.cross(
                   // Group all the .cand and .inf files by their base names
-                  search_dd_fft_acc.out.map{ it -> [it[2]].flatten().findAll { it != null } }.\
+                  search_dd_fft_acc.out.map{ it -> [it[2]].flatten().findAll { it != null } }.
                   flatten().map{ it -> [it.baseName.split(".inf")[0], it ] }.concat(
-                  search_dd_fft_acc.out.map{ it -> [it[4]].flatten().findAll { it != null } }.\
-                  flatten().map{ it -> [it.baseName.split("_ACCEL")[0], it ] },\
-                  // Group them with a matching accelsift line
-                  accelsift.out.map{ it -> it[1] }.splitCsv().flatten().map{ it -> [it.split()[0].split("_ACCEL")[0], it ] }).\
-                  groupTuple( size: 3, remainder: false ).map{ it -> [it[0].split("_DM")[0], [it[1][0], it[1][1], it[1][2]]]}\
-                  // Match with fits files
-                  ).\
-                  // Reogranise to val(cand_line), file(cand_file), file(cand_inf), file(fits_files)
-                  map{ it -> [it[1][1][2], it[1][1][1], it[1][1][0], it[0][1]] } )
+                  search_dd_fft_acc.out.map{ it -> [it[4]].flatten().findAll { it != null } }.
+                  flatten().map{ it -> [it.baseName.split("_ACCEL")[0], it ] }).groupTuple( size: 2 )
+                  // match the cand and inf file with each accelsift line and reoraganise
+                  ).map{ it -> [it[0][0].split("_DM")[0], [it[0][1], it[1][1][0], it[1][1][1]]] }
+                  // Match with fits files and eogranise to val(cand_line), file(cand_file), file(cand_inf), file(fits_files)
+                  ).map{ it -> [it[1][1][0], it[1][1][2], it[1][1][1], it[0][1]] } )
     emit:
-        accelsift.out 
+        accelsift.out
         prepfold.out
 }
 

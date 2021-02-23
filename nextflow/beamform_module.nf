@@ -37,7 +37,7 @@ else {
 //Work out total obs time
 if ( params.all ) {
     // an estimation since there's no easy way to make this work
-    obs_length = 4805
+    obs_length = 5400
 }
 else {
     obs_length = params.end - params.begin + 1
@@ -78,107 +78,53 @@ range = Channel.from( ['001', '002', '003', '004', '005', '006',\
                        '019', '020', '021', '022', '023', '024'] )
 
 
-
-// Handling begin and end times
-process get_beg_end {
+process beamform_setup {
     output:
     file "${params.obsid}_beg_end.txt"
-
-    script:
-    if ( params.all )
-        """
-        #!/usr/bin/env python3
-        import csv
-
-        from mwa_metadb_utils import obs_max_min
-
-        beg, end = obs_max_min(${params.obsid})
-        with open("${params.obsid}_beg_end.txt", "w") as outfile:
-            spamwriter = csv.writer(outfile, delimiter=',')
-            spamwriter.writerow([beg, end])
-        """
-    else
-        """
-        #!/usr/bin/env python3
-        import csv
-
-        beg = "$params.begin"
-        end = "$params.end"
-        with open("${params.obsid}_beg_end.txt", "w") as outfile:
-            spamwriter = csv.writer(outfile, delimiter=',')
-            spamwriter.writerow([beg, end])
-        """
-}
-
-
-process get_channels {
-    output:
     file "${params.obsid}_channels.txt"
+    file "${params.obsid}_utc.txt"
 
     """
-    #!/usr/bin/env python3
-
-    from mwa_metadb_utils import get_channels
+    #!/usr/bin/env python
     import csv
 
-    if "$params.channels" is "null":
+    from vcstools.metadb_utils import obs_max_min, get_channels, ensure_metafits
+    from vcstools.general_utils import gps_to_utc, mdir, create_link
+    import csv
+
+    # Work out begin and end time of obs
+    if "${params.all}" == "true":
+        beg, end = obs_max_min(${params.obsid})
+    else:
+        beg = $params.begin
+        end = $params.end
+    with open("${params.obsid}_beg_end.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow([beg, end])
+
+    # Find the channels
+    if "$params.channels" == "null":
         channels = get_channels($params.obsid)
     else:
         channels = [$params.channels]
     with open("${params.obsid}_channels.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
         spamwriter.writerow(channels)
-    """
-}
 
-
-process ensure_metafits {
-
-    """
-    #!/usr/bin/env python3
-
-    from process_vcs import ensure_metafits
-    
+    # Ensure the metafits files is there
     ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
                     "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
-    """
-}
 
-
-process gps_to_utc {
-    input:
-    tuple val(begin), val(end)
-
-    output:
-    file "${params.obsid}_utc.txt"
-
-    """
-    #!/usr/bin/env python3
-
-    from process_vcs import gps_to_utc
-    import csv
-
+    # Covert gps time to utc
     with open("${params.obsid}_utc.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
-        spamwriter.writerow([gps_to_utc(${begin})])
-    """
-}
+        spamwriter.writerow([gps_to_utc(beg)])
 
-
-process make_directories {
-    """
-    #!/usr/bin/env python3
-
-    from mdir import mdir
-    from process_vcs import create_link
-
+    # Make sure all the required directories are made
     mdir("${params.scratch_basedir}/${params.obsid}", "Data")
     mdir("${params.scratch_basedir}/${params.obsid}", "Products")
     mdir("${params.scratch_basedir}/batch", "Batch")
     mdir("${params.scratch_basedir}/${params.obsid}/pointings", "Pointings")
-    #mdir("${params.scratch_basedir}/${params.obsid}/dpp_pointings", "DPP Products")
-    #create_link("${params.scratch_basedir}/${params.obsid}", "dpp_pointings",
-    #            "${params.basedir}/${params.obsid}", "dpp_pointings")
     """
 }
 
@@ -193,7 +139,7 @@ process combined_data_check {
     #!/usr/bin/env python
 
     import sys
-    from check_known_pulsars import check_data
+    from mwa_search.obs_tools import check_data
 
     #Perform data checks
     dur = $end-$begin + 1
@@ -210,7 +156,7 @@ process combined_data_check {
 process make_beam {
     label 'gpu'
     //time '2h'
-    time "${mb_dur}s"
+    time "${mb_dur*task.attempt}s"
     errorStrategy 'retry'
     maxRetries 1
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
@@ -234,7 +180,8 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -253,13 +200,12 @@ process make_beam {
     file "*fits"
 
 
-    //TODO add other beamform options and flags -F
     """
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -t 6000 -z $utc
+${bf_out} -t 6000 -F ${params.didir}/flagged_tiles.txt  -z $utc
     mv */*fits .
     """
 }
@@ -273,7 +219,7 @@ process make_beam_ipfb {
 
     label 'gpu'
     //time '2h'
-    time "${mb_ipfb_dur}s"
+    time "${mb_ipfb_dur*task.attempt}s"
     errorStrategy 'retry'
     maxRetries 1
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
@@ -282,7 +228,7 @@ process make_beam_ipfb {
     else {
         maxForks 120
     }
-    
+
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
@@ -294,9 +240,10 @@ process make_beam_ipfb {
         container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-    clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
+        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -316,10 +263,9 @@ process make_beam_ipfb {
 
     output:
     file "*fits"
-    //file "*hdr"
-    //file "*vdif"
+    file "*hdr"
+    file "*vdif"
 
-    //TODO add other beamform options and flags -F
     """
     if $params.publish_fits; then
         mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
@@ -332,7 +278,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -t 6000 -z $utc
+-p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z $utc
     ls *
     mv */*fits .
     """
@@ -342,7 +288,7 @@ process splice {
     publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits
     publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
-    time '2h'
+    time '3h'
     maxForks 300
     errorStrategy 'retry'
     maxRetries 1
@@ -359,10 +305,11 @@ process splice {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("x86") ) {
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -379,21 +326,17 @@ process splice {
 
 workflow pre_beamform {
     main:
-        get_beg_end()
-        get_channels()
-        ensure_metafits()
-        gps_to_utc( get_beg_end.out.splitCsv() )
-        make_directories()
-        combined_data_check(get_beg_end.out.splitCsv())
+        beamform_setup()
+        combined_data_check(beamform_setup.out[0].splitCsv())
     emit:
-        get_beg_end.out.splitCsv()
-        get_channels.out.splitCsv()
-        gps_to_utc.out.splitCsv().flatten()
+        beamform_setup.out[0].splitCsv()
+        beamform_setup.out[1].splitCsv()
+        beamform_setup.out[2].splitCsv().flatten()
 }
 
 
 workflow beamform {
-    take: 
+    take:
         obs_beg_end
         channels
         utc
@@ -428,7 +371,8 @@ workflow beamform_ipfb {
                 make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
                 groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
-        make_beam_ipfb.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
+        make_beam_ipfb.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
         splice.out[1]
+        splice.out[0] | flatten() | map { it -> [it.baseName.split("_ch")[0].split("${params.obsid}_")[-1], it ] } | groupTuple()
 }
