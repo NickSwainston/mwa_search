@@ -6,8 +6,8 @@ class LoggerWriter(object):
     """
     I don't know how this works, I got it from stackoverflow
     It's used to redirect stderr/stdout to a logging instance
+    https://stackoverflow.com/questions/47325506/making-python-loggers-log-all-stdout-and-stderr-messages
     """
-    #TODO: find the link ^^
     def __init__(self, writer):
         self._writer = writer
         self._msg = ''

@@ -22,7 +22,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     Adds all available keys to the cfg dictionary and figures out some useful constants
     Takes kwargs from observation_processing_pipeline
     """
-    cfg = {"obs": {}, "source": {}, "completed": {}, "folds": {}, "run_ops": {}, "pol": {}}
+    cfg = {"obs": {}, "source": {}, "completed": {}, "folds": {}, "run_ops": {}, "pol": {}, "files":{}}
     if query is None:
         query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
     if metadata is None:
@@ -49,12 +49,31 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["run_ops"]["good_sn"] = 20.0
     cfg["run_ops"]["vdif"] = None
     cfg["run_ops"]["mask"] = None
-    cfg["run_ops"]["file_precursor"] = file_precursor(kwargs, psr)
-    cfg["run_ops"]["psr_dir"] = join(comp_config["base_data_dir"], str(cfg["obs"]["id"]), "dpp", cfg["run_ops"]["file_precursor"])
-    cfg["run_ops"]["myname"] = join(cfg["run_ops"]["psr_dir"], f"{cfg['run_ops']['file_precursor']}_cfg.yaml")
-    cfg["run_ops"]["logfile"] = join(cfg["run_ops"]["psr_dir"], f"{cfg['run_ops']['file_precursor']}_logs.txt")
-    cfg["run_ops"]["batch_dir"] = join(comp_config['base_data_dir'], cfg["obs"]["id"], "batch")
-    cfg["run_ops"]["classify_dir"] = join(cfg["run_ops"]["psr_dir"], "classifier_ppp")
+
+    cfg["files"]["file_precursor"] = file_precursor(kwargs, psr)
+    cfg["files"]["psr_dir"] = join(comp_config["base_data_dir"], str(cfg["obs"]["id"]), "dpp", cfg["files"]["file_precursor"])
+    cfg["files"]["batch_dir"] = join(comp_config['base_data_dir'], cfg["obs"]["id"], "batch")
+    cfg["files"]["classify_dir"] = join(cfg["files"]["psr_dir"], "classifier_ppp")
+    cfg["files"]["my_name"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_cfg.yaml")
+    cfg["files"]["logfile"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}.log")
+    cfg["files"]["archive"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.ar")
+    cfg["files"]["archive_ascii"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.txt")
+    cfg["files"]["gfit_plot"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_gfit.png")
+    cfg["files"]["converted_fits"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_archive.fits")
+    # debased fits file needs to be the same as archive except for the extension
+    arch = cfg["files"]["archive"].split(".ar")[0]
+    cfg["files"]["debased_fits"] = f"{arch}.debase.gg"
+    # paswing file needs to be the same as debase except for the .gg extension
+    debase = cfg["files"]["debased_fits"].split(".gg")[0]
+    cfg["files"]["paswing"] = f"{debase}.paswing"
+    cfg["files"]["chigrid_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_chigrid_initial.ps")
+    cfg["files"]["paswing_initial_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_initial.ps")
+    cfg["files"]["RVM_fit_initial"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_RVM_fit_initial.out")
+    cfg["files"]["chigrid_final_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_chigrid_final.ps")
+    cfg["files"]["paswing_final_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_paswing_final.ps")
+    cfg["files"]["RVM_fit_final"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_RVM_fit_final.out")
+    cfg["files"]["ppol_profile_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_profile.ps")
+    cfg["files"]["ppol_polar_profile_ps"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}_pol.ps")
 
     cfg["source"]["enter_frac"] = None
     cfg["source"]["exit_frac"] = None
@@ -69,18 +88,18 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["source"]["sampling_limit"] = int(bin_sampling_limit(cfg["source"]["name"], query=query))
     cfg["source"]["ATNF_P"] = float(query["P0"][query_index])
     cfg["source"]["ATNF_DM"] = float(query["DM"][query_index])
-    cfg["source"]["synth_RM"] = None
-    cfg["source"]["synth_RM_e"] = None
     cfg["source"]["my_DM"] = None
     cfg["source"]["my_P"] = None
+    cfg["source"]["my_Pdot"] = None
     cfg["source"]["my_bins"] = None
     cfg["source"]["my_pointing"] = None
-    cfg["source"]["my_bins"] = None
+    cfg["source"]["my_component"] = None
+    cfg["source"]["gfit"] = None
     cfg["source"]["binary"] = is_binary(cfg["source"]["name"], query=query)
     cfg["source"]["seek"] = cfg["source"]["enter_frac"] * (cfg["obs"]["end"] - cfg["obs"]["beg"])
     cfg["source"]["total"] = (cfg["source"]["exit_frac"] - cfg["source"]["enter_frac"]) * (cfg["obs"]["end"] - cfg["obs"]["beg"])
     if cfg["source"]["binary"]:
-        cfg["source"]["edited_eph_name"] = join(cfg["run_ops"]["psr_dir"], f"{cfg['run_ops']['file_precursor']}.eph")
+        cfg["source"]["edited_eph_name"] = join(cfg["files"]["psr_dir"], f"{cfg['files']['file_precursor']}.eph")
         cfg["source"]["edited_eph"] = create_edited_eph(cfg["source"]["name"])
     else:
         cfg["source"]["edited_eph"] = None
@@ -89,12 +108,14 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     for pointing in pointings:
         cfg["folds"] = {pointing: {"init":{}, "post":{}}}
         cfg["folds"][pointing]["classifier"] = 0
-        cfg["folds"][pointing]["dir"] = join(cfg["run_ops"]["psr_dir"], pointing)
+        cfg["folds"][pointing]["dir"] = join(cfg["files"]["psr_dir"], pointing)
         for _, i in enumerate(init):
             cfg["folds"][pointing]["init"][str(i)] = {}
         for _, i in enumerate(post):
             cfg["folds"][pointing]["post"][str(i)] = {}
 
+    cfg["pol"]["RM"] = None
+    cfg["pol"]["RM_e"] = None
     cfg["pol"]["alpha"] = None
     cfg["pol"]["beta"] = None
     cfg["pol"]["l0"] = None
@@ -106,12 +127,10 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["completed"]["classify"] = False
     cfg["completed"]["post_folds"] = False
     cfg["completed"]["upload"] = False
-    cfg["completed"]["polarimetry_1"] = False
-    cfg["completed"]["polarimetry_2"] = False
-    cfg["completed"]["polarimetry_3"] = False
-    cfg["completed"]["polarimetry_4"] = False
-    cfg["completed"]["polarimetry_5"] = False
-    cfg["completed"]["polarimetry_6"] = False
+    cfg["completed"]["debase"] = False
+    cfg["completed"]["RM"] = False
+    cfg["completed"]["RVM_initial"] = False
+    cfg["completed"]["RVM_final"] = False
     return cfg
 
 
@@ -129,13 +148,10 @@ def reset_cfg(cfg):
     cfg["completed"]["classify"] = False
     cfg["completed"]["post_folds"] = False
     cfg["completed"]["upload"] = False
-    cfg["completed"]["bf"] = False
-    cfg["completed"]["polarimetry_1"] = False
-    cfg["completed"]["polarimetry_2"] = False
-    cfg["completed"]["polarimetry_3"] = False
-    cfg["completed"]["polarimetry_4"] = False
-    cfg["completed"]["polarimetry_5"] = False
-    cfg["completed"]["polarimetry_6"] = False
+    cfg["completed"]["debase"] = False
+    cfg["completed"]["RM"] = False
+    cfg["completed"]["RVM_initial"] = False
+    cfg["completed"]["RVM_final"] = False
 
 
 def from_yaml(filepath):
@@ -145,9 +161,9 @@ def from_yaml(filepath):
 
 
 def dump_to_yaml(cfg):
-    with open(cfg["run_ops"]["myname"], 'w') as f:
+    with open(cfg["files"]["my_name"], 'w') as f:
         yaml.dump(cfg, f, default_flow_style=False)
-    return cfg["run_ops"]["myname"]
+    return cfg["files"]["my_name"]
 
 
 def create_cfgs_main(kwargs, psrs_pointing_dict):
