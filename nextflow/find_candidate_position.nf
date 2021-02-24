@@ -11,7 +11,7 @@ params.end = 0
 params.all = false
 
 params.pointing_grid = null
-params.fwhm_deg = 0.021
+params.fwhm_deg = null
 params.fraction = 0.8
 params.loops = 1
 
@@ -26,14 +26,10 @@ params.dm = 23.123
 params.subint = 60
 params.nchan = 48
 
-params.fwhm_ra = params.fwhm_deg
-params.fwhm_dec = params.fwhm_deg
+params.no_pdmp = false
+params.fwhm_ra = "None"
+params.fwhm_dec = "None"
 
-
-include { pre_beamform; beamform } from './beamform_module'
-
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
 
 
 params.help = false
@@ -95,6 +91,12 @@ if ( params.help ) {
     exit(0)
 }
 
+include { pre_beamform; beamform } from './beamform_module'
+include { fwhm_calc } from './data_processing_pipeline'
+
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
+
 if ( params.pointing_file ) {
     pointings = Channel
         .fromPath(params.pointing_file)
@@ -111,29 +113,37 @@ else if ( params.pointings ) {
         .collate( params.max_pointings )
 }
 else if ( params.pointing_grid ) {
-    pointing_grid = Channel.from(params.pointing_grid).view()
+    pointing_grid = Channel.from(params.pointing_grid)
 }
 else {
     println "No pointings given. Either use --pointing_file, --pointings or --pointing_grid. Exiting"
     exit(1)
 }
 
+if ( params.no_pdmp ) {
+    input_sn_option = " -b "
+}
+else {
+    input_sn_option = " -p "
+}
+
 process grid {
     input:
     val pointings
+    val fwhm
 
     output:
     file "*txt"
 
     """
-    grid.py -o $params.obsid -d $params.fwhm_deg -f $params.fraction -p $pointings -l $params.loops
+    grid.py -o $params.obsid -d $fwhm -f $params.fraction -p $pointings -l $params.loops
     """
 
 }
 
 process prepfold {
     label 'cpu'
-    time '2h'
+    time '3h'
     publishDir params.out_dir, mode: 'copy'
 
     input:
@@ -165,6 +175,9 @@ process pdmp {
     time '6h'
     publishDir params.out_dir, mode: 'copy'
 
+    when:
+    params.no_pdmp == false
+
     input:
     file bestprof
     file fits_files
@@ -183,8 +196,6 @@ process pdmp {
     else {
         container = "nickswainston/dspsr_docker"
     }
-
-
 
     //may need to add some channel names
     """
@@ -210,58 +221,73 @@ process bestgridpos {
     publishDir params.out_dir, mode: 'copy'
 
     input:
-    file posn
+    file posn_or_bestprof
+    val fwhm
 
     output:
     file "*txt"
     file "*png"
 
     """
-    bestgridpos.py -o ${params.obsid} -p ./ -w -fr ${params.fwhm_ra} -fd ${params.fwhm_dec}
+    if [[ ${params.fwhm_ra} == None || ${params.fwhm_dec} == None ]]; then
+        bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w -fr ${fwhm} -fd ${fwhm}
+    else
+        bestgridpos.py -o ${params.obsid} ${input_sn_option} ./ -w -fr ${params.fwhm_ra} -fd ${params.fwhm_dec}
+    fi
     """
 }
 
 workflow find_pos {
     take:
-        pointing_grid
+        pointings
         pre_beamform_1
         pre_beamform_2
         pre_beamform_3
+        fwhm
     main:
-        grid( pointing_grid )
         beamform( pre_beamform_1,\
                   pre_beamform_2,\
                   pre_beamform_3,\
-                  grid.out.splitCsv().collect().flatten().collate( params.max_pointings ) )
+                  pointings )
         prepfold( beamform.out[3] )
-        pdmp( prepfold.out[0],
-            beamform.out[1],
-            beamform.out[2] )
-        bestgridpos( pdmp.out[1].collect() )
+        if ( params.no_pdmp ) {
+            bestgridpos( prepfold.out[0].collect(),\
+                         fwhm )
+        }
+        else {
+            pdmp( prepfold.out[0],
+                  beamform.out[1],
+                  beamform.out[2] )
+            bestgridpos( pdmp.out[1].collect(),\
+                         fwhm )
+        }
     emit:
         bestgridpos.out[0].splitCsv().collect().flatten().collate( params.max_pointings )
 }
 
 workflow {
     pre_beamform()
+    fwhm_calc( pre_beamform.out[1] )
     if ( params.pointing_grid ) {
-        find_pos( pointing_grid,\
+        grid( pointing_grid,\
+              fwhm_calc.out.splitCsv().flatten() )
+        find_pos( grid.out.splitCsv().collect().flatten().collate( params.max_pointings ),\
                   pre_beamform.out[0],\
                   pre_beamform.out[1],\
-                  pre_beamform.out[2] )
-        //params.summed = false
-        //publish_fits = true
-        beamform( pre_beamform.out[0],\
+                  pre_beamform.out[2],\
+                  fwhm_calc.out.splitCsv().flatten() )
+    }
+    else if ( params.pointing_file || params.pointings ) {
+        find_pos( pointings,\
+                  pre_beamform.out[0],\
                   pre_beamform.out[1],\
                   pre_beamform.out[2],\
-                  find_pos.out.view() )
+                  fwhm_calc.out.splitCsv().flatten() )
     }
-    else {
-        beamform( pre_beamform.out[0],\
-                  pre_beamform.out[1],\
-                  pre_beamform.out[2],\
-                  pointings )
-    }
+    beamform( pre_beamform.out[0],\
+                pre_beamform.out[1],\
+                pre_beamform.out[2],\
+                find_pos.out.view() )
     prepfold( beamform.out[3] )
     pdmp( prepfold.out[0],
           beamform.out[1],

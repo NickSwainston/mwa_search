@@ -14,6 +14,7 @@ params.increment = 64
 params.parallel_dl = 3
 params.untar_jobs = 2
 params.keep_tarball = false
+params.keep_raw = false
 
 params.vcstools_version = 'master'
 
@@ -41,6 +42,8 @@ if ( params.help ) {
              |              Number of parallel jobs when untaring downloaded tarballs. [default: 2]
              |  --keep_tarball
              |              Keep the tarballs after unpacking. [default: false]
+             |  --keep_raw
+             |              Keep the raw data after recombining. [default: false]
              |  --vcstools_version
              |              The vcstools module version to use [default: master]
              |  -w          The Nextflow work directory. Delete the directory once the processs
@@ -77,8 +80,8 @@ process check_data_format {
     import os
     import csv
 
-    import mwa_metadb_utils as meta
-    from mdir import mdir
+    import vcstools.metadb_utils as meta
+    from vcstools.general_utils import mdir
 
     data_dir = '${params.scratch_basedir}/${params.obsid}'
     obsinfo = meta.getmeta(service='obs', params={'obs_id':'${params.obsid}'})
@@ -139,13 +142,14 @@ process volt_download {
 
 process untar {
     label 'cpu'
-    time { "${50*params.increment*task.attempt + 900}s" }
-    errorStrategy 'retry'
+    time { "${200*params.increment*task.attempt + 900}s" }
+    errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
+    maxRetries 3
+
     beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
 
     input:
     val data_type
-    val dl_dir
     val begin_time_increment
 
     when:
@@ -159,23 +163,28 @@ process untar {
 
 process recombine {
     label 'gpu'
-    time { "${500*params.increment + 900}s" }
+    time { "${500*params.increment*task.attempt + 900}s" }
+    errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
+    maxRetries 3
     
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        if ( { 8 > begin_time_increment[1] } ) {
-            // I suspect the node calc is wrong but I copied it from process_vcs.py
-            clusterOptions {"--gres=gpu:1 --nodes=${(params.increment+(-params.increment%begin_time_increment[1]))/begin_time_increment[1] + 1} --ntasks-per-node=${begin_time_increment[1]}"}
+        if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
+            clusterOptions {"--gres=gpu:1 --nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
+                            "--ntasks-per-node=${begin_time_increment[1] / 2}"}
         }
         else {
-            clusterOptions {"--gres=gpu:1 --nodes=${(params.increment+(-params.increment%8))/8 + 1} --ntasks-per-node=8"}
+            clusterOptions {"--gres=gpu:1 --nodes=${1} "+\
+                            "--ntasks-per-node=${params.max_cpus_per_node}"}
         }
     }
     else {
-        if ( { 8 > begin_time_increment[1] }  ) {
-            clusterOptions {"--nodes=${(params.increment+(-params.increment%begin_time_increment[1]))/begin_time_increment[1] + 1} --ntasks-per-node=${begin_time_increment[1]}"}
+        if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
+            clusterOptions {"--nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
+                            "--ntasks-per-node=${begin_time_increment[1] / 2}"}
         }
         else {
-            clusterOptions {"--nodes=${(params.increment+(-params.increment%8))/8 + 1} --ntasks-per-node=8"}
+            clusterOptions {"--nodes=${1} "+\
+                            "--ntasks-per-node=${params.max_cpus_per_node}"}
         }
     }
 
@@ -183,7 +192,6 @@ process recombine {
     
     input:
     val data_type
-    val dl_dir
     val begin_time_increment
 
     when:
@@ -191,8 +199,14 @@ process recombine {
 
     script:
     """
-    srun --export=all recombine.py -o $params.obsid -s ${begin_time_increment[0]} -w ${params.scratch_basedir}/${params.obsid} -e recombine
-    checks.py -m recombine -o $params.obsid -w ${params.scratch_basedir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
+    srun --export=all recombine.py -o ${params.obsid} -s ${begin_time_increment[0]} -w ${params.scratch_basedir}/${params.obsid} -e recombine
+    checks.py -m recombine -o ${params.obsid} -w ${params.scratch_basedir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
+    if ! ${params.keep_raw}; then
+        # Loop over each second and delete raw files
+        for gps in \$(seq ${begin_time_increment[0]} ${begin_time_increment[0] + begin_time_increment[1] - 1}); do
+            rm ${params.scratch_basedir}/${params.obsid}/raw/${params.obsid}_\${gps}_vcs*.dat
+        done
+    fi
     """
 }
 
@@ -205,9 +219,7 @@ workflow {
                    check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
                    check_data_format.out[1].splitCsv().map{ it -> [Integer.valueOf(it[0]), Integer.valueOf(it[1])] } )
     untar( check_data_format.out[0].splitCsv().collect().map{ it -> it[0] },
-           check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
            volt_download.out )
     recombine( check_data_format.out[0].splitCsv().collect().map{ it -> it[0] },
-               check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
                volt_download.out )
 }

@@ -134,7 +134,8 @@ process make_beam {
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
         scratch '/nvmetmp'
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -183,7 +184,8 @@ process make_beam_ipfb {
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
     else if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
@@ -234,7 +236,8 @@ process make_beam_single {
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
+        //container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
+        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
 
     input:
