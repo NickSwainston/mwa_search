@@ -229,10 +229,12 @@ process accelsift {
 
 
 process single_pulse_searcher {
-    label 'cpu_large_mem'
+    label 'cpu_manual_mem'
     time '2h'
+    memory  { "${8*task.attempt} GB" }
     publishDir params.out_dir, mode: 'copy'
-    errorStrategy 'ignore'
+    errorStrategy { task.attempt > 3 ? 'ignore' : 'retry' }
+    maxRetries 3
 
     input:
     tuple val(name), file(sps), file(fits)

@@ -181,8 +181,9 @@ process accelsift {
 }
 
 process single_pulse_searcher {
-    label 'cpu_large_mem'
+    label 'cpu_manual_mem'
     time '2h'
+    memory = "8 GB"
     stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
     errorStrategy 'ignore'
