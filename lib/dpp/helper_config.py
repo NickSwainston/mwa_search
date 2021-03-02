@@ -49,6 +49,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["run_ops"]["good_sn"] = 20.0
     cfg["run_ops"]["vdif"] = None
     cfg["run_ops"]["mask"] = None
+    cfg["run_ops"]["expected_finish"] = False # Make true when terminated by me
 
     cfg["files"]["file_precursor"] = file_precursor(kwargs, psr)
     cfg["files"]["psr_dir"] = join(comp_config["base_data_dir"], str(cfg["obs"]["id"]), "dpp", cfg["files"]["file_precursor"])
@@ -152,6 +153,7 @@ def reset_cfg(cfg):
     cfg["completed"]["RM"] = False
     cfg["completed"]["RVM_initial"] = False
     cfg["completed"]["RVM_final"] = False
+    cfg["run_ops"]["expected_finish"] = False
 
 
 def from_yaml(filepath):
