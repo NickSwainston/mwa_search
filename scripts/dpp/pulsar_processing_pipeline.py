@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 def main(kwargs):
     """Initiates the pipeline run for a single pulsar"""
     cfg = from_yaml(kwargs["cfg"])
+    cfg["run_ops"]["expected_finish"] = False
 
     # Initiate logging
     writemode = "a"
@@ -33,7 +34,7 @@ def main(kwargs):
     initiate_logs(cfg["run_ops"]["loglvl"], outfile=cfg["files"]["logfile"], writemode=writemode, stderr=True)
 
     # Check if a fresh run is forced
-    if kwargs["force_rerun"]:
+    if kwargs["fresh_run"]:
         logger.info("Forcing a fresh run")
         reset_cfg(cfg)
         remove_old_results(cfg) # Remove old files so that they don't interfere with this run
@@ -109,7 +110,7 @@ if __name__ == '__main__':
 
     runop = parser.add_argument_group("Run Options")
     runop.add_argument("--reset_logs", action="store_true", help="Delete the current log file and make a new one")
-    runop.add_argument("--force_rerun", action="store_true", help="Forces a fresh run of the pipeline")
+    runop.add_argument("--fresh_run", action="store_true", help="Forces a fresh run of the pipeline")
     args = parser.parse_args()
     kwargs = vars(args)
     main(kwargs)
