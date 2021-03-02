@@ -1,7 +1,10 @@
 import logging
 import sys
 
+from dpp.helper_config import dump_to_yaml
+
 logger = logging.getLogger(__name__)
+
 
 def finish_unsuccessful(cfg, e):
     logger.info("\n")
@@ -12,6 +15,8 @@ def finish_unsuccessful(cfg, e):
         if cfg["completed"][key]:
             logger.info(key)
     logger.info(f"Pipeline was terminated early: {e}")
+    cfg["run_ops"]["expected_finish"] = True
+    dump_to_yaml(cfg)
     sys.exit(0)
 
 
@@ -35,4 +40,6 @@ def finish_successful(cfg):
     logger.info(f"beta:                     {cfg['pol']['beta']}")
     logger.info(f"alpha:                    {cfg['pol']['alpha']}")
     logger.info(f"chi:                      {cfg['pol']['chi']}")
+    cfg["run_ops"]["expected_finish"] = True
+    dump_to_yaml(cfg)
     sys.exit(0)
