@@ -11,20 +11,26 @@ def main(kwargs):
     logger.info(f"Reading config files from obsid {kwargs['obsid']}")
     status = opp_status(kwargs["obsid"])
     total_psrs = sum([len(status[i]) for i in status.keys()])
-    if status["2"]:
+    if status["102"]:
         logger.info("The following pulsars completed their run successfully:")
-        logger.info(status["2"])
-    if status["1"]:
+        logger.info(status["102"])
+    if status["101"]:
         logger.info("The following pulsars did were not successfully detected:")
-        logger.info(status["1"])
-    if status["0"]:
+        logger.info(status["101"])
+    if status["100"]:
         logger.info("The following pulsars are missing a .cfg file:")
-        logger.info(status["1"])
-    if status["3"]:
+        logger.info(status["100"])
+    if status["103"]:
+        logger.info("The following pulsars were detected but could not proceed with an RVM fit:")
+        logger.info(status["103"])
+    if status["200"]:
         logger.info("Something went wrong while trying to process the following pulsars:")
-        logger.info(status["3"])
+        logger.info(status["200"])
+    if status["300"]:
+        logger.info("I don't know what happened with these pulsars:")
+        logger.info(status["300"])
     logger.info(f"Total pulsars run through opp:    {total_psrs}")
-    logger.info(f"Total successful detections:      {len(status['2'])}")
+    logger.info(f"Total successful detections:      {len(status['102']) + len(status['103'])}")
 
 
 if __name__ == '__main__':
