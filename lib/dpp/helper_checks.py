@@ -93,5 +93,5 @@ def check_paswing(paswing_file):
     """
     paswing = np.loadtxt(paswing_file)
     pa = [i[-2] for i in paswing] # All PA points
-    if all(x==pa[0] for x in pa): # Check if all elements are identical
-        raise InvalidFileError(f"No usable PA points in file {paswing_file}")
+    if len(list(set(pa))) < 5: # Check if there are enough usable (nonzero) PA points
+        raise InvalidFileError(f"Not enough usable PA points in file {paswing_file}")
