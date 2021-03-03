@@ -28,7 +28,7 @@ def main(kwargs):
             broken_cfgs = []
             for name in cfg_names:
                 cfg = from_yaml(name)
-                if not cfg["run_ops"]["expected_finish"]:
+                if cfg["run_ops"]["exit_status"] not in ("100", "101"):
                     broken_cfgs.append(name)
 
         # Set all 'expected_finishes' to false for the rerun
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     run_type_help = """
                     fresh_run: Delete all current results in pulsar directories, create new config files and launch ppp for each pulsar.
                     rerun_existing: Load the existing config files for each pulsar and launch the ppp for each of them.
-                    rerun_broken: Load the existing config files but only launch the ppp for the files that did not finish expectedly.
+                    rerun_broken: Load the existing config files but only launch the ppp for the files that did not finish properly (error codes other than 100 or 101).
                     """
     required = parser.add_argument_group("Required Options")
     required.add_argument("-o", "--obsid", type=str,help="The obs ID of the data")
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     otherop.add_argument("-s", "--search_radius", type=float, default=0.02,
                          help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.02 degrees")
     otherop.add_argument("--relaunch", action="store_true", help="Use this tag to relaunch a partially completed opp run.") #TODO: sort out cases for only half present files
-    otherop.add_argument("--keep_logs", action="store_true", help="Use this tag to keep the old logs of previous ppp runs"))
+    otherop.add_argument("--keep_logs", action="store_true", help="Use this tag to keep the old logs of previous ppp runs")
     otherop.add_argument("--label", type=str, default="", help="A label to use to identify the results from this run")
     otherop.add_argument("-L", "--loglvl", type=str, default="INFO", help="Logger verbosity level", choices=loglevels.keys())
     otherop.add_argument("--mwa_search", type=str, default="master", help="The version of mwa_search to use")
