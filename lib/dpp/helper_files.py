@@ -49,12 +49,50 @@ def clean_cfg(cfg):
 
 def remove_old_results(cfg):
     """Removes old results from previous ppp runs"""
+    # Remove everything in classify dir
     for f in glob(join(cfg["files"]["classify_dir"], "*")):
         remove(f)
-    for pointing in cfg["folds"].keys(): # Remove every 'thing'
-        stuff = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.pfd*"))
-        for thing in stuff:
-            remove(thing)
+    # Remove pfds
+    for pointing in cfg["folds"].keys():
+        pfds = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.pfd*"))
+        for pfd in pfds:
+            remove(pfd)
+    # Remove pngs
+    pngs = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.png"))
+    for png in pngs:
+        remove(png)
+    # Remove Postscripts
+    pscripts = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.ps"))
+    for pscript in pscripts:
+        remove(pscript)
+    try: # Remove archive
+        remove(cfg["files"]["archive"])
+    except FileNotFoundError as e:
+        pass
+    try: # Remove ascii archive
+        remove(cfg["files"]["archive_ascii"])
+    except FileNotFoundError as e:
+        pass
+    try: # Remove converted archive
+        remove(cfg["files"]["converted_fits"])
+    except FileNotFoundError as e:
+        pass
+    try: # Remove debased fits
+        remove(cfg["files"]["debased_fits"])
+    except FileNotFoundError as e:
+        pass
+    try: # Remove paswing
+        remove(cfg["files"]["paswing"])
+    except FileNotFoundError as e:
+        pass
+    try: # Remove initial RVMfit
+        remove(cfg["files"]["RVM_fit_initial"])
+    except FileNotFoundError as e:
+        pass
+    try: # Remove final RVMfit
+        remove(cfg["files"]["RVM_fit_final"])
+    except FileNotFoundError as e:
+        pass
 
 
 def file_precursor(kwargs, psr):
@@ -77,10 +115,7 @@ def setup_classify(cfg):
         init_bins = list(cfg["folds"][pointing]["init"].keys())[0]
         if int(init_bins) not in (50, 100):
             raise ValueError(f"Initial bins for {cfg['source']['name']} is invalid: {init_bins}")
-        try:
-            pfd_name = glob_pfds(cfg, pointing, init_bins, pfd_type=".pfd")[0]
-        except IndexError as e:
-            raise IndexError(f"No suitable pfds found: {cfg['files']['psr_dir']}")
+        pfd_name = glob_pfds(cfg, pointing, init_bins, pfd_type=".pfd")[0]
         # Copy pdf file to classify directory
         newfilename=join(cfg["files"]["classify_dir"], basename(pfd_name))
         copyfile(pfd_name, newfilename)
