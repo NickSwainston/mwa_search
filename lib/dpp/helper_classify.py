@@ -6,8 +6,15 @@ from dpp.helper_files import setup_classify
 from dpp.helper_relaunch import relaunch_ppp
 from dpp.helper_config import dump_to_yaml
 
-
 logger = logging.getLogger(__name__)
+
+
+class ClassifierFilesNotFoundError(Exception):
+    """Raise when no classifier files are found"""
+    pass
+class InvalidClassifyBinsError(Exception):
+    """Raise when the bin count for the classifier inputs is incorrect"""
+    pass
 
 
 def add_classify_to_commands(cfg, container="/pawsey/mwa/singularity/lofar_pulsar_ml/lofar_pulsar_ml.sif"):
@@ -63,9 +70,9 @@ def read_classifications(cfg):
     try:
         with open(posfile, "r") as f:
             pos = f.readlines()
-    except FileNotFoundError as e:
+    except ClassifierFilesNotFoundError as e:
         if not exists(negfile): # A least one of the pos and neg files should exist
-                raise FileNotFoundError(f"Classifier outputs not found in dir: {cfg['files']['classify_dir']}")
+                raise ClassifierFilesNotFoundError(f"Classifier outputs not found in dir: {cfg['files']['classify_dir']}")
         else:
             pos = []
     for pointing in cfg["folds"].keys():
@@ -76,7 +83,10 @@ def read_classifications(cfg):
 
 def classify_main(cfg):
     """initiates and launches a classify job"""
-    setup_classify(cfg)
+    try:
+        setup_classify(cfg)
+    except ValueError as e:
+        raise InvalidClassifyBinsError(e.message)
     jid, _ = submit_classify(cfg)
     cfg["completed"]["classify"] = True
     return jid
