@@ -11,13 +11,9 @@ from vcstools.prof_utils import subprocess_pdv, get_from_ascii, auto_gfit
 logger = logging.getLogger(__name__)
 
 
-class NoUsableFolds(Exception):
+class NoUsableFoldsError(Exception):
     """Raise when no usable folds are found in a pipe"""
-    def __init__(self, *args):
-        if args:
-            self.message = args[0]
-        else:
-            self.message = ""
+    pass
 
 
 def bestprof_info(filename):
@@ -102,9 +98,16 @@ def find_best_pointing(cfg):
     # Search for pointings with positive classifications (>=3 out of 5 is positive classification)
     positive_pointings = [pointing for pointing in cfg["folds"].keys() if cfg["folds"][pointing]["classifier"]>=3]
 
+    # DM > 0 check:
+    pointings_to_remove = []
+    for pointing in positive_pointings:
+        cfg["folds"][pointing]["init"][nbins]["dm"] < 0.1
+        pointings_to_remove.append(pointing)
+    [positive_pointings.remove(i) for i in pointings_to_remove]
+
     # Throw exception if there aren't any positive detections
     if len(positive_pointings) == 0:
-        raise NoUsableFolds(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir']}")
+        raise NoUsableFoldsError(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir']}")
     else:
         best_chi = 0
         for pointing in positive_pointings:
