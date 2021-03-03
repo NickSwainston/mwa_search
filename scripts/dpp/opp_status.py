@@ -38,7 +38,7 @@ def main(kwargs):
         logger.info("\n".join(status["400"]))
     logger.info(status_break)
     logger.info(f"Total pulsars run through opp:    {total_psrs}")
-    logger.info(f"Total successful detections:      {len(status['102']) + len(status['103'])}")
+    logger.info(f"Total successful detections:      {len(status['100']) + len(status['101'])}")
     logger.info(status_break)
 
 
