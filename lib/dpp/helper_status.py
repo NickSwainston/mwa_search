@@ -13,30 +13,31 @@ logger = logging.getLogger(__name__)
 def cfg_status(psr_dir):
     """
     Checks a cfg to see how it ended and returns an int:
-    100: cfg does not exist
-    101: No detections in the run
-    102: Run completed with detection
-    103: Run completed but RVM could not be fit
-    200: Something went wrong
+    100: Run completed with detection
+    101: Run completed but RVM could not be fit
+    200: No detections in the run
+    201: cfg does not exist
+    300: Something went wrong
+    400: Something else happened
     """
     try:
         cfg = glob(join(psr_dir, "*.yaml"))[-1]
     except IndexError as e:
-        status=100
+        status=201
     else:
         cfg = from_yaml(cfg)
         # Expected terminations
         milestones = [cfg["completed"][i] for i in cfg["completed"].keys()]
         if cfg["completed"]["classify"] and not cfg["completed"]["post_folds"]: # No detections
-            status=101
-        elif all(milestones): # Completed run
-            status=102
-        elif cfg["completed"]["RM"] and not cfg["completed"]["RVM_initial"]: # Bad paswing file
-            status=103
-        elif not cfg["run_ops"]["expected_finish"]: # Something went wrong
             status=200
-        else: # I don't know what happened
+        elif all(milestones): # Completed run
+            status=100
+        elif cfg["completed"]["RM"] and not cfg["completed"]["RVM_initial"]: # Bad paswing file
+            status=101
+        elif not cfg["run_ops"]["expected_finish"]: # Something went wrong
             status=300
+        else: # I don't know what happened
+            status=400
     return status
 
 
@@ -46,7 +47,7 @@ def opp_status(obsid):
     check_file_dir_exists(dpp_dir)
     glob_cmd = join(dpp_dir, f"{obsid}*")
     psr_dirs = glob(glob_cmd)
-    status_dict = {"100":[], "101":[], "102":[], "103":[], "200":[], "300":[]}
+    status_dict = {"100":[], "101":[], "200":[], "201":[], "300":[], "400":[]}
     for _dir in psr_dirs:
         status = cfg_status(_dir)
         psr = _dir.split("/")[-1].split("_")[-1]
