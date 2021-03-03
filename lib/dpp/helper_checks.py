@@ -4,14 +4,18 @@ from glob import glob
 import numpy as np
 
 from dpp.helper_prepfold import generate_prep_name
-from dpp.helper_terminate import finish_unsuccessful
 
 logger = logging.getLogger(__name__)
 
 
-class InvalidFileError(Exception):
-    """Raise when a file is not valid for any reason"""
+class InvalidPAFileError(Exception):
+    """Raise when a paswing file is not valid for any reason"""
     pass
+class FitsNotFoundError(Exception):
+    """Raise when fits files are not found in pointing directory"""
+    pass
+class PFDNotFoundError(Exception):
+    """Raise when a PFD file is not found"""
 
 
 def check_pipe_integrity(cfg):
@@ -36,10 +40,7 @@ def check_pipe_integrity(cfg):
         check_file_dir_exists(cfg["files"]["debased_fits"])
     elif cfg["completed"]["RVM_initial"] == False:
         check_file_dir_exists(cfg['files']['paswing'])
-        try:
-            check_paswing(cfg['files']['paswing'])
-        except InvalidFileError as e:
-            finish_unsuccessful(cfg, e)
+        check_paswing(cfg['files']['paswing'])
     elif cfg["completed"]["RVM_final"] == False:
         check_file_dir_exists(cfg["files"]["RVM_fit_initial"])
 
@@ -54,7 +55,7 @@ def check_all_beamformed_fits(cfg):
         pointing_dir = join(psr_dir, pointing)
         fits_in_pointing_dir = join(pointing_dir, "*.fits")
         if not glob(fits_in_pointing_dir):
-            raise FileNotFoundError(f".fits files not found in pointing directory: {pointing_dir}")
+            raise FitsNotFoundError(f".fits files not found in pointing directory: {pointing_dir}")
 
 
 def check_pfds(cfg):
@@ -74,7 +75,7 @@ def check_pfds(cfg):
             names.append(f"{generate_prep_name(cfg, bins, my_pointing)}*.pfd")
     for name in names:
         if not glob(name):
-            raise FileNotFoundError(f"Expected pfd file not found {name}")
+            raise FitsNotFoundError(f"Expected pfd file not found {name}")
 
 
 def check_file_dir_exists(file_dir):
@@ -83,7 +84,7 @@ def check_file_dir_exists(file_dir):
     Raises FileNotFoundError
     """
     if not exists(file_dir):
-        raise FileNotFoundError(f"Expected file or directory does not exist {file_dir}")
+        raise PFDNotFoundError(f"Expected file or directory does not exist {file_dir}")
 
 
 def check_paswing(paswing_file):
@@ -94,4 +95,4 @@ def check_paswing(paswing_file):
     paswing = np.loadtxt(paswing_file)
     pa = [i[-2] for i in paswing] # All PA points
     if len(list(set(pa))) < 5: # Check if there are enough usable (nonzero) PA points
-        raise InvalidFileError(f"Not enough usable PA points in file {paswing_file}")
+        raise InvalidPAFileError(f"Not enough usable PA points in file {paswing_file}")
