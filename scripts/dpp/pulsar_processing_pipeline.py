@@ -21,6 +21,7 @@ from dpp.helper_checks import check_pipe_integrity
 from vcstools.prof_utils import ProfileLengthError, NoFitError
 from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError
 from dpp.helper_bestprof import NoUsableFoldsError
+from dpp.helper_classify import ClassifierFilesNotFoundError
 
 logger = logging.getLogger(__name__)
 
