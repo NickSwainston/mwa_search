@@ -70,7 +70,7 @@ def read_classifications(cfg):
     try:
         with open(posfile, "r") as f:
             pos = f.readlines()
-    except ClassifierFilesNotFoundError as e:
+    except FileNotFoundError as e:
         if not exists(negfile): # A least one of the pos and neg files should exist
                 raise ClassifierFilesNotFoundError(f"Classifier outputs not found in dir: {cfg['files']['classify_dir']}")
         else:
