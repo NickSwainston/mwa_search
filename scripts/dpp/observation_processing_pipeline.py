@@ -20,6 +20,7 @@ class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHe
 
 def main(kwargs):
     """Initialises the pipeline and begins the run"""
+    fresh_run = False
     if kwargs["run_type"] == "rerun_existing" or kwargs["run_type"] == "rerun_broken":
         cfg_names = find_config_files(kwargs["obsid"], kwargs["label"])
 
@@ -28,7 +29,7 @@ def main(kwargs):
             broken_cfgs = []
             for name in cfg_names:
                 cfg = from_yaml(name)
-                if cfg["run_ops"]["exit_status"] not in ("100", "101"):
+                if cfg["run_ops"]["exit_status"] not in ("100", "101", "200"):
                     broken_cfgs.append(name)
 
         # Set all 'expected_finishes' to false for the rerun
