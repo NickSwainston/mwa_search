@@ -101,10 +101,9 @@ def find_best_pointing(cfg):
     # DM > 0 check:
     pointings_to_remove = []
     for pointing in positive_pointings:
-        cfg["folds"][pointing]["init"][nbins]["dm"] < 0.1
-        pointings_to_remove.append(pointing)
+        if cfg["folds"][pointing]["init"][nbins]["dm"] < 0.1:
+            pointings_to_remove.append(pointing)
     [positive_pointings.remove(i) for i in pointings_to_remove]
-
     # Throw exception if there aren't any positive detections
     if len(positive_pointings) == 0:
         raise NoUsableFoldsError(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir']}")
