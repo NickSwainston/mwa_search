@@ -108,6 +108,7 @@ def find_best_pointing(cfg):
     if len(positive_pointings) == 0:
         raise NoUsableFoldsError(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir']}")
     else:
+        cfg["run_ops"]["detection"] = True # A pulsar has been detected
         best_chi = 0
         for pointing in positive_pointings:
             nbins = list(cfg["folds"][pointing]["init"].keys())[0]
@@ -116,6 +117,16 @@ def find_best_pointing(cfg):
                 # Check if there are header files for vdif processing
                 cfg["run_ops"]["vdif"] = bool(glob(join(cfg["files"]["psr_dir"], pointing, "*.hdr")))
         logger.info(f"Best pointing found with chi value of {best_chi}: {cfg['source']['my_pointing']}")
+
+    # Update config file period and DM
+    my_pointing = cfg["source"]["my_pointing"]
+    nbins = list(cfg["folds"][my_pointing]["init"].keys())[0]
+    my_P = cfg["folds"][my_pointing]["init"][nbins]["period"]
+    my_DM = cfg["folds"][my_pointing]["init"][nbins]["dm"]
+    cfg["source"]["my_P"] = my_P
+    logger.info(f"Updated source period: {my_P}")
+    cfg["source"]["my_DM"] = my_DM
+    logger.info(f"Updated source DM: {my_DM}")
 
 
 def populate_post_folds(cfg):
