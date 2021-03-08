@@ -49,6 +49,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["run_ops"]["good_sn"] = 20.0
     cfg["run_ops"]["vdif"] = None
     cfg["run_ops"]["mask"] = None
+    cfg["run_ops"]["detection"] = False
     cfg["run_ops"]["exit_status"] = "300" # should be set appropriately on pipeline termination. 300 means pipelin hasn't begun
 
     cfg["files"]["file_precursor"] = file_precursor(kwargs, psr)
@@ -153,6 +154,7 @@ def reset_cfg(cfg):
     cfg["completed"]["RM"] = False
     cfg["completed"]["RVM_initial"] = False
     cfg["completed"]["RVM_final"] = False
+    cfg["run_ops"]["detection"] = False
     cfg["run_ops"]["exit_status"] = "300" # Pipeline hasn't begun
 
 
