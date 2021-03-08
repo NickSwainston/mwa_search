@@ -7,7 +7,7 @@ from vcstools.prof_utils import ProfileLengthError, NoFitError
 from dpp.helper_config import from_yaml
 from dpp.helper_checks import check_file_dir_exists
 from dpp.helper_bestprof import NoUsableFoldsError
-from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError
+from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError
 from dpp.helper_classify import ClassifierFilesNotFoundError, InvalidClassifyBinsError
 comp_config = load_config_file()
 logger = logging.getLogger(__name__)
@@ -21,6 +21,8 @@ STATUS_DICT = {
         "201": "A PFD file is missing",
         "202": "Classifier files are missing",
         "203": "Bin count for classifer inputs is incorrect",
+        "204": "Fits file is missing",
+        "205": "Pointing directory is missing",
         "300": "Pipeline has not started",
         "400": "Something unknown went wrong"}
 
@@ -46,6 +48,10 @@ def status_from_error(e):
         status = "202"
     elif type(e) == InvalidClassifyBinsError:
         status = "203"
+    elif type(e) == FitsNotFoundError:
+        status = "204"
+    elif type(e) == PointingNotFoundError:
+        status = "205"
     else: # Not sure what happened
         status = "400"
     return status
@@ -55,7 +61,7 @@ def cfg_status(psr_dir):
     """Checks a cfg to see how it ended and returns the status code"""
     cfg = glob(join(psr_dir, "*.yaml"))[-1]
     cfg = from_yaml(cfg)
-    return cfg["run_ops"]["exit_status"]
+    return cfg["run_ops"]["exit_status"], cfg["run_ops"]["detection"]
 
 
 def opp_status(obsid):
@@ -65,14 +71,17 @@ def opp_status(obsid):
     glob_cmd = join(dpp_dir, f"{obsid}*")
     psr_dirs = glob(glob_cmd)
     run_status = {}
+    detections = []
     for code in STATUS_DICT.keys():
         run_status[code] = []
     for _dir in psr_dirs:
-        status = cfg_status(_dir)
-        psr = _dir.split("/")[-1].split("_")[-1]
+        status, det = cfg_status(_dir)
+        if det:
+            detections.append(_dir)
+        psr_dir = _dir.split("/")[-1]
         try:
-            run_status[str(status)].append(psr)
+            run_status[str(status)].append(psr_dir)
         except IndexError as e:
-            logger.warn(f"Config file not found in directory: {psr_dir}")
+            logger.warn(f"Config file not found in directory: {_dir}")
             continue
-    return run_status
+    return run_status, detections
