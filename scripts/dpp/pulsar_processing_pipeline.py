@@ -19,7 +19,7 @@ from dpp.helper_RVMfit import RVM_fit, RVM_file_to_cfg
 from dpp.helper_checks import check_pipe_integrity
 # Custom Errors
 from vcstools.prof_utils import ProfileLengthError, NoFitError
-from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError
+from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError
 from dpp.helper_bestprof import NoUsableFoldsError
 from dpp.helper_classify import ClassifierFilesNotFoundError
 
@@ -48,7 +48,7 @@ def main(kwargs):
     # Run cfg through the checks pipeline
     try:
         check_pipe_integrity(cfg)
-    except (InvalidPAFileError, FitsNotFoundError, PFDNotFoundError) as e:
+    except (InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError) as e:
         finish_unsuccessful(cfg, e)
 
     # Do the next step in the pipeline
