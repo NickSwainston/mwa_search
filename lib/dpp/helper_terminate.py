@@ -12,7 +12,7 @@ def finish_unsuccessful(cfg, e):
     logger.info("\n")
     logger.info("-------------------------------------------------------------------")
     logger.info(f"Pipeline has completed its run on pulsar {cfg['source']['name']}")
-    logger.info(f"Pipeline was terminated early with code {status}:")
+    logger.info(f"Pipeline was terminated early with code {status}: {type(e).__name__}")
     logger.info(f"Message: {e}")
     cfg["run_ops"]["exit_status"] = status
     dump_to_yaml(cfg)
