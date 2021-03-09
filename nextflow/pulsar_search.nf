@@ -5,6 +5,7 @@ nextflow.preview.dsl = 2
 params.obsid = null
 params.pointings = null
 params.fitsdir = "/group/mwavcs/vcs/${params.obsid}/pointings"
+params.fits_files
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 params.dm_min = 1
 params.dm_max = 250
@@ -24,7 +25,11 @@ params.max_period = 30 // max period to search for in sec  (ANTF max = 23.5)
 pointing = Channel.from( params.pointings )
 if ( params.fits_file_dir ) {
     fits_files = Channel.fromPath( "${params.fits_file_dir}/${params.obsid}_*.fits", checkIfExists: true )
-        nfiles = new File("${params.fits_file_dir}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+    nfiles = new File("${params.fits_file_dir}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+}
+else if ( params.fits_files ) {
+    fits_files = Channel.fromPath( "${params.fits_files}", checkIfExists: true )
+    nfiles = new File("${params.fits_files}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
 }
 else {
     if ( params.scratch ) {
@@ -35,6 +40,15 @@ else {
         fits_files = Channel.fromPath( "${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}_*.fits", checkIfExists: true )
         nfiles = new File("${params.basedir}/${params.obsid}/pointings/${params.pointings}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
     }
+}
+
+// If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
+if ( params.zmax == 0 ) {
+    total_dm_jobs = 6
+}
+else {
+    total_dm_jobs = 24
+    params.max_dms_per_job = 128
 }
 
 // Work out length of obs, may over estimate up to 200 seconds
@@ -59,7 +73,7 @@ if ( params.help ) {
              |              are not in the default directory :
              |              ${params.basedir}/<obsid>/pointings/${params.pointings}
              |  --scratch   Change the default directory to:
-             |              ${params.stratch_basedir}/<obsid>/pointings/${params.pointings}
+             |              ${params.scratch_basedir}/<obsid>/pointings/${params.pointings}
              |  --dm_min    Minimum DM to search over [default: 1]
              |  --dm_max    Maximum DM to search over [default: 250]
              |  --dm_min_step
@@ -75,11 +89,12 @@ if ( params.help ) {
 }
 
 include {pulsar_search; single_pulse_search} from './pulsar_search_module'
-include classifier    from './classifier_module'
+include { classifier }   from './classifier_module'
 
 workflow {
     if ( params.sp ) {
-        single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
+        //single_pulse_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.view() )
+        single_pulse_search( fits_files.map{ it -> [ params.cand + '_' + it.getBaseName().split("/")[-1].split("_ch")[0], it ] } )
     }
     else {
         pulsar_search( fits_files.toSortedList().map{ it -> [ params.cand + '_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )

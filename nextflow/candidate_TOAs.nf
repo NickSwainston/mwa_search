@@ -16,42 +16,44 @@ params.summed = true
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwavcs/vcs'
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.channels = null
-params.out_dir = "${params.obsid}_toas"
+params.out_dir = "${params.search_dir}/${params.obsid}_toas"
 
 params.bins = 128
 params.period = 0.90004
 params.dm = 23.123
 params.nchan = 48
 params.ncchan = 1
-params.subint = 600
+params.subint = ""
 params.eph = ""
 
 params.no_beamform = false
+params.J0036_fits = false
 params.no_combined_check = false
 
-std_profile = Channel.fromPath("/group/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
+std_profile = Channel.fromPath("/astro/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
 
-if ( params.pointing_file ) {
-    pointings = Channel
-        .fromPath(params.pointing_file)
-        .splitCsv()
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else if ( params.pointings ) {
-    pointings = Channel
-        .from(params.pointings.split(","))
-        .collect()
-        .flatten()
-        .collate( params.max_pointings )
-}
-else {
-    println "No pointings given. Either use --pointing_file or --pointings. Exiting"
-    exit(1)
+if ( params.no_beamform == false ) {
+    if ( params.pointing_file ) {
+        pointings = Channel
+            .fromPath(params.pointing_file)
+            .splitCsv()
+            .collect()
+            .flatten()
+            .collate( params.max_pointings )
+    }
+    else if ( params.pointings ) {
+        pointings = Channel
+            .from(params.pointings.split(","))
+            .collect()
+            .flatten()
+            .collate( params.max_pointings )
+    }
+    else {
+        println "No pointings given. Either use --pointing_file or --pointings. Exiting"
+        exit(1)
+    }
 }
 
 if ( ! ( params.chan_split || params.time_split) ) {
@@ -59,6 +61,18 @@ if ( ! ( params.chan_split || params.time_split) ) {
     exit(1)
 }
 
+if ( params.subint == "" ) {
+    subint_command = '\$(python -c "print(\'{:d}\'.format(int((8.0/\$sn)**2*\$samples/10000)))")'
+}
+else {
+    subint_command = params.subint
+}
+if ( params.eph == "" ) {
+    eph_command = "-c \${period} -D \${DM}"
+}
+else {
+    eph_command = " -E ${params.eph}"
+}
 
 process prepfold_ch {
     label 'cpu'
@@ -71,8 +85,16 @@ process prepfold_ch {
     output:
     file "*bestprof"
     file fits_files
-
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
 
     //no mask command currently
     """
@@ -92,7 +114,15 @@ process dspsr_ch {
     output:
     file "*pTDF"
 
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
 
     //may need to add some channel names
     """
@@ -103,7 +133,7 @@ process dspsr_ch {
     period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
     echo "period: \$period"
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -O ${params.obsid}_b${params.bins}_ch\${chans} -cont -U 4000 G*_${params.obsid}*ch\${chans}*.fits
+    dspsr -t $task.cpus -b ${params.bins} -c \${period} -D \${DM} -O ${params.obsid}_b${params.bins}_ch\${chans} -cont -U 4000 G*_${params.obsid}*ch\${chans}*.fits
     pam -pTF -e pTDF --name J0036-1033 *.ar
     """
 }
@@ -118,17 +148,28 @@ process prepfold_time {
     output:
     file "*bestprof"
 
-    beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
 
     //no mask command currently
     """
-    prepfold  -o pulsar_timing_check -n ${params.bins} -noxwin -noclip -p ${params.period} -dm ${params.dm} -nsub 256 -npart 120 \
--dmstep 1 -pstep 1 -pdstep 2 -npfact 1 -ndmfact 1 -runavg ${params.obsid}*.fits
+    prepfold -o pulsar_timing_check -n ${params.bins} -noxwin -noclip -p ${params.period} -dm ${params.dm} -nsub 256 -npart 120 \
+-dmstep 1 -pstep 1 -pdstep 2 -npfact 1 -ndmfact 1 -runavg ${params.obsid}*fits
     """
 }
+
 
 process dspsr_time {
-    label 'cpu'
+    publishDir params.out_dir, mode: 'copy'
+    label 'cpu_any'
+    cpus = 10
     time '6h'
 
     input:
@@ -137,51 +178,30 @@ process dspsr_time {
 
     output:
     file "*pTDF"
+    file "*subint"
 
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
-
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
     //may need to add some channel names
     """
-    DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
-    echo "DM: \$DM"
+    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
+    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
     period=\$(grep P_topo *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
     period="\$(echo "scale=10;\${period}/1000"  |bc)"
-    echo "period: \$period"
-    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
-    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
-    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -c \${period} -D \${DM} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
-    #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
-    pam -pTF -e pTDF --name J0036-1033 *.subint
-    """
-}
-
-process dspsr_time_eph {
-    label 'cpu'
-    time '6h'
-
-    input:
-    file bestprof
-    file fits_files
-    file eph
-
-    output:
-    file "*pTDF"
-
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
-
-    //may need to add some channel names
-    """
-    sn="\$(grep sigma *.bestprof | tr -s ' ' | cut -d ' ' -f 5 | cut -d '~' -f 2)"
-    samples="\$(grep "Data Folded" *.bestprof | tr -s ' ' | cut -d ' ' -f 5)"
-    subint=\$(python -c "print('{:d}'.format(int((8.0/\$sn)**2*\$samples/10000)))")
-    dspsr -b ${params.bins} -E ${eph} -L \${subint} -e subint -cont -U 4000 ${params.obsid}*.fits
-    #psradd *.subint -o ${params.obsid}_b${params.bins}_L${params.subint}.ar
+    DM=\$(grep DM *.bestprof | tr -s ' ' | cut -d ' ' -f 5)
+    echo "DM: \$DM   Period: \$period   SN: \$sn"
+    dspsr -t $task.cpus -b ${params.bins} ${eph_command} -L ${subint_command} -e subint -cont -U 600 ${params.obsid}*fits
     pam -pTF -e pTDF --name J0036-1033 *.subint
     """
 }
 
 process get_toas {
+    publishDir params.out_dir, pattern: "*ps", mode: 'copy'
+
     input:
     each file(archive)
     file std_profile
@@ -190,7 +210,12 @@ process get_toas {
     file "*tim"
     file "*ps"
 
-    beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
 
     """
     archive_name=${archive}
@@ -200,15 +225,27 @@ process get_toas {
 }
 
 process combine_toas {
+    publishDir params.out_dir, mode: 'copy'
+
     input:
     file toa_tims
+    file subints
 
     output:
     file "*all.tim"
+    file "*.ar"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+        container = "file:///${params.containerDir}/dspsr/dspsr.sif"
+    }
 
     """
     cat *tim > temp.tim
     awk  '/FORMAT 1/&&c++>0 {next} 1' temp.tim > ${params.obsid}_all.tim
+    psradd -f ${params.obsid}.ar *.subint
     """
 }
 
@@ -216,7 +253,12 @@ process combine_toas {
 workflow {
     pre_beamform()
     if ( params.no_beamform ) {
-        fits_files = Channel.fromPath("${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}*fits").collect()
+        if ( params.J0036_fits ) {
+            fits_files = Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/${params.obsid}/*fits").collect()
+        }
+        else {
+            fits_files = Channel.fromPath("${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}*fits").collect()
+        }
     }
     else {
         beamform( pre_beamform.out[0],\
@@ -234,24 +276,19 @@ workflow {
                   std_profile )
     }
     else if ( params.time_split ) {
-        prepfold_time( fits_files )
-        if ( params.eph == "" ) {
+        if ( params.subint == "" || params.eph == "") {
+            prepfold_time( fits_files )
             dspsr_time( prepfold_time.out[0],\
                         fits_files.collect() )
-            get_toas( dspsr_time.out,\
-                      std_profile )
         }
         else {
-            eph_channel = Channel.fromPath( params.eph )
-            dspsr_time_eph( prepfold_time.out[0],\
-                            fits_files.collect(),\
-                            eph_channel )
-            get_toas( dspsr_time_eph.out.flatten(),\
-                      std_profile )
+            dspsr_time( // dummy bestprof
+                        Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/1275085816_00:36:11.58_-10:33:56.44_900.04ms_Cand.pfd.bestprof"),\
+                        fits_files.collect() )
         }
+        get_toas( dspsr_time.out[0].flatten(),
+                  std_profile )
     }
-    combine_toas( get_toas.out[0].collect() )
-    publish:
-        combine_toas.out to: params.out_dir, mode: 'copy'
-        get_toas.out to: params.out_dir, pattern: "*ps", mode: 'copy'
+    combine_toas( get_toas.out[0].collect(),
+                  dspsr_time.out[1].collect() )
 }

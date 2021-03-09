@@ -6,6 +6,7 @@ params.obsid = null
 params.calid = null
 params.pointings = null
 params.pointing_file = null
+params.bestprof_pointings = null
 
 params.begin = 0
 params.end = 0
@@ -16,14 +17,39 @@ params.channels = null
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
-params.didir = "${params.basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
+params.max_dms_per_job = 5000
+params.zmax = 0
 
 params.no_combined_check = false
+
+
+if ( params.max_dms_per_job != 5000 ) {
+    // If using non default max_dms_per_job then use a make the groupTuple size sudo infinite
+    total_dm_jobs = 10000
+}
+// If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
+else if ( params.zmax == 0 ) {
+    // Periodic search defaults
+    total_dm_jobs = 6
+}
+else {
+    // Accel search defaults
+    total_dm_jobs = 24
+    params.max_dms_per_job = 128
+}
+
+if ( params.bestprof_pointings ) {
+    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
+}
+else {
+    bestprof_files = Channel.from(" ")
+}
 
 params.help = false
 if ( params.help ) {
@@ -71,20 +97,108 @@ if ( params.help ) {
     exit(0)
 }
 
+process bestprof_pointings {
+    input:
+    val pointings
+    file bestprof_files
+
+    output:
+    file "${params.obsid}_DM_pointing.csv"
+
+    """
+    #!/usr/bin/env python
+
+    import glob
+    import csv
+
+    dm_pointings = []
+    if "${params.bestprof_pointings}" == "null":
+        pointings = ["${pointings.join('", "')}"]
+        for p in pointings:
+            dm_pointings.append([p, "Blind", "None"])
+    else:
+        bestprof_files = glob.glob("*.bestprof")
+        for bfile_loc in bestprof_files:
+            pointing = bfile_loc.split("${params.obsid}_")[-1].split("_DM")[0]
+            with open(bfile_loc,"r") as bestprof:
+                lines = bestprof.readlines()
+                dm = lines[14][22:-1]
+                period = lines[15][22:-1]
+                period, period_uncer = period.split('  +/- ')
+            dm_pointings.append([pointing, "dm_{}".format(dm), period])
+
+    with open("${params.obsid}_DM_pointing.csv", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        for dm_point in dm_pointings:
+            spamwriter.writerow(dm_point)
+    """
+}
+
+process follow_up_fold {
+    label 'cpu'
+    time "6h"
+    publishDir params.out_dir, mode: 'copy'
+    errorStrategy 'retry'
+    maxRetries 1
+
+    when:
+    params.bestprof_pointings != null
+
+    input:
+    tuple file(fits_files), val(dm), val(period)
+
+    output:
+    file "*pfd*"
+
+    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("galaxy") ) {
+        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
+    }
+    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ) {
+        container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else {
+        container = "nickswainston/presto:realfft_docker"
+    }
+    """
+    # Set up the prepfold options to match the ML candidate profiler
+    temp_period=${Float.valueOf(period)/1000}
+    period=\$(printf "%.8f" \$temp_period)
+    if (( \$(echo "\$period > 0.01" | bc -l) )); then
+        nbins=100
+        ntimechunk=120
+        dmstep=1
+        period_search_n=1
+    else
+        # bin size is smaller than time resolution so reduce nbins
+        nbins=50
+        ntimechunk=40
+        dmstep=3
+        period_search_n=2
+    fi
+
+    # Work out how many dmfacts to use to search +/- 2 DM
+    ddm=`echo "scale=10;0.000241*138.87^2*\${dmstep} / (1/\$period *\$nbins)" | bc`
+    ndmfact=`echo "1 + 1/(\$ddm*\$nbins)" | bc`
+    echo "ndmfact: \$ndmfact   ddm: \$ddm"
+
+    prepfold -ncpus $task.cpus -o follow_up_${params.obsid}_P${period.replaceAll(~/\s/,"")}_DM${dm} -n \$nbins -dm ${dm} -p \$period -noxwin -noclip -nsub 256 \
+-npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact \$ndmfact -runavg *.fits
+    """
+}
+
 if ( params.pointing_file ) {
     pointings = Channel
         .fromPath(params.pointing_file)
         .splitCsv()
         .collect()
-        .flatten()
-        .collate( params.max_pointings )
 }
 else if ( params.pointings ) {
     pointings = Channel
         .from(params.pointings.split(","))
         .collect()
-        .flatten()
-        .collate( params.max_pointings )
+}
+else if ( params.bestprof_pointings ) {
+    pointings = Channel.from("null")
 }
 else {
     println "No pointings given. Either use --pointing_file or --pointings. Exiting"
@@ -92,15 +206,22 @@ else {
 }
 
 include { pre_beamform; beamform } from './beamform_module'
-include pulsar_search from './pulsar_search_module'
-include classifier    from './classifier_module'
+include { pulsar_search } from './pulsar_search_module'
+include { classifier }   from './classifier_module'
 
 workflow {
+    bestprof_pointings( pointings,
+                        bestprof_files )
     pre_beamform()
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
-              pointings )
-    pulsar_search( beamform.out[1].map { it -> [ 'Blind_' + it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] } )
+              bestprof_pointings.out.splitCsv().map{ it -> it[0] }.flatten().unique().collate( params.max_pointings ) )
+    follow_up_fold( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.cross(
+                    bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1], it[2]]}.map{ it -> [it[0].toString(), [it[1], it[2]]] }).\
+                    map{ it -> [it[0][1], it[1][1][0].split("_")[-1], it[1][1][1]] } )
+    pulsar_search( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
+                   bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1]]}).map{ it -> [it[0].toString(), it[1]] }.\
+                   groupTuple( size: 2 ).map{ it -> [it[1][1]+"_"+it[0], it[1][0]] } )
     classifier( pulsar_search.out[1].flatten().collate( 120 ) )
 }

@@ -18,11 +18,8 @@ if ( params.help ) {
     exit(0)
 }
 
-include classifier from './classifier_module'
+include { classifier } from './classifier_module'
 
 workflow {
-    classifier( Channel.fromPath("${params.cand_dir}/*pfd").toList( )
-    publish:
-        classifier.out[0] to: params.out_dir
-        classifier.out[1] to: params.out_dir
+    classifier( Channel.fromPath("${params.cand_dir}/*pfd").toList( ))
 }
