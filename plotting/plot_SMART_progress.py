@@ -209,7 +209,7 @@ if __name__ == "__main__":
         #Shade selected obs
         if args.shade_light:
             if sobsid in args.shade_light:
-                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs = plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
                 for cspath in cspaths:
@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
         if args.shade:
             if sobsid in args.shade:
-                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs = plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
                 for cspath in cspaths:
