@@ -210,6 +210,8 @@ if __name__ == "__main__":
                            help='Plots all pulsars detected by the MWA and uploaded to the pulsar database.')
     add_group.add_argument('--pulsar_all', action='store_true',
                            help='Plots all known pulsars.')
+    add_group.add_argument('--pulsar_discovered', action='store_true',
+                           help='Plots all pulsars discovered with the MWA.')
     add_group.add_argument('--fill', action='store_true',
                            help='Shades the area the MWA can view.')
     add_group.add_argument('--shade', type=str, nargs='+',
@@ -714,7 +716,10 @@ if __name__ == "__main__":
         #add some pulsars
         ra_PCAT = []
         dec_PCAT = []
-        pulsar_list = get_psrcat_ra_dec(pulsar_list = args.pulsar)
+        print("{} input pulsars".format(len(args.pulsar)))
+        raw_pulsar_list = list(dict.fromkeys(args.pulsar))
+        print("{} distinct pulsars".format(len(raw_pulsar_list)))
+        pulsar_list = get_psrcat_ra_dec(pulsar_list=raw_pulsar_list)
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
             if args.ra_offset:
@@ -725,7 +730,27 @@ if __name__ == "__main__":
             else:
                 ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
             dec_PCAT.append(dec_temp/180.*np.pi)
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=100)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='purple', zorder=100)
+
+    if args.pulsar_discovered:
+        #add some pulsars
+        ra_PCAT = []
+        dec_PCAT = []
+        print("{} input pulsars".format(len(args.pulsar)))
+        raw_pulsar_list = list(dict.fromkeys(args.pulsar))
+        print("{} distinct pulsars".format(len(raw_pulsar_list)))
+        pulsar_list = [["J0036-1033", "00:36:14.58", "-10:33:16.40"]]
+        for pulsar in pulsar_list:
+            ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
+            if args.ra_offset:
+                if ra_temp > 180:
+                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
+                else:
+                    ra_PCAT.append(-ra_temp/180.*np.pi)
+            else:
+                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+            dec_PCAT.append(dec_temp/180.*np.pi)
+        ax.scatter(ra_PCAT, dec_PCAT, s=10, color ='r', zorder=100)
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
@@ -759,6 +784,14 @@ if __name__ == "__main__":
         plot_name += '_obslist'
     if args.incoh:
         plot_name += '_incoh'
+    if args.fill:
+        plot_name += '_fill'
+    if args.pulsar:
+        plot_name += '_pulsar_n{}'.format(len(raw_pulsar_list))
+    if args.pulsar_detected:
+        plot_name += '_pulsar_detected'
+    if args.pulsar_discovered:
+        plot_name += '_pulsar_discovered'
     plot_type = args.plot_type
     #plt.title(plot_name)
     print("saving {}.{}".format(plot_name, plot_type))
