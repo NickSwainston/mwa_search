@@ -456,10 +456,15 @@ if __name__ == "__main__":
             if max_ra > 360.:
                 max_ra -= 360.
 
-            if abs(max_ra - ra) > 120.:
-                max_ra += 180.
-
+            #if abs(max_ra - ra) > 180.:
+            #    max_ra += 180.
+            # I can't hunt down this error but this is what it needs
+            if i == 69:
+                max_ra -= 180.
+            #if i in [0,69]:
+            #    print(max_ra, dec)
             for c in range(len(colour_groups)):
+                # Split the colour ranges into 5 ra ranges
                 fudge_factor = 35.
                 min_lim = 72.*c + fudge_factor
                 max_lim = 72.*(c+1) + fudge_factor
@@ -469,21 +474,22 @@ if __name__ == "__main__":
                 else:
                     max_check = False
 
-                if args.ra_offset:
-                    if max_ra > 180:
-                        ra_text = -max_ra/180.*np.pi+2*np.pi
-                    else:
-                        ra_text = -max_ra/180.*np.pi
-                else:
-                    ra_text = -max_ra/180.*np.pi+np.pi
-                dec_text = dec/180.*np.pi
-
+                # This was a temp bit of code to write the obs index on the plot
+                #if args.ra_offset:
+                #    if max_ra > 180:
+                #        ra_text = -max_ra/180.*np.pi+2*np.pi
+                #    else:
+                #        ra_text = -max_ra/180.*np.pi
+                #else:
+                #    ra_text = -max_ra/180.*np.pi+np.pi
+                #dec_text = dec/180.*np.pi
                 #ax.text(ra_text, dec_text, str(i), fontsize=12, ha='center', va='center')
 
-                if  c == (len(colour_groups)-1) and \
-                       ( (min_lim <= max_ra and max_ra < 360.) or \
-                         (0.      <= max_ra and max_ra < max_lim) ) or\
-                         (min_lim <= max_ra and max_ra < max_lim ):
+                # Check if this obs max power RA is in this colours group range
+                if  (min_lim <= max_ra < max_lim) or \
+                    ( max_check and ((min_lim <= max_ra < 360.   ) or \
+                                     (0.      <= max_ra < max_lim)) ):
+                        #print("Hit colour {}:".format(colour_groups[c]))
                         colors = ['0.5' for _ in range(50)]
                         colors[0] = colour_groups[c]
 
@@ -495,8 +501,8 @@ if __name__ == "__main__":
 
 
                         if args.shade:
-                            if colour_groups[c] in args.shade or \
-                               ("blue" in args.shade and i in [0, 69]):
+                            if colour_groups[c] in args.shade:
+                                #or ("blue" in args.shade and i in [0, 69]):
                                 #sum powers for this colour to be shaded when plotting
                                 for zi in range(len(nz)):
                                     if nz[zi] >= levels[0]:
@@ -512,7 +518,8 @@ if __name__ == "__main__":
 
         # plot contours ---------------------------------------
         if args.contour:
-            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6,
+            #print("plotting colour {}".format(colors[0]))
+            plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha = 0.6,
                            colors=colors,
                            linewidths=linewidths)
 
@@ -573,28 +580,30 @@ if __name__ == "__main__":
     if (args.shade or args.shade_temp) and args.smart:
         for c in colour_groups:
             # Use the correct shade
-            if c in args.shade:
-                nz = nz_shade_colour[c]
+            if args.shade:
+                if c in args.shade:
+                    nz = nz_shade_colour[c]
             elif args.shade_temp:
                 if c == args.shade_temp[0]:
                     nz = nz_shade_colour_temp
 
-            if c in args.shade or c == args.shade_temp[0]:
-                #choose lighter equivalent colour
-                if   c == 'red':
-                    ecolour = 'lightcoral'
-                elif c == 'blue':
-                    ecolour = 'skyblue'
-                else:
-                    ecolour = c
+            if args.shade:
+                if c in args.shade or c == args.shade_temp[0]:
+                    #choose lighter equivalent colour
+                    if   c == 'red':
+                        ecolour = 'lightcoral'
+                    elif c == 'blue':
+                        ecolour = 'skyblue'
+                    else:
+                        ecolour = c
 
-                cs = plt.tricontour(nx, ny, nz, levels=levels[0], alpha=0.0)
-                cs0 = cs.collections[0]
-                cspaths = cs0.get_paths()
-                for cspath in cspaths:
-                    spch_0 = patches.PathPatch(cspath, facecolor=ecolour,
-                                               edgecolor='gray',lw=0.5, alpha=0.45)
-                    ax.add_patch(spch_0)
+                    cs = plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha=0.0)
+                    cs0 = cs.collections[0]
+                    cspaths = cs0.get_paths()
+                    for cspath in cspaths:
+                        spch_0 = patches.PathPatch(cspath, facecolor=ecolour,
+                                                edgecolor='gray',lw=0.5, alpha=0.45)
+                        ax.add_patch(spch_0)
 
 
     #add lines of other surveys
