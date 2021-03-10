@@ -108,7 +108,7 @@ def check_file_dir_exists(file_dir):
     Raises FileNotFoundError
     """
     if not exists(file_dir):
-        raise PFDNotFoundError(f"Expected file or directory does not exist {file_dir}")
+        raise FitsNotFoundError(f"Expected file or directory does not exist {file_dir}")
 
 
 def check_paswing(paswing_file):
