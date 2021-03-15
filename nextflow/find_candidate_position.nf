@@ -267,7 +267,7 @@ workflow find_pos {
 
 workflow {
     pre_beamform()
-    fwhm_calc( pre_beamform.out[1] )
+    fwhm_calc( pre_beamform.out[1].map{ it -> it[0] }.collect() )
     if ( params.pointing_grid ) {
         grid( pointing_grid,\
               fwhm_calc.out.splitCsv().flatten() )
