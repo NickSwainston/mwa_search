@@ -4,11 +4,10 @@ import argparse
 import sys
 import os
 
-from vcstools.prof_utils import ProfileLengthError, NoFitError
-from dpp.helper_config import from_yaml, reset_cfg
+from dpp.helper_config import from_yaml, dump_to_yaml, reset_cfg
 from dpp.helper_prepfold import ppp_prepfold
 from dpp.helper_classify import classify_main, read_classifications
-from dpp.helper_bestprof import find_best_pointing, NoUsableFolds, populate_post_folds, best_post_fold
+from dpp.helper_bestprof import find_best_pointing, populate_post_folds, best_post_fold
 from dpp.helper_logging import initiate_logs
 from dpp.helper_terminate import finish_unsuccessful, finish_successful
 from dpp.helper_files import remove_old_results
@@ -18,6 +17,11 @@ from dpp.helper_relaunch import relaunch_ppp
 from dpp.helper_RM import RM_synth, RM_cor
 from dpp.helper_RVMfit import RVM_fit, RVM_file_to_cfg
 from dpp.helper_checks import check_pipe_integrity
+# Custom Errors
+from vcstools.prof_utils import ProfileLengthError, NoFitError
+from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError
+from dpp.helper_bestprof import NoUsableFoldsError
+from dpp.helper_classify import ClassifierFilesNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,9 @@ def main(kwargs):
     """Initiates the pipeline run for a single pulsar"""
     cfg = from_yaml(kwargs["cfg"])
 
+    cfg["run_ops"]["exit_status"] = "400" # If it breaks unknowingly, this is the correct errorcode
+    dump_to_yaml(cfg) # Save the errorcode
+
     # Initiate logging
     writemode = "a"
     if kwargs["reset_logs"]:
@@ -33,13 +40,16 @@ def main(kwargs):
     initiate_logs(cfg["run_ops"]["loglvl"], outfile=cfg["files"]["logfile"], writemode=writemode, stderr=True)
 
     # Check if a fresh run is forced
-    if kwargs["force_rerun"]:
+    if kwargs["fresh_run"]:
         logger.info("Forcing a fresh run")
         reset_cfg(cfg)
         remove_old_results(cfg) # Remove old files so that they don't interfere with this run
 
     # Run cfg through the checks pipeline
-    check_pipe_integrity(cfg)
+    try:
+        check_pipe_integrity(cfg)
+    except (InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError) as e:
+        finish_unsuccessful(cfg, e)
 
     # Do the next step in the pipeline
     if cfg["completed"]["init_folds"] == False:
@@ -48,15 +58,21 @@ def main(kwargs):
         relaunch_ppp(cfg, depends_on=dep_jids)
     elif cfg["completed"]["classify"] == False:
         # Classify the intial folds
-        dep_jid = classify_main(cfg)
+        try:
+            dep_jid = classify_main(cfg)
+        except InvalidClassifyBinsError as e:
+            finish_unsuccessful(cfg, e)
         relaunch_ppp(cfg, depends_on=dep_jid)
     elif cfg["completed"]["post_folds"] == False:
         # Read the output of the classifier
-        read_classifications(cfg)
+        try:
+            read_classifications(cfg)
+        except ClassifierFilesNotFoundError as e:
+            finish_unsuccessful(cfg, e)
         # Decide on next folds
         try:
             find_best_pointing(cfg)
-        except NoUsableFolds as e:
+        except NoUsableFoldsError as e:
             finish_unsuccessful(cfg, e)
         # Submit post folds
         dep_jids = ppp_prepfold(cfg)
@@ -109,7 +125,7 @@ if __name__ == '__main__':
 
     runop = parser.add_argument_group("Run Options")
     runop.add_argument("--reset_logs", action="store_true", help="Delete the current log file and make a new one")
-    runop.add_argument("--force_rerun", action="store_true", help="Forces a fresh run of the pipeline")
+    runop.add_argument("--fresh_run", action="store_true", help="Forces a fresh run of the pipeline")
     args = parser.parse_args()
     kwargs = vars(args)
     main(kwargs)

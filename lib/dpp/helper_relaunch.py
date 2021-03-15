@@ -15,7 +15,7 @@ def launch_label(cfg):
 
 def relaunch_ppp(cfg, depends_on=None, depend_type="afterany", fresh_run=False, reset_logs=False, time="00:30:00"):
     """Relaunches the pulsar processing pipeline using the supplied cfg file"""
-    # dump the new cfg
+    # Dump the new cfg
     dump_to_yaml(cfg)
     label = launch_label(cfg)
     name = f"ppp_{label}_{cfg['files']['file_precursor']}"
@@ -24,7 +24,7 @@ def relaunch_ppp(cfg, depends_on=None, depend_type="afterany", fresh_run=False, 
     ppp_launch = "pulsar_processing_pipeline.py"
     ppp_launch += f" --cfg {cfg['files']['my_name']}"
     if fresh_run:
-        ppp_launch += " --force_rerun"
+        ppp_launch += " --fresh_run"
     if reset_logs:
         ppp_launch += " --reset_logs"
     cmds = [f"cd {cfg['files']['psr_dir']}"]
