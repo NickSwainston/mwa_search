@@ -65,34 +65,21 @@ def remove_old_results(cfg):
     pscripts = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.ps"))
     for pscript in pscripts:
         remove(pscript)
-    try: # Remove archive
-        remove(cfg["files"]["archive"])
-    except FileNotFoundError as e:
-        pass
-    try: # Remove ascii archive
-        remove(cfg["files"]["archive_ascii"])
-    except FileNotFoundError as e:
-        pass
-    try: # Remove converted archive
-        remove(cfg["files"]["converted_fits"])
-    except FileNotFoundError as e:
-        pass
-    try: # Remove debased fits
-        remove(cfg["files"]["debased_fits"])
-    except FileNotFoundError as e:
-        pass
-    try: # Remove paswing
-        remove(cfg["files"]["paswing"])
-    except FileNotFoundError as e:
-        pass
-    try: # Remove initial RVMfit
-        remove(cfg["files"]["RVM_fit_initial"])
-    except FileNotFoundError as e:
-        pass
-    try: # Remove final RVMfit
-        remove(cfg["files"]["RVM_fit_final"])
-    except FileNotFoundError as e:
-        pass
+    # Remove other various files
+    files_to_remove = [
+        cfg["files"]["archive"],
+        cfg["files"]["archive_ascii"],
+        cfg["files"]["converted_fits"],
+        cfg["files"]["debased_fits"],
+        cfg["files"]["paswing"],
+        cfg["files"]["RVM_fit_initial"],
+        cfg["files"]["RVM_fit_final"]
+    ]
+    for f in files_to_remove:
+        try:
+            remove(f)
+        except FileNotFoundError as e:
+            pass
 
 
 def file_precursor(kwargs, psr):
