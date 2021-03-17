@@ -60,7 +60,7 @@ setup(name="mwa_search",
                # mwa_search
                'scripts/mwa_search/cold_storage_mover.py',
                'scripts/mwa_search/grid.py', 'scripts/mwa_search/lfDDplan.py',
-               'scripts/mwa_search/splice_wrapper.py', 'scripts/mwa_search/LOTAAS_wrapper.py',
+               'scripts/mwa_search/LOTAAS_wrapper.py',
                'scripts/mwa_search/search_launch_loop.sh', 'scripts/mwa_search/rsync_rm_loop.sh',
                'scripts/mwa_search/bestgridpos.py',
                # dpp
