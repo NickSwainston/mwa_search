@@ -10,13 +10,14 @@ params.all = false
 
 params.no_combined_check = true
 
-params.increment = 64
+params.increment = 32
 params.parallel_dl = 3
 params.untar_jobs = 2
 params.keep_tarball = false
 params.keep_raw = false
 
 params.vcstools_version = 'master'
+params.mwa_voltage_version = 'master'
 
 if ( params.keep_tarball ) {
     keep_tarball_command = "-k"
@@ -46,6 +47,8 @@ if ( params.help ) {
              |              Keep the raw data after recombining. [default: false]
              |  --vcstools_version
              |              The vcstools module version to use [default: master]
+             | --mwa_voltage_version
+             |              The mwa-voltage module version to use [default: master]
              |  -w          The Nextflow work directory. Delete the directory once the processs
              |              is finished [default: ${workDir}]""".stripMargin()
     println(help)
@@ -133,7 +136,7 @@ process volt_download {
     output:
     val begin_time_increment
     
-    beforeScript "module use /group/mwa/software/modulefiles; module load vcstools/${params.vcstools_version}; module load mwa-voltage/master"
+    beforeScript "module use /group/mwa/software/modulefiles; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}"
     """
     voltdownload.py --obs=$params.obsid --type=$data_type --from=${begin_time_increment[0]} --duration=${begin_time_increment[1] - 1} --parallel=$params.parallel_dl --dir=$dl_dir
     checks.py -m download -o $params.obsid -w $dl_dir -b ${begin_time_increment[0]} -i ${begin_time_increment[1]} --data_type $data_type
@@ -170,7 +173,7 @@ process recombine {
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
             clusterOptions {"--gres=gpu:1 --nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
-                            "--ntasks-per-node=${begin_time_increment[1] / 2}"}
+                            "--ntasks-per-node=${begin_time_increment[1]}"}
         }
         else {
             clusterOptions {"--gres=gpu:1 --nodes=${1} "+\
@@ -180,7 +183,7 @@ process recombine {
     else {
         if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
             clusterOptions {"--nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
-                            "--ntasks-per-node=${begin_time_increment[1] / 2}"}
+                            "--ntasks-per-node=${begin_time_increment[1]}"}
         }
         else {
             clusterOptions {"--nodes=${1} "+\
@@ -188,7 +191,7 @@ process recombine {
         }
     }
 
-    beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/master; module load mpi4py"
+    beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load mpi4py"
     
     input:
     val data_type

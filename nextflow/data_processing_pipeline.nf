@@ -116,7 +116,7 @@ include { classifier } from './classifier_module'
 
 workflow {
     pre_beamform()
-    fwhm_calc( pre_beamform.out[1] )
+    fwhm_calc( pre_beamform.out[1].map{ it -> it[0] }.collect() )
     find_pointings( pre_beamform.out[0],
                     fwhm_calc.out.splitCsv().flatten() )
     beamform( pre_beamform.out[0],\
