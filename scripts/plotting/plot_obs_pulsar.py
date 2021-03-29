@@ -264,6 +264,7 @@ if __name__ == "__main__":
 
     #setting up RA Dec ranges for power calculations
     res = args.resolution
+    """
     map_dec_range = range(-90,91,res)
     map_ra_range = range(0,361,res)
     RA=[]; Dec=[]; x = []; y = []
@@ -271,7 +272,7 @@ if __name__ == "__main__":
         for j in map_ra_range:
             Dec.append(i)
             RA.append(j)
-    for c in range(len(RA)):
+    for c in range(len(nx)):
         if args.ra_offset:
             if RA[c] > 180:
                 x.append(-RA[c]/180.*np.pi+2*np.pi)
@@ -280,8 +281,13 @@ if __name__ == "__main__":
         else:
             x.append(-RA[c]/180.*np.pi +np.pi)
         y.append(Dec[c]/180.*np.pi)
-    ny = np.array(y)
     nx = np.array(x)
+    ny = np.array(y)
+    """
+    x, y = np.meshgrid(np.arange(radians(-220),radians(220),radians(res)), np.arange(radians(-90),radians(90),radians(res)))
+    nx = x.flatten()
+    ny = y.flatten()
+    print("nx[0]: {}".format(nx[0]))
 
     #Working out the observations required -----------------------------------------------
     if args.all_obsids:
@@ -300,15 +306,20 @@ if __name__ == "__main__":
     pointing_count = len(observations)
 
 
-    nz_sens_overlap = np.zeros(len(RA))
-    nz_shade_colour = {'red'        : np.zeros(len(RA)),
-                       'green'      : np.zeros(len(RA)),
-                       'purple'     : np.zeros(len(RA)),
-                       'darkorange' : np.zeros(len(RA)),
-                       'blue'       : np.zeros(len(RA))}
-    nz_shade_colour_temp = np.zeros(len(RA))
-    #nz_sens = np.full(len(RA), 50.)
-    nz_sens = np.zeros(len(RA))
+    nz_sens_overlap = np.zeros(len(nx))
+    nz_shade_colour = {'red'        : np.zeros(len(nx)),
+                       'green'      : np.zeros(len(nx)),
+                       'purple'     : np.zeros(len(nx)),
+                       'darkorange' : np.zeros(len(nx)),
+                       'blue'       : np.zeros(len(nx))}
+    
+    nz_shade_colour_dark = {'red'        : np.zeros(len(nx)),
+                            'green'      : np.zeros(len(nx)),
+                            'purple'     : np.zeros(len(nx)),
+                            'darkorange' : np.zeros(len(nx)),
+                            'blue'       : np.zeros(len(nx))}
+    #nz_sens = np.full(len(nx), 50.)
+    nz_sens = np.zeros(len(nx))
     nz_sens[:] = np.nan
     max_ra_list = []
     RA_FWHM_atdec =[]
@@ -374,12 +385,12 @@ if __name__ == "__main__":
 
         #print(max(Dec), min(RA), Dec.dtype)
         time_intervals = 600 # seconds
-        names_ra_dec = np.column_stack((['source']*len(RA), RA, Dec))
+        names_ra_dec = np.column_stack((['source']*len(nx), np.degrees(nx), np.degrees(ny)))
         powout = get_beam_power_over_time(cord, names_ra_dec, dt=time_intervals, degrees = True)
         #grab a line of beam power for the pointing declination
         #if i == 0:
         #    print("len powers list: " + str(powout.shape))
-        for c in range(len(RA)):
+        for c in range(len(nx)):
             temppower = 0.
             temppower_sense = 0.
             for t in range(powout.shape[1]):
@@ -515,13 +526,13 @@ if __name__ == "__main__":
                                     if nz[zi] >= levels[0]:
                                         nz_shade_colour[colour_groups[c]][zi] = nz[zi]
 
-                        # This is a temp feature that I'll delete to shade certain obs
-                        if args.shade_temp and str(i) in args.shade_temp[1:]:
-                            #print(i, args.shade_temp[1:])
-                            for zi in range(len(nz)):
-                                if nz[zi] >= levels[0]:
-                                    #print(nz_shade_colour_temp[zi], nz[zi])
-                                    nz_shade_colour_temp[zi] = nz[zi]
+                        if args.shade_dark:
+                            if colour_groups[c] in args.shade:
+                                #or ("blue" in args.shade and i in [0, 69]):
+                                #sum powers for this colour to be shaded when plotting
+                                for zi in range(len(nz)):
+                                    if nz[zi] >= levels[0]:
+                                        nz_shade_colour[colour_groups[c]][zi] = nz[zi]
 
         # plot contours ---------------------------------------
         if args.contour:
@@ -604,53 +615,6 @@ if __name__ == "__main__":
                     else:
                         ecolour = c
 
-                    if 'green' == c and args.ra_offset:
-                        # add extra ra to fix shading issues
-                        map_dec_range = np.arange(radians(-90),radians(91),radians(res))
-                        map_ra_range = np.arange(radians(-220),radians(-180-res),radians(res))
-                        #print(degrees(map_ra_range))
-                        RA=[]; Dec=[]
-                        for i in map_dec_range:
-                            for j in map_ra_range:
-                                Dec.append(i)
-                                RA.append(j)
-                        # Fill the nz
-                        nz_temp = []
-                        for dec in Dec:
-                            if dec < radians(8):
-                                nz_temp.append(1.0)
-                            else:
-                                nz_temp.append(0.)
-                        # Append the new values
-                        nx = np.append(np.array(RA),      nx)
-                        ny = np.append(np.array(Dec),     ny)
-                        nz = np.append(np.array(nz_temp), nz)
-                        
-                        print(c)
-                        print("shapes nx: {} ny: {} nz: {}".format(nx.shape, ny.shape, nz.shape))
-                        # add extra ra to fix shading issues
-                        map_dec_range = np.arange(radians(-90),radians(91),radians(res))
-                        map_ra_range = np.arange(radians(181),radians(221),radians(res))
-                        #print(degrees(map_ra_range))
-                        RA=[]; Dec=[]
-                        for i in map_dec_range:
-                            for j in map_ra_range:
-                                Dec.append(i)
-                                RA.append(j)
-                        # Fill the nz
-                        nz_temp = []
-                        for dec in Dec:
-                            if dec < radians(8):
-                                nz_temp.append(1.0)
-                            else:
-                                nz_temp.append(0.)
-                        # Append the new values
-                        nx = np.append(nx, np.array(RA))
-                        ny = np.append(ny, np.array(Dec))
-                        nz = np.append(nz, np.array(nz_temp))
-                        np.arange(radians(181+res),radians(221),radians(res))
-                        print("shapes nx: {} ny: {} nz: {}".format(nx.shape, ny.shape, nz.shape))
-                        print("len    nx: {} ny: {} nz: {}".format(len(nx), len(ny), len(nz)))
                     cs = plt.tricontour(nx.flatten(), ny.flatten(), nz.flatten(), levels=[levels[0]], alpha=0.0)
                     cs0 = cs.collections[0]
                     cspaths = cs0.get_paths()
@@ -664,34 +628,17 @@ if __name__ == "__main__":
     if args.lines:
         plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
                  np.full(len(map_ra_range),np.radians(30.)),
-<<<<<<< HEAD
                  'r',  label=r'MWA   ( 80 -    300 MHz)', zorder=130)
-=======
-                 'r',label=r'MWA   ( 80 -    300 MHz)', zorder=130)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),0./180.*np.pi),
                  '--m',label=r'LOFAR ( 10 -    240 MHz)', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-40./180.*np.pi),
-<<<<<<< HEAD
-                 '--g',label=r'GBT   (390 - 49,800 MHz)', zorder=130)
-        """
-        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-                 np.full(len(map_ra_range),-55./180.*np.pi),
-                 linestyle='--', color='orange',
-                       label=r'GMRT  ( 50 -  1,500 MHz)', zorder=130)
-        """
-
-        plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc='upper left', fontsize=6)
-
-=======
                  '--g',label=r'GBT   (290 - 49,800 MHz)', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-55./180.*np.pi),
                  linestyle='--', color='orange',
                  label=r'GMRT  ( 50 -  1,500 MHz)', zorder=130)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
 
         #handles, labels = ax.get_legend_handles_labels()
                 #plt.legend(bbox_to_anchor=(0.8, 0.85,0.5,0.2), loc='best', numpoints=1,
@@ -703,11 +650,7 @@ if __name__ == "__main__":
     if args.fill:
         import matplotlib.transforms as mtransforms
         trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
-<<<<<<< HEAD
         map_ra_range = range(-80,481,res)
-=======
-        map_ra_range = range(-40,401,res)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
         ff = 30.
         ffa = 28.5
         ax.fill_between(np.array(map_ra_range)/180.*np.pi + -np.pi,
@@ -715,13 +658,6 @@ if __name__ == "__main__":
                         np.full(len(map_ra_range),np.radians((34.5)/90.*ff+ffa)),
                         facecolor='0.5', alpha=0.5, transform=trans)
 
-<<<<<<< HEAD
-=======
-        #handles, labels = ax.get_legend_handles_labels()
-        #plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
-        #           ncol=1, mode="expand", borderaxespad=0., fontsize=6)
-
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
 
     # Add pulsars to plot
     if args.pulsar_all:
@@ -792,9 +728,6 @@ if __name__ == "__main__":
         #add some pulsars
         ra_PCAT = []
         dec_PCAT = []
-        print("{} input pulsars".format(len(args.pulsar)))
-        raw_pulsar_list = list(dict.fromkeys(args.pulsar))
-        print("{} distinct pulsars".format(len(raw_pulsar_list)))
         pulsar_list = [["J0036-1033", "00:36:14.58", "-10:33:16.40"]]
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
@@ -806,11 +739,7 @@ if __name__ == "__main__":
             else:
                 ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
             dec_PCAT.append(dec_temp/180.*np.pi)
-<<<<<<< HEAD
         ax.scatter(ra_PCAT, dec_PCAT, s=10, color ='r', zorder=100)
-=======
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=0.5)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
