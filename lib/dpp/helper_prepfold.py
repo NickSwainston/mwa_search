@@ -42,7 +42,7 @@ def common_kwargs(cfg, bin_count, pointing):
     if bin_count == 100 or bin_count == 50: #init fold - do large search
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
-    if cfg["source"]["ATNF_P"] < 0.005:  # period less than 50ms
+    if cfg["source"]["ATNF_P"] < 0.05:  # period less than 50ms
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
         prep_kwargs["-dmstep"] = 3

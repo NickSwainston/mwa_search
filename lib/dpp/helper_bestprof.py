@@ -11,13 +11,9 @@ from vcstools.prof_utils import subprocess_pdv, get_from_ascii, auto_gfit
 logger = logging.getLogger(__name__)
 
 
-class NoUsableFolds(Exception):
+class NoUsableFoldsError(Exception):
     """Raise when no usable folds are found in a pipe"""
-    def __init__(self, *args):
-        if args:
-            self.message = args[0]
-        else:
-            self.message = ""
+    pass
 
 
 def bestprof_info(filename):
@@ -102,10 +98,17 @@ def find_best_pointing(cfg):
     # Search for pointings with positive classifications (>=3 out of 5 is positive classification)
     positive_pointings = [pointing for pointing in cfg["folds"].keys() if cfg["folds"][pointing]["classifier"]>=3]
 
+    # DM > 0 check:
+    pointings_to_remove = []
+    for pointing in positive_pointings:
+        if cfg["folds"][pointing]["init"][nbins]["dm"] < 0.1:
+            pointings_to_remove.append(pointing)
+    [positive_pointings.remove(i) for i in pointings_to_remove]
     # Throw exception if there aren't any positive detections
     if len(positive_pointings) == 0:
-        raise NoUsableFolds(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir']}")
+        raise NoUsableFoldsError(f"No positive classifications found in pulsar directory {cfg['files']['psr_dir']}")
     else:
+        cfg["run_ops"]["detection"] = True # A pulsar has been detected
         best_chi = 0
         for pointing in positive_pointings:
             nbins = list(cfg["folds"][pointing]["init"].keys())[0]
@@ -114,6 +117,16 @@ def find_best_pointing(cfg):
                 # Check if there are header files for vdif processing
                 cfg["run_ops"]["vdif"] = bool(glob(join(cfg["files"]["psr_dir"], pointing, "*.hdr")))
         logger.info(f"Best pointing found with chi value of {best_chi}: {cfg['source']['my_pointing']}")
+
+    # Update config file period and DM
+    my_pointing = cfg["source"]["my_pointing"]
+    nbins = list(cfg["folds"][my_pointing]["init"].keys())[0]
+    my_P = cfg["folds"][my_pointing]["init"][nbins]["period"]
+    my_DM = cfg["folds"][my_pointing]["init"][nbins]["dm"]
+    cfg["source"]["my_P"] = my_P
+    logger.info(f"Updated source period: {my_P}")
+    cfg["source"]["my_DM"] = my_DM
+    logger.info(f"Updated source DM: {my_DM}")
 
 
 def populate_post_folds(cfg):

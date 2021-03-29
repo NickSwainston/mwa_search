@@ -72,11 +72,6 @@ else {
     bf_out = " -p "
 }
 
-range = Channel.from( ['001', '002', '003', '004', '005', '006',\
-                       '007', '008', '009', '010', '011', '012',\
-                       '013', '014', '015', '016', '017', '018',\
-                       '019', '020', '021', '022', '023', '024'] )
-
 
 process beamform_setup {
     output:
@@ -87,10 +82,10 @@ process beamform_setup {
     """
     #!/usr/bin/env python
     import csv
+    import numpy as np
 
     from vcstools.metadb_utils import obs_max_min, get_channels, ensure_metafits
     from vcstools.general_utils import gps_to_utc, mdir, create_link
-    import csv
 
     # Work out begin and end time of obs
     if "${params.all}" == "true":
@@ -107,9 +102,16 @@ process beamform_setup {
         channels = get_channels($params.obsid)
     else:
         channels = [$params.channels]
+    # Reorder channels to handle the order switch at 128
+    channels = np.array(channels, dtype=np.int)
+    hichans = [c for c in channels if c>128]
+    lochans = [c for c in channels if c<=128]
+    lochans.extend(list(reversed(hichans)))
+    ordered_channels = lochans
     with open("${params.obsid}_channels.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
-        spamwriter.writerow(channels)
+        for gpubox, chan in enumerate(ordered_channels, 1):
+            spamwriter.writerow([chan, "{:0>3}".format(gpubox)])
 
     # Ensure the metafits files is there
     ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
@@ -342,11 +344,11 @@ workflow beamform {
         utc
         pointings
     main:
-        make_beam( channels.flatten().merge(range),\
+        make_beam( channels,\
                    utc,\
                    pointings,\
                    obs_beg_end )
-        splice( channels,\
+        splice( channels.map{ it -> it[0] }.collect(),\
                 make_beam.out.flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
                 groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
@@ -363,11 +365,11 @@ workflow beamform_ipfb {
         utc
         pointings
     main:
-        make_beam_ipfb( channels.flatten().merge(range),\
+        make_beam_ipfb( channels,\
                         utc,\
                         pointings.flatten(),\
                         obs_beg_end )
-        splice( channels,\
+        splice( channels.map{ it -> it[0] }.collect(),\
                 make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
                 groupTuple( size: 24 ).map { it -> it[1] } )
     emit:
