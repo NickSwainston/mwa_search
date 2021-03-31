@@ -21,10 +21,11 @@ params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
 params.bins = 128
-params.period = 0.90004
-params.dm = 23.123
 params.subint = 60
 params.nchan = 48
+params.pulsar = 0
+params.period = 0.90004
+params.dm = 23.123
 
 params.no_pdmp = false
 params.fwhm_ra = "None"
@@ -91,6 +92,16 @@ if ( params.help ) {
     exit(0)
 }
 
+if ( params.pulsar == 0 ) {
+    eph_command = "-p ${params.period} -dm ${params.dm}"
+    psrcat_command = ""
+}
+else {
+    eph_command = "-par ${params.pulsar}.eph"
+    psrcat_command = "psrcat -e ${params.pulsar} | grep -v UNITS > ${params.pulsar}.eph"
+}
+
+
 include { pre_beamform; beamform } from './beamform_module'
 include { fwhm_calc } from './data_processing_pipeline'
 
@@ -115,7 +126,7 @@ else if ( params.pointings ) {
 else if ( params.pointing_grid ) {
     pointing_grid = Channel.from(params.pointing_grid)
 }
-else {
+else if ( ! params.pulsar ) {
     println "No pointings given. Either use --pointing_file, --pointings or --pointing_grid. Exiting"
     exit(1)
 }
@@ -125,6 +136,26 @@ if ( params.no_pdmp ) {
 }
 else {
     input_sn_option = " -p "
+}
+
+
+process get_pulsar_ra_dec {
+    output:
+    file 'pulsar_ra_dec.txt'
+
+    """
+    #!/usr/bin/env python3
+
+    import csv
+    from vcstools.catalogue_utils import get_psrcat_ra_dec
+
+    pulsar_ra_dec = get_psrcat_ra_dec(pulsar_list="${params.pulsar}")
+    pointing = ["{}_{}".format(pulsar_ra_dec[0][1], pulsar_ra_dec[0][2])]
+
+    with open("pulsar_ra_dec.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow(pointing)
+    """
 }
 
 process grid {
@@ -165,7 +196,8 @@ process prepfold {
 
     //no mask command currently
     """
-    prepfold -ncpus $task.cpus -o ${params.obsid}_${pointing} -n ${params.bins} -noxwin -noclip -p ${params.period} -dm ${params.dm} -nsub 256 -npart 120 \
+    ${psrcat_command}
+    prepfold -ncpus ${task.cpus} -o ${params.obsid}_${pointing} -n ${params.bins} ${eph_command} -noxwin -noclip -nsub 256 -npart 120 \
 -dmstep 1 -pstep 1 -pdstep 2 -npfact 1 -ndmfact 1 -runavg ${params.obsid}*.fits
     """
 }
@@ -268,26 +300,29 @@ workflow find_pos {
 workflow {
     pre_beamform()
     fwhm_calc( pre_beamform.out[1].map{ it -> it[0] }.collect() )
+
+    // work out intial pointings
     if ( params.pointing_grid ) {
         grid( pointing_grid,\
               fwhm_calc.out.splitCsv().flatten() )
-        find_pos( grid.out.splitCsv().collect().flatten().collate( params.max_pointings ),\
-                  pre_beamform.out[0],\
-                  pre_beamform.out[1],\
-                  pre_beamform.out[2],\
-                  fwhm_calc.out.splitCsv().flatten() )
+        pointings = Channel.from(grid.out.splitCsv().collect().flatten().collate( params.max_pointings ))
     }
-    else if ( params.pointing_file || params.pointings ) {
-        find_pos( pointings,\
-                  pre_beamform.out[0],\
-                  pre_beamform.out[1],\
-                  pre_beamform.out[2],\
-                  fwhm_calc.out.splitCsv().flatten() )
+    else if ( params.pulsar ) {
+        get_pulsar_ra_dec()
+        grid( get_pulsar_ra_dec.out.splitCsv().flatten().view(),\
+              fwhm_calc.out.splitCsv().flatten() )
+        pointings = grid.out.splitCsv().collect().flatten().collate( params.max_pointings )
     }
-    beamform( pre_beamform.out[0],\
+
+    find_pos( pointings,\
+                pre_beamform.out[0],\
                 pre_beamform.out[1],\
                 pre_beamform.out[2],\
-                find_pos.out.view() )
+                fwhm_calc.out.splitCsv().flatten() )
+    beamform( pre_beamform.out[0],\
+              pre_beamform.out[1],\
+              pre_beamform.out[2],\
+              find_pos.out.view() )
     prepfold( beamform.out[3] )
     pdmp( prepfold.out[0],
           beamform.out[1],
