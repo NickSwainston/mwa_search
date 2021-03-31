@@ -16,6 +16,7 @@ from matplotlib import patches
 
 
 def find_pos(dec_search_range, ra_search_range, detections, fwhm, given_fwhm_ra=None, given_fwhm_dec=None, initial_pos=None):
+    print(detections)
     RA = []; DEC = []; residual = []; psf_guass_grid = []
     for dec in dec_search_range:
         for ra in ra_search_range:
@@ -110,6 +111,9 @@ if __name__ == "__main__":
     print("FWHM: {} deg".format(fwhm))
 
     detections = []
+    rads  = []
+    decds = []
+    sns   = []
     if args.bestprof_dir:
         for bestprof_file in glob.glob("{}/*bestprof".format(args.bestprof_dir)):
             with open(bestprof_file,"r") as bestprof:
@@ -121,6 +125,9 @@ if __name__ == "__main__":
                 else:
                     rad, decd = sex2deg(ra, dec)
                     detections.append([rad, decd, sn])
+                    rads.append(rad)
+                    decds.append(decd)
+                    sns.append(sn)
     elif args.pdmp_dir:
         for pdmp_file in glob.glob("{}/*posn".format(args.pdmp_dir)):
             with open(pdmp_file,"r") as pdmp:
@@ -133,6 +140,9 @@ if __name__ == "__main__":
                 else:
                     rad, decd = sex2deg(ra, dec)
                     detections.append([rad, decd, sn])
+                    rads.append(rad)
+                    decds.append(decd)
+                    sns.append(sn)
     else:
         print("Please either use --bestprof_dir or --pdmp_dir. Exiting.")
         sys.exit(1)
@@ -147,6 +157,7 @@ if __name__ == "__main__":
 
     # Find data max mins
     ra_max, dec_max, sn_max = np.max(detections, axis=0)
+    #print("sn_max: {}".format(sn_max))
     ra_min, dec_min, sn_min = np.min(detections, axis=0)
     ra_search_diameter  = (ra_max  - ra_min)
     dec_search_diameter = (dec_max - dec_min)
@@ -156,6 +167,30 @@ if __name__ == "__main__":
         if detections[i][2] == sn_max:
             ra_sn_max, dec_sn_max, sn = detections[i]
             i_sn_max = i
+
+    # Find the smallest distance between pointings
+    dists = []
+    for det1 in detections:
+        ra1, dec1, _ = det1
+        for det2 in detections:
+            ra2, dec2, _ = det2
+            if ra1 != ra2 and dec1 != dec2:
+                dists.append(math.sqrt(math.pow(ra1 - ra2, 2) + math.pow(dec1 - dec2, 2)))
+    min_dist = min(dists)
+
+    
+    # Only use detections closest to max
+    mask   = np.ones(len(detections), dtype=np.bool)
+    #mask[flux_data > 10.0] = 0
+    radinside = 1.1*min_dist
+    print("fit radius: {}".format(radinside))
+    for i in range(len(detections)):
+        #print("distance: {}".format(math.sqrt((rads[i] - ra_sn_max)**2. + (decds[i] - dec_sn_max)**2.)))
+        if math.sqrt((rads[i] - ra_sn_max)**2. + (decds[i] - dec_sn_max)**2.) > radinside:
+            mask[i] = 0
+    
+    #print("{}".format(np.array(detections)[mask,:]))
+    #print(mask)
 
     # Make search area
     if args.res is None:
@@ -167,6 +202,7 @@ if __name__ == "__main__":
     dec_search_range = np.arange(dec_min - fwhm, dec_max + fwhm, res)
     ax.axis([min(ra_search_range), max(ra_search_range), min(dec_search_range), max(dec_search_range)])
 
+    """
     # Find initial estimate using top 3 SN
     RA, DEC, residual = find_pos(dec_search_range, ra_search_range, detections[:3], fwhm)
     ra_initial = RA[residual.index(min(residual))]
@@ -176,6 +212,10 @@ if __name__ == "__main__":
     RA, DEC, residual = find_pos(dec_search_range, ra_search_range, detections[:3], fwhm,
                                  given_fwhm_ra=args.fwhm_ra, given_fwhm_dec=args.fwhm_dec,
                                  initial_pos=[ra_initial, dec_initial])
+    """
+
+    RA, DEC, residual = find_pos(dec_search_range, ra_search_range, np.array(detections)[mask,:], fwhm,
+                                 given_fwhm_ra=args.fwhm_ra, given_fwhm_dec=args.fwhm_dec)
 
     ramax = RA[residual.index(min(residual))]
     decmax = DEC[residual.index(min(residual))]
@@ -201,14 +241,12 @@ if __name__ == "__main__":
     print("Predicted SN:  {}".format(round(predicted_sn, 1)))
 
 
-
-
     nx = np.array(RA)
     ny = np.array(DEC)
     nz = np.array(residual)
     #nz = np.array(psf_guass_grid)
 
-    for det in detections:
+    for det in np.array(detections):
         ra, dec, sn = det
         fwhm_ra  = np.degrees(np.radians(fwhm)/cos(np.radians(dec + 26.7))**2)
         fwhm_dec = np.degrees(np.radians(fwhm)/cos(np.radians(dec)) )
@@ -217,7 +255,11 @@ if __name__ == "__main__":
                                    linewidth=0.3, fill=False, edgecolor='green')
         ax.add_patch(ellipse)
         plt.scatter(ra,dec,s=0.5,c='white', zorder=10)
-        ax.text(ra, dec, str(sn), fontsize=8, ha='center', va='center')
+        #print(det, np.array(detections)[~mask])
+        if det[2] in (np.array(sns)[~mask]):
+            ax.text(ra, dec, str(sn), fontsize=8, ha='center', va='center', color='0.5')
+        else:
+            ax.text(ra, dec, str(sn), fontsize=8, ha='center', va='center', color='0')
 
     #Start plotting
     colour_map = 'plasma_r'
