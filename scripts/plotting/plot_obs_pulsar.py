@@ -222,8 +222,8 @@ if __name__ == "__main__":
     add_group.add_argument('--shade', type=str, nargs='+',
                            choices=['red','green','purple','darkorange','blue'],
                            help='Shades the chosen colour observations group')
-    add_group.add_argument('--shade_temp', nargs='*', default='black',
-                           help='First input is the colour and then the observation IDs you want to shade')
+    add_group.add_argument('--shade_dark', type=str, nargs='+',
+                           help='Shades the chosen colour observations group in a darker shade')
 
     plot_group = parser.add_argument_group('Plotting Options')
     plot_group.add_argument('-f', '--fwhm', action='store_true',
@@ -527,12 +527,12 @@ if __name__ == "__main__":
                                         nz_shade_colour[colour_groups[c]][zi] = nz[zi]
 
                         if args.shade_dark:
-                            if colour_groups[c] in args.shade:
-                                #or ("blue" in args.shade and i in [0, 69]):
+                            if colour_groups[c] in args.shade_dark\
+                                or ("blue" in args.shade_dark and i in [0, 69]):
                                 #sum powers for this colour to be shaded when plotting
                                 for zi in range(len(nz)):
                                     if nz[zi] >= levels[0]:
-                                        nz_shade_colour[colour_groups[c]][zi] = nz[zi]
+                                        nz_shade_colour_dark[colour_groups[c]][zi] = nz[zi]
 
         # plot contours ---------------------------------------
         if args.contour:
@@ -595,34 +595,40 @@ if __name__ == "__main__":
     #Add extra plot layers ---------------------------------------
 
     #shades only the selected colout
-    if (args.shade or args.shade_temp) and args.smart:
+    if (args.shade or args.shade_dark) and args.smart:
         for c in colour_groups:
-            # Use the correct shade
-            if args.shade:
-                if c in args.shade:
-                    nz = nz_shade_colour[c]
-            elif args.shade_temp:
-                if c == args.shade_temp[0]:
-                    nz = nz_shade_colour_temp
+            if args.shade_dark:
+                if c in args.shade_dark:
+
+                    nz = nz_shade_colour_dark[c]
+                    cs = plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha=0.0)
+                    cs0 = cs.collections[0]
+                    cspaths = cs0.get_paths()
+                    for cspath in cspaths:
+                        spch_0 = patches.PathPatch(cspath, facecolor=c,
+                                                edgecolor='gray',lw=0.5, alpha=0.6)
+                        ax.add_patch(spch_0)
 
             if args.shade:
-                if c in args.shade or c == args.shade_temp[0]:
+                if c in args.shade:
                     #choose lighter equivalent colour
                     if   c == 'red':
                         ecolour = 'lightcoral'
                     elif c == 'blue':
                         ecolour = 'skyblue'
+                    elif c == 'purple':
+                        ecolour = 'violet'
                     else:
                         ecolour = c
 
-                    cs = plt.tricontour(nx.flatten(), ny.flatten(), nz.flatten(), levels=[levels[0]], alpha=0.0)
+                    nz = nz_shade_colour[c]
+                    cs = plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha=0.0)
                     cs0 = cs.collections[0]
                     cspaths = cs0.get_paths()
                     for cspath in cspaths:
                         spch_0 = patches.PathPatch(cspath, facecolor=ecolour,
                                                 edgecolor='gray',lw=0.5, alpha=0.45)
                         ax.add_patch(spch_0)
-
 
     #add lines of other surveys
     if args.lines:
