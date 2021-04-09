@@ -5,7 +5,8 @@ from os.path import join
 
 from dpp.helper_config import from_yaml, dump_to_yaml
 from dpp.helper_files import glob_pfds
-from vcstools.prof_utils import subprocess_pdv, get_from_ascii, auto_gfit
+from vcstools.prof_utils import subprocess_pdv, get_from_ascii
+from vcstools.gfit import gfit
 
 
 logger = logging.getLogger(__name__)
@@ -66,13 +67,15 @@ def bestprof_info(filename):
 
 def bestprof_fit(cfg, cliptype="verbose"):
     """Fits a profile to the best bestprof and adds it to cfg. Cliptype options found in prof_utils.py"""
-    gfit_kwargs = {"cliptype":cliptype, "period":cfg["source"]["my_P"], "plot_name":cfg["files"]["gfit_plot"]}
     # Get the profile
     bins = str(cfg["source"]["my_bins"])
     pointing = cfg["source"]["my_pointing"]
     profile = cfg["folds"][pointing]["post"][bins]["profile"]
     # Gaussian fit
-    fit = auto_gfit(profile, **gfit_kwargs)
+    g_fitter = gfit(profile, plot_name=cfg["files"]["gfit_plot"])
+    g_fitter.auto_gfit()
+    fit = g_fitter.fit_dict()
+    g_fitter.plot_fit()
     # Find the longest component
     longest_comp = 0
     for comp_name in fit["comp_idx"].keys():
