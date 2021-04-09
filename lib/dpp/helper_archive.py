@@ -3,7 +3,8 @@ import sys
 from os.path import join
 from glob import glob
 
-from vcstools.prof_utils import auto_gfit, subprocess_pdv, get_from_ascii, ProfileLengthError, NoFitError
+from vcstools.prof_utils import subprocess_pdv, get_from_ascii, ProfileLengthError, NoFitError
+from vcstools.gfit import gfit
 from vcstools.job_submit import submit_slurm
 from vcstools.config import load_config_file
 from dpp.helper_bestprof import bestprof_fit
@@ -14,12 +15,14 @@ logger = logging.getLogger(__name__)
 
 def archive_fit(cfg, archive_path, cliptype="verbose"):
     """Fits a profile to the supplied archive and adds it to cfg. Cliptype options found in prof_utils.py"""
-    gfit_kwargs = {"cliptype":cliptype, "period":cfg["source"]["my_P"], "plot_name":cfg["files"]["gfit_plot"]}
     # Get the profile
     subprocess_pdv(archive_path, outfile=cfg["files"]["archive_ascii"])
     profile, _ = get_from_ascii(cfg["files"]["archive_ascii"])
     # Gaussian fit
-    fit = auto_gfit(profile, **gfit_kwargs)
+    g_fitter = gfit(profile, plot_name=cfg["files"]["gfit_plot"])
+    g_fitter.auto_gfit()
+    fit = g_fitter.fit_dict()
+    g_fitter.plot_fit()
     # Find the longest component
     longest_comp = 0
     for comp_name in fit["comp_idx"].keys():
@@ -33,10 +36,10 @@ def archive_fit(cfg, archive_path, cliptype="verbose"):
 
 def fits_to_archive(fits_dir, ar_name, bins, dm, period, out_dir, memory=4000, total=1.0, seek=0, vdif=False, container="/pawsey/mwa/singularity/dspsr/dspsr.sif"):
     """Returns bash commands to fold on a fits file using dspsr"""
-    # Normally I'd just use absolute filepaths but psrchive runs into issues if the filename 
+    # Normally I'd just use absolute filepaths but psrchive runs into issues if the filename
     # is too long. So instead we cd into the fits dir and process there, then move everything
     # back to the out_dir
-    commands = [f"cd {fits_dir}"] 
+    commands = [f"cd {fits_dir}"]
     container_launch = (f"singularity exec -e {container}") # Open the container
     dspsr_cmd = f"{container_launch} dspsr  -A -K -cont"
     dspsr_cmd += f" -U {memory}"
