@@ -90,6 +90,8 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["source"]["sampling_limit"] = int(bin_sampling_limit(cfg["source"]["name"], query=query))
     cfg["source"]["ATNF_P"] = float(query["P0"][query_index])
     cfg["source"]["ATNF_DM"] = float(query["DM"][query_index])
+    tau_sc = query["DM"][query_index]
+    cfg["source"]["scattering"] = float(tau_sc) if not bool(np.isnan(tau_sc)) else None
     cfg["source"]["my_DM"] = None
     cfg["source"]["my_P"] = None
     cfg["source"]["my_Pdot"] = None

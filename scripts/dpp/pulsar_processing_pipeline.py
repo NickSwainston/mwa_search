@@ -6,8 +6,8 @@ import os
 
 from dpp.helper_config import from_yaml, dump_to_yaml, reset_cfg
 from dpp.helper_prepfold import ppp_prepfold
-from dpp.helper_classify import classify_main, read_classifications
-from dpp.helper_bestprof import find_best_pointing, populate_post_folds, best_post_fold
+from dpp.helper_classify import classify_main, read_LOTAAS_classifications
+from dpp.helper_bestprof import find_best_pointing, populate_post_folds, best_post_fold, classify_init_bestprof
 from dpp.helper_logging import initiate_logs
 from dpp.helper_terminate import finish_unsuccessful, finish_successful
 from dpp.helper_files import remove_old_results
@@ -56,19 +56,26 @@ def main(kwargs):
         # Do the initial folds
         dep_jids = ppp_prepfold(cfg)
         relaunch_ppp(cfg, depends_on=dep_jids)
+
     elif cfg["completed"]["classify"] == False:
-        # Classify the intial folds
-        try:
-            dep_jid = classify_main(cfg)
-        except InvalidClassifyBinsError as e:
-            finish_unsuccessful(cfg, e)
+        if not cfg["source"]["scattering"]: # If the source isn't scattered
+            # Classify the intial folds
+            try:
+                dep_jid = classify_main(cfg)
+            except InvalidClassifyBinsError as e:
+                finish_unsuccessful(cfg, e)
+        else:
+            logger.warn("Pulsar is scattered. Will use PRESTO classification method")
+            classify_init_bestprof(cfg)
         relaunch_ppp(cfg, depends_on=dep_jid)
+
     elif cfg["completed"]["post_folds"] == False:
-        # Read the output of the classifier
-        try:
-            read_classifications(cfg)
-        except ClassifierFilesNotFoundError as e:
-            finish_unsuccessful(cfg, e)
+        if not cfg["source"]["scattering"]: # If the source isn't scattered
+            # Read the output of the classifier
+            try:
+                read_LOTAAS_classifications(cfg)
+            except ClassifierFilesNotFoundError as e:
+                finish_unsuccessful(cfg, e)
         # Decide on next folds
         try:
             find_best_pointing(cfg)
@@ -77,6 +84,7 @@ def main(kwargs):
         # Submit post folds
         dep_jids = ppp_prepfold(cfg)
         relaunch_ppp(cfg, depends_on=dep_jids)
+
     elif cfg["completed"]["upload"] == False:
         # Update cfg with fold info
         populate_post_folds(cfg)
@@ -87,6 +95,7 @@ def main(kwargs):
         # Launch archive/fits creation job
         dep_jid, _ = ppp_archive_creation(cfg)
         relaunch_ppp(cfg, depends_on=dep_jid)
+
     elif cfg["completed"]["debase"] == False:
         # Baseline RFI removal
         try:
@@ -94,22 +103,26 @@ def main(kwargs):
         except (ProfileLengthError, NoFitError) as e:
             finish_unsuccessful(cfg, e)
         relaunch_ppp(cfg, depends_on=dep_jid, time="02:00:00") # RM synth might take a while - give it more time
+
     elif cfg["completed"]["RM"] == False:
         # Perform RM synthesis
         RM_synth(cfg)
         # Correct for RM
         dep_jid, _ = RM_cor(cfg)
         relaunch_ppp(cfg, depends_on=dep_jid)
+
     elif cfg["completed"]["RVM_initial"] == False:
         # Initial RVM fit
         dep_jid = RVM_fit(cfg)
         relaunch_ppp(cfg, depends_on=dep_jid)
+
     elif cfg["completed"]["RVM_final"] == False:
         # Read Initial RVM
         RVM_file_to_cfg(cfg)
         # Final RVM fit
         dep_jid = RVM_fit(cfg)
         relaunch_ppp(cfg, depends_on=dep_jid)
+
     else:
         # Read Initial RVM
         RVM_file_to_cfg(cfg)

@@ -183,3 +183,15 @@ def best_post_fold(cfg):
         cfg["source"]["my_Pdot"] = info["pdot"]
     else:
         logger.info(f"Continuing with bin count: {cfg['source']['my_bins']}")
+
+def classify_init_bestprof(cfg):
+    """Determines whether an iniital fold is a detection based on its PRESTO output"""
+    for pointing in cfg["folds"].keys():
+        # Get the fold info
+        bins = cfg["folds"][pointing]["init"].keys()[0]
+        bprof = glob_pfds(cfg, pointing, bins, pfd_type=".pfd")[0]
+        cfg["folds"][pointing]["init"][bins] = bestprof_info(bprof)
+        # Evaluate is
+        if cfg["folds"][pointing]["init"][bins]["chi"]>=8 and cfg["folds"][pointing]["init"][bins]>=8:
+            cfg["folds"][pointing]["classifier"] = 5 # classifier >=3 means this is a detection
+        else cfg["folds"][pointing] = 0

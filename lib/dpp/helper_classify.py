@@ -63,7 +63,7 @@ def submit_classify(cfg):
     return jid, name
 
 
-def read_classifications(cfg):
+def read_LOTAAS_classifications(cfg):
     """Reads the output of the classifier and updates cfg with the information"""
     negfile = join(cfg["files"]["classify_dir"], "feature_extraction.negative")
     posfile = join(cfg["files"]["classify_dir"], "feature_extraction.positive")
