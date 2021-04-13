@@ -273,7 +273,7 @@ process make_beam_ipfb {
         mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
     fi
     if $params.publish_fits_scratch; then
-        mkdir -p -m 771 ${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}
+        mkdir -p -m 771 ${params.scratch_basedir}/${params.obsid}/pointings/${point}
     fi
 
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
