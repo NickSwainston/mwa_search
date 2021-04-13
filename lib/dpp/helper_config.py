@@ -3,6 +3,7 @@ import logging
 from os.path import join
 import yaml
 import subprocess
+import numpy as np
 
 from dpp.helper_source_info import bin_sampling_limit, is_binary, required_bin_folds
 from dpp.helper_obs_info import find_fold_times
