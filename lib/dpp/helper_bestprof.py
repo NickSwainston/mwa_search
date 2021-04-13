@@ -187,14 +187,18 @@ def best_post_fold(cfg):
     else:
         logger.info(f"Continuing with bin count: {cfg['source']['my_bins']}")
 
+
 def classify_init_bestprof(cfg):
     """Determines whether an iniital fold is a detection based on its PRESTO output"""
     for pointing in cfg["folds"].keys():
         # Get the fold info
-        bins = cfg["folds"][pointing]["init"].keys()[0]
-        bprof = glob_pfds(cfg, pointing, bins, pfd_type=".pfd")[0]
+        bins = list(cfg["folds"][pointing]["init"].keys())[0]
+        bprof = glob_pfds(cfg, pointing, bins, pfd_type=".pfd.bestprof")[0]
         cfg["folds"][pointing]["init"][bins] = bestprof_info(bprof)
-        # Evaluate is
-        if cfg["folds"][pointing]["init"][bins]["chi"]>=8 and cfg["folds"][pointing]["init"][bins]>=8:
-            cfg["folds"][pointing]["classifier"] = 5 # classifier >=3 means this is a detection
-        else cfg["folds"][pointing] = 0
+        # Evaluate
+        if cfg["folds"][pointing]["init"][bins]["sn"]>0: # Sometimes sigma is zero for some reason
+            psr_eval = True if (cfg["folds"][pointing]["init"][bins]["chi"]>=4 and cfg["folds"][pointing]["init"][bins]["sn"]>=8) else False
+        else:
+            psr_eval = True if cfg["folds"][pointing]["init"][bins]["chi"]>=4 else False
+        cfg["folds"][pointing]["classifier"] = 5 if psr_eval else 0 # classifier >=3 means this is a detection
+        cfg["completed"]["classify"] = True
