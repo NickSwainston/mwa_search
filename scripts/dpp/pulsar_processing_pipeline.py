@@ -67,6 +67,7 @@ def main(kwargs):
         else:
             logger.warn("Pulsar is scattered. Will use PRESTO classification method")
             classify_init_bestprof(cfg)
+            dep_jid = None
         relaunch_ppp(cfg, depends_on=dep_jid)
 
     elif cfg["completed"]["post_folds"] == False:
