@@ -94,7 +94,7 @@ process ddplan {
             dm = float('$name'.split('dm_')[-1].split('_')[0])
         elif '$name'.startswith('FRB'):
             dm = grab_source_alog(source_type='FRB',
-                 pulsar_list=['$name'.split("_")[0]], include_dm=True)[0][-1]
+                 pulsar_list=['$name'], include_dm=True)[0][-1]
         else:
             # Try RRAT first
             rrat_temp = grab_source_alog(source_type='RRATs',
