@@ -305,7 +305,7 @@ workflow {
     if ( params.pointing_grid ) {
         grid( pointing_grid,\
               fwhm_calc.out.splitCsv().flatten() )
-        pointings = Channel.from(grid.out.splitCsv().collect().flatten().collate( params.max_pointings ))
+        pointings = grid.out.splitCsv().collect().flatten().collate( params.max_pointings )
     }
     else if ( params.pulsar ) {
         get_pulsar_ra_dec()
@@ -315,10 +315,10 @@ workflow {
     }
 
     find_pos( pointings,\
-                pre_beamform.out[0],\
-                pre_beamform.out[1],\
-                pre_beamform.out[2],\
-                fwhm_calc.out.splitCsv().flatten() )
+              pre_beamform.out[0],\
+              pre_beamform.out[1],\
+              pre_beamform.out[2],\
+              fwhm_calc.out.splitCsv().flatten() )
     beamform( pre_beamform.out[0],\
               pre_beamform.out[1],\
               pre_beamform.out[2],\
