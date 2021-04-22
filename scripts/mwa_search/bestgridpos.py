@@ -10,12 +10,16 @@ import sys
 from mwa_search.obs_tools import calc_ta_fwhm
 from vcstools.metadb_utils import get_common_obs_metadata, get_obs_array_phase
 from vcstools.pointing_utils import sex2deg, deg2sex, format_ra_dec
+from vcstools import prof_utils
+from vcstools.gfit import gfit
+from vcstools.prof_utils import NoFitError
 
 import matplotlib.pyplot as plt
 from matplotlib import patches
 
 
 def find_pos(dec_search_range, ra_search_range, detections, fwhm, given_fwhm_ra=None, given_fwhm_dec=None, initial_pos=None):
+    print("Localising with: (ra, dec, sn)")
     print(detections)
     RA = []; DEC = []; residual = []; psf_guass_grid = []
     for dec in dec_search_range:
@@ -120,14 +124,25 @@ if __name__ == "__main__":
                 lines = bestprof.readlines()
                 ra, dec = lines[0].split("=")[-1].split("_")[1:3]
                 sn = float(lines[13].split("~")[-1].split(" ")[0])
-                if sn < 3.:
-                    print("skipping RA: {}   Dec: {}  SN: {}".format(ra, dec, sn))
-                else:
-                    rad, decd = sex2deg(ra, dec)
-                    detections.append([rad, decd, sn])
-                    rads.append(rad)
-                    decds.append(decd)
-                    sns.append(sn)
+                """
+                if sn > 3.:
+                    bestprof_data = prof_utils.get_from_bestprof(bestprof_file)
+                    _, _, _, period, _, _, _, profile, _ = bestprof_data
+                    g_fitter = gfit(profile)
+                    try:
+                        g_fitter.auto_gfit()
+                        sn = g_fitter.fit_dict["sn"]
+                    except NoFitError:
+                        sn = 1
+                    #try:
+                    #    sn, sn_e, _ = prof_utils.est_sn_from_prof(profile, period, alpha=2.5)
+                    #except:
+                    #    sn = 1
+                    #if sn is None:
+                    #    sn = 1
+                """
+                rad, decd = sex2deg(ra, dec)
+                detections.append([rad, decd, sn])
     elif args.pdmp_dir:
         for pdmp_file in glob.glob("{}/*posn".format(args.pdmp_dir)):
             with open(pdmp_file,"r") as pdmp:
@@ -140,20 +155,23 @@ if __name__ == "__main__":
                 else:
                     rad, decd = sex2deg(ra, dec)
                     detections.append([rad, decd, sn])
-                    rads.append(rad)
-                    decds.append(decd)
-                    sns.append(sn)
     else:
         print("Please either use --bestprof_dir or --pdmp_dir. Exiting.")
         sys.exit(1)
 
     # sort by SN
+    rads  = []
+    decds = []
+    sns   = []
     detections.sort(key=lambda x: x[2], reverse=True)
     print("Input detections:")
     for ra, dec, sn in detections:
         rah, dech = deg2sex(ra, dec)
         rah, dech = format_ra_dec([[rah, dech]], ra_col = 0, dec_col = 1)[0]
         print("RA: {}  Dec: {}  SN: {}".format(rah, dech, sn))
+        rads.append(ra)
+        decds.append(dec)
+        sns.append(sn)
 
     # Find data max mins
     ra_max, dec_max, sn_max = np.max(detections, axis=0)
@@ -191,6 +209,12 @@ if __name__ == "__main__":
     
     #print("{}".format(np.array(detections)[mask,:]))
     #print(mask)
+    # Mask manually because there are bugs
+    centre_detections = []
+    for i in range(len(detections)):
+        if mask[i]:
+            centre_detections.append(detections[i])
+    centre_detections = np.array(centre_detections)
 
     # Make search area
     if args.res is None:
@@ -214,7 +238,7 @@ if __name__ == "__main__":
                                  initial_pos=[ra_initial, dec_initial])
     """
 
-    RA, DEC, residual = find_pos(dec_search_range, ra_search_range, np.array(detections)[mask,:], fwhm,
+    RA, DEC, residual = find_pos(dec_search_range, ra_search_range, centre_detections, fwhm,
                                  given_fwhm_ra=args.fwhm_ra, given_fwhm_dec=args.fwhm_dec)
 
     ramax = RA[residual.index(min(residual))]
@@ -257,9 +281,9 @@ if __name__ == "__main__":
         plt.scatter(ra,dec,s=0.5,c='white', zorder=10)
         #print(det, np.array(detections)[~mask])
         if det[2] in (np.array(sns)[~mask]):
-            ax.text(ra, dec, str(sn), fontsize=8, ha='center', va='center', color='0.5')
+            ax.text(ra, dec, "{:.2f}".format(sn), fontsize=8, ha='center', va='center', color='0.5')
         else:
-            ax.text(ra, dec, str(sn), fontsize=8, ha='center', va='center', color='0')
+            ax.text(ra, dec, "{:.2f}".format(sn), fontsize=8, ha='center', va='center', color='0')
 
     #Start plotting
     colour_map = 'plasma_r'
