@@ -21,7 +21,7 @@ def archive_fit(cfg, archive_path, cliptype="verbose"):
     # Gaussian fit
     g_fitter = gfit(profile, plot_name=cfg["files"]["gfit_plot"])
     g_fitter.auto_gfit()
-    fit = g_fitter.fit_dict()
+    fit = g_fitter.fit_dict
     g_fitter.plot_fit()
     # Find the longest component
     longest_comp = 0

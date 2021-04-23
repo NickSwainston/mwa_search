@@ -99,11 +99,11 @@ def prepfold_time_alloc(cfg, prepfold_kwargs):
     duration = (cfg["obs"]["end"] - cfg["obs"]["beg"]) * \
         (cfg["source"]["exit_frac"] - cfg["source"]["enter_frac"])
 
-    time = 600
+    time = 1200
     time += bin_count
     time += duration
 
-    if not nosearch:
+    if not nosearch: # Searching significantly increases operation time
         ptime = 1
         pdtime = 1
         dmtime = 1
@@ -118,7 +118,7 @@ def prepfold_time_alloc(cfg, prepfold_kwargs):
         logger.warn("Estimation for prepfold time greater than one day")
         time = 86399
     time = time*2 # Double time alloc just because pawsey is weird and sometimes this isn't enough
-    time = str(datetime.timedelta(seconds=int(time)))
+    time = str(datetime.timedelta(seconds=int(time))) # Convert to string for slurm
     return time
 
 
