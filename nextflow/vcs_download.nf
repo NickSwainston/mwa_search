@@ -88,8 +88,11 @@ process check_data_format {
 
     data_dir = '${params.scratch_basedir}/${params.obsid}'
     obsinfo = meta.getmeta(service='obs', params={'obs_id':'${params.obsid}'})
+    comb_del_check = meta.combined_deleted_check(${params.obsid}, begin=${begin}, end=${end})
     data_format = obsinfo['dataquality']
-    if data_format == 1:
+    if data_format == 1 or (comb_del_check and data_format == 6):
+        # either only the raw data is available (data_format == 1)
+        # or there was combined files but they were deleted (comb_del_check and data_format == 6)
         target_dir = link = 'raw'
         data_type = 11
         dl_dir = os.path.join(data_dir, target_dir)
