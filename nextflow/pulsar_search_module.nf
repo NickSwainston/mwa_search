@@ -70,7 +70,9 @@ process ddplan {
     label 'ddplan'
 
     input:
-    tuple val(name), val(fits_files) //fits_files is actauly files but I assume this will save me link
+    //tuple val(name), val(fits_files) //fits_files is actauly files but I assume this will save me link
+    each val(name), val(fits_files)
+    tuple val(begin), val(end)
 
     output:
     file 'DDplan.txt'
@@ -116,6 +118,10 @@ process ddplan {
         spamwriter = csv.writer(outfile, delimiter=',')
         for o in output:
             spamwriter.writerow(['${name}'] + o)
+
+    # Upload beam to the MWA pulsar database
+    from vcstools.client import upload_beam
+    upload_beam('${name}', ${begin}, ${end}, mwa_search_command='${workflow.commandLine}')
     """
 }
 
