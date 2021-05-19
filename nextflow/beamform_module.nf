@@ -160,7 +160,7 @@ process make_beam {
     //time '2h'
     time "${mb_dur*task.attempt}s"
     errorStrategy 'retry'
-    maxRetries 1
+    maxRetries 2
     maxForks params.max_gpu_jobs
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
@@ -218,7 +218,7 @@ process make_beam_ipfb {
     //time '2h'
     time "${mb_ipfb_dur*task.attempt}s"
     errorStrategy 'retry'
-    maxRetries 1
+    maxRetries 2
     maxForks params.max_gpu_jobs
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
