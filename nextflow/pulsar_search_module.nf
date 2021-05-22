@@ -51,7 +51,7 @@ else {
 if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
     search_dd_fft_acc_dur = obs_length * 5.0
-    prepfold_dur = obs_length * 16.0
+    prepfold_dur = obs_length * 24.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
 }
 else if ( "$HOSTNAME".startsWith("garrawarla") ) {
@@ -151,7 +151,7 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.12 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load presto/min_path"
     }
