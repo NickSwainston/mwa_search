@@ -24,6 +24,7 @@ params.publish_all_classifer_cands = false
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
 params.no_combined_check = false
+params.max_gpu_jobs = 24
 
 params.help = false
 if ( params.help ) {

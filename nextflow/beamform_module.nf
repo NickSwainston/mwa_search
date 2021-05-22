@@ -161,12 +161,7 @@ process make_beam {
     time "${mb_dur*task.attempt}s"
     errorStrategy 'retry'
     maxRetries 1
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 70
-    }
-    else {
-        maxForks 120
-    }
+    maxForks params.max_gpu_jobs
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -224,12 +219,7 @@ process make_beam_ipfb {
     time "${mb_ipfb_dur*task.attempt}s"
     errorStrategy 'retry'
     maxRetries 1
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 70
-    }
-    else {
-        maxForks 120
-    }
+    maxForks params.max_gpu_jobs
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"

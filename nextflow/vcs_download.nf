@@ -168,7 +168,7 @@ process untar {
 }
 
 process recombine {
-    label 'gpu'
+    label 'cpu'
     time { "${500*params.increment*task.attempt + 900}s" }
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
     maxRetries 3
