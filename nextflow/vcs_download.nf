@@ -173,25 +173,13 @@ process recombine {
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
     maxRetries 3
     
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
-            clusterOptions {"--gres=gpu:1 --nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
-                            "--ntasks-per-node=${begin_time_increment[1]}"}
-        }
-        else {
-            clusterOptions {"--gres=gpu:1 --nodes=${1} "+\
-                            "--ntasks-per-node=${params.max_cpus_per_node}"}
-        }
+    if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
+        clusterOptions {"--nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
+                        "--ntasks-per-node=${begin_time_increment[1]}"}
     }
     else {
-        if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
-            clusterOptions {"--nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
-                            "--ntasks-per-node=${begin_time_increment[1]}"}
-        }
-        else {
-            clusterOptions {"--nodes=${1} "+\
-                            "--ntasks-per-node=${params.max_cpus_per_node}"}
-        }
+        clusterOptions {"--nodes=${1} "+\
+                        "--ntasks-per-node=${params.max_cpus_per_node}"}
     }
 
     beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load mpi4py"
