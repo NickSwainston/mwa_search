@@ -44,6 +44,7 @@ if __name__ == "__main__":
     parser.add_argument('--ra_range',type=float,nargs='+',help='RA limits: "ramin ramax". Default 0 360', default=[0,360])
     parser.add_argument('-v','--verbose_file',action="store_true",help='Creates a more verbose output file with more information than make_beam.c can handle.')
     parser.add_argument('--pulsar',type=str,nargs='+',help='A list of pulsar to mark on the plot')
+    parser.add_argument('--label',type=str,help='A label to put in front of the pointings.')
     parser.add_argument('-n', '--n_pointings', type=int, default=None, help='Number of pointings per output file.')
     parser.add_argument('--out_file_name', type=str, help='The output file name.')
     parser.add_argument('--add_text', action="store_true", help='Adds the pointing in text for each circle on the output plot')
@@ -225,6 +226,8 @@ if __name__ == "__main__":
                     out_line = str(ras[i])+" "+str(decs[i])+" "+str(theta[i])+" "\
                                 +str(phi[i])+" "+str(rads[i])+" "\
                                 +str(decds[i])+"\n"
+                elif args.label:
+                    out_line = "{},{}_{}\n".format(args.label, ras[i], decs[i])
                 else:
                     out_line = str(ras[i])+"_"+str(decs[i])+"\n"
                 out_file.write(out_line)
