@@ -6,6 +6,7 @@ import math
 from math import cos,sin
 import glob
 import sys
+import csv
 
 from mwa_search.obs_tools import calc_ta_fwhm
 from vcstools.metadb_utils import get_common_obs_metadata, get_obs_array_phase
@@ -83,6 +84,8 @@ if __name__ == "__main__":
     """)
     parser.add_argument('-o', '--obsid', type=str,
             help='The observation ID of the fits file to be searched')
+    parser.add_argument('-O', '--calid', type=str,
+            help='The calibration ID of the fits file to be searched')
     parser.add_argument('-b', '--bestprof_dir', type=str,
             help='The directory of bestprof files of detections.')
     parser.add_argument('-p', '--pdmp_dir', type=str,
@@ -91,8 +94,14 @@ if __name__ == "__main__":
             help='The resolution of the search in degrees.')
     parser.add_argument('-w', '--write', action='store_true',
             help='Write out a file with the predicted poistion.')
-    parser.add_argument('-fr', '--fwhm_ra', type=float, help='Manualy give the RA FWHM in degrees instead of it estimating it from the array phase and frequency')
-    parser.add_argument('-fd', '--fwhm_dec', type=float, help='Manualy give the declination FWHM in degrees instead of it estimating it from the array phase and frequency')
+    parser.add_argument('-fr', '--fwhm_ra', type=float,
+            help='Manualy give the RA FWHM in degrees instead of it estimating it from the array phase and frequency')
+    parser.add_argument('-fd', '--fwhm_dec', type=float,
+            help='Manualy give the declination FWHM in degrees instead of it estimating it from the array phase and frequency')
+    parser.add_argument('--orig_pointing', nargs='+', type=str,
+            help='The original pointing. If used will output a file with the original pointing and best pointing SNs.')
+    parser.add_argument('--label', type=str,
+            help='Label the output predicted position.')
     args=parser.parse_args()
 
     # Set up plots
@@ -142,19 +151,19 @@ if __name__ == "__main__":
                     #    sn = 1
                 """
                 rad, decd = sex2deg(ra, dec)
-                detections.append([rad, decd, sn])
+                detections.append([rad, decd, sn, ra, dec])
     elif args.pdmp_dir:
         for pdmp_file in glob.glob("{}/*posn".format(args.pdmp_dir)):
             with open(pdmp_file,"r") as pdmp:
                 lines = pdmp.readlines()
                 sn = float(lines[0].split()[3])
                 ra, dec = lines[0].split()[9].split("_")[1:3]
-                dec = dec[:-3]
+                #dec = dec[:-3]
                 if sn < 3.:
                     print("skipping RA: {}   Dec: {}  SN: {}".format(ra, dec, sn))
                 else:
                     rad, decd = sex2deg(ra, dec)
-                    detections.append([rad, decd, sn])
+                    detections.append([rad, decd, sn, ra, dec])
     else:
         print("Please either use --bestprof_dir or --pdmp_dir. Exiting.")
         sys.exit(1)
@@ -164,15 +173,33 @@ if __name__ == "__main__":
     decds = []
     sns   = []
     detections.sort(key=lambda x: x[2], reverse=True)
+    best_sn = detections[0][2]
+    best_pointing = "{}_{}".format(detections[0][3], detections[0][4])
     print("Input detections:")
-    for ra, dec, sn in detections:
-        rah, dech = deg2sex(ra, dec)
-        rah, dech = format_ra_dec([[rah, dech]], ra_col = 0, dec_col = 1)[0]
-        print("RA: {}  Dec: {}  SN: {}".format(rah, dech, sn))
+    for ra, dec, sn, raj, decj in detections:
+        print("RA: {}  Dec: {}  SN: {}".format(raj, decj, sn))
         rads.append(ra)
         decds.append(dec)
         sns.append(sn)
 
+        if args.orig_pointing:
+            print("{}_{}".format(raj, decj))
+            if "{}_{}".format(raj, decj) in args.orig_pointing:
+                orig_sn = sn
+                orig_pointing = "{}_{}".format(raj, decj)
+
+    if args.orig_pointing:
+        # output csv of orig and best SN
+        with open("{}_{}_{}_orig_best_SN.txt".format(args.label, args.obsid, args.calid), "w") as outfile:
+            spamwriter = csv.writer(outfile, delimiter=',')
+            spamwriter.writerow([orig_pointing, orig_sn])
+            spamwriter.writerow([best_pointing, best_sn])
+
+    # remove raj and decj
+    new_detections = []
+    for d in detections:
+        new_detections.append(d[:3])
+    detections = new_detections
     # Find data max mins
     ra_max, dec_max, sn_max = np.max(detections, axis=0)
     #print("sn_max: {}".format(sn_max))
@@ -252,7 +279,10 @@ if __name__ == "__main__":
 
     if args.write:
         with open("predicted_pos.txt","w") as write_file:
-            write_file.write("{}_{} ".format(rah, dech))
+            if args.label:
+                write_file.write("{},{}_{} ".format(args.label, rah, dech))
+            else:
+                write_file.write("{}_{} ".format(rah, dech))
 
     # Calculated predicted SN
     fwhm_ra  = np.degrees(np.radians(fwhm)/cos(np.radians(dec_sn_max + 26.7))**2)
@@ -299,4 +329,4 @@ if __name__ == "__main__":
     plt.colorbar(spacing='uniform', label=r"Residual")
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
-    fig.savefig("residual.png", dpi=1000, bbox_inches='tight')
+    fig.savefig("{}_{}_{}_residual.png".format(args.label, args.obsid, args.calid), dpi=1000, bbox_inches='tight')
