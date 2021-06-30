@@ -44,7 +44,7 @@ def main(kwargs):
         create_dpp_dir(kwargs)
 
         logger.info("Calculating pulsars in beam...")
-        psrs_pointing_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["beg"], kwargs["end"], search_radius=kwargs["search_radius"])
+        psrs_pointing_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["beg"], kwargs["end"], search_radius=kwargs["search_radius"], ra_offset=kwargs["ra_offset"], dec_offset=kwargs["dec_offset"])
         psrs_pointing_dict = reformat_psrs_pointings(psrs_pointing_list)
 
         logger.info("Initialising config files...")
@@ -88,6 +88,8 @@ if __name__ == '__main__':
     otherop = parser.add_argument_group("Other Options")
     otherop.add_argument("-s", "--search_radius", type=float, default=0.02,
                          help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.02 degrees")
+    otherop.add_argument("--ra_offset", type=float, default=0, help="The RA offset to apply to all pointings - measured in arcseconds")
+    otherop.add_argument("--dec_offset", type=float, default=0, help="The Dec offset to apply to all pointings - measured in arcseconds")
     otherop.add_argument("--relaunch", action="store_true", help="Use this tag to relaunch a partially completed opp run.") #TODO: sort out cases for only half present files
     otherop.add_argument("--keep_logs", action="store_true", help="Use this tag to keep the old logs of previous ppp runs")
     otherop.add_argument("--label", type=str, default="", help="A label to use to identify the results from this run")

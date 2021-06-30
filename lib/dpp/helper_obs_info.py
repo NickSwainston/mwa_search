@@ -13,7 +13,7 @@ import vcstools.sn_flux_utils as snfu
 from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
 from vcstools import data_load
 from vcstools.pointing_utils import format_ra_dec
-from vcstools.catalogue_utils import grab_source_alog
+from vcstools.catalogue_utils import grab_source_alog, deg2sex
 from vcstools.beam_calc import find_sources_in_obs
 from vcstools.config import load_config_file
 comp_config = load_config_file()
@@ -303,7 +303,8 @@ def get_sources_in_fov(obsid, source_type, fwhm):
 def find_pulsars_in_fov(obsid, psrbeg, psrend,
                         fwhm=None, search_radius=0.02,
                         meta_data=None, full_meta=None,
-                        no_known_pulsars=False, no_search_cands=False):
+                        no_known_pulsars=False, no_search_cands=False,
+                        ra_offset=0, dec_offset=0):
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
 
@@ -409,6 +410,13 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
 
         temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
+        
+        # Apply any offsets
+        ra_dec = SkyCoord(ra=str(raj), dec=str(decj), unit=(u.deg, u.deg), frame="icrs") # Convert to astropy units
+        raj = ra_dec.ra + ra_offset * u.arcsec # Add offsets
+        decj = ra_dec.dec + dec_offset * u.arcsec 
+        raj, decj = deg2sex(raj, decj) # Convert to sexisagimal string
+        
         #get pulsar period
         period = period_query[period_query['PSRJ'] == PSRJ].reset_index()["P0"][0]
 
@@ -449,7 +457,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
                 pulsar_name_list.append(jname_temp_list)
                 pulsar_pointing_list.append("{0}_{1}".format(prd[0], prd[1]))
 
-
+    quit()
     #Get the rest of the singple pulse search canidates
     #-----------------------------------------------------------------------------------------------------------
     temp = get_sources_in_fov(obsid, 'RRATs', fwhm)
