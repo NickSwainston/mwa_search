@@ -300,11 +300,53 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     return [name_list, pointing_list]
 
 
+def apply_offset(pointing_list, offset, angle_offset):
+    """
+    Apply an offset to the input list of pointings
+
+    Parameters:
+    -----------
+    pointing_list: list
+        A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss_dd:mm:ss.ss'
+    offset: float
+        The offset to apply to all pointings in arcseconds
+    angle_offset: float
+        The angle of the offset to apply to all pointings in degrees where zero is north
+
+    Returns:
+    --------
+    offset_pointing_list: list
+        A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss_dd:mm:ss.ss'
+    """
+    # Create astropy SkyCoords
+    rajs  = []
+    decjs = []
+    for p in pointing_list:
+        rajs.append(p.split("_")[0])
+        decjs.append(p.split("_")[1])
+    orig_pos = SkyCoord(rajs, decjs, frame='icrs', unit=(u.hourangle,u.deg))
+
+    # Apply offset
+    offset_pos = orig_pos.directional_offset_by(angle_offset*u.deg, offset*u.arcsec)
+
+    # Convert back to pointing list
+    rajs = offset_pos.ra.to_string(unit=u.hour, sep=':')
+    decjs = offset_pos.dec.to_string(unit=u.degree, sep=':')
+    temp = []
+    for raj, decj in zip(rajs, decjs):
+        temp.append([raj, decj])
+    temp_formated = format_ra_dec(temp, ra_col = 0, dec_col = 1)
+    offset_pointing_list = []
+    for raj, decj in temp_formated:
+        offset_pointing_list.append("{}_{}".format(raj, decj))
+    return offset_pointing_list
+
+
 def find_pulsars_in_fov(obsid, psrbeg, psrend,
                         fwhm=None, search_radius=0.02,
                         meta_data=None, full_meta=None,
                         no_known_pulsars=False, no_search_cands=False,
-                        ra_offset=0, dec_offset=0):
+                        offset=0, angle_offset=0):
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
 
@@ -410,13 +452,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
 
         temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
-        
-        # Apply any offsets
-        ra_dec = SkyCoord(ra=str(raj), dec=str(decj), unit=(u.deg, u.deg), frame="icrs") # Convert to astropy units
-        raj = ra_dec.ra + ra_offset * u.arcsec # Add offsets
-        decj = ra_dec.dec + dec_offset * u.arcsec 
-        raj, decj = deg2sex(raj, decj) # Convert to sexisagimal string
-        
+
         #get pulsar period
         period = period_query[period_query['PSRJ'] == PSRJ].reset_index()["P0"][0]
 
@@ -457,7 +493,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
                 pulsar_name_list.append(jname_temp_list)
                 pulsar_pointing_list.append("{0}_{1}".format(prd[0], prd[1]))
 
-    quit()
+
     #Get the rest of the singple pulse search canidates
     #-----------------------------------------------------------------------------------------------------------
     temp = get_sources_in_fov(obsid, 'RRATs', fwhm)
@@ -507,6 +543,12 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
         sp_name_list = []
         sp_pointing_list = []
 
+    # Apply offsets
+    pulsar_pointing_list        = apply_offset(pulsar_pointing_list,        offset, angle_offset)
+    vdif_pointing_list          = apply_offset(vdif_pointing_list,          offset, angle_offset)
+    pulsar_search_pointing_list = apply_offset(pulsar_search_pointing_list, offset, angle_offset)
+    sp_pointing_list            = apply_offset(sp_pointing_list,            offset, angle_offset)
+    
     return [pulsar_name_list,
             pulsar_pointing_list,
             vdif_name_list,
@@ -527,9 +569,12 @@ def find_pulsars_in_fov_main(kwargs):
         kwargs["beg"], kwargs["end"] = obs_max_min(kwargs["obsid"])
 
     output_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["begin"], kwargs["end"],
-                                      fwhm=kwargs["fwhm"], search_radius=kwargs["search_radius"],
+                                      fwhm=kwargs["fwhm"],
+                                      search_radius=kwargs["search_radius"],
                                       no_known_pulsars=kwargs["no_known_pulsars"],
-                                      no_search_cands=kwargs["no_search_cands"])
+                                      no_search_cands=kwargs["no_search_cands"],
+                                      offset=kwargs["offset"],
+                                      angle_offset=kwargs["angle_offset"])
     if kwargs['n_pointings'] is None:
         with open(f"{kwargs['obsid']}_fov_sources.csv", 'w', newline='') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',')

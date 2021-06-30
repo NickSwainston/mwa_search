@@ -28,6 +28,10 @@ if __name__ == "__main__":
             help="FWHM of the observation in degrees. If no value given the FWHM will be estimated.")
     parser.add_argument("-s", "--search_radius", type=float, default=0.02,
             help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.02 degrees")
+    parser.add_argument("--offset", type=float, default=0,
+            help="The offset to apply to all pointings in arcseconds")
+    parser.add_argument("--angle_offset", type=float, default=0,
+            help="The angle of the offset to apply to all pointings in degrees where zero is north")
     parser.add_argument("-k", "--no_known_pulsars", action="store_true", default=False,
             help="Do no include known pulsars. Default: False")
     parser.add_argument("-c", "--no_search_cands", action="store_true", default=False,
