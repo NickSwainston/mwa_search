@@ -86,8 +86,8 @@ if __name__ == '__main__':
     required.add_argument("--run_type", type=str, choices=["fresh_run", "rerun_existing", "rerun_broken"], help=run_type_help)
 
     otherop = parser.add_argument_group("Other Options")
-    otherop.add_argument("-s", "--search_radius", type=float, default=0.02,
-                         help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.02 degrees")
+    otherop.add_argument("-s", "--search_radius", type=float, default=0.00001,
+                         help="The radius to search (create beams within) in degrees to account for ionosphere. Default: 0.00001 degrees (doesn't make a grid)")
     otherop.add_argument("--offset", type=float, default=0, help="The offset to apply to all pointings in arcseconds")
     otherop.add_argument("--angle_offset", type=float, default=0, help="The angle of the offset to apply to all pointings in degrees where zero is north")
     otherop.add_argument("--relaunch", action="store_true", help="Use this tag to relaunch a partially completed opp run.") #TODO: sort out cases for only half present files

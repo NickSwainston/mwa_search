@@ -9,9 +9,11 @@ params.begin = null
 params.end = null
 params.all = false
 
-params.search_radius = 0.02
+params.search_radius = 0.00001
 params.fwhm_deg = null
 params.only_cand_search = false
+params.offset = 0.0
+params.angle_offset = 0.0
 
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
@@ -40,7 +42,7 @@ if ( params.help ) {
              |Optional arguments:
              |  --search_radius
              |              The radius to search (create beams within) in degrees to account for ionosphere.
-             |              [default: 0.02 degrees]
+             |              [default: 0.00001 degrees (doesn't make a grid)]
              |  --only_cand_search
              |              Only search for pulsar candidates (no known pulsar processing
              |              [default: False]
@@ -107,7 +109,8 @@ process find_pointings {
     file "${params.obsid}_fov_sources.csv"
 
     """
-    pulsars_in_fov.py -o $params.obsid -b $begin -e $end --fwhm $fwhm --search_radius ${params.search_radius} ${no_known_pulsar_command}
+    pulsars_in_fov.py -o $params.obsid -b $begin -e $end --fwhm $fwhm --search_radius ${params.search_radius} \
+${no_known_pulsar_command} --offset ${params.offset} --angle_offset ${params.angle_offset}
     """
 }
 
