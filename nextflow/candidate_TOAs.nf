@@ -1,60 +1,61 @@
 #!/usr/bin/env nextflow
 
 nextflow.preview.dsl = 2
+params.no_combined_check = true
 include { pre_beamform; beamform } from './beamform_module'
 
-params.obsid = null
-params.calid = null
-params.pointings = null
-params.pointing_file = null
-
-params.begin = null
-params.end = null
-params.all = false
-
-params.summed = true
-params.vcstools_version = 'master'
-params.mwa_search_version = 'master'
-
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.channels = null
-params.out_dir = "${params.search_dir}/${params.obsid}_toas"
+//params.out_dir = "${params.search_dir}/${params.obsid}_toas"
+params.out_dir = "${params.search_dir}/psr2_timing/${params.obsid}_toas"
 
 params.bins = 128
-params.period = 0.90004
-params.dm = 23.123
+params.a_period = 1.30624302355253
+params.a_dm = 20.703
+params.period = ""
+params.dm = ""
 params.nchan = 48
 params.ncchan = 1
 params.subint = ""
 params.eph = ""
 
-params.no_beamform = false
-params.J0036_fits = false
-params.no_combined_check = false
+params.fits_file = "None"
+//params.std_profile = "/astro/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP"
+params.std_profile = "/astro/mwavcs/pulsar_search/psr2_timing/1274143152_J0024-1932_profile.ar"
 
-std_profile = Channel.fromPath("/astro/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP")
-
-if ( params.no_beamform == false ) {
-    if ( params.pointing_file ) {
-        pointings = Channel
-            .fromPath(params.pointing_file)
-            .splitCsv()
-            .collect()
-            .flatten()
-            .collate( params.max_pointings )
-    }
-    else if ( params.pointings ) {
-        pointings = Channel
-            .from(params.pointings.split(","))
-            .collect()
-            .flatten()
-            .collate( params.max_pointings )
-    }
-    else {
-        println "No pointings given. Either use --pointing_file or --pointings. Exiting"
-        exit(1)
-    }
+params.help = false
+if ( params.help ) {
+    help = """candidate_TOAs.nf: A pipeline that will generate pulsar TOAs to be used for timing in tempo2
+             |Argurments:
+             |  --obsid     Observation ID you want to process [no default]
+             |  --fits_file The fits file to process. If this is not supplied, the pipeline will beamform
+             |              for you if you have the required beamforming arguments (see beamform.nf -h)
+             |  --std_profile
+             |              The standard profile to convolve your pulses with to get the TOAs
+             |              [default: ${params.std_profile}]
+             |
+             | --time_split Split the observation in time of size --subint to get several TOAs
+             |  --subint    Size in seconds to split the observation into if using --time_split.
+             |              If not supplied will make a guesstimate of a reasonable subint with the presto SN.
+             |
+             | --chan_split Split the observation in frequency of size --nchan coarse channels
+             |              This method isn't well test and may break
+             |  --ncchan    Number of coarse channels to split the obs into if using --chan_split.
+             |              [default: 1]
+             |
+             |  --eph       The ephermis file to fold on the obs. If you don't have one use --period and --dm
+             |  --a_period  The approximate period of the pulsar. Prepfold will be used find a more accurate one.
+             |  --a_dm      The approximate dispersion measure of the pulsar . Prepfold will be used find a more accurate one.
+             |  --period    The topo period of the pulsar in seconds. 
+             |  --dm        The dispersion measure of the pulsar.
+             |
+             |  --out_dir   Where the TOAs will be output
+             |              [default: ${params.out_dir}]
+             |  -w          The Nextflow work directory. Delete the directory once the processs
+             |              is finished [default: ${workDir}]""".stripMargin()
+    println(help)
+    exit(0)
 }
+
+std_profile = Channel.fromPath(params.std_profile)
 
 if ( ! ( params.chan_split || params.time_split) ) {
     println "Please use either --chan_split or --time_split"
@@ -68,7 +69,14 @@ else {
     subint_command = params.subint
 }
 if ( params.eph == "" ) {
-    eph_command = "-c \${period} -D \${DM}"
+    if ( params.period == "" && params.dm == "" ) {
+        // approx period and dm from bestprof
+        eph_command = "-c \${period} -D \${DM}"
+    }
+    else {
+        // input period and dm
+        eph_command = "-c ${params.period} -D ${params.dm}"
+    }
 }
 else {
     eph_command = " -E ${params.eph}"
@@ -251,41 +259,51 @@ process combine_toas {
 
 
 workflow {
+    // Get fits files
     pre_beamform()
-    if ( params.no_beamform ) {
-        if ( params.J0036_fits ) {
-            fits_files = Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/${params.obsid}/*fits").collect()
+    if ( params.fits_file == "None" ) {
+        // Send off beamforming
+        if ( params.pointings ) {
+            pointings = Channel
+                .from(params.pointings.split(","))
+                .collect()
+                .flatten()
+                .collate( params.max_pointings )
         }
         else {
-            fits_files = Channel.fromPath("${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}*fits").collect()
+            println "No pointings given. Either use --pointings. Exiting"
+            exit(1)
         }
-    }
-    else {
         beamform( pre_beamform.out[0],\
                   pre_beamform.out[1],\
                   pre_beamform.out[2],\
                   pointings )
-        beamform.out[1].collect().set{ fits_files }
+        fits_files = beamform.out[1].collect()
     }
+    else {
+        fits_files = Channel.fromPath(params.fits_file).collect()
+    }
+
+    // Either split the obs in time of frequency
     if ( params.chan_split ) {
         prepfold_ch( beamform.out[0],\
-                  pre_beamform.out[1].flatten().collate( params.ncchan ) )
+                     pre_beamform.out[1].flatten().collate( params.ncchan ) )
         dspsr_ch( prepfold.out[0],\
                   beamform.out[0] )
         get_toas( dspsr_ch.out,\
                   std_profile )
     }
     else if ( params.time_split ) {
-        if ( params.subint == "" || params.eph == "") {
+        if ( params.subint == "" || ( params.eph == "" && params.period == "" && params.dm == "" ) ) {
             prepfold_time( fits_files )
-            dspsr_time( prepfold_time.out[0],\
-                        fits_files.collect() )
+            bestprof_file = prepfold_time.out[0]
         }
         else {
-            dspsr_time( // dummy bestprof
-                        Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/1275085816_00:36:11.58_-10:33:56.44_900.04ms_Cand.pfd.bestprof"),\
-                        fits_files.collect() )
+            // dummy bestprof
+            bestprof_file = Channel.fromPath("/astro/mwavcs/nswainston/J0036-1033_detections/1275085816_00:36:11.58_-10:33:56.44_900.04ms_Cand.pfd.bestprof")
         }
+        dspsr_time( bestprof_file,\
+                    fits_files )
         get_toas( dspsr_time.out[0].flatten(),
                   std_profile )
     }
