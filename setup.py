@@ -55,6 +55,7 @@ setup(name="mwa_search",
       packages=['dpp', 'mwa_search'],
       package_dir={'dpp': 'lib/dpp',
                    'mwa_search': 'lib/mwa_search'},
+      package_data={'mwa_search':['data/*.npy']},
       install_requires=reqs,
       scripts=['version.py',
                # mwa_search
