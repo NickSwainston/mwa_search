@@ -449,7 +449,6 @@ if __name__ == "__main__":
                         np.full(len(map_ra_range),np.radians((34.5)/90.*ff+ffa)),
                         facecolor='0.5', alpha=0.5, transform=trans)
 
-
     # Add pulsars to plot
     if args.pulsar_all:
         #add all pulsars on the antf catalogue
@@ -531,7 +530,7 @@ if __name__ == "__main__":
             else:
                 ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
             dec_PCAT.append(dec_temp/180.*np.pi)
-        ax.scatter(ra_PCAT, dec_PCAT, s=10, color ='r', zorder=100)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=0.5)
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
