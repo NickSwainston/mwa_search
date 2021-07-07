@@ -6,16 +6,22 @@ import math
 from math import cos,sin
 import glob
 import sys
+import csv
 
 from mwa_search.obs_tools import calc_ta_fwhm
 from vcstools.metadb_utils import get_common_obs_metadata, get_obs_array_phase
 from vcstools.pointing_utils import sex2deg, deg2sex, format_ra_dec
+from vcstools import prof_utils
+from vcstools.gfit import gfit
+from vcstools.prof_utils import NoFitError
 
 import matplotlib.pyplot as plt
 from matplotlib import patches
 
 
 def find_pos(dec_search_range, ra_search_range, detections, fwhm, given_fwhm_ra=None, given_fwhm_dec=None, initial_pos=None):
+    print("Localising with: (ra, dec, sn)")
+    print(detections)
     RA = []; DEC = []; residual = []; psf_guass_grid = []
     for dec in dec_search_range:
         for ra in ra_search_range:
@@ -78,6 +84,8 @@ if __name__ == "__main__":
     """)
     parser.add_argument('-o', '--obsid', type=str,
             help='The observation ID of the fits file to be searched')
+    parser.add_argument('-O', '--calid', type=str,
+            help='The calibration ID of the fits file to be searched')
     parser.add_argument('-b', '--bestprof_dir', type=str,
             help='The directory of bestprof files of detections.')
     parser.add_argument('-p', '--pdmp_dir', type=str,
@@ -86,8 +94,14 @@ if __name__ == "__main__":
             help='The resolution of the search in degrees.')
     parser.add_argument('-w', '--write', action='store_true',
             help='Write out a file with the predicted poistion.')
-    parser.add_argument('-fr', '--fwhm_ra', type=float, help='Manualy give the RA FWHM in degrees instead of it estimating it from the array phase and frequency')
-    parser.add_argument('-fd', '--fwhm_dec', type=float, help='Manualy give the declination FWHM in degrees instead of it estimating it from the array phase and frequency')
+    parser.add_argument('-fr', '--fwhm_ra', type=float,
+            help='Manualy give the RA FWHM in degrees instead of it estimating it from the array phase and frequency')
+    parser.add_argument('-fd', '--fwhm_dec', type=float,
+            help='Manualy give the declination FWHM in degrees instead of it estimating it from the array phase and frequency')
+    parser.add_argument('--orig_pointing', nargs='+', type=str,
+            help='The original pointing. If used will output a file with the original pointing and best pointing SNs.')
+    parser.add_argument('--label', type=str,
+            help='Label the output predicted position.')
     args=parser.parse_args()
 
     # Set up plots
@@ -110,43 +124,85 @@ if __name__ == "__main__":
     print("FWHM: {} deg".format(fwhm))
 
     detections = []
+    rads  = []
+    decds = []
+    sns   = []
     if args.bestprof_dir:
         for bestprof_file in glob.glob("{}/*bestprof".format(args.bestprof_dir)):
             with open(bestprof_file,"r") as bestprof:
                 lines = bestprof.readlines()
                 ra, dec = lines[0].split("=")[-1].split("_")[1:3]
                 sn = float(lines[13].split("~")[-1].split(" ")[0])
-                if sn < 3.:
-                    print("skipping RA: {}   Dec: {}  SN: {}".format(ra, dec, sn))
-                else:
-                    rad, decd = sex2deg(ra, dec)
-                    detections.append([rad, decd, sn])
+                """
+                if sn > 3.:
+                    bestprof_data = prof_utils.get_from_bestprof(bestprof_file)
+                    _, _, _, period, _, _, _, profile, _ = bestprof_data
+                    g_fitter = gfit(profile)
+                    try:
+                        g_fitter.auto_gfit()
+                        sn = g_fitter.fit_dict["sn"]
+                    except NoFitError:
+                        sn = 1
+                    #try:
+                    #    sn, sn_e, _ = prof_utils.est_sn_from_prof(profile, period, alpha=2.5)
+                    #except:
+                    #    sn = 1
+                    #if sn is None:
+                    #    sn = 1
+                """
+                rad, decd = sex2deg(ra, dec)
+                detections.append([rad, decd, sn, ra, dec])
     elif args.pdmp_dir:
         for pdmp_file in glob.glob("{}/*posn".format(args.pdmp_dir)):
             with open(pdmp_file,"r") as pdmp:
                 lines = pdmp.readlines()
                 sn = float(lines[0].split()[3])
                 ra, dec = lines[0].split()[9].split("_")[1:3]
-                dec = dec[:-3]
+                #dec = dec[:-3]
                 if sn < 3.:
                     print("skipping RA: {}   Dec: {}  SN: {}".format(ra, dec, sn))
                 else:
                     rad, decd = sex2deg(ra, dec)
-                    detections.append([rad, decd, sn])
+                    detections.append([rad, decd, sn, ra, dec])
     else:
         print("Please either use --bestprof_dir or --pdmp_dir. Exiting.")
         sys.exit(1)
 
     # sort by SN
+    rads  = []
+    decds = []
+    sns   = []
     detections.sort(key=lambda x: x[2], reverse=True)
+    best_sn = detections[0][2]
+    best_pointing = "{}_{}".format(detections[0][3], detections[0][4])
     print("Input detections:")
-    for ra, dec, sn in detections:
-        rah, dech = deg2sex(ra, dec)
-        rah, dech = format_ra_dec([[rah, dech]], ra_col = 0, dec_col = 1)[0]
-        print("RA: {}  Dec: {}  SN: {}".format(rah, dech, sn))
+    for ra, dec, sn, raj, decj in detections:
+        print("RA: {}  Dec: {}  SN: {}".format(raj, decj, sn))
+        rads.append(ra)
+        decds.append(dec)
+        sns.append(sn)
 
+        if args.orig_pointing:
+            print("{}_{}".format(raj, decj))
+            if "{}_{}".format(raj, decj) in args.orig_pointing:
+                orig_sn = sn
+                orig_pointing = "{}_{}".format(raj, decj)
+
+    if args.orig_pointing:
+        # output csv of orig and best SN
+        with open("{}_{}_{}_orig_best_SN.txt".format(args.label, args.obsid, args.calid), "w") as outfile:
+            spamwriter = csv.writer(outfile, delimiter=',')
+            spamwriter.writerow([orig_pointing, orig_sn])
+            spamwriter.writerow([best_pointing, best_sn])
+
+    # remove raj and decj
+    new_detections = []
+    for d in detections:
+        new_detections.append(d[:3])
+    detections = new_detections
     # Find data max mins
     ra_max, dec_max, sn_max = np.max(detections, axis=0)
+    #print("sn_max: {}".format(sn_max))
     ra_min, dec_min, sn_min = np.min(detections, axis=0)
     ra_search_diameter  = (ra_max  - ra_min)
     dec_search_diameter = (dec_max - dec_min)
@@ -156,6 +212,36 @@ if __name__ == "__main__":
         if detections[i][2] == sn_max:
             ra_sn_max, dec_sn_max, sn = detections[i]
             i_sn_max = i
+
+    # Find the smallest distance between pointings
+    dists = []
+    for det1 in detections:
+        ra1, dec1, _ = det1
+        for det2 in detections:
+            ra2, dec2, _ = det2
+            if ra1 != ra2 and dec1 != dec2:
+                dists.append(math.sqrt(math.pow(ra1 - ra2, 2) + math.pow(dec1 - dec2, 2)))
+    min_dist = min(dists)
+
+    
+    # Only use detections closest to max
+    mask   = np.ones(len(detections), dtype=np.bool)
+    #mask[flux_data > 10.0] = 0
+    radinside = 1.1*min_dist
+    print("fit radius: {}".format(radinside))
+    for i in range(len(detections)):
+        #print("distance: {}".format(math.sqrt((rads[i] - ra_sn_max)**2. + (decds[i] - dec_sn_max)**2.)))
+        if math.sqrt((rads[i] - ra_sn_max)**2. + (decds[i] - dec_sn_max)**2.) > radinside:
+            mask[i] = 0
+    
+    #print("{}".format(np.array(detections)[mask,:]))
+    #print(mask)
+    # Mask manually because there are bugs
+    centre_detections = []
+    for i in range(len(detections)):
+        if mask[i]:
+            centre_detections.append(detections[i])
+    centre_detections = np.array(centre_detections)
 
     # Make search area
     if args.res is None:
@@ -167,6 +253,7 @@ if __name__ == "__main__":
     dec_search_range = np.arange(dec_min - fwhm, dec_max + fwhm, res)
     ax.axis([min(ra_search_range), max(ra_search_range), min(dec_search_range), max(dec_search_range)])
 
+    """
     # Find initial estimate using top 3 SN
     RA, DEC, residual = find_pos(dec_search_range, ra_search_range, detections[:3], fwhm)
     ra_initial = RA[residual.index(min(residual))]
@@ -176,6 +263,10 @@ if __name__ == "__main__":
     RA, DEC, residual = find_pos(dec_search_range, ra_search_range, detections[:3], fwhm,
                                  given_fwhm_ra=args.fwhm_ra, given_fwhm_dec=args.fwhm_dec,
                                  initial_pos=[ra_initial, dec_initial])
+    """
+
+    RA, DEC, residual = find_pos(dec_search_range, ra_search_range, centre_detections, fwhm,
+                                 given_fwhm_ra=args.fwhm_ra, given_fwhm_dec=args.fwhm_dec)
 
     ramax = RA[residual.index(min(residual))]
     decmax = DEC[residual.index(min(residual))]
@@ -188,7 +279,10 @@ if __name__ == "__main__":
 
     if args.write:
         with open("predicted_pos.txt","w") as write_file:
-            write_file.write("{}_{} ".format(rah, dech))
+            if args.label:
+                write_file.write("{},{}_{} ".format(args.label, rah, dech))
+            else:
+                write_file.write("{}_{} ".format(rah, dech))
 
     # Calculated predicted SN
     fwhm_ra  = np.degrees(np.radians(fwhm)/cos(np.radians(dec_sn_max + 26.7))**2)
@@ -201,14 +295,12 @@ if __name__ == "__main__":
     print("Predicted SN:  {}".format(round(predicted_sn, 1)))
 
 
-
-
     nx = np.array(RA)
     ny = np.array(DEC)
     nz = np.array(residual)
     #nz = np.array(psf_guass_grid)
 
-    for det in detections:
+    for det in np.array(detections):
         ra, dec, sn = det
         fwhm_ra  = np.degrees(np.radians(fwhm)/cos(np.radians(dec + 26.7))**2)
         fwhm_dec = np.degrees(np.radians(fwhm)/cos(np.radians(dec)) )
@@ -217,7 +309,11 @@ if __name__ == "__main__":
                                    linewidth=0.3, fill=False, edgecolor='green')
         ax.add_patch(ellipse)
         plt.scatter(ra,dec,s=0.5,c='white', zorder=10)
-        ax.text(ra, dec, str(sn), fontsize=8, ha='center', va='center')
+        #print(det, np.array(detections)[~mask])
+        if det[2] in (np.array(sns)[~mask]):
+            ax.text(ra, dec, "{:.2f}".format(sn), fontsize=8, ha='center', va='center', color='0.5')
+        else:
+            ax.text(ra, dec, "{:.2f}".format(sn), fontsize=8, ha='center', va='center', color='0')
 
     #Start plotting
     colour_map = 'plasma_r'
@@ -233,4 +329,4 @@ if __name__ == "__main__":
     plt.colorbar(spacing='uniform', label=r"Residual")
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
-    fig.savefig("residual.png", dpi=1000, bbox_inches='tight')
+    fig.savefig("{}_{}_{}_residual.png".format(args.label, args.obsid, args.calid), dpi=1000, bbox_inches='tight')

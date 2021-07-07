@@ -10,13 +10,20 @@ params.end = 0
 params.all = false
 
 params.summed = false
+params.incoh = false
 params.channels = null
 params.vcstools_version = 'master'
 params.mwa_search_version = 'master'
 
 params.basedir = '/group/mwavcs/vcs'
 params.scratch_basedir = '/astro/mwavcs/vcs'
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.offringa = false
+if ( params.offringa ) {
+    params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/offringa"
+}
+else {
+    params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+}
 params.publish_fits = false
 params.publish_fits_scratch = false
 
@@ -65,11 +72,13 @@ if ( ! params.summed ) {
 }
 
 
+// Set up beamformer output types
+bf_out = " -p "
 if ( params.summed ) {
-    bf_out = " -p -s "
+    bf_out = bf_out + "-s "
 }
-else {
-    bf_out = " -p "
+if ( params.incoh ) {
+    bf_out = bf_out + "-i "
 }
 
 
@@ -160,13 +169,8 @@ process make_beam {
     //time '2h'
     time "${mb_dur*task.attempt}s"
     errorStrategy 'retry'
-    maxRetries 1
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 70
-    }
-    else {
-        maxForks 120
-    }
+    maxRetries 2
+    maxForks params.max_gpu_jobs
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -203,9 +207,16 @@ process make_beam {
 
 
     """
+    if $params.offringa; then
+        DI_file="calibration_solution.bin"
+        jones_option="-O ${params.didir}/calibration_solution.bin -C ${channel_pair[1].toInteger() - 1}"
+    else
+        jones_option="-J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat"
+    fi
+
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
--f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
--d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",")} \
+-f ${channel_pair[0]} \${jones_option} \
+-d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",").replaceAll(~/\s/,"")} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
 ${bf_out} -t 6000 -F ${params.didir}/flagged_tiles.txt  -z $utc
     mv */*fits .
@@ -223,13 +234,8 @@ process make_beam_ipfb {
     //time '2h'
     time "${mb_ipfb_dur*task.attempt}s"
     errorStrategy 'retry'
-    maxRetries 1
-    if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        maxForks 70
-    }
-    else {
-        maxForks 120
-    }
+    maxRetries 2
+    maxForks params.max_gpu_jobs
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
@@ -269,15 +275,22 @@ process make_beam_ipfb {
     file "*vdif"
 
     """
+    if $params.offringa; then
+        DI_file="calibration_solution.bin"
+        jones_option="-O ${params.didir}/calibration_solution.bin -C ${channel_pair[1].toInteger() - 1}"
+    else
+        jones_option="-J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat"
+    fi
+
     if $params.publish_fits; then
         mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
     fi
     if $params.publish_fits_scratch; then
-        mkdir -p -m 771 ${params.scratch_basedir}/${params.obsid}/dpp_pointings/${point}
+        mkdir -p -m 771 ${params.scratch_basedir}/${params.obsid}/pointings/${point}
     fi
 
     make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
--f ${channel_pair[0]} -J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat \
+-f ${channel_pair[0]} \${jones_option} \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
 -p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z $utc

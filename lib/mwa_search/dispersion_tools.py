@@ -65,6 +65,8 @@ def calc_nsub(centrefreq, dm):
     while dm_smear > time_res:
         nsub *= 2.
         dm_smear = dm * 0.01 / nsub * 8.3 * 10.**6 / centrefreq**3
+    if nsub > 1024:
+        nsub = 1024
     return int(nsub)
 
 

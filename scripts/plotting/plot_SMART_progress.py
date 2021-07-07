@@ -278,7 +278,7 @@ def main(shade, shade_light, pulsar, pulsar_cand, res=1, plot_type='svg', ra_off
 
     plot_name = "SMART_progress"
     print("saving {}.{}".format(plot_name, plot_type))
-    fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000, bbox_inches='tight')
+    fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=250, bbox_inches='tight')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""

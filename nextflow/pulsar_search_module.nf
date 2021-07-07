@@ -51,7 +51,7 @@ else {
 if ( "$HOSTNAME".startsWith("farnarkle") ) {
     // In seconds
     search_dd_fft_acc_dur = obs_length * 5.0
-    prepfold_dur = obs_length * 16.0
+    prepfold_dur = obs_length * 24.0
     presto_python_load = "module use ${params.presto_module_dir}; module load presto/${params.presto_module}; module load python/2.7.14; module load matplotlib/2.2.2-python-2.7.14"
 }
 else if ( "$HOSTNAME".startsWith("garrawarla") ) {
@@ -65,12 +65,33 @@ else {
     prepfold_dur = 7200
     presto_python_load = ""
 }
+if ( params.zmax != 0 ) {
+    search_dd_fft_acc_dur *= 4
+}
+
+process get_centre_freq {
+    output:
+    file 'centre_freq.txt'
+
+    """
+    #!/usr/bin/env python3
+
+    from vcstools.metadb_utils import get_common_obs_metadata
+    import csv
+
+    centre_freq = get_common_obs_metadata(${params.obsid})[5]
+
+    with open("centre_freq.txt", "w") as outfile:
+        spamwriter = csv.writer(outfile, delimiter=',')
+        spamwriter.writerow([centre_freq])
+    """
+}
 
 process ddplan {
     label 'ddplan'
 
     input:
-    tuple val(name), val(fits_files) //fits_files is actauly files but I assume this will save me link
+    tuple val(name), val(centre_freq)
 
     output:
     file 'DDplan.txt'
@@ -82,11 +103,8 @@ process ddplan {
     from mwa_search.dispersion_tools import dd_plan
     import csv
 
-    #obsid_pointing = "${fits_files[0]}".split("/")[-1].split("_ch")[0]
-    #print(obsid_pointing)
-
     if '$name'.startswith('Blind'):
-        output = dd_plan(150., 30.72, 3072, 0.1, $params.dm_min, $params.dm_max,
+        output = dd_plan(${centre_freq}, 30.72, 3072, 0.1, $params.dm_min, $params.dm_max,
                          min_DM_step=$params.dm_min_step, max_DM_step=$params.dm_max_step,
                          max_dms_per_job=$params.max_dms_per_job)
     else:
@@ -94,7 +112,7 @@ process ddplan {
             dm = float('$name'.split('dm_')[-1].split('_')[0])
         elif '$name'.startswith('FRB'):
             dm = grab_source_alog(source_type='FRB',
-                 pulsar_list=['$name'.split("_")[0]], include_dm=True)[0][-1]
+                 pulsar_list=['$name'], include_dm=True)[0][-1]
         else:
             # Try RRAT first
             rrat_temp = grab_source_alog(source_type='RRATs',
@@ -109,7 +127,7 @@ process ddplan {
         if dm_min < 1.0:
             dm_min = 1.0
         dm_max = float(dm) + 2.0
-        output = dd_plan(150., 30.72, 3072, 0.1, dm_min, dm_max,
+        output = dd_plan(${centre_freq}, 30.72, 3072, 0.1, dm_min, dm_max,
                          min_DM_step=$params.dm_min_step, max_DM_step=$params.dm_max_step,
                          max_dms_per_job=$params.max_dms_per_job)
     with open("DDplan.txt", "w") as outfile:
@@ -122,18 +140,10 @@ process ddplan {
 
 process search_dd_fft_acc {
     label 'cpu'
-    if ( params.zmax == 0 ) {
-        time { search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
-                   "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
-                   "86400s"}
-    }
-    else {
-        time { 4 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
-                   "${4 * search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
-                   "86400s"}
-    }
-    //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy { task.attempt > 2 ? 'ignore' : 'retry' }
+    time { search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
+                "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
+                "86400s"}
+    memory { "${task.attempt * 3} GB"}
     maxRetries 2
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         maxForks 400
@@ -151,7 +161,7 @@ process search_dd_fft_acc {
     //Will have to change the ACCEL_0 if I do an accelsearch
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.08 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
+        clusterOptions { "--export=NONE --tmp=${ (int) ( 0.12 * obs_length * Float.valueOf(dm_values[3]) / Float.valueOf(dm_values[5]) ) }MB" }
         scratch '$JOBFS'
         beforeScript "module use ${params.module_dir}; module load presto/min_path"
     }
@@ -313,9 +323,11 @@ process prepfold {
 
 process search_dd {
     label 'cpu'
-    time '4h'
-    //Will ignore errors for now because I have no idea why it dies sometimes
-    errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
+    time { search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
+                "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
+                "86400s"}
+    memory { "${task.attempt * 3} GB"}
+    maxRetries 2
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         maxForks 300
     }
@@ -367,7 +379,8 @@ workflow pulsar_search {
     take:
         name_fits_files // [val(candidateName_obsid_pointing), file(fits_files)]
     main:
-        ddplan( name_fits_files )
+        get_centre_freq()
+        ddplan( name_fits_files.map{ it -> it[0] }.combine(get_centre_freq.out.splitCsv()) )
         search_dd_fft_acc( // combine the fits files and ddplan with the matching name key (candidateName_obsid_pointing)
                            ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.\
                            concat(name_fits_files).groupTuple().\
@@ -403,7 +416,8 @@ workflow single_pulse_search {
     take:
         name_fits_files
     main:
-        ddplan( name_fits_files )
+        get_centre_freq()
+        ddplan( name_fits_files.map{ it -> it[0] }.combine(get_centre_freq.out.splitCsv()) )
         search_dd( // combine the fits files and ddplan witht he matching name key (candidateName_obsid_pointing)
                    ddplan.out.splitCsv().map{ it -> [ it[0], [ it[1], it[2], it[3], it[4], it[5], it[6], it[7] ] ] }.concat(name_fits_files).groupTuple().\
                    // Find for each ddplan match that with the fits files and the name key then change the format to [val(name), val(dm_values), file(fits_files)]
