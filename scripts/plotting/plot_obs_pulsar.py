@@ -664,34 +664,17 @@ if __name__ == "__main__":
     if args.lines:
         plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
                  np.full(len(map_ra_range),np.radians(30.)),
-<<<<<<< HEAD
                  'r',  label=r'MWA   ( 80 -    300 MHz)', zorder=130)
-=======
-                 'r',label=r'MWA   ( 80 -    300 MHz)', zorder=130)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),0./180.*np.pi),
                  '--m',label=r'LOFAR ( 10 -    240 MHz)', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-40./180.*np.pi),
-<<<<<<< HEAD
-                 '--g',label=r'GBT   (390 - 49,800 MHz)', zorder=130)
-        """
-        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-                 np.full(len(map_ra_range),-55./180.*np.pi),
-                 linestyle='--', color='orange',
-                       label=r'GMRT  ( 50 -  1,500 MHz)', zorder=130)
-        """
-
-        plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc='upper left', fontsize=6)
-
-=======
                  '--g',label=r'GBT   (290 - 49,800 MHz)', zorder=130)
         plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
                  np.full(len(map_ra_range),-55./180.*np.pi),
                  linestyle='--', color='orange',
                  label=r'GMRT  ( 50 -  1,500 MHz)', zorder=130)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
 
         #handles, labels = ax.get_legend_handles_labels()
                 #plt.legend(bbox_to_anchor=(0.8, 0.85,0.5,0.2), loc='best', numpoints=1,
@@ -703,11 +686,7 @@ if __name__ == "__main__":
     if args.fill:
         import matplotlib.transforms as mtransforms
         trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
-<<<<<<< HEAD
-        map_ra_range = range(-80,481,res)
-=======
         map_ra_range = range(-40,401,res)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
         ff = 30.
         ffa = 28.5
         ax.fill_between(np.array(map_ra_range)/180.*np.pi + -np.pi,
@@ -715,13 +694,10 @@ if __name__ == "__main__":
                         np.full(len(map_ra_range),np.radians((34.5)/90.*ff+ffa)),
                         facecolor='0.5', alpha=0.5, transform=trans)
 
-<<<<<<< HEAD
-=======
         #handles, labels = ax.get_legend_handles_labels()
         #plt.legend(bbox_to_anchor=(0.84, 0.85,0.21,0.2), loc=3,numpoints=1,
         #           ncol=1, mode="expand", borderaxespad=0., fontsize=6)
 
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
 
     # Add pulsars to plot
     if args.pulsar_all:
@@ -806,11 +782,7 @@ if __name__ == "__main__":
             else:
                 ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
             dec_PCAT.append(dec_temp/180.*np.pi)
-<<<<<<< HEAD
-        ax.scatter(ra_PCAT, dec_PCAT, s=10, color ='r', zorder=100)
-=======
         ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=0.5)
->>>>>>> 0cdcf4df0a5d949c414d467c5eab3e4149b4b6d0
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
