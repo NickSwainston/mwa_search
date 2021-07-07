@@ -206,7 +206,7 @@ def main(shade, shade_light, pulsar, pulsar_cand, res=1, plot_type='svg', ra_off
         #Shade selected obs
         if shade_light:
             if sobsid in shade_light:
-                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs = plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
                 for cspath in cspaths:
@@ -216,7 +216,7 @@ def main(shade, shade_light, pulsar, pulsar_cand, res=1, plot_type='svg', ra_off
 
         if shade:
             if sobsid in shade:
-                cs = plt.tricontour(nx, ny, nz, levels=max(nz)/2, alpha=0.0)
+                cs = plt.tricontour(nx, ny, nz, levels=[max(nz)/2], alpha=0.0)
                 cs0 = cs.collections[0]
                 cspaths = cs0.get_paths()
                 for cspath in cspaths:
@@ -278,7 +278,7 @@ def main(shade, shade_light, pulsar, pulsar_cand, res=1, plot_type='svg', ra_off
 
     plot_name = "SMART_progress"
     print("saving {}.{}".format(plot_name, plot_type))
-    fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000, bbox_inches='tight')
+    fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=250, bbox_inches='tight')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""

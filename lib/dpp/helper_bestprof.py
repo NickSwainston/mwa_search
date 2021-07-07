@@ -5,7 +5,8 @@ from os.path import join
 
 from dpp.helper_config import from_yaml, dump_to_yaml
 from dpp.helper_files import glob_pfds
-from vcstools.prof_utils import subprocess_pdv, get_from_ascii, auto_gfit
+from vcstools.prof_utils import subprocess_pdv, get_from_ascii
+from vcstools.gfit import gfit
 
 
 logger = logging.getLogger(__name__)
@@ -70,13 +71,15 @@ def bestprof_info(filename):
 
 def bestprof_fit(cfg, cliptype="verbose"):
     """Fits a profile to the best bestprof and adds it to cfg. Cliptype options found in prof_utils.py"""
-    gfit_kwargs = {"cliptype":cliptype, "period":cfg["source"]["my_P"], "plot_name":cfg["files"]["gfit_plot"]}
     # Get the profile
     bins = str(cfg["source"]["my_bins"])
     pointing = cfg["source"]["my_pointing"]
     profile = cfg["folds"][pointing]["post"][bins]["profile"]
     # Gaussian fit
-    fit = auto_gfit(profile, **gfit_kwargs)
+    g_fitter = gfit(profile, plot_name=cfg["files"]["gfit_plot"])
+    g_fitter.auto_gfit()
+    fit = g_fitter.fit_dict()
+    g_fitter.plot_fit()
     # Find the longest component
     longest_comp = 0
     for comp_name in fit["comp_idx"].keys():
@@ -170,3 +173,19 @@ def best_post_fold(cfg):
         cfg["source"]["my_Pdot"] = info["pdot"]
     else:
         logger.info(f"Continuing with bin count: {cfg['source']['my_bins']}")
+
+
+def classify_init_bestprof(cfg):
+    """Determines whether an iniital fold is a detection based on its PRESTO output"""
+    for pointing in cfg["folds"].keys():
+        # Get the fold info
+        bins = list(cfg["folds"][pointing]["init"].keys())[0]
+        bprof = glob_pfds(cfg, pointing, bins, pfd_type=".pfd.bestprof")[0]
+        cfg["folds"][pointing]["init"][bins] = bestprof_info(bprof)
+        # Evaluate
+        if cfg["folds"][pointing]["init"][bins]["sn"]>0: # Sometimes sigma is zero for some reason
+            psr_eval = True if (cfg["folds"][pointing]["init"][bins]["chi"]>=4 and cfg["folds"][pointing]["init"][bins]["sn"]>=8) else False
+        else:
+            psr_eval = True if cfg["folds"][pointing]["init"][bins]["chi"]>=4 else False
+        cfg["folds"][pointing]["classifier"] = 5 if psr_eval else 0 # classifier >=3 means this is a detection
+        cfg["completed"]["classify"] = True
