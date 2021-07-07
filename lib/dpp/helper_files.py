@@ -49,37 +49,12 @@ def clean_cfg(cfg):
 
 def remove_old_results(cfg):
     """Removes old results from previous ppp runs"""
-    # Remove everything in classify dir
     for f in glob(join(cfg["files"]["classify_dir"], "*")):
         remove(f)
-    # Remove pfds
-    for pointing in cfg["folds"].keys():
-        pfds = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.pfd*"))
-        for pfd in pfds:
-            remove(pfd)
-    # Remove pngs
-    pngs = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.png"))
-    for png in pngs:
-        remove(png)
-    # Remove Postscripts
-    pscripts = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.ps"))
-    for pscript in pscripts:
-        remove(pscript)
-    # Remove other various files
-    files_to_remove = [
-        cfg["files"]["archive"],
-        cfg["files"]["archive_ascii"],
-        cfg["files"]["converted_fits"],
-        cfg["files"]["debased_fits"],
-        cfg["files"]["paswing"],
-        cfg["files"]["RVM_fit_initial"],
-        cfg["files"]["RVM_fit_final"]
-    ]
-    for f in files_to_remove:
-        try:
-            remove(f)
-        except FileNotFoundError as e:
-            pass
+    for pointing in cfg["folds"].keys(): # Remove every 'thing'
+        stuff = glob(join(cfg["files"]["psr_dir"], f"*{cfg['files']['file_precursor']}*.pfd*"))
+        for thing in stuff:
+            remove(thing)
 
 
 def file_precursor(kwargs, psr):
@@ -102,7 +77,10 @@ def setup_classify(cfg):
         init_bins = list(cfg["folds"][pointing]["init"].keys())[0]
         if int(init_bins) not in (50, 100):
             raise ValueError(f"Initial bins for {cfg['source']['name']} is invalid: {init_bins}")
-        pfd_name = glob_pfds(cfg, pointing, init_bins, pfd_type=".pfd")[0]
+        try:
+            pfd_name = glob_pfds(cfg, pointing, init_bins, pfd_type=".pfd")[0]
+        except IndexError as e:
+            raise IndexError(f"No suitable pfds found: {cfg['files']['psr_dir']}")
         # Copy pdf file to classify directory
         newfilename=join(cfg["files"]["classify_dir"], basename(pfd_name))
         copyfile(pfd_name, newfilename)

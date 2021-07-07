@@ -109,7 +109,7 @@ def ppp_archive_creation(cfg, depends_on=None, depend_type="afterany"):
     commands.append(archive_to_fits(cfg["files"]["archive"], container=psrchive_container))
     #Submit_job
     name = f"to_archive_{cfg['source']['name']}_{cfg['obs']['id']}"
-    slurm_kwargs = {"time":"12:00:00"} # dspsr folding can take some time
+    slurm_kwargs = {"time":"08:00:00"} # dspsr folding can take some time
     modules = ["singularity"]
     mem=32768
     jid = submit_slurm(name, commands,
