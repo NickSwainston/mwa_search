@@ -70,6 +70,10 @@ if ( params.obsid == 'no_obsid') {
     println("Please use --obsid.")
     exit(0)
 }
+if ( params.increment > params.max_cpus_per_node ) {
+    println("Please us an --increment less than the max number of cpus per node which is ${params.max_cpus_per_node}.")
+    exit(0)
+}
 
 process check_data_format {
     input:
@@ -181,15 +185,7 @@ process recombine {
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
     maxRetries 3
     maxForks params.max_jobs
-    
-    if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
-        clusterOptions {"--nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
-                        "--ntasks-per-node=${begin_time_increment[1]}"}
-    }
-    else {
-        clusterOptions {"--nodes=${1} "+\
-                        "--ntasks-per-node=${params.max_cpus_per_node}"}
-    }
+    clusterOptions {"--nodes=1 --ntasks-per-node=${begin_time_increment[1]}"}
 
     beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load mpi4py"
     
