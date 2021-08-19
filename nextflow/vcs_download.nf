@@ -107,6 +107,8 @@ process check_data_format {
         data_type = 11
         dl_dir = os.path.join(data_dir, target_dir)
         dir_description = "Raw"
+        # also make combined dir
+        mdir(os.path.join(data_dir, 'combined'), "Combined")
     elif data_format == 6:
         target_dir = link = 'combined'
         data_type = 16
@@ -187,7 +189,7 @@ process recombine {
     maxForks params.max_jobs
     clusterOptions {"--nodes=1 --ntasks-per-node=${begin_time_increment[1]}"}
 
-    beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load mpi4py"
+    beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load gcc/8.3.0; module load cfitsio; module load mpi4py"
     
     input:
     val data_type

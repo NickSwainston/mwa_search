@@ -20,7 +20,7 @@ params.mwa_search_version = 'master'
 
 params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.publish_fits = false
-params.publish_fits_scratch = false
+params.publish_fits_scratch = true
 params.publish_all_classifer_cands = false
 
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"

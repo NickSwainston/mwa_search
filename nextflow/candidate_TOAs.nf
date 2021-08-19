@@ -8,7 +8,7 @@ include { pre_beamform; beamform } from './beamform_module'
 //params.out_dir = "${params.search_dir}/psr2_timing/${params.obsid}_toas"
 params.out_dir = "${params.search_dir}/psr2_timing"
 
-params.bins = 128
+params.bins = 256
 params.period = ""
 params.dm = ""
 params.nchan = 48
@@ -23,7 +23,7 @@ params.time_split = false
 params.fits_file = "None"
 params.fits_file_dir = "None"
 //params.std_profile = "/astro/mwavcs/nswainston/pulsar_timing/1255444104_cand_0.90004_23.1227_archive_24chan_profile.pTP"
-params.std_profile = "/astro/mwavcs/pulsar_search/psr2_timing/1274143152_J0024-1932_profile.ar"
+params.std_profile = "/astro/mwavcs/pulsar_search/psr2_timing/psr2_1275178816.profile"
 params.label = "psr2"
 
 params.help = false
@@ -166,12 +166,13 @@ process dspsr_time {
     }
     //may need to add some channel names
     """
-    dspsr -t $task.cpus -b ${params.bins} ${eph_command} -L ${subint_command} -e subint -cont -U 4000 ${params.dspsr_options} *fits
+    #-L ${subint_command}
+    dspsr -t $task.cpus -b ${params.bins} ${eph_command} -e pulse -cont -U 4000 ${params.dspsr_options} *fits
     pam -pTF -e pTDF --name ${params.label} *.subint
 
     # Update file names
     for i in \$(ls); do
-        mv \$i ${fits_files.baseName}_\$i
+        mv \$i ${fits_files.baseName.split("_ch")[0]}_obs_${params.label}_\$i
     done
     """
 }
@@ -211,7 +212,7 @@ process combine_obs_toas {
     file toa_tims_and_subints
 
     output:
-    file "*all.tim"
+    file "*_${params.label}.tim"
     file "*.ar"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
@@ -223,13 +224,14 @@ process combine_obs_toas {
 
     """
     cat *tim > temp.tim
-    awk  '/FORMAT 1/&&c++>0 {next} 1' temp.tim > ${toa_tims_and_subints[0].baseName.split("_")[0]}_all.tim
-    psradd -f ${toa_tims_and_subints[0].baseName.split("_")[0]}.ar *.subint
+    awk  '/FORMAT 1/&&c++>0 {next} 1' temp.tim > ${toa_tims_and_subints[0].baseName.split("_")[0]}_${params.label}.tim
+    psradd -f ${toa_tims_and_subints[0].baseName.split("_")[0]}_obs_${params.label}.ar *.subint
     """
 }
 
 process combine_all_toas {
     publishDir "${params.out_dir}", mode: 'copy'
+    when params.fits_file_dir != "None"
 
     input:
     file toa_tims
@@ -295,7 +297,7 @@ workflow {
     //get_toas( dspsr_out_pTDF.flatten().view(),
     //          std_profile )
     get_toas( dspsr_out_pTDF.flatten().combine(std_profile) )
-    combine_obs_toas( get_toas.out[0].flatten().concat(dspsr_out_subint.flatten()).map{ it -> [ it.baseName.split("_ch")[0], it ] }.\
+    combine_obs_toas( get_toas.out[0].flatten().concat(dspsr_out_subint.flatten()).map{ it -> [ it.baseName.split("_obs")[0], it ] }.\
                       groupTuple().map{ it -> it[1] } )
-    combine_all_toas( combine_obs_toas.out[0].view().collect() )
+    combine_all_toas( combine_obs_toas.out[0].collect() )
 }
