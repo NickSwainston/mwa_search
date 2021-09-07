@@ -220,7 +220,7 @@ process prepfold {
 
 process pdmp {
     label 'cpu'
-    time '6h'
+    time '8h'
     publishDir params.out_dir, mode: 'copy'
 
     when:
