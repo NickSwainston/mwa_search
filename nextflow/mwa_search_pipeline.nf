@@ -110,22 +110,25 @@ process bestprof_pointings {
 
     import glob
     import csv
+    from vcstools.pointing_utils import format_ra_dec
 
     dm_pointings = []
     if "${params.bestprof_pointings}" == "null":
         pointings = ["${pointings.join('", "')}"]
         for p in pointings:
-            dm_pointings.append([p, "Blind", "None"])
+            ra, dec = format_ra_dec([[p.split("_")[0], p.split("_")[1]]])[0]
+            dm_pointings.append(["{}_{}".format(ra, dec), "Blind", "None"])
     else:
         bestprof_files = glob.glob("*.bestprof")
         for bfile_loc in bestprof_files:
             pointing = bfile_loc.split("${params.obsid}_")[-1].split("_DM")[0]
+            ra, dec = format_ra_dec([[pointing.split("_")[0], pointing.split("_")[1]]])[0]
             with open(bfile_loc,"r") as bestprof:
                 lines = bestprof.readlines()
                 dm = lines[14][22:-1]
                 period = lines[15][22:-1]
                 period, period_uncer = period.split('  +/- ')
-            dm_pointings.append([pointing, "dm_{}".format(dm), period])
+            dm_pointings.append(["{}_{}".format(ra, dec), "dm_{}".format(dm), period])
 
     with open("${params.obsid}_DM_pointing.csv", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
