@@ -48,6 +48,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--n_pointings', type=int, default=None, help='Number of pointings per output file.')
     parser.add_argument('--out_file_name', type=str, help='The output file name.')
     parser.add_argument('--add_text', action="store_true", help='Adds the pointing in text for each circle on the output plot')
+    parser.add_argument('--plot_max_min', action="store_true", help='Plots the beam size at the maximum and minimum frequency')
 
     args=parser.parse_args()
 
@@ -254,7 +255,8 @@ if __name__ == "__main__":
     else:
         plt.axes().set_aspect('equal')
         ax = plt.gca()
-        #ax.axis([325., 345., -9., 0.])
+        #ax.axis([325., 335., -33., -23.])
+        #ax.axis([0., 10., -75., -65.])
 
     plt.xlabel("ra (degrees)")
     plt.ylabel("dec (degrees)")
@@ -266,12 +268,29 @@ if __name__ == "__main__":
                                 color='r', lw=0.1,fill=False)
             ax.add_artist(circle)
         else:
-            fwhm_vert = np.degrees(centre_fwhm/cos(np.radians(decds[i] + 26.7))**2)
-            fwhm_horiz = np.degrees(centre_fwhm/cos(np.radians(decds[i])) )
+            if args.plot_max_min:
+                # low frequency
+                lf_centre_fwhm = centre_fwhm * centrefreq / (centrefreq - 15.36)
+                fwhm_vert = np.degrees(lf_centre_fwhm/cos(np.radians(decds[i] + 26.7))**2)
+                fwhm_horiz = np.degrees(lf_centre_fwhm/cos(np.radians(decds[i])) )
+                ellipse = patches.Ellipse((rads[i],decds[i]), fwhm_horiz, fwhm_vert,
+                                            linewidth=0.3, fill=False, edgecolor='red')
+                ax.add_patch(ellipse)
 
-            ellipse = patches.Ellipse((rads[i],decds[i]), fwhm_horiz, fwhm_vert,
-                                          linewidth=0.3, fill=False, edgecolor='green')
-            ax.add_patch(ellipse)
+                # high frequency
+                hf_centre_fwhm = centre_fwhm * centrefreq / (centrefreq + 15.36)
+                fwhm_vert = np.degrees(hf_centre_fwhm/cos(np.radians(decds[i] + 26.7))**2)
+                fwhm_horiz = np.degrees(hf_centre_fwhm/cos(np.radians(decds[i])) )
+                ellipse = patches.Ellipse((rads[i],decds[i]), fwhm_horiz, fwhm_vert,
+                                            linewidth=0.3, fill=False, edgecolor='blue')
+                ax.add_patch(ellipse)
+            else:
+                fwhm_vert = np.degrees(centre_fwhm/cos(np.radians(decds[i] + 26.7))**2)
+                fwhm_horiz = np.degrees(centre_fwhm/cos(np.radians(decds[i])) )
+
+                ellipse = patches.Ellipse((rads[i],decds[i]), fwhm_horiz, fwhm_vert,
+                                            linewidth=0.3, fill=False, edgecolor='green')
+                ax.add_patch(ellipse)
             if args.add_text:
                 ax.text(rads[i], decds[i], str(ras[i] + "_" + decs[i]), fontsize=4, ha='center', va='center')
             #fwhm_circle = centre_fwhm/cos(np.radians(decds[i])) / 2.
