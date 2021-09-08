@@ -4,7 +4,6 @@ import argparse
 import sys
 import os
 
-from vcstools.prof_utils import ProfileLengthError, NoFitError
 from dpp.helper_config import from_yaml, reset_cfg
 from dpp.helper_prepfold import ppp_prepfold
 from dpp.helper_classify import classify_main, read_LOTAAS_classifications
@@ -20,9 +19,7 @@ from dpp.helper_RVMfit import RVM_fit, RVM_file_to_cfg
 from dpp.helper_checks import check_pipe_integrity
 # Custom Errors
 from vcstools.prof_utils import ProfileLengthError, NoFitError
-from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError
-from dpp.helper_bestprof import NoUsableFoldsError
-from dpp.helper_classify import ClassifierFilesNotFoundError
+from dpp.helper_bestprof import NoUsableFolds
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +67,7 @@ def main(kwargs):
             # Read the output of the classifier
             try:
                 read_LOTAAS_classifications(cfg)
-            except ClassifierFilesNotFoundError as e:
+            except FileNotFoundError as e:
                 finish_unsuccessful(cfg, e)
         # Decide on next folds
         try:
