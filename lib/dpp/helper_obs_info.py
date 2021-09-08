@@ -167,11 +167,12 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
         names_ra_dec = np.array(grab_source_alog(max_dm=250))
 
     pulsar_power_dict = {}
-    for pwr in powers:
-        obs_data, meta_data = find_sources_in_obs(
-            [obsid], names_ra_dec,
-            dt_input=100, min_power=pwr, metadata_list=metadata_list)
-        pulsar_power_dict[pwr] = obs_data
+    if len(names_ra_dec) > 0:
+        for pwr in powers:
+            obs_data, meta_data = find_sources_in_obs(
+                [obsid], names_ra_dec,
+                dt_input=100, min_power=pwr, metadata_list=metadata_list)
+            pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data
 
@@ -280,6 +281,8 @@ def get_sources_in_fov(obsid, source_type, fwhm):
             A list of pointings corresponding to the pulsars in name_list
     """
     names_ra_dec = grab_source_alog(source_type=source_type)
+    if len(names_ra_dec) == 0 :
+        return [[],[]]
     obs_data, _ = find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     name_list = []
     pointing_list = []
@@ -409,7 +412,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
     for psr in psrs_list_03:
         if psr in psrs_list_01:
             psrs_03_01.remove(psr)
-    sn_dict_01 = snfu.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
+    sn_dict_01 = snfu.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, common_metadata=meta_data, full_meta=full_meta)
     # Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     for psr in psrs_03_01:
         sn, sn_err, _, _ = sn_dict_01[psr]
