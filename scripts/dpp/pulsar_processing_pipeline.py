@@ -18,6 +18,11 @@ from dpp.helper_relaunch import relaunch_ppp
 from dpp.helper_RM import RM_synth, RM_cor
 from dpp.helper_RVMfit import RVM_fit, RVM_file_to_cfg
 from dpp.helper_checks import check_pipe_integrity
+# Custom Errors
+from vcstools.prof_utils import ProfileLengthError, NoFitError
+from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError
+from dpp.helper_bestprof import NoUsableFoldsError
+from dpp.helper_classify import ClassifierFilesNotFoundError
 
 logger = logging.getLogger(__name__)
 
