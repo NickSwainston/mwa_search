@@ -55,13 +55,6 @@ else {
     obs_length = params.end - params.begin + 1
 }
 
-range = Channel.from( ['001', '002', '003', '004', '005', '006',\
-                       '007', '008', '009', '010', '011', '012',\
-                       '013', '014', '015', '016', '017', '018',\
-                       '019', '020', '021', '022', '023', '024'] )
-
-
-
 bench_max_pointings = 20
 
 //Required temp SSD mem required for gpu jobs
@@ -118,7 +111,7 @@ process make_beam {
     time '12h'
     errorStrategy 'retry'
     maxRetries 1
-    maxForks 24
+    maxForks 48
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
@@ -169,7 +162,7 @@ process make_beam_ipfb {
     time '12h'
     errorStrategy 'retry'
     maxRetries 1
-    maxForks 24
+    maxForks 12
     
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
@@ -218,7 +211,7 @@ process make_beam_single {
     time '12h'
     errorStrategy 'retry'
     maxRetries 1
-    maxForks 24
+    maxForks 12
 
     if ( "$HOSTNAME".startsWith("galaxy") ) {
         beforeScript "module use ${params.module_dir}; module load vcstools/nswainston"
@@ -236,8 +229,8 @@ process make_beam_single {
     else if ( "$HOSTNAME".startsWith("garrawarla") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '/nvmetmp'
-        //container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
+        container = "file:///${params.containerDir}/vcstools/vcstools_single-pixel_legacy.sif"
+        //beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
     }
 
     input:
@@ -278,15 +271,15 @@ single_pointing = Channel.of("00:00:00.00_00:00:00.00")
 workflow {
     pre_beamform()
     make_pointings()
-    make_beam( pre_beamform.out[1].flatten().merge(range),\
+    make_beam( pre_beamform.out[1],\
                pre_beamform.out[2],\
                make_pointings.out.flatten().map{ it -> it.splitCsv().collect().flatten() },\
                pre_beamform.out[0] )
-    make_beam_single( pre_beamform.out[1].flatten().merge(range),\
+    make_beam_single( pre_beamform.out[1],\
                       pre_beamform.out[2],\
                       single_pointing,\
                       pre_beamform.out[0] )
-    make_beam_ipfb( pre_beamform.out[1].flatten().merge(range),\
+    make_beam_ipfb( pre_beamform.out[1],\
                     pre_beamform.out[2],\
                     single_pointing,\
                     pre_beamform.out[0] )
