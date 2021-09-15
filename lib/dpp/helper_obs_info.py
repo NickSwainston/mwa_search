@@ -13,7 +13,7 @@ import vcstools.sn_flux_utils as snfu
 from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
 from vcstools import data_load
 from vcstools.pointing_utils import format_ra_dec
-from vcstools.catalogue_utils import grab_source_alog
+from vcstools.catalogue_utils import grab_source_alog, deg2sex
 from vcstools.beam_calc import find_sources_in_obs
 from vcstools.config import load_config_file
 comp_config = load_config_file()
@@ -167,11 +167,12 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
         names_ra_dec = np.array(grab_source_alog(max_dm=250))
 
     pulsar_power_dict = {}
-    for pwr in powers:
-        obs_data, meta_data = find_sources_in_obs(
-            [obsid], names_ra_dec,
-            dt_input=100, min_power=pwr, metadata_list=metadata_list)
-        pulsar_power_dict[pwr] = obs_data
+    if len(names_ra_dec) > 0:
+        for pwr in powers:
+            obs_data, meta_data = find_sources_in_obs(
+                [obsid], names_ra_dec,
+                dt_input=100, min_power=pwr, metadata_list=metadata_list)
+            pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data
 
@@ -280,6 +281,8 @@ def get_sources_in_fov(obsid, source_type, fwhm):
             A list of pointings corresponding to the pulsars in name_list
     """
     names_ra_dec = grab_source_alog(source_type=source_type)
+    if len(names_ra_dec) == 0 :
+        return [[],[]]
     obs_data, _ = find_sources_in_obs([obsid], names_ra_dec, dt_input=100)
     name_list = []
     pointing_list = []
@@ -300,10 +303,53 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     return [name_list, pointing_list]
 
 
+def apply_offset(pointing_list, offset, angle_offset):
+    """
+    Apply an offset to the input list of pointings
+
+    Parameters:
+    -----------
+    pointing_list: list
+        A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss_dd:mm:ss.ss'
+    offset: float
+        The offset to apply to all pointings in arcseconds
+    angle_offset: float
+        The angle of the offset to apply to all pointings in degrees where zero is north
+
+    Returns:
+    --------
+    offset_pointing_list: list
+        A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss_dd:mm:ss.ss'
+    """
+    # Create astropy SkyCoords
+    rajs  = []
+    decjs = []
+    for p in pointing_list:
+        rajs.append(p.split("_")[0])
+        decjs.append(p.split("_")[1])
+    orig_pos = SkyCoord(rajs, decjs, frame='icrs', unit=(u.hourangle,u.deg))
+
+    # Apply offset
+    offset_pos = orig_pos.directional_offset_by(angle_offset*u.deg, offset*u.arcsec)
+
+    # Convert back to pointing list
+    rajs = offset_pos.ra.to_string(unit=u.hour, sep=':')
+    decjs = offset_pos.dec.to_string(unit=u.degree, sep=':')
+    temp = []
+    for raj, decj in zip(rajs, decjs):
+        temp.append([raj, decj])
+    temp_formated = format_ra_dec(temp, ra_col = 0, dec_col = 1)
+    offset_pointing_list = []
+    for raj, decj in temp_formated:
+        offset_pointing_list.append("{}_{}".format(raj, decj))
+    return offset_pointing_list
+
+
 def find_pulsars_in_fov(obsid, psrbeg, psrend,
                         fwhm=None, search_radius=0.02,
                         meta_data=None, full_meta=None,
-                        no_known_pulsars=False, no_search_cands=False):
+                        no_known_pulsars=False, no_search_cands=False,
+                        offset=0, angle_offset=0):
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
 
@@ -366,7 +412,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
     for psr in psrs_list_03:
         if psr in psrs_list_01:
             psrs_03_01.remove(psr)
-    sn_dict_01 = snfu.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, obs_metadata=meta_data, full_meta=full_meta)
+    sn_dict_01 = snfu.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, common_metadata=meta_data, full_meta=full_meta)
     # Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     for psr in psrs_03_01:
         sn, sn_err, _, _ = sn_dict_01[psr]
@@ -409,6 +455,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
 
         temp = format_ra_dec(temp, ra_col = 1, dec_col = 2)
         jname, raj, decj = temp[0]
+
         #get pulsar period
         period = period_query[period_query['PSRJ'] == PSRJ].reset_index()["P0"][0]
 
@@ -499,6 +546,12 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
         sp_name_list = []
         sp_pointing_list = []
 
+    # Apply offsets
+    pulsar_pointing_list        = apply_offset(pulsar_pointing_list,        offset, angle_offset)
+    vdif_pointing_list          = apply_offset(vdif_pointing_list,          offset, angle_offset)
+    pulsar_search_pointing_list = apply_offset(pulsar_search_pointing_list, offset, angle_offset)
+    sp_pointing_list            = apply_offset(sp_pointing_list,            offset, angle_offset)
+    
     return [pulsar_name_list,
             pulsar_pointing_list,
             vdif_name_list,
@@ -519,9 +572,12 @@ def find_pulsars_in_fov_main(kwargs):
         kwargs["beg"], kwargs["end"] = obs_max_min(kwargs["obsid"])
 
     output_list = find_pulsars_in_fov(kwargs["obsid"], kwargs["begin"], kwargs["end"],
-                                      fwhm=kwargs["fwhm"], search_radius=kwargs["search_radius"],
+                                      fwhm=kwargs["fwhm"],
+                                      search_radius=kwargs["search_radius"],
                                       no_known_pulsars=kwargs["no_known_pulsars"],
-                                      no_search_cands=kwargs["no_search_cands"])
+                                      no_search_cands=kwargs["no_search_cands"],
+                                      offset=kwargs["offset"],
+                                      angle_offset=kwargs["angle_offset"])
     if kwargs['n_pointings'] is None:
         with open(f"{kwargs['obsid']}_fov_sources.csv", 'w', newline='') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',')

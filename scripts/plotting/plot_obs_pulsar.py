@@ -7,9 +7,13 @@ import numpy as np
 import csv
 from scipy.interpolate import UnivariateSpline
 from math import radians, degrees
+from astropy.table import Table
+
+from mwa_pb.primarybeammap_tant import make_primarybeammap
 
 #vcstools
-from vcstools.beam_calc import get_beam_power_over_time
+import vcstools
+from vcstools.beam_calc import get_beam_power_over_time, from_power_to_gain, get_Trec
 from vcstools.catalogue_utils import get_psrcat_ra_dec
 from vcstools.pointing_utils import sex2deg, deg2sex
 from vcstools.metadb_utils import find_obsids_meta_pages, get_common_obs_metadata
@@ -18,171 +22,19 @@ from vcstools.metadb_utils import find_obsids_meta_pages, get_common_obs_metadat
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib import rcParams
+
 rcParams['font.family'] = 'monospace'
-
 plt.rcParams["font.family"] = "monospace"
-
-def SMART_obs_calc(degree_overlap, manual_overlap):
-    """
-    Work out how many observations are required to cover the southern sky
-    """
-
-    #setting up the dec ranges
-    dec_range = [-72., -55., -40.5, -26.7, -13., +1.6, +18.3] #Gleam pointings
-    delays_range = [[0,0,0,0,6,6,6,6,12,12,12,12,18,18,18,18],\
-                    [0,0,0,0,4,4,4,4,8,8,8,8,12,12,12,12],\
-                    [0,0,0,0,2,2,2,2,4,4,4,4,6,6,6,6],\
-                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
-                    [6,6,6,6,4,4,4,4,2,2,2,2,0,0,0,0],\
-                    [12,12,12,12,8,8,8,8,4,4,4,4,0,0,0,0],\
-                    [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0]]
-
-    print("Using GLEAM dec range: {}".format(dec_range))
-    """
-    sweet_dec_range = [-82.8,-71.4,-63.1,-55.,-47.5,-40.4,-33.5,-26.7,-19.9,-13.,-5.9,1.6,9.7,18.6,29.4,44.8]
-    sweet_delays_range= [[0,0,0,0,7,7,7,7,14,14,14,14,21,21,21,21],\
-                         [0,0,0,0,6,6,6,6,12,12,12,12,18,18,18,18],\
-                         [0,0,0,0,5,5,5,5,10,10,10,10,15,15,15,15],\
-                         [0,0,0,0,4,4,4,4,8,8,8,8,12,12,12,12],\
-                         [0,0,0,0,3,3,3,3,6,6,6,6,9,9,9,9],\
-                         [0,0,0,0,2,2,2,2,4,4,4,4,6,6,6,6],\
-                         [0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3],\
-                         [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
-                         [3,3,3,3,2,2,2,2,1,1,1,1,0,0,0,0],\
-                         [6,6,6,6,4,4,4,4,2,2,2,2,0,0,0,0],\
-                         [9,9,9,9,6,6,6,6,3,3,3,3,0,0,0,0],\
-                         [12,12,12,12,8,8,8,8,4,4,4,4,0,0,0,0],\
-                         [15,15,15,15,10,10,10,10,5,5,5,5,0,0,0,0],\
-                         [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0],\
-                         [21,21,21,21,14,14,14,14,7,7,7,7,0,0,0,0],\
-                         [24,24,24,24,16,16,16,16,8,8,8,8,0,0,0,0]]
-
-    dec_range = []
-    delays_range =[]
-    sweet_spots_range = [0,2,4,7,10,12,14]
-    for i in sweet_spots_range:
-      dec_range.append(sweet_dec_range[i])
-      delays_range.append(sweet_delays_range[i])
-    print dec_range
-    """
-
-    #Going to work out how many pointings are needed
-    #setting up some metadata requirements
-    time = 4800 #one hour 20 min
-    channels = range(107,131)
-    minfreq = float(min(channels))
-    maxfreq = float(max(channels))
-    centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2) #in MHz
-
-    start_obsid = '1117624530'
-    start_ra = 180.
-    Dec_FWHM_calc = []
-    RA_FWHM_calc = []
-    for i in range(-89,89,1):
-        for j in range(0,361,1):
-            Dec_FWHM_calc.append(i)
-            RA_FWHM_calc.append(j)
-
-    observations = []
-    ra_list =[]
-    dec_list =[]
-    delays_list = []
-    FWHM = []
-    FWHM_Dec = []
-    pointing_count = 0
-    for i in range(len(dec_range)):
-        #calculating the FWHM at this dec
-        ra_sex, deg_sex = deg2sex(start_ra, dec_range[i])
-        cord = [start_obsid, str(ra_sex), str(deg_sex), 1, delays_range[i],centrefreq, channels]
-        #powout=get_beam_power(cord, zip(RA_FWHM_calc,Dec_FWHM_calc), dt=600)
-        names_ra_dec = np.column_stack((['source']*len(RA_FWHM_calc), RA_FWHM_calc, Dec_FWHM_calc))
-        powout = get_beam_power_over_time(cord, names_ra_dec, dt=600, degrees = True)
-        powout_RA_line = []
-        powout_Dec_line = []
-        RA_line = []
-        Dec_line = []
-        for p in range(len(powout)):
-            #print(int(y[i]/np.pi*180.), int(dec) )
-            if int(Dec_FWHM_calc[p]) == int(dec_range[i]):
-                powout_RA_line.append(float(powout[p]))
-                RA_line.append(float(RA_FWHM_calc[p]))
-            if int (RA_FWHM_calc[p]) == int(start_ra):
-                powout_Dec_line.append(float(powout[p]))
-                Dec_line.append(float(Dec_FWHM_calc[p]))
-
-        print("\nValues for Dec " + str(dec_range[i]))
-        #work out RA FWHM (not including the drift scan, 0sec observation)
-        if args.fwhm:
-            spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
-        else:
-            spline = UnivariateSpline(RA_line, powout_RA_line-np.full(len(powout_RA_line),0.5), s=0)
-        try:
-            r1, r2 = spline.roots()
-        except ValueError:
-            print("No FWHM for " + str(dec_range[i]) + " setting to 1000 to skip")
-            FWHM.append(1000.)
-            pointing_count -=1
-        else:
-            FWHM.append(float(r2-r1))
-            print("FWHM along RA at dec "+ str(dec_range[i]) + ": " + str(FWHM[i]))
-
-        #work out Dec FWHM
-        if args.fwhm:
-            spline = UnivariateSpline(Dec_line, powout_Dec_line-np.max(powout_Dec_line)/2., s=0)
-            r1, r2 = spline.roots()
-            FWHM_Dec.append(float(r2-r1))
-            print("FWHM along Dec at dec "+ str(dec_range[i]) + ": " + str(FWHM_Dec[i]))
-
-        deg_move = total_angle = FWHM[i] - degree_overlap*math.cos(math.radians(dec_range[i])) + \
-                    float(time)/3600.*15.*math.cos(math.radians(dec_range[i]))
-        if manual_overlap is not None:
-            point_num_this_deg = manual_overlap[i]
-        else:
-            point_num_this_deg = int(360./deg_move) + 1
-        print("Number for this dec: " +str(point_num_this_deg))
-        deg_move = 360. / point_num_this_deg
-        overlap_true = FWHM[i] + float(time)/3600.*15.*math.cos(math.radians(dec_range[i])) -\
-                       360./point_num_this_deg
-        print("True overlap this dec: " + str(overlap_true))
-
-        # offset every second dec range by half a FWHM in RA
-        for x in range(point_num_this_deg):
-            if i % 2 == 0:
-                temp_ra = start_ra + x * deg_move
-                observations.append(str(int(start_obsid) + int(x*deg_move*240)))
-            else:
-                temp_ra = start_ra + x * deg_move +\
-                          deg_move / math.cos(math.radians(dec_range[i]))
-                observations.append(str(int(start_obsid) + int(x*deg_move*240) +\
-                                        int(deg_move*120)))
-            if temp_ra > 360.:
-               temp_ra = temp_ra -360.
-            ra_list.append(temp_ra)
-            dec_list.append(dec_range[i])
-            delays_list.append(delays_range[i])
-            total_angle += deg_move
-            pointing_count+=1
-
-    #Sort by ra
-    dec_list =     [x for _,x in sorted(zip(ra_list,dec_list))]
-    delays_list =  [x for _,x in sorted(zip(ra_list,delays_list))]
-    observations = [x for _,x in sorted(zip(ra_list,observations))]
-    ra_list = sorted(ra_list)
-
-    return observations, dec_list, ra_list, delays_list
-
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     A ploting script tha can be used to plot MWA tile beams, pulsars and used to work out the SMART observations to best cover the southern sky.
 
-    #SMART survey update example
-    plot_obs_pulsar.py -m 6 9 11 11 11 11 11 --smart -f --contour --pulsar J2241-5236 J2145-0750 J2222-0137 J2248-0101 J2330-2005 J0034-0721 J0133-6957 J2324-6054 J0206-4028 J0051+0423
-    #SMART sensitivity example
-    plot_obs_pulsar.py -m 6 9 11 11 11 11 11 --sens --smart -f
-    #All MWA tile beam example
-    plot_obs_pulsar.py -f --contour --all_obsids
+    # SMART survey update example
+    plot_obs_pulsar.py --smart --contour --fwhm --shade 1221832280 --pulsar J2241-5236
+    # All pulsars detected update
+    plot_obs_pulsar.py --lines --pulsar_detected --pulsar_all
     """)
     obs_group = parser.add_argument_group('Observation Options')
     obs_group.add_argument('--obsid_list', type=str, nargs='*',
@@ -193,10 +45,6 @@ if __name__ == "__main__":
                            help='Calculates the sensitivity assuming thast all observations are incoherent')
     obs_group.add_argument('--smart', action='store_true',
                            help='Cover the Southern sky with observations for the SMART survey.')
-    obs_group.add_argument('-m', '--manual', nargs='+', type=int,
-                           help='Used with the --smart option to manually decide the obs at each declination, input them as 1 2 3 4 5 6 7')
-    obs_group.add_argument('-d', '--degree_overlap', type=float, default=10.,
-                           help='Used with the --smart option to manually set degrees overlap in RA of the observations')
 
     obs_plot_group = parser.add_argument_group('Observation Plot Types Options')
     obs_plot_group.add_argument('-s', '--sens', action='store_true',
@@ -220,10 +68,9 @@ if __name__ == "__main__":
     add_group.add_argument('--fill', action='store_true',
                            help='Shades the area the MWA can view.')
     add_group.add_argument('--shade', type=str, nargs='+',
-                           choices=['red','green','purple','darkorange','blue'],
-                           help='Shades the chosen colour observations group')
+                           help="Shades the chosen SMART observations in their group's colour")
     add_group.add_argument('--shade_dark', type=str, nargs='+',
-                           help='Shades the chosen colour observations group in a darker shade')
+                           help="Shades the chosen SMART observations in their group's colour in a darker shade")
 
     plot_group = parser.add_argument_group('Plotting Options')
     plot_group.add_argument('-f', '--fwhm', action='store_true',
@@ -238,6 +85,11 @@ if __name__ == "__main__":
                             help='Offsets the RA by 180 so that 0h is in the centre')
     args=parser.parse_args()
 
+    if args.shade is None:
+        args.shade = []
+    if args.shade_dark is None:
+        args.shade_dark = []
+
     #Setting up some of the plots
     fig = plt.figure(figsize=(6, 4))
     plt.rc("font", size=8)
@@ -248,96 +100,143 @@ if __name__ == "__main__":
         fig.add_subplot(111)
         ax = plt.axes(projection='mollweide')
 
-    #levels = np.arange(0.25, 1., 0.05)
-    colors= ['0.5' for _ in range(50)] ; colors[0]= 'blue'
-    linewidths= [0.4 for _ in range(50)] ; linewidths[0]= 1.0
-    alpha = 0.5
-
-
-    #setting up some default metadata requirements
-    time = 4800 #one hour 20 min
-    channels = range(107,131)
-    minfreq = float(min(channels))
-    maxfreq = float(max(channels))
-    centrefreq = 1.28 * (minfreq + (maxfreq-minfreq)/2) #in MHz
-
-
-    #setting up RA Dec ranges for power calculations
-    res = args.resolution
-    """
-    map_dec_range = range(-90,91,res)
-    map_ra_range = range(0,361,res)
-    RA=[]; Dec=[]; x = []; y = []
-    for i in map_dec_range:
-        for j in map_ra_range:
-            Dec.append(i)
-            RA.append(j)
-    for c in range(len(nx)):
-        if args.ra_offset:
-            if RA[c] > 180:
-                x.append(-RA[c]/180.*np.pi+2*np.pi)
-            else:
-                x.append(-RA[c]/180.*np.pi)
-        else:
-            x.append(-RA[c]/180.*np.pi +np.pi)
-        y.append(Dec[c]/180.*np.pi)
-    nx = np.array(x)
-    ny = np.array(y)
-    """
-    x, y = np.meshgrid(np.arange(radians(-220),radians(220),radians(res)), np.arange(radians(-90),radians(90),radians(res)))
-    nx = x.flatten()
-    ny = y.flatten()
-    print("nx[0]: {}".format(nx[0]))
+    SMART_metadata = [[0,  "B01", 1221399680, 330.4, -55.0, 485.2025886731764],
+                      [1,  "B11", 1224859816, 26.8, -40.5, 556.9647747432614],
+                      [2,  "B13", 1225462936, 26.7, -13.0, 331.86653166218633],
+                      [3,  "B12", 1225118240, 26.7, 18.3, 341.3620055149172],
+                      [4,  "B08", 1255444104, 10.3, 1.6, 305.7533254406002],
+                      [5,  "B07", 1226062160, 10.3, -26.7, 323.97803282220093],
+                      [6,  "R04", 1253991112, 59.6, -40.5, 1181.8889758595633],
+                      [7,  "R06", 1255197408, 59.5, -13.0, 539.441404631389],
+                      [8,  "R05", 1254594264, 59.5, 18.3, 514.2419541109191],
+                      [9,  "R01", 1252177744, 43.1, 1.6, 402.84351804664345],
+                      [10,  "B09", 1224252736, 10.3, -55.0, 630.9987013958337],
+                      [11,  "R02", 1252780888, 43.2, -26.7, 516.5156849677168],
+                      [12,  "R07", 1255803168, 70.7, -72.0, 703.2055393641183],
+                      [13,  "R11", 1258221008, 92.4, -40.5, 1247.09836182679],
+                      [14,  "R13", 1259427304, 92.4, -13.0, 1584.809382180877],
+                      [15,  "R12", 1259685792, 92.3, 18.3, 798.7570113207142],
+                      [16,  "R08", 1256407632, 75.9, 1.6, 708.4877578024384],
+                      [17,  "R09", 1257010784, 76.0, -26.7, 1402.3420463411076],
+                      [18,  "R03", 1253471952, 50.5, -55.0, 1157.9046233152903],
+                      [19,  "G03", 1265983624, 125.2, -40.5, 431.2404793320135],
+                      [20,  "G05", 1266155952, 125.2, -13.0, 419.04163672012044],
+                      [21,  "G04", 1265725128, 125.1, 18.3, 513.7287694105486],
+                      [22,  "G01", 1260638120, 108.8, 1.6, 1105.0211571453797],
+                      [23,  "G02", 1261241272, 108.8, -26.7, 752.9763557348592],
+                      [24,  "G07", 1266932744, 130.8, -72.0, 400.8497056702416],
+                      [25,  "R10", 1257617424, 90.6, -55.0, 873.9331664865599],
+                      [26,  "G10", 1266680784, 158.0, -40.5, 260.8619238675119],
+                      [27,  "G12", 1267283936, 158.0, -13.0, 268.4828321612615],
+                      [28,  "G11", 1267111608, 158.0, 18.3, 301.6840118891714],
+                      [29,  "G08", 1264867416, 141.6, 1.6, 333.59045655270245],
+                      [30,  "G09", 1265470568, 141.6, -26.7, 327.6740077361826],
+                      [31,  "G06", 1266329600, 130.7, -55.0, 384.9208116734909],
+                      [32,  "P03", 1301240224, 189.4, -72.0, 274.7182722250136],
+                      [33,  "P04", 1301412552, 189.7, -40.5, 241.17168261322232],
+                      [34,  "P01", 1300809400, 189.8, -13.0, 259.86860074501965],
+                      [35,  "P02", 1300981728, 189.8, 18.3, 272.32140642907405],
+                      [36,  "G14", 1268063336, 174.4, 1.6, 255.88849067515707],
+                      [37,  "G15", 1268321832, 174.4, -26.7, 256.6585566652418],
+                      [38,  "G13", 1267459328, 170.8, -55.0, 260.94380858094223],
+                      [39,  "P10", 1302282040, 222.6, -40.5, 215.7375485651304],
+                      [40,  "P08", 1302712864, 222.6, -13.0, 218.39597671244337],
+                      [41,  "P09", 1302540536, 222.6, 18.3, 296.4060200961309],
+                      [42,  "P06", 1301847296, 206.2, 1.6, 269.7246468073163],
+                      [43,  "P05", 1301674968, 206.2, -26.7, 237.03569055167804],
+                      [44,  "P13", 1303408712, 249.8, -72.0, 265.02151156889687],
+                      [45,  "O03", 45, 255.4, -40.5, 213.03080878759312],
+                      [46,  "O01", 46, 255.4, -13.0, 248.37431355295476],
+                      [47,  "O02", 47, 255.5, 18.3, 353.42164847654067],
+                      [48,  "P12", 1303233776, 239.0, 1.6, 248.3332046976002],
+                      [49,  "P11", 1303061448, 239.0, -26.7, 201.61303622511758],
+                      [50,  "P07", 1302106648, 209.8, -55.0, 237.72379751220038],
+                      [51,  "O08", 51, 288.2, -40.5, 322.0344774986738],
+                      [52,  "O06", 52, 288.2, -13.0, 331.07145047411336],
+                      [53,  "O07", 53, 288.3, 18.3, 315.7291354581284],
+                      [54,  "O05", 54, 271.8, 1.6, 367.1944697208984],
+                      [55,  "O04", 55, 271.8, -26.7, 253.9714034120429],
+                      [56,  "P14", 1303581040, 249.9, -55.0, 225.88809681630931],
+                      [57,  "O12", 57, 310.0, -72.0, 313.9497458711496],
+                      [58,  "O15", 58, 321.0, -40.5, 413.92311637458226],
+                      [59,  "O13", 59, 321.1, -13.0, 231.0562246031418],
+                      [60,  "O14", 60, 321.1, 18.3, 222.81859327759065],
+                      [61,  "O11", 61, 304.7, 1.6, 231.22506724387483],
+                      [62,  "O10", 62, 304.6, -26.7, 326.7710193608],
+                      [63,  "O09", 63, 290.0, -55.0, 308.4414704172357],
+                      [64,  "B06", 1225713560, 353.9, -40.5, 322.45779818341566],
+                      [65,  "B04", 1222697776, 353.9, -13.0, 252.2502890782203],
+                      [66,  "B05", 1223042480, 353.9, 18.3, 250.79478665500204],
+                      [67,  "B02", 1221832280, 337.5, 1.6, 225.43005686605576],
+                      [68,  "B03", 1222435400, 337.5, -26.7, 259.8762531531204],
+                      [69,  "B10", 1227009976, 10.6, -72.0, 589.7263747353302]]
 
     #Working out the observations required -----------------------------------------------
     if args.all_obsids:
-        observations = find_obsids_meta_pages(params={'mode':'VOLTAGE_START','cenchan':145})
-        #print(observations)
-        #observations = [o for o in observations if o <=  1104109216]
-        #print(observations)
+        observations = find_obsids_meta_pages(params={'mode':'VOLTAGE_START'})#,'cenchan':145})
     elif args.obsid_list:
         observations = args.obsid_list
-        pointing_count = len(observations)
     elif args.smart:
-        observations, dec_list, ra_list, delays_list = SMART_obs_calc(args.degree_overlap, args.manual)
+        observations = np.array(SMART_metadata)[:,2]
+        # Load SMART nz data from file
+        from mwa_search import data_load
+        smart_nz = []
+        with open(data_load.SMART_POWER_FILE, 'rb') as f:
+            for i in range(70):
+                smart_nz.append(np.load(f))
+        args.resolution = 1
     else:
         print("No observation options selected. No observations will be plotted")
         observations = []
     pointing_count = len(observations)
 
+    #setting up RA Dec ranges for power calculations
+    res = args.resolution
+    #x, y = np.meshgrid(np.arange(radians(-220),radians(220),radians(res)), np.arange(radians(-90),radians(90),radians(res)))
+    #x, y = np.meshgrid(np.arange(radians(-180.),radians(180.5),radians(res)), np.arange(radians(-90.),radians(90.5),radians(res)))
+    x, y = np.meshgrid(np.flip(np.arange(radians(-180.),radians(180.5),radians(res)), 0), np.arange(radians(-90.),radians(90.5),radians(res)))
+    nx = x.flatten()
+    ny = y.flatten()
+    #print("nx[0]: {}".format(nx[0]))
+    #print(nx.shape, ny.shape)
 
+
+
+    # Sense array initialisation
     nz_sens_overlap = np.zeros(len(nx))
-    nz_shade_colour = {'red'        : np.zeros(len(nx)),
-                       'green'      : np.zeros(len(nx)),
-                       'purple'     : np.zeros(len(nx)),
-                       'darkorange' : np.zeros(len(nx)),
-                       'blue'       : np.zeros(len(nx))}
-    
-    nz_shade_colour_dark = {'red'        : np.zeros(len(nx)),
-                            'green'      : np.zeros(len(nx)),
-                            'purple'     : np.zeros(len(nx)),
-                            'darkorange' : np.zeros(len(nx)),
-                            'blue'       : np.zeros(len(nx))}
     #nz_sens = np.full(len(nx), 50.)
     nz_sens = np.zeros(len(nx))
     nz_sens[:] = np.nan
-    max_ra_list = []
-    RA_FWHM_atdec =[]
 
-    #Print colour group files
-    if args.smart:
-        colour_groups = ['red','green','purple','darkorange','blue']
-        for c in range(len(colour_groups)):
-            f = open(str(colour_groups[c]) + '_group_file.txt','w')
-            f.write('RA\tDec\n')
-            f.close()
+    # Set up default colours
+    colors= ['0.5' for _ in range(50)] ; colors[0]= 'blue'
+    linewidths= [0.4 for _ in range(50)] ; linewidths[0]= 1.0
+    alpha = 0.5
+    smart_colours = {'B': {'light': 'skyblue', 'dark': 'blue'},
+                     'R': {'light': 'lightcoral', 'dark': 'red'},
+                     'G': {'light': 'lightgreen', 'dark': 'green'},
+                     'P': {'light': 'orchid', 'dark': 'purple'},
+                     'O': {'light': 'orange', 'dark': 'darkorange'}}
+    smart_colours_nzs = {'B': {'light': np.zeros(len(nx)), 'dark': np.zeros(len(nx))},
+                         'R': {'light': np.zeros(len(nx)), 'dark': np.zeros(len(nx))},
+                         'G': {'light': np.zeros(len(nx)), 'dark': np.zeros(len(nx))},
+                         'P': {'light': np.zeros(len(nx)), 'dark': np.zeros(len(nx))},
+                         'O': {'light': np.zeros(len(nx)), 'dark': np.zeros(len(nx))}}
 
+    # make extra nx ny and nz for the dec edges that mollweid projection fucks up
+    x_1, y_1 = np.meshgrid(np.arange(radians(-220.),radians(-179.5),radians(res)), np.arange(radians(-90.),radians(90.5),radians(res)))
+    x_2, y_2 = np.meshgrid(np.arange(radians(181.),radians(220.5),radians(res)), np.arange(radians(-90.),radians(90.5),radians(res)))
+    #print(x_1.flatten(), x_2.flatten())
+    nx_blue = np.concatenate((x_1.flatten(), x_2.flatten()))
+    ny_blue = np.concatenate((y_1.flatten(), y_2.flatten()))
+    nz_blue = np.zeros(len(nx_blue))
+    for i in range(len(nx_blue)):
+        if radians(-45) < ny_blue[i] < radians(28):
+            nz_blue[i] = 0.8
 
     # a little hack to save metadata to speed up repeated calls
     if args.obsid_list or args.all_obsids:
-        dec_list = []
-        ra_list = []
-        delays_list = []
+        common_meta_list = []
         if not os.path.exists('obs_meta.csv'):
             os.mknod('obs_meta.csv')
         with open('obs_meta.csv', 'r') as csvfile:
@@ -368,179 +267,138 @@ if __name__ == "__main__":
                 with open('obs_meta.csv', 'a') as csvfile:
                     spamwriter = csv.writer(csvfile)
                     spamwriter.writerow([ob, ra, dec, time, delays,centrefreq, channels])
-            cord = [ob, ra, dec, time, delays,centrefreq, channels]
-            ra_list.append(ra)
-            dec_list.append(dec)
-            delays_list.append(delays)
+            common_meta_list.append([ob, ra, dec, time, delays,centrefreq, channels])
 
+    #write_file = open("temp_tsys.txt","w")
     #Loop over observations and calc beam power
     for i, ob in enumerate(observations):
-        print("Calculating obs {0}/{1}".format(i + 1, len(observations)))
-        ra = ra_list[i]
-        dec = dec_list[i]
-        delays = delays_list[i]
+        # Calculate power over sky
+        if args.smart:
+            nz = np.array(smart_nz[i])
 
-        cord = [ob, ra, dec, time, delays, centrefreq, channels]
-        z=[] ; z_sens =[]
+            mnzi = np.argmax(nz)
+            #print("i: {}  ra: {:6.1f}  dec: {:6.1f}".format(i, degrees(nx[mnzi])+180, degrees(ny[mnzi])))
+            if args.fwhm:
+                levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
+            else:
+                levels = np.arange(0.5, 1., 0.05)
+            colors[0]= smart_colours[SMART_metadata[i][1][0]]['dark']
+            # Populate colour nzs
+            for colour in smart_colours.keys():
+                if colour == SMART_metadata[i][1][0]:
+                    # Same colour
+                    if ob in args.shade:
+                        for zi in range(len(nz)):
+                            if nz[zi] >= levels[0]:
+                                smart_colours_nzs[colour]['light'][zi] = nz[zi]
+                    if ob in args.shade_dark:
+                        for zi in range(len(nz)):
+                            if nz[zi] >= levels[0]:
+                                smart_colours_nzs[colour]['dark'][zi] = nz[zi]
+            # Work out Tsys
+            """
+            ra, dec = SMART_metadata[i][3:]
+            # from dec work out merdian delays
+            if dec == -72.0:
+                delays = [0,0,0,0,6,6,6,6,12,12,12,12,18,18,18,18]
+            elif dec == -55.0:
+                delays = [0,0,0,0,4,4,4,4,8,8,8,8,12,12,12,12]
+            elif dec == -40.5:
+                delays = [0,0,0,0,2,2,2,2,4,4,4,4,6,6,6,6]
+            elif dec == -26.7:
+                delays = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            elif dec == -13.0:
+                delays = [6,6,6,6,4,4,4,4,2,2,2,2,0,0,0,0]
+            elif dec == 1.6:
+                delays = [12,12,12,12,8,8,8,8,4,4,4,4,0,0,0,0]
+            elif dec == 18.3:
+                delays = [18,18,18,18,12,12,12,12,6,6,6,6,0,0,0,0]
+            else:
+                print("No matching for {}".format(dec))
+            # make fake obsid for RA
+            fake_obs = 1117624530 + int(ra*240)
+            # use mwa_pb to work out tsys
+            _, _, Tsky_XX, _, _, _, Tsky_YY, _ = make_primarybeammap(fake_obs, delays, 154.24*1e6, 'analytic', plottype='None')
+            t_sky = (Tsky_XX + Tsky_YY) / 2.
+            # Get T_sys by adding Trec and Tsky (other temperatures are assumed to be negligible
+            file_loc = vcstools.data_load.TRCVR_FILE,
+            t_sys_table = t_sky + get_Trec(Table.read(file_loc,format="csv"), 154.24)
+            t_sys = np.mean(t_sys_table)
+            write_file.write('[{},  "{}", {}, {}, {}, {}],\n'.format(SMART_metadata[i][0], SMART_metadata[i][1], SMART_metadata[i][2],
+                                                                     SMART_metadata[i][3], SMART_metadata[i][4], t_sys))
+            """
+            t_sys = SMART_metadata[i][5]
 
-        #print(max(Dec), min(RA), Dec.dtype)
-        time_intervals = 600 # seconds
-        names_ra_dec = np.column_stack((['source']*len(nx), np.degrees(nx), np.degrees(ny)))
-        powout = get_beam_power_over_time(cord, names_ra_dec, dt=time_intervals, degrees = True)
-        #grab a line of beam power for the pointing declination
-        #if i == 0:
-        #    print("len powers list: " + str(powout.shape))
-        for c in range(len(nx)):
-            temppower = 0.
-            temppower_sense = 0.
-            for t in range(powout.shape[1]):
-                power_ra = powout[c,t,0]
-                temppower_sense += power_ra #average power kinds
-                nz_sens_overlap[c] += power_ra * math.cos(ny[c])
-                if power_ra > temppower:
-                    temppower = power_ra
-            z_sens.append(temppower_sense)
-            z.append(temppower)
+            # average duty cycle from ATNF
+            duty_cycle = 0.1
 
-        nz=np.array(z)
+            # Work out Smin
+            z_sens = []
+            for z in nz:
+                gain = from_power_to_gain(z, 154.24*1e6, 128, coh=True)
+                smin = 10 * t_sys * np.sqrt(duty_cycle/(1-duty_cycle)) /\
+                               ( gain * np.sqrt(2*4800*30.72*10e6) ) * 1000
+                if not math.isinf(smin):
+                    z_sens.append( smin )
+                else:
+                    z_sens.append(np.nan)
+
+        else:
+            print("Calculating obs {0}/{1}".format(i + 1, len(observations)))
+            ob, ra, dec, time, delays, centrefreq, channels = common_meta_list[i]
+            z = []; z_sens = []
+
+            #print(max(Dec), min(RA), Dec.dtype)
+            time_intervals = 600 # seconds
+            names_ra_dec = np.column_stack((['source']*len(nx), np.degrees(nx), np.degrees(ny)))
+            powout = get_beam_power_over_time(common_meta_list[i], names_ra_dec, dt=time_intervals, degrees = True)
+
+            for c in range(len(nx)):
+                temppower = 0.
+                temppower_sense = 0.
+                for t in range(powout.shape[1]):
+                    power_ra = powout[c,t,0]
+                    temppower_sense += power_ra #average power kinds
+                    nz_sens_overlap[c] += power_ra * math.cos(ny[c])
+                    if power_ra > temppower:
+                        temppower = power_ra
+                z_sens.append(temppower_sense)
+                z.append(temppower)
+
+            nz=np.array(z)
 
         #calculates sensitiviy and removes zeros -------------------------
+        """
         nz_sense_obs = []
         for zsi in range(len(z_sens)):
-            if nz[zsi] < 0.001:
+            #if nz[zsi] < 0.001:
+            if nz[zsi] > 1000:
                 nz_sense_obs.append(np.nan)
             else:
-                nz_sense_obs.append(4.96/np.sqrt(z_sens[zsi]))
+                nz_sense_obs.append(z_sens[zsi])
 
         for zi, zs in enumerate(nz_sense_obs):
+        """
+        #print(z_sens)
+        for zi, zs in enumerate(z_sens):
             if math.isnan(nz_sens[zi]):
                 nz_sens[zi] = zs
             elif nz_sens[zi] > zs:
                 #append if larger
                 nz_sens[zi] = zs
 
-        if args.fwhm:
-            levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
-        else:
-            levels = np.arange(0.5, 1., 0.05)
-
-        # Fill group files ------------------------------------------
-        if args.smart:
-            #find middle ra for each pointing
-            powout_RA_line = []
-            RA_line = []
-            for p in range(len(nz)):
-                if args.ra_offset:
-                    if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
-                        powout_RA_line.append(float(nz[p]))
-                        temp_ra_line = - float(nx[p])*180/np.pi
-                        if temp_ra_line <= 0:
-                            temp_ra_line += 360.
-                        RA_line.append(temp_ra_line)
-
-                else:
-                    if abs(ny[p]*180/np.pi + 0.001 - dec) < 0.5*float(res):
-                        powout_RA_line.append(float(nz[p]))
-                        RA_line.append(180. - float(nx[p])*180/np.pi)
-
-            #if ra_offset it needs to be restarted because it'll start at 180 not 0
-            if args.ra_offset:
-                powout_RA_line = [x for _,x in sorted(zip(RA_line,powout_RA_line))]
-                RA_line = sorted(RA_line)
-                #janky fix because there's two 360 values at the end
-                RA_line = [0.] + RA_line[:-1]
-                powout_RA_line = [powout_RA_line[-1]] + powout_RA_line[:-1]
-
-            spline = UnivariateSpline(RA_line, powout_RA_line-np.max(powout_RA_line)/2., s=0)
-            if len(spline.roots()) != 2:
-                #print(spline.roots())
-                #print(ra,dec)
-                r1 = spline.roots()[-1]
-                r2 = spline.roots()[0]
-            else:
-                r1 = spline.roots()[0]
-                r2 = spline.roots()[1]
-
-            diff = r2 - r1
-            if diff > 180. and dec != -72.0:
-                diff = r1 - (r2 -360)
-                max_ra = r1 - (diff)/2.
-            else:
-                max_ra = r1 + (diff)/2.
-
-            #max_ra = 180.-max_ra*180/np.pi
-            if max_ra < 0.:
-                max_ra += 360.
-            if max_ra > 360.:
-                max_ra -= 360.
-
-            #if abs(max_ra - ra) > 180.:
-            #    max_ra += 180.
-            # I can't hunt down this error but this is what it needs
-            if i == 69:
-                max_ra -= 180.
-            #if i in [0,69]:
-            #    print(max_ra, dec)
-            for c in range(len(colour_groups)):
-                # Split the colour ranges into 5 ra ranges
-                fudge_factor = 35.
-                min_lim = 72.*c + fudge_factor
-                max_lim = 72.*(c+1) + fudge_factor
-                if max_lim >= 360.:
-                    max_lim -= 360.
-                    max_check = True
-                else:
-                    max_check = False
-
-                # This was a temp bit of code to write the obs index on the plot
-                #if args.ra_offset:
-                #    if max_ra > 180:
-                #        ra_text = -max_ra/180.*np.pi+2*np.pi
-                #    else:
-                #        ra_text = -max_ra/180.*np.pi
-                #else:
-                #    ra_text = -max_ra/180.*np.pi+np.pi
-                #dec_text = dec/180.*np.pi
-                #ax.text(ra_text, dec_text, str(i), fontsize=12, ha='center', va='center')
-
-                # Check if this obs max power RA is in this colours group range
-                if  (min_lim <= max_ra < max_lim) or \
-                    ( max_check and ((min_lim <= max_ra < 360.   ) or \
-                                     (0.      <= max_ra < max_lim)) ):
-                        #print("Hit colour {}:".format(colour_groups[c]))
-                        colors = ['0.5' for _ in range(50)]
-                        colors[0] = colour_groups[c]
-
-                        f = open(str(colour_groups[c]) + '_group_file.txt','a+')
-                        f.write(str(max_ra) + '\t' + str(dec) + '\n')
-                        f.close()
-                        #plt.scatter(-max_ra/180*np.pi + np.pi, dec/180*np.pi, 1.5,\
-                        #            lw=0, marker='o', color=colour_groups[c])
-
-
-                        if args.shade:
-                            if colour_groups[c] in args.shade:
-                                #or ("blue" in args.shade and i in [0, 69]):
-                                #sum powers for this colour to be shaded when plotting
-                                for zi in range(len(nz)):
-                                    if nz[zi] >= levels[0]:
-                                        nz_shade_colour[colour_groups[c]][zi] = nz[zi]
-
-                        if args.shade_dark:
-                            if colour_groups[c] in args.shade_dark\
-                                or ("blue" in args.shade_dark and i in [0, 69]):
-                                #sum powers for this colour to be shaded when plotting
-                                for zi in range(len(nz)):
-                                    if nz[zi] >= levels[0]:
-                                        nz_shade_colour_dark[colour_groups[c]][zi] = nz[zi]
-
         # plot contours ---------------------------------------
         if args.contour:
             #print("plotting colour {}".format(colors[0]))
+            #print(nx.shape, ny.shape, nz.shape)
             plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha = 0.6,
                            colors=colors,
                            linewidths=linewidths)
-
+        # Label plots with id labels for debugging
+        #ra_text = radians(180-(SMART_metadata[i][3]+10))
+        #dec_text = radians(SMART_metadata[i][4])
+        #ax.text(ra_text, dec_text, str(i), fontsize=12, ha='center', va='center')
+    #write_file.close()
 
     # plot sens -------------------------------------------------------
     if args.sens:
@@ -555,27 +413,8 @@ if __name__ == "__main__":
                 nz = nz_sens * 11.3 #(sqrt128)
             else:
                 nz = nz_sens
-
-        with open('obs_plot_data.csv', 'w') as csvfile:
-            spamwriter = csv.writer(csvfile, delimiter=',')
-            spamwriter.writerow(['RA','Dec','Sens mJy'])
-            for ni in range(len(nx)):
-                if args.ra_offset:
-                    if RA[c] > 180:
-                        x.append(-RA[c]/180.*np.pi+2*np.pi)
-                    else:
-                        x.append(-RA[c]/180.*np.pi)
-                else:
-                    x.append(-RA[c]/180.*np.pi +np.pi)
-                y.append(Dec[c]/180.*np.pi)
-                ra_temp = -math.degrees(nx[ni])
-                if ra_temp < 0.:
-                    ra_temp = ra_temp + 360.
-                spamwriter.writerow([ra_temp, math.degrees(ny[ni]), nz[ni]])
-
-        nx.shape = (len(map_dec_range),len(map_ra_range))
-        ny.shape = (len(map_dec_range),len(map_ra_range))
-        nz.shape = (len(map_dec_range),len(map_ra_range))
+        nx.shape = ny.shape = nz.shape = (len(np.arange(radians(-90.),radians(90.5),radians(res))),
+                                          len(np.arange(radians(-180.),radians(180.5),radians(res))))
         if args.ra_offset:
             roll_by = len(map_ra_range)//2
             nx = np.roll(nx, roll_by)
@@ -588,63 +427,66 @@ if __name__ == "__main__":
         if args.incoh:
             plt.pcolor(nx, ny, nz, cmap=colour_map, vmin=20, vmax=90)
         else:
-            plt.pcolor(nx, ny, nz, cmap=colour_map, vmin=2., vmax=10.)
+            plt.pcolor(nx, ny, nz, cmap=colour_map, vmax=10., vmin=2.)
         plt.colorbar(spacing='uniform', shrink = 0.65, #ticks=[2., 10., 20., 30., 40., 50.],
                      label=r"Detection Sensitivity, 10$\sigma$ (mJy)")
 
     #Add extra plot layers ---------------------------------------
 
-    #shades only the selected colout
+    # Shades only the selected colour
     if (args.shade or args.shade_dark) and args.smart:
-        for c in colour_groups:
-            if args.shade_dark:
-                if c in args.shade_dark:
-
-                    nz = nz_shade_colour_dark[c]
+        for colour in smart_colours.keys():
+            if len(args.shade) > 1:
+                nz = smart_colours_nzs[colour]['light']
+                if colour == 'B':
+                    print(max(nz))
+                    cs = plt.tricontour(np.concatenate((nx, nx_blue)),
+                                        np.concatenate((ny, ny_blue)),
+                                        np.concatenate((nz, nz_blue)), levels=[levels[0]], alpha=0.0)
+                else:
                     cs = plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha=0.0)
-                    cs0 = cs.collections[0]
-                    cspaths = cs0.get_paths()
-                    for cspath in cspaths:
-                        spch_0 = patches.PathPatch(cspath, facecolor=c,
-                                                edgecolor='gray',lw=0.5, alpha=0.6)
-                        ax.add_patch(spch_0)
+                cs0 = cs.collections[0]
+                cspaths = cs0.get_paths()
+                for cspath in cspaths:
+                    spch_0 = patches.PathPatch(cspath, facecolor=smart_colours[colour]['light'],
+                                            edgecolor='gray',lw=0.5, alpha=0.6)
+                    ax.add_patch(spch_0)
 
-            if args.shade:
-                if c in args.shade:
-                    #choose lighter equivalent colour
-                    if   c == 'red':
-                        ecolour = 'lightcoral'
-                    elif c == 'blue':
-                        ecolour = 'skyblue'
-                    elif c == 'purple':
-                        ecolour = 'violet'
-                    else:
-                        ecolour = c
-
-                    nz = nz_shade_colour[c]
+            if len(args.shade_dark) > 1:
+                nz = smart_colours_nzs[colour]['dark']
+                if colour == 'B':
+                    cs = plt.tricontour(np.concatenate((nx, nx_blue)),
+                                        np.concatenate((ny, ny_blue)),
+                                        np.concatenate((nz, nz_blue)), levels=[levels[0]], alpha=0.0)
+                else:
                     cs = plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha=0.0)
-                    cs0 = cs.collections[0]
-                    cspaths = cs0.get_paths()
-                    for cspath in cspaths:
-                        spch_0 = patches.PathPatch(cspath, facecolor=ecolour,
-                                                edgecolor='gray',lw=0.5, alpha=0.45)
-                        ax.add_patch(spch_0)
+                cs0 = cs.collections[0]
+                cspaths = cs0.get_paths()
+                for cspath in cspaths:
+                    spch_0 = patches.PathPatch(cspath, facecolor=smart_colours[colour]['dark'],
+                                            edgecolor='gray',lw=0.5, alpha=0.8)
+                    ax.add_patch(spch_0)
 
     #add lines of other surveys
     if args.lines:
-        plt.plot(np.radians(np.array(map_ra_range)) - np.pi,
-                 np.full(len(map_ra_range),np.radians(30.)),
-                 'r',  label=r'MWA   ( 80 -    300 MHz)', zorder=130)
-        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-                 np.full(len(map_ra_range),0./180.*np.pi),
-                 '--m',label=r'LOFAR ( 10 -    240 MHz)', zorder=130)
-        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-                 np.full(len(map_ra_range),-40./180.*np.pi),
-                 '--g',label=r'GBT   (290 - 49,800 MHz)', zorder=130)
-        plt.plot(np.array(map_ra_range)/180.*np.pi + -np.pi,
-                 np.full(len(map_ra_range),-55./180.*np.pi),
+        x_line = np.arange(radians(-180.),radians(180.5),radians(res))
+        plt.plot(x_line,
+                 np.full(len(x_line),radians(30.)),
+                 #'r',  label=r'MWA   ( 80 -    300 MHz)', zorder=130)
+                 'r',  label=r'MWA', zorder=130)
+        plt.plot(x_line,
+                 np.full(len(x_line),radians(0.)),
+                 #'--m',label=r'LOFAR ( 10 -    240 MHz)', zorder=130)
+                 '--m',label=r'LOFAR', zorder=130)
+        plt.plot(x_line,
+                 np.full(len(x_line),radians(-40.)),
+                 #'--g',label=r'GBT   (290 - 49,800 MHz)', zorder=130)
+                 '--g',label=r'GBT', zorder=130)
+        plt.plot(x_line,
+                 np.full(len(x_line),radians(-55.)),
                  linestyle='--', color='orange',
-                 label=r'GMRT  ( 50 -  1,500 MHz)', zorder=130)
+                 #label=r'GMRT  ( 50 -  1,500 MHz)', zorder=130)
+                 label=r'GMRT', zorder=130)
 
         #handles, labels = ax.get_legend_handles_labels()
                 #plt.legend(bbox_to_anchor=(0.8, 0.85,0.5,0.2), loc='best', numpoints=1,
@@ -663,7 +505,6 @@ if __name__ == "__main__":
                         np.full(len(map_ra_range),np.radians((-100)/90.*ff+ffa)),
                         np.full(len(map_ra_range),np.radians((34.5)/90.*ff+ffa)),
                         facecolor='0.5', alpha=0.5, transform=trans)
-
 
     # Add pulsars to plot
     if args.pulsar_all:
@@ -726,9 +567,10 @@ if __name__ == "__main__":
                 else:
                     ra_PCAT.append(-ra_temp/180.*np.pi)
             else:
-                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
-            dec_PCAT.append(dec_temp/180.*np.pi)
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='purple', zorder=100)
+                #ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
+                ra_PCAT.append(radians(180-ra_temp))
+            dec_PCAT.append(radians(dec_temp))
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
 
     if args.pulsar_discovered:
         #add some pulsars
@@ -745,7 +587,7 @@ if __name__ == "__main__":
             else:
                 ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
             dec_PCAT.append(dec_temp/180.*np.pi)
-        ax.scatter(ra_PCAT, dec_PCAT, s=10, color ='r', zorder=100)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=0.5)
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
@@ -753,13 +595,16 @@ if __name__ == "__main__":
     #xtick_labels = ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h']
     if args.ra_offset:
         xtick_labels = ['10h', '8h', '6h', '4h', '2h', '0h', '22h', '20h', '18h', '16h', '14h']
-        xticks = [150., 120., 90., 60., 30., 0., 330., 300., 270., 240., 210. ]
+        xticks_moll = [150., 120., 90., 60., 30., 0., 330., 300., 270., 240., 210. ]
     else:
         xtick_labels = [ '22h', '20h', '18h', '16h', '14h','12h','10h', '8h', '6h', '4h', '2h']
-        xticks = [330., 300., 270., 240., 210., 180., 150., 120., 90., 60., 30.]
+        xticks_moll = [330., 300., 270., 240., 210., 180., 150., 120., 90., 60., 30.]
+    xticks_square = np.radians(180 - np.array(xticks_moll))
 
     if args.square:
-        plt.xticks(xticks, tuple(xtick_labels))
+        plt.xticks(xticks_square, tuple(xtick_labels))
+        ytick_labels = [-75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75]
+        plt.yticks(np.radians(np.array(ytick_labels)), tuple(ytick_labels))
     else:
         ax.set_xticklabels(xtick_labels, zorder=150)
     print("plotting grid")
@@ -793,18 +638,3 @@ if __name__ == "__main__":
     fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000, bbox_inches='tight')
     #plt.show()
 
-
-    if args.smart:
-        #sort the output into the right order
-        import glob
-        from operator import itemgetter
-        for g in glob.glob("./*group*"):
-            with open(g) as f:
-                lines = [line.split("\t") for line in f]
-                lines = lines[1:]
-                lines = sorted(lines, key=itemgetter(0))
-            with open(g, 'w') as csvfile:
-                spamwriter = csv.writer(csvfile, delimiter=',')
-                spamwriter.writerow(['RA','Dec'])
-                for l in lines:
-                    spamwriter.writerow(["("+str(round(float(l[0]),1)),l[1][:-1]+")"])

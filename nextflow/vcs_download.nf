@@ -15,6 +15,7 @@ params.parallel_dl = 3
 params.untar_jobs = 2
 params.keep_tarball = false
 params.keep_raw = false
+params.max_jobs = 12
 
 params.vcstools_version = 'master'
 params.mwa_voltage_version = 'master'
@@ -37,6 +38,7 @@ if ( params.help ) {
              |
              |Optional arguments:
              |  --increment Increment in seconds (how much we process at once). [default: 64]
+             |  --max_jobs  Number of maximum jobs of each type to run at once (to limit IO). [default: 12]
              |  --parallel_dl
              |              Number of parallel downloads to envoke. [default: 3]
              |  --untar_jobs
@@ -68,6 +70,10 @@ if ( params.obsid == 'no_obsid') {
     println("Please use --obsid.")
     exit(0)
 }
+if ( params.increment > params.max_cpus_per_node ) {
+    println("Please us an --increment less than the max number of cpus per node which is ${params.max_cpus_per_node}.")
+    exit(0)
+}
 
 process check_data_format {
     input:
@@ -86,6 +92,10 @@ process check_data_format {
     import vcstools.metadb_utils as meta
     from vcstools.general_utils import mdir
 
+    # Ensure the metafits files is there
+    meta.ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
+                         "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
+
     data_dir = '${params.scratch_basedir}/${params.obsid}'
     obsinfo = meta.getmeta(service='obs', params={'obs_id':'${params.obsid}'})
     comb_del_check = meta.combined_deleted_check(${params.obsid}, begin=${begin}, end=${end})
@@ -97,6 +107,8 @@ process check_data_format {
         data_type = 11
         dl_dir = os.path.join(data_dir, target_dir)
         dir_description = "Raw"
+        # also make combined dir
+        mdir(os.path.join(data_dir, 'combined'), "Combined")
     elif data_format == 6:
         target_dir = link = 'combined'
         data_type = 16
@@ -130,6 +142,7 @@ process volt_download {
     time { "${500*params.increment*task.attempt + 900}s" }
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
     maxRetries 3
+    maxForks params.max_jobs
 
     input:
     val data_type
@@ -151,6 +164,7 @@ process untar {
     time { "${200*params.increment*task.attempt + 900}s" }
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
     maxRetries 3
+    maxForks params.max_jobs
 
     beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
 
@@ -172,17 +186,10 @@ process recombine {
     time { "${500*params.increment*task.attempt + 900}s" }
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
     maxRetries 3
-    
-    if ( { params.max_cpus_per_node > begin_time_increment[1] } ) {
-        clusterOptions {"--nodes=${( params.increment - (params.increment % begin_time_increment[1]) ) / begin_time_increment[1] + 1} "+\
-                        "--ntasks-per-node=${begin_time_increment[1]}"}
-    }
-    else {
-        clusterOptions {"--nodes=${1} "+\
-                        "--ntasks-per-node=${params.max_cpus_per_node}"}
-    }
+    maxForks params.max_jobs
+    clusterOptions {"--nodes=1 --ntasks-per-node=${begin_time_increment[1]}"}
 
-    beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load mpi4py"
+    beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load gcc/8.3.0; module load cfitsio; module load mpi4py"
     
     input:
     val data_type
