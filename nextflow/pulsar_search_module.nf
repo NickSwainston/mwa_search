@@ -208,9 +208,15 @@ process accelsift {
     output:
     tuple val(name), file("cands_*greped.txt")
 
-    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
-              "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+    if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ||\
+         "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        container = "file:///${params.containerDir}/presto/presto_sandbox"
+        // tmp storage for container image
+        clusterOptions { "--tmp=1000MB" }
+        scratch '$JOBFS'
     }
     else {
         container = "nickswainston/presto:realfft_docker"
@@ -244,6 +250,12 @@ process single_pulse_searcher {
     if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
          "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${params.containerDir}/sps/sps.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        container = "file:///${params.containerDir}/sps/sps_sandbox"
+        // tmp storage for container image
+        clusterOptions { "--tmp=1000MB" }
+        scratch '$JOBFS'
     }
     else {
         container = "nickswainston/sps"
