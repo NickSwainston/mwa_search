@@ -27,6 +27,22 @@ rcParams['font.family'] = 'monospace'
 plt.rcParams["font.family"] = "monospace"
 
 
+def deg_to_plotmap(ra, dec, ra_offset=False, square=False):
+    if ra_offset:
+        ra += 180.
+        if ra > 360.:
+            ra -= 360
+    if square:
+        return ra, dec
+    else:
+        #if ra > 180:
+        #    ra_out = radians(-ra + 360)
+        #else:
+        #    ra_out = radians(-ra)
+        ra_out = radians(-ra + 180)
+        dec_out = radians(dec)
+        return ra_out, dec_out
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
     A ploting script tha can be used to plot MWA tile beams, pulsars and used to work out the SMART observations to best cover the southern sky.
@@ -400,6 +416,13 @@ if __name__ == "__main__":
         #ax.text(ra_text, dec_text, str(i), fontsize=12, ha='center', va='center')
     #write_file.close()
 
+    if args.ra_offset:
+        for i, nxi in enumerate(nx):
+            nxi += radians(180.)
+            if nxi > radians(360.):
+                nxi -= radians(360.)
+            nx[i] = nxi
+
     # plot sens -------------------------------------------------------
     if args.sens:
         if args.overlap:
@@ -514,17 +537,9 @@ if __name__ == "__main__":
         pulsar_list = get_psrcat_ra_dec()
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
-            if args.ra_offset:
-                if ra_temp > 180.:
-                    ra_temp -= 180.
-                else:
-                    ra_temp += 180.
-            if args.square:
-                ra_PCAT.append(ra_temp)
-                dec_PCAT.append(dec_temp)
-            else:
-                ra_PCAT.append(-(ra_temp-180.)/180.*np.pi)
-                dec_PCAT.append(dec_temp/180.*np.pi)
+            ra_map, dec_map = deg_to_plotmap(ra_temp, dec_temp, ra_offset=args.ra_offset, square=args.square)
+            ra_PCAT.append(ra_map)
+            dec_PCAT.append(dec_map)
         #print(min(ra_PCAT), max(ra_PCAT))
         ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color ='b', zorder=1)
 
@@ -541,15 +556,10 @@ if __name__ == "__main__":
         pulsar_pos_list = get_psrcat_ra_dec(pulsar_list=pulsar_list)
         for pulsar in pulsar_pos_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
-            if args.ra_offset:
-                if ra_temp > 180:
-                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
-                else:
-                    ra_PCAT.append(-ra_temp/180.*np.pi)
-            else:
-                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
-            dec_PCAT.append(dec_temp/180.*np.pi)
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
+            ra_map, dec_map = deg_to_plotmap(ra_temp, dec_temp, ra_offset=args.ra_offset, square=args.square)
+            ra_PCAT.append(ra_map)
+            dec_PCAT.append(dec_map)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='purple', zorder=100)
 
     if args.pulsar:
         #add some pulsars
@@ -561,33 +571,23 @@ if __name__ == "__main__":
         pulsar_list = get_psrcat_ra_dec(pulsar_list=raw_pulsar_list)
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
-            if args.ra_offset:
-                if ra_temp > 180:
-                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
-                else:
-                    ra_PCAT.append(-ra_temp/180.*np.pi)
-            else:
-                #ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
-                ra_PCAT.append(radians(180-ra_temp))
-            dec_PCAT.append(radians(dec_temp))
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=100)
+            ra_map, dec_map = deg_to_plotmap(ra_temp, dec_temp, ra_offset=args.ra_offset, square=args.square)
+            ra_PCAT.append(ra_map)
+            dec_PCAT.append(dec_map)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='purple', zorder=100)
 
     if args.pulsar_discovered:
         #add some pulsars
         ra_PCAT = []
         dec_PCAT = []
-        pulsar_list = [["J0036-1033", "00:36:14.58", "-10:33:16.40"]]
+        pulsar_list = [["J0036-1033", "00:36:14.58", "-10:33:16.40"],
+                       ["J0026-1955", "00:26:36.49", "-19:55:54.87"]]
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
-            if args.ra_offset:
-                if ra_temp > 180:
-                    ra_PCAT.append(-ra_temp/180.*np.pi+2*np.pi)
-                else:
-                    ra_PCAT.append(-ra_temp/180.*np.pi)
-            else:
-                ra_PCAT.append(-ra_temp/180.*np.pi+np.pi)
-            dec_PCAT.append(dec_temp/180.*np.pi)
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='g', zorder=0.5)
+            ra_map, dec_map = deg_to_plotmap(ra_temp, dec_temp, ra_offset=args.ra_offset, square=args.square)
+            ra_PCAT.append(ra_map)
+            dec_PCAT.append(dec_map)
+        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=120)
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
