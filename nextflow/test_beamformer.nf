@@ -1,4 +1,4 @@
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 params.vcstools_version = 'master'
 params.scratch_basedir = '/astro/mwavcs/vcs'

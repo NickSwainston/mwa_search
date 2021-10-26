@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 params.cand_dir = null
 params.out_dir = "${params.cand_dir}"
