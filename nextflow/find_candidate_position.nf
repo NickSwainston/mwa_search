@@ -348,7 +348,7 @@ process publish_best_pointing {
     file fits
 
     output:
-    file '*' includeInputs true
+    path '*', includeInputs: true
 
     """
     echo outputing ${fits}
@@ -374,7 +374,7 @@ workflow find_pos {
                   // group by pointing
                   groupTuple().map{ it -> [ it[0], it[1][1], it[1][0] ] } )
         pdmp( // combine bestprof and fits files
-              prepfold.out[0].map{ it -> [it.baseName.split("_pos")[0].split("${params.obsid}_")[1], it ] }.concat(beamform.out[3])
+              prepfold.out[0].map{ it -> [it.baseName.split("_pos")[0].split("${params.obsid}_")[1], it ] }.concat(beamform.out[3]).\
               // group by pointing
               groupTuple().map{ it -> [ it[0], it[1][0], it[1][1] ] } )
 
@@ -439,7 +439,7 @@ workflow {
               // group by pointing
               groupTuple().map{ it -> [ it[0], it[1][1], it[1][0] ] } )
     pdmp( // combine bestprof and fits files
-          prepfold.out[0].map{ it -> [it.baseName.split("_pos")[0].split("${params.obsid}_")[1], it ] }.concat(beamform.out[3])
+          prepfold.out[0].map{ it -> [it.baseName.split("_pos")[0].split("${params.obsid}_")[1], it ] }.concat(beamform.out[3]).\
           // group by pointing
           groupTuple().map{ it -> [ it[0], it[1][0], it[1][1] ] } )
 
