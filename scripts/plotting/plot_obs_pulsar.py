@@ -294,10 +294,6 @@ if __name__ == "__main__":
 
             mnzi = np.argmax(nz)
             #print("i: {}  ra: {:6.1f}  dec: {:6.1f}".format(i, degrees(nx[mnzi])+180, degrees(ny[mnzi])))
-            if args.fwhm:
-                levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
-            else:
-                levels = np.arange(0.5, 1., 0.05)
             colors[0]= smart_colours[SMART_metadata[i][1][0]]['dark']
             # Populate colour nzs
             for colour in smart_colours.keys():
@@ -366,7 +362,7 @@ if __name__ == "__main__":
 
             #print(max(Dec), min(RA), Dec.dtype)
             time_intervals = 600 # seconds
-            names_ra_dec = np.column_stack((['source']*len(nx), np.degrees(nx), np.degrees(ny)))
+            names_ra_dec = np.column_stack((['source']*len(nx), np.degrees(nx), np.round(np.degrees(ny), 2)))
             powout = get_beam_power_over_time(common_meta_list[i], names_ra_dec, dt=time_intervals, degrees = True)
 
             for c in range(len(nx)):
@@ -382,6 +378,12 @@ if __name__ == "__main__":
                 z.append(temppower)
 
             nz=np.array(z)
+
+        # Set plotting color levels
+        if args.fwhm:
+            levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
+        else:
+            levels = np.arange(0.5, 1., 0.05)
 
         #calculates sensitiviy and removes zeros -------------------------
         """
@@ -462,7 +464,6 @@ if __name__ == "__main__":
             if len(args.shade) > 1:
                 nz = smart_colours_nzs[colour]['light']
                 if colour == 'B':
-                    print(max(nz))
                     cs = plt.tricontour(np.concatenate((nx, nx_blue)),
                                         np.concatenate((ny, ny_blue)),
                                         np.concatenate((nz, nz_blue)), levels=[levels[0]], alpha=0.0)
