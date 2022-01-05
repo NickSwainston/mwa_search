@@ -145,6 +145,7 @@ process search_dd_fft_acc {
                 "86400s"}
     memory { "${task.attempt * 3} GB"}
     maxRetries 2
+    errorStrategy 'retry'
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         maxForks 400
     }
@@ -196,7 +197,8 @@ process search_dd_fft_acc {
     realfft *dat
     printf "\\n#Performing the periodic search at \$(date +"%Y-%m-%d_%H:%m:%S") ------------------------------------------\\n"
     for i in \$(ls *.dat); do
-        accelsearch -ncpus $task.cpus -zmax ${params.zmax} -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
+        # Somtimes this has a 255 error code when data.pow == 0 so ignore it
+        accelsearch -ncpus $task.cpus -zmax ${params.zmax} -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft || true
     done
     ${presto_python_load}
     single_pulse_search.py -p -m 0.5 -b *.dat
