@@ -53,9 +53,9 @@ if ( params.help ) {
              |              [default: False]
              |
              |Required pointing arguments:
-             |  --pointings A space sepertated list of pointings with the RA and Dec seperated
+             |  --pointings A comma sepertated list of pointings with the RA and Dec seperated
              |              by _ in the format HH:MM:SS_+DD:MM:SS, e.g.
-             |              "19:23:48.53_-20:31:52.95 19:23:40.00_-20:31:50.00" [default: None]
+             |              "19:23:48.53_-20:31:52.95,19:23:40.00_-20:31:50.00" [default: None]
              |  --pointing_file
              |              A file containing pointings with the RA and Dec seperated by _
              |              in the format HH:MM:SS_+DD:MM:SS on each line, e.g.

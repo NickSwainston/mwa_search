@@ -57,7 +57,7 @@ setup(name="mwa_search",
                    'mwa_search': 'lib/mwa_search'},
       package_data={'mwa_search':['data/*.npy']},
       install_requires=reqs,
-      scripts=['version.py',
+      scripts=['version.py', 'scripts/calc_beamformer_benchmarks.py',
                # mwa_search
                'scripts/mwa_search/cold_storage_mover.py',
                'scripts/mwa_search/grid.py', 'scripts/mwa_search/lfDDplan.py',
