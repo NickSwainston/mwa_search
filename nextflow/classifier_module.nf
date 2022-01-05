@@ -1,4 +1,4 @@
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 
 params.publish_all_classifer_cands = true
@@ -15,7 +15,7 @@ process feature_extract {
 
     output:
     file "*.arff"
-    file "*pfd*" includeInputs true
+    path "*pfd*", includeInputs: true
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use $params.module_dir; module load PulsarFeatureLab/V1.3.2"
@@ -42,7 +42,7 @@ process classify {
 
     output:
     file "feature_extraction*"
-    file "*pfd*" includeInputs true
+    path "*pfd*", includeInputs: true
     
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use $params.module_dir; module load LOTAASClassifier/master"

@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 params.no_combined_check = true
 include { pre_beamform; beamform } from './beamform_module'
 
