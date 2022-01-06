@@ -234,6 +234,13 @@ process accelsift {
         container = "nickswainston/presto:realfft_docker"
     }
     """
+    # Remove incomplete or errored files
+    for i in \$(ls *0); do
+        if [ \$(grep " Number of bins in the time series" \$i | wc -l) == 0 ]; then
+            rm \${i%%_ACCEL_0}*
+        fi
+    done
+
     ACCEL_sift.py --file_name ${name}
     if [ -f cands_${name}.txt ]; then
         grep ${name} cands_${name}.txt > cands_${name}_greped.txt
