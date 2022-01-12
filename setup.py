@@ -63,7 +63,7 @@ setup(name="mwa_search",
                'scripts/mwa_search/grid.py', 'scripts/mwa_search/lfDDplan.py',
                'scripts/mwa_search/LOTAAS_wrapper.py',
                'scripts/mwa_search/search_launch_loop.sh', 'scripts/mwa_search/rsync_rm_loop.sh',
-               'scripts/mwa_search/bestgridpos.py',
+               'scripts/mwa_search/bestgridpos.py', 'scripts/mwa_search/find_clustered_and_known_pulsar_candidates.py',
                # dpp
                'scripts/dpp/make_pulsar_yaml.py', 'scripts/dpp/find_best_pointing.py',
                'scripts/dpp/pulsars_in_fov.py', 'scripts/dpp/prepfold_cmd_make.py',
