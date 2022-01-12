@@ -2,7 +2,7 @@ import logging
 from os.path import join, basename
 
 from vcstools.job_submit import submit_slurm
-from rm_synthesis import rm_synth_pipe
+from vcstools.rm_synth_utils import rm_synth_pipe
 
 logger = logging.getLogger(__name__)
 
