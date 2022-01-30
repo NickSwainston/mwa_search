@@ -1,5 +1,5 @@
 import logging
-from os.path import join
+from os.path import join, isdir
 from glob import glob
 
 from vcstools.config import load_config_file
@@ -75,11 +75,14 @@ def opp_status(obsid):
     for code in STATUS_DICT.keys():
         run_status[code] = []
     for _dir in psr_dirs:
+        if not isdir(_dir):
+            continue
         status, det = cfg_status(_dir)
         if det:
             detections.append(_dir)
         psr_dir = _dir.split("/")[-1]
         try:
+            print(psr_dir)
             run_status[str(status)].append(psr_dir)
         except IndexError as e:
             logger.warn(f"Config file not found in directory: {_dir}")

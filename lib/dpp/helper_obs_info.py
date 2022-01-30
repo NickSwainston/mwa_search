@@ -9,12 +9,12 @@ import psrqpy
 import sys
 
 # vcstools imports
-import vcstools.sn_flux_utils as snfu
+from vcstools.radiometer_equation import multi_psr_snfe
 from vcstools.metadb_utils import get_common_obs_metadata, obs_max_min, get_obs_array_phase
 from vcstools import data_load
 from vcstools.pointing_utils import format_ra_dec
 from vcstools.catalogue_utils import grab_source_alog, deg2sex
-from vcstools.beam_calc import find_sources_in_obs
+from vcstools.beam_calc import find_sources_in_obs, source_beam_coverage_and_times
 from vcstools.config import load_config_file
 comp_config = load_config_file()
 
@@ -109,6 +109,7 @@ def find_fold_times(pulsars, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=N
     """
     if not metadata or not full_meta:
         metadata, full_meta = get_common_obs_metadata(obsid, return_all=True)
+    obs_beg, obs_end = obs_max_min(obsid)
     min_z_power = sorted(min_z_power, reverse=True)
     names_ra_dec = grab_source_alog(pulsar_list=pulsars)
     pow_dict, _ = find_pulsars_power(obsid, powers=min_z_power, names_ra_dec=names_ra_dec, metadata_list=[[metadata, full_meta]])
@@ -121,12 +122,14 @@ def find_fold_times(pulsars, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=N
             fold_time_dict[psr]["leave"] = None
             psr_list = pow_dict[power][obsid]
             if psr_list:  # if pulsar is in beam for this power coverage
-                enter, leave = snfu.pulsar_beam_coverage(
-                    obsid, psr, beg=beg, end=end, min_z_power=power,
-                    metadata=metadata, full_meta=full_meta, query=query)
-                if enter is not None and leave is not None:
-                    fold_time_dict[psr]["enter"] = enter
-                    fold_time_dict[psr]["leave"] = leave
+                files_beg_norm, files_end_norm = source_beam_coverage_and_times(
+                    obsid, psr, files_beg=beg, files_end=end,
+                    obs_beg=obs_beg, obs_end=obs_end,
+                    min_z_power=power, query=query,
+                    common_metadata=metadata)[4:-3]
+                if files_beg_norm is not None and files_end_norm is not None:
+                    fold_time_dict[psr]["enter"] = files_beg_norm
+                    fold_time_dict[psr]["leave"] = files_end_norm
                     break
 
     return fold_time_dict
@@ -171,7 +174,7 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
         for pwr in powers:
             obs_data, meta_data = find_sources_in_obs(
                 [obsid], names_ra_dec,
-                dt_input=100, min_power=pwr, metadata_list=metadata_list)
+                dt_input=100, min_z_power=pwr, metadata_list=metadata_list)
             pulsar_power_dict[pwr] = obs_data
 
     return pulsar_power_dict, meta_data
@@ -412,7 +415,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
     for psr in psrs_list_03:
         if psr in psrs_list_01:
             psrs_03_01.remove(psr)
-    sn_dict_01 = snfu.multi_psr_snfe(psrs_03_01, obsid, beg=psrbeg, end=psrend, min_z_power=0.1, common_metadata=meta_data, full_meta=full_meta)
+    sn_dict_01 = multi_psr_snfe(psrs_03_01, obsid, psrbeg, psrend, min_z_power=0.1, common_metadata=meta_data)
     # Include all bright pulsars in beam at at least 0.1 of zenith normalized power
     for psr in psrs_03_01:
         sn, sn_err, _, _ = sn_dict_01[psr]
