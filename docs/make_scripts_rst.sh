@@ -94,8 +94,8 @@ for script in $(ls ../nextflow/*nf | grep -v module); do
     header_dashes=$(perl -E "say '-' x ${#base_name}")
 
     # Split help into usage, decription and arguments
-    nlines=$(nextflow run $script --help | wc -l)
-    description=$(nextflow run $script --help | tail -n $((nlines - 2)))
+    nlines=$(./nextflow run $script --help | wc -l)
+    description=$(./nextflow run $script --help | tail -n $((nlines - 2)))
 
     # Print the help and pipe it to a file
     echo ".. _${base_name//_/-}-label:

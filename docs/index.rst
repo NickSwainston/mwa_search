@@ -1,7 +1,7 @@
 .. mwa_search documentation master file
 
 Welcome to mwa_search's documentation!
-==========================================
+======================================
 
 .. toctree::
    :maxdepth: 2
