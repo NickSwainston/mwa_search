@@ -67,7 +67,6 @@ setup(name="mwa_search",
                'scripts/mwa_search/bestgridpos.py', 'scripts/mwa_search/find_clustered_and_known_pulsar_candidates.py',
                # dpp
                'scripts/dpp/pulsars_in_fov.py',
-               'scripts/dpp/pulsar_polarimetry.py',
                'scripts/dpp/observation_processing_pipeline.py',
                'scripts/dpp/opp_status.py',
                # plotting
