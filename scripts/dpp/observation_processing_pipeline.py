@@ -2,7 +2,6 @@
 import logging
 import argparse
 
-from vcstools.config import load_config_file
 from vcstools.progress_bar import progress_bar
 from dpp.helper_obs_info import find_pulsars_in_fov, reformat_psrs_pointings
 from dpp.helper_files import setup_cfg_dirs, clean_cfg, find_config_files, create_dpp_dir
@@ -10,7 +9,6 @@ from dpp.helper_config import create_cfgs_main, dump_to_yaml, from_yaml
 from dpp.helper_relaunch import relaunch_ppp
 import pulsar_processing_pipeline as ppp
 
-comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):

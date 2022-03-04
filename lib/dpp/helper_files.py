@@ -7,17 +7,18 @@ from glob import glob
 from vcstools.config import load_config_file
 from vcstools.general_utils import mdir
 
-comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
 def create_dpp_dir(kwargs):
+    comp_config = load_config_file()
     dpp_dir = join(comp_config["base_data_dir"], str(kwargs["obsid"]), "dpp")
     mdir(dpp_dir, dpp_dir)
 
 
 def setup_cfg_dirs(cfg):
     """Creates the necessary folders and symlinks for dpp"""
+    comp_config = load_config_file()
     # Create pulsar directory
     mdir(cfg["files"]["psr_dir"], cfg["files"]["psr_dir"])
     # Create classify dir
@@ -111,6 +112,7 @@ def setup_classify(cfg):
 
 def find_config_files(obsid, label=""):
     """Searches the obsid/dpp directories to find any config (.yaml) files"""
+    comp_config = load_config_file()
     dpp_dir = join(comp_config["base_data_dir"], str(obsid), "dpp")
     yaml_files = join(dpp_dir, "*", f"{obsid}*{label}.yaml")
     config_pathnames = glob(yaml_files)

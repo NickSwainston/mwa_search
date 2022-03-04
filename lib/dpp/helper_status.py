@@ -9,7 +9,7 @@ from dpp.helper_checks import check_file_dir_exists
 from dpp.helper_bestprof import NoUsableFoldsError
 from dpp.helper_checks import InvalidPAFileError, FitsNotFoundError, PFDNotFoundError, PointingNotFoundError
 from dpp.helper_classify import ClassifierFilesNotFoundError, InvalidClassifyBinsError
-comp_config = load_config_file()
+
 logger = logging.getLogger(__name__)
 
 STATUS_DICT = {
@@ -66,6 +66,7 @@ def cfg_status(psr_dir):
 
 def opp_status(obsid):
     """Looks through all cfg files in obsid directory and returns dictionary on their status"""
+    comp_config = load_config_file()
     dpp_dir = join(comp_config["base_data_dir"], obsid, "dpp")
     check_file_dir_exists(dpp_dir)
     glob_cmd = join(dpp_dir, f"{obsid}*")

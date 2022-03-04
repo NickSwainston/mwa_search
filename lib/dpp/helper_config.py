@@ -14,7 +14,6 @@ from vcstools import data_load
 from vcstools.config import load_config_file
 
 
-comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +22,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     Adds all available keys to the cfg dictionary and figures out some useful constants
     Takes kwargs from observation_processing_pipeline
     """
+    comp_config = load_config_file()
     cfg = {"obs": {}, "source": {}, "completed": {}, "folds": {}, "run_ops": {}, "pol": {}, "files":{}}
     if query is None:
         query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas

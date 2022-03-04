@@ -16,15 +16,12 @@ from vcstools.pointing_utils import format_ra_dec
 from vcstools.catalogue_utils import grab_source_alog, deg2sex
 from vcstools.beam_calc import find_sources_in_obs, source_beam_coverage_and_times
 from vcstools.config import load_config_file
-comp_config = load_config_file()
 
 # mwa_search imports
 from mwa_search.grid_tools import get_grid
 from mwa_search.obs_tools import calc_ta_fwhm
 
 logger = logging.getLogger(__name__)
-comp_config = load_config_file()
-
 def _argcheck_find_fold_times(pulsar, obsid, beg, end, min_z_power):
     """Checks that the arguments for find_fold_times are valid"""
     # Pulsar
@@ -180,7 +177,7 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
     return pulsar_power_dict, meta_data
 
 
-def find_beg_end(obsid, base_path=comp_config["base_data_dir"]):
+def find_beg_end(obsid, base_path=None):
     """
     looks through the comined files of the obsid to find the beginning and end gps times
 
@@ -198,6 +195,9 @@ def find_beg_end(obsid, base_path=comp_config["base_data_dir"]):
     end: int
         The end time for on-disk files
     """
+    if base_path is None:
+        comp_config = load_config_file()
+        base_path = comp_config["base_data_dir"]
     #TODO have some sort of check to look for gaps
     if glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid)):
         combined_files = glob.glob("{0}/{1}/combined/{1}*_ics.dat".format(base_path, obsid))
@@ -554,7 +554,7 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
     vdif_pointing_list          = apply_offset(vdif_pointing_list,          offset, angle_offset)
     pulsar_search_pointing_list = apply_offset(pulsar_search_pointing_list, offset, angle_offset)
     sp_pointing_list            = apply_offset(sp_pointing_list,            offset, angle_offset)
-    
+
     return [pulsar_name_list,
             pulsar_pointing_list,
             vdif_name_list,
