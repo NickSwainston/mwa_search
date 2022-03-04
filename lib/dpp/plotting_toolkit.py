@@ -14,7 +14,6 @@ import glob
 import sys
 
 from vcstools import prof_utils
-from dpp import stokes_fold
 
 logger = logging.getLogger(__name__)
 EPNDB_LOC = os.environ["EPNDB_LOC"]
@@ -385,6 +384,7 @@ def plot_archive_stokes(archive, pulsar=None, freq=None, obsid=None, out_dir="./
     fig_path: string
         The path of the output .png file
     """
+    from dpp import stokes_fold
     #make the title
     title = ""
     save_name = "Polarimetry_profile"
