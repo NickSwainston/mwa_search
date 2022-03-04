@@ -67,5 +67,6 @@ html_static_path = ['_static']
 
 # Install Nextflow
 os.system("wget -qO- https://get.nextflow.io | bash")
+os.system("ls")
 # Run automatic geneartion bash script
 os.system("bash make_scripts_rst.sh")

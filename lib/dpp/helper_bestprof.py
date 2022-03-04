@@ -20,10 +20,14 @@ class NoUsableFoldsError(Exception):
 def bestprof_info(filename):
     """
     Finds various information on a .bestprof file
-    Parameters:
+
+    Parameters
+    ----------
     filename: string
         The path of the bestprof file
-    Returns:
+
+    Returns
+    -------
     info_dict: dictionary
         A dictionary consisting of the following:
         obsid: int

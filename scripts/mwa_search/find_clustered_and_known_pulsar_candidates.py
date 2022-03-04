@@ -26,8 +26,8 @@ def find_clustered_cands(cand_data,
     """
     Find candidate that are cluster in period, DM and position
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     cand_data: list
         List of lists in the format
         [RA, Dec, Period(ms), DM, SN, file_loc]
@@ -41,8 +41,8 @@ def find_clustered_cands(cand_data,
         Maximum DM difference between candidates to consider them clustered.
         Default 5
 
-    Returns:
-    --------
+    Returns
+    -------
     clustered_cands: list
         Lost of the file locations of the clustered cands
     """
@@ -119,8 +119,8 @@ def find_known_pulsars(cand_data,
     """
     Find candidate that are cluster in period, DM and position
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     cand_data: list
         List of lists in the format
         [RA, Dec, Period(ms), DM, SN, file_loc]
@@ -134,8 +134,8 @@ def find_known_pulsars(cand_data,
         Maximum DM difference between candidates to consider them clustered.
         Default 5
 
-    Returns:
-    --------
+    Returns
+    -------
     clustered_cands: list
         Lost of the file locations of the clustered cands
     """
@@ -221,13 +221,13 @@ def get_from_bestprof(file_loc):
     """
     Get info from a bestprof file
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     file_loc: string
         The path to the bestprof file
 
-    Returns:
-    --------
+    Returns
+    -------
     [ra, dec, period, dm, sigma, file_loc]: list
     """
 

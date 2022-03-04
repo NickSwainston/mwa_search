@@ -10,21 +10,18 @@ def categorize_classifier_files(out_dir):
     """
     To be run in a directory with LOTAAS classifier out files. Determines which pulsars are in at least 3 of the 5 models provided and lists them in a file
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     otufile_name: string
     OPTIONAL - the name of the file to write the names of the detected pulsars to
 
-    Returns:
-    --------
-    None
     """
 
     #sort all of the classifier files into a dictionary
     class_files = glob.glob("feature_extraction_m*")
     class_file_dict = {"positive":[], "negative":[]}
     class_cand_dict = {"m1":class_file_dict, "m2":class_file_dict, "m3":class_file_dict, "m4":class_file_dict, "m5":class_file_dict}
-    
+
     for filename in class_files:
         split_name = filename.split("_")[-1].split(".")
         model_num = split_name[0]
@@ -85,4 +82,4 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    categorize_classifier_files(args.out_dir)  
+    categorize_classifier_files(args.out_dir)

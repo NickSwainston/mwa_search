@@ -95,7 +95,7 @@ for script in $(ls ../nextflow/*nf | grep -v module); do
 
     # Split help into usage, decription and arguments
     nlines=$(./nextflow run $script --help | wc -l)
-    description=$(./nextflow run $script --help | tail -n $((nlines - 2)))
+    description=$(./nextflow run $script --help | tail -n $((nlines - 2)) | awk '{print "  " $0}')
 
     # Print the help and pipe it to a file
     echo ".. _${base_name//_/-}-label:

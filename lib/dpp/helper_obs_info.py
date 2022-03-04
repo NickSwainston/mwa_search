@@ -79,8 +79,8 @@ def find_fold_times(pulsars, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=N
     """
     Finds the fractional time the pulsar is in the beam at some zenith normalized power
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     pulsar: list
         Pulsar J names of pulsars to evaluate
     obsid: int
@@ -92,7 +92,8 @@ def find_fold_times(pulsars, obsid, beg, end, min_z_power=(0.3, 0.1), metadata=N
     min_z_power: tuple/list
         OPTIONAL - evaluated the pulsar as 'in the beam' at this normalized zenith power. If None will use [0.3, 0.1] Default: None
 
-    Returns:
+    Returns
+    -------
     fold_times_dict: dict
         keys:
             psr: dict
@@ -135,8 +136,8 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
     """
     Finds the beam power information for pulsars in a specific obsid
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     obsid: int
         The observation ID
     powers: list/tuple
@@ -147,8 +148,8 @@ def find_pulsars_power(obsid, powers=None, names_ra_dec=None, metadata_list=None
     metadata: list
         A list of the output of get_common_obs_metadata for the input obsid
 
-    Returns:
-    --------
+    Returns
+    -------
     pulsar_power_dict: dictionary
         Contains keys - power
             Contains key - obsid
@@ -181,15 +182,15 @@ def find_beg_end(obsid, base_path=None):
     """
     looks through the comined files of the obsid to find the beginning and end gps times
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     obsid: int
         The observation ID
     base_path: string
         OPTIONAL - The system's base working pat
 
-    Returns:
-    --------
+    Returns
+    -------
     beg: int
         The beginning time for on-disk files
     end: int
@@ -265,8 +266,8 @@ def get_sources_in_fov(obsid, source_type, fwhm):
     """
     Find all sources of the input type in the observations field-of-view
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     obsid: str
         observation ID to search in
     source_type: str
@@ -275,8 +276,8 @@ def get_sources_in_fov(obsid, source_type, fwhm):
         FWHM of the tied-array beam in degrees.
         Can be calculated in the calc_ta_fwhm function
 
-    Returns:
-    --------
+    Returns
+    -------
     list:
         name_list: list
             A list of pulsars in the FOV
@@ -310,8 +311,8 @@ def apply_offset(pointing_list, offset, angle_offset):
     """
     Apply an offset to the input list of pointings
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     pointing_list: list
         A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss_dd:mm:ss.ss'
     offset: float
@@ -319,8 +320,8 @@ def apply_offset(pointing_list, offset, angle_offset):
     angle_offset: float
         The angle of the offset to apply to all pointings in degrees where zero is north
 
-    Returns:
-    --------
+    Returns
+    -------
     offset_pointing_list: list
         A list of pointings where each pointing contains an RA and a Dec in the format 'hh:mm:ss.ss_dd:mm:ss.ss'
     """
@@ -356,8 +357,8 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
     """
     Find all pulsars in the field of view and return all the pointings sorted into vdif and normal lists:
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     obsid: int
         The observation ID
     psrbeg: int
@@ -384,8 +385,8 @@ def find_pulsars_in_fov(obsid, psrbeg, psrend,
         OPTIONAL - Will return no search candidates
         Default: False
 
-    Returns:
-    --------
+    Returns
+    -------
     list of lists:
            [pulsar_name_list,
             pulsar_pointing_list,
