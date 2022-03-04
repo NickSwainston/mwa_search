@@ -273,7 +273,7 @@ process single_pulse_searcher {
     else if ( "$HOSTNAME".startsWith("farnarkle") ) {
         container = "file:///${params.containerDir}/sps/sps_sandbox"
         // tmp storage for container image
-        clusterOptions { "--tmp=1000MB" }
+        clusterOptions { "--tmp=2000MB" }
         scratch '$JOBFS'
     }
     else {
