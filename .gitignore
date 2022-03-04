@@ -8,3 +8,4 @@ nextflow/work*
 build/
 .eggs/
 .nextflow*
+docs/*_scripts.rst

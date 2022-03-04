@@ -172,7 +172,9 @@ process move_asvo_files {
     """
     if [ ${data_type} == 16 ]; then
         # Move ics files
-        mv ${params.download_dir}/*_ics.dat ${params.scratch_basedir}/${params.obsid}/combined/
+        if compgen -G ${params.download_dir}/*_ics.dat  > /dev/null; then
+            mv ${params.download_dir}/*_ics.dat ${params.scratch_basedir}/${params.obsid}/combined/
+        fi
     fi
     # Move metafits files
     if [ -f ${params.download_dir}/${params.obsid}.metafits ]; then

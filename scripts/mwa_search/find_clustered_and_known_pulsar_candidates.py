@@ -211,7 +211,7 @@ def find_known_pulsars(cand_data,
                 break
         if kp:
             continue
-        
+
         no_known_pulsars.append(file_loc)
         print(file_loc)
     return known_pulsars, no_known_pulsars
@@ -275,7 +275,7 @@ if __name__ == "__main__":
     clust_par.add_argument('-sd', '--sdist', type=float, default=30,
                            help='Radius to search in degrees. Default 30 degrees')
     clust_par.add_argument('-sp', '--speriod', type=float, default=1.,
-                           help='Percentage difference in period to search. Default 1 % ')
+                           help='Percentage difference in period to search. Default 1')
     clust_par.add_argument('--sdm', type=float, default=1.5,
                            help='Maximum DM difference to search. Default 1.5')
 
@@ -302,7 +302,7 @@ if __name__ == "__main__":
             pos_files = glob.glob('/data/nswainston/SMART_cand_sorting/{}/S*/positive_detections/*'.format(args.obsid))
             for pf in pos_files:
                 shutil.move(pf, '/data/nswainston/SMART_cand_sorting/{}/positive_detections'.format(args.obsid))
-            
+
             # Delete old directories
             pos_dirs = glob.glob('/data/nswainston/SMART_cand_sorting/{}/S*/positive_detections/'.format(args.obsid))
             for pd in pos_dirs:
@@ -310,7 +310,7 @@ if __name__ == "__main__":
                 if len(os.listdir(pd)) == 0:
                     # Removing the file using the os.remove() method
                     os.rmdir(pd)
-        
+
         # Read in all ML positively classified candidates
         bestprof_files = glob.glob('/data/nswainston/SMART_cand_sorting/{}/positive_detections/*bestprof'.format(args.obsid))
         if len(bestprof_files) == 0:
@@ -336,7 +336,7 @@ if __name__ == "__main__":
     else:
         print("Please use either --obsid, --glob or --candfile")
         sys.exit(0)
-    
+
 
     # Find clustered canidates
     print("Finding clusted candidates")

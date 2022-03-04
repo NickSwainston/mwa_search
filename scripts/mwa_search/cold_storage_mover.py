@@ -2,7 +2,7 @@
 
 import argparse
 import os
-from mwa_search_pipeline import your_slurm_queue_check
+#from mwa_search_pipeline import your_slurm_queue_check
 from vcstools.job_submit import submit_slurm
 
 def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
@@ -14,7 +14,7 @@ def tar_job_wrapper(hsm_work_dir, file_list, remove=True):
         #only lets 5 jobs at a time to not flood the transfer (could probably handle more
         if os.path.exists(fits_dir):
             print(dir_name)
-            your_slurm_queue_check(max_queue=5, grep='tar', queue='workq')
+            #your_slurm_queue_check(max_queue=5, grep='tar', queue='workq')
             commands = []
             commands.append('cd {}'.format(fits_dir))
             commands.append("srun -n 1 -c 1 tar zcvvf - {0} | ssh hpc-hsm.pawsey.org.au 'cat - > {1}/temp_{2}.tar.gz'".format(fits_dir, hsm_work_dir, fn))
