@@ -66,10 +66,9 @@ setup(name="mwa_search",
                'scripts/mwa_search/search_launch_loop.sh', 'scripts/mwa_search/rsync_rm_loop.sh',
                'scripts/mwa_search/bestgridpos.py', 'scripts/mwa_search/find_clustered_and_known_pulsar_candidates.py',
                # dpp
-               'scripts/dpp/make_pulsar_yaml.py', 'scripts/dpp/find_best_pointing.py',
-               'scripts/dpp/pulsars_in_fov.py', 'scripts/dpp/prepfold_cmd_make.py',
-               'scripts/dpp/post_fold_filter.py', 'scripts/dpp/pulsar_polarimetry.py',
-               'scripts/dpp/pulsar_processing_pipeline.py', 'scripts/dpp/observation_processing_pipeline.py',
+               'scripts/dpp/pulsars_in_fov.py',
+               'scripts/dpp/pulsar_polarimetry.py',
+               'scripts/dpp/observation_processing_pipeline.py',
                'scripts/dpp/opp_status.py',
                # plotting
                'scripts/plotting/plot_obs_pulsar.py',
