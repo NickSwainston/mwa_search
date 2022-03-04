@@ -90,7 +90,9 @@ if __name__ == "__main__":
 
     plot_group = parser.add_argument_group('Plotting Options')
     plot_group.add_argument('-f', '--fwhm', action='store_true',
-                            help='if this options is used the FWHM of each pointing is used. If it is not chosen the FWHM of a zenith pointing is used.')
+                            help='If this options is used the FWHM of each pointing is used. If it is not chosen the FWHM of a zenith pointing is used.')
+    plot_group.add_argument('--all_contours', action='store_true',
+                            help='If this options is used plot all contours.')
     plot_group.add_argument('-r', '--resolution', type=int, default=3,
                             help='The resolution in degrees of the final plot (must be an integer). Default = 1')
     plot_group.add_argument('--square', action='store_true',
@@ -110,10 +112,8 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(6, 4))
     plt.rc("font", size=8)
     if args.square:
-        fig.add_subplot(111)
         ax = plt.axes()
     else:
-        fig.add_subplot(111)
         ax = plt.axes(projection='mollweide')
 
     SMART_metadata = [[0,  "B01", 1221399680, 330.4, -55.0, 485.2025886731764],
@@ -225,8 +225,11 @@ if __name__ == "__main__":
     nz_sens[:] = np.nan
 
     # Set up default colours
-    colors= ['0.5' for _ in range(50)] ; colors[0]= 'blue'
-    linewidths= [0.4 for _ in range(50)] ; linewidths[0]= 1.0
+    colors = ['0.5' for _ in range(50)]
+    if not args.all_contours:
+        colors[0] = 'blue'
+    linewidths = [0.4 for _ in range(50)]
+    linewidths[0] = 1.0
     alpha = 0.5
     smart_colours = {'B': {'light': 'skyblue', 'dark': 'blue'},
                      'R': {'light': 'lightcoral', 'dark': 'red'},
@@ -363,7 +366,7 @@ if __name__ == "__main__":
             #print(max(Dec), min(RA), Dec.dtype)
             time_intervals = 600 # seconds
             names_ra_dec = np.column_stack((['source']*len(nx), np.degrees(nx), np.round(np.degrees(ny), 2)))
-            powout = get_beam_power_over_time(common_meta_list[i], names_ra_dec, dt=time_intervals, degrees = True)
+            powout = get_beam_power_over_time(names_ra_dec, common_metadata=common_meta_list[i],  dt=time_intervals, degrees = True)
 
             for c in range(len(nx)):
                 temppower = 0.
@@ -382,6 +385,9 @@ if __name__ == "__main__":
         # Set plotting color levels
         if args.fwhm:
             levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
+        elif args.all_contours:
+            levels = np.arange(0.25, 1., 0.05)
+            colours = ['0.25'] + ['0.5'] * 14
         else:
             levels = np.arange(0.5, 1., 0.05)
 
@@ -409,7 +415,7 @@ if __name__ == "__main__":
         if args.contour:
             #print("plotting colour {}".format(colors[0]))
             #print(nx.shape, ny.shape, nz.shape)
-            plt.tricontour(nx, ny, nz, levels=[levels[0]], alpha = 0.6,
+            plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6,
                            colors=colors,
                            linewidths=linewidths)
         # Label plots with id labels for debugging
@@ -636,6 +642,6 @@ if __name__ == "__main__":
     plot_type = args.plot_type
     #plt.title(plot_name)
     print("saving {}.{}".format(plot_name, plot_type))
-    fig.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=1000, bbox_inches='tight')
+    plt.savefig(plot_name + '.' + plot_type, format=plot_type, dpi=300, bbox_inches='tight')
     #plt.show()
 
