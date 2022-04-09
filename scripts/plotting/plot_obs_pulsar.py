@@ -27,6 +27,16 @@ rcParams['font.family'] = 'monospace'
 plt.rcParams["font.family"] = "monospace"
 
 
+def get_levels(nz, fwhm=True, all_contours=False):
+    # Set plotting color levels
+    if fwhm:
+        levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
+    elif all_contours:
+        levels = np.arange(0.25, 1., 0.05)
+    else:
+        levels = np.arange(0.5, 1., 0.05)
+    return levels
+
 def deg_to_plotmap(ra, dec, ra_offset=False, square=False):
     if ra_offset:
         ra += 180.
@@ -226,7 +236,9 @@ if __name__ == "__main__":
 
     # Set up default colours
     colors = ['0.5' for _ in range(50)]
-    if not args.all_contours:
+    if args.all_contours:
+        colors = ['0.25'] + ['0.5'] * 14
+    else:
         colors[0] = 'blue'
     linewidths = [0.4 for _ in range(50)]
     linewidths[0] = 1.0
@@ -294,6 +306,7 @@ if __name__ == "__main__":
         # Calculate power over sky
         if args.smart:
             nz = np.array(smart_nz[i])
+            levels = [0.5*max(nz)]
 
             mnzi = np.argmax(nz)
             #print("i: {}  ra: {:6.1f}  dec: {:6.1f}".format(i, degrees(nx[mnzi])+180, degrees(ny[mnzi])))
@@ -381,15 +394,7 @@ if __name__ == "__main__":
                 z.append(temppower)
 
             nz=np.array(z)
-
-        # Set plotting color levels
-        if args.fwhm:
-            levels = np.arange(0.5*max(nz), max(nz), 0.5/6.)
-        elif args.all_contours:
-            levels = np.arange(0.25, 1., 0.05)
-            colours = ['0.25'] + ['0.5'] * 14
-        else:
-            levels = np.arange(0.5, 1., 0.05)
+            levels = get_levels(nz, fwhm=args.fwhm, all_contours=args.all_contours)
 
         #calculates sensitiviy and removes zeros -------------------------
         """
@@ -588,7 +593,8 @@ if __name__ == "__main__":
         ra_PCAT = []
         dec_PCAT = []
         pulsar_list = [["J0036-1033", "00:36:14.58", "-10:33:16.40"],
-                       ["J0026-1955", "00:26:36.49", "-19:55:54.87"]]
+                       ["J0026-1955", "00:26:36.49", "-19:55:54.87"],
+                       ["J1002-2044", "10:02:39.26", "-20:44:41.42"]]
         for pulsar in pulsar_list:
             ra_temp, dec_temp = sex2deg(pulsar[1], pulsar[2])
             ra_map, dec_map = deg_to_plotmap(ra_temp, dec_temp, ra_offset=args.ra_offset, square=args.square)
