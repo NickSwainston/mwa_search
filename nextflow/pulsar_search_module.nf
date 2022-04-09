@@ -143,7 +143,7 @@ process search_dd_fft_acc {
     time { search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
                 "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
                 "86400s"}
-    memory { "${task.attempt * 3} GB"}
+    memory { "${task.attempt * 30} GB"}
     maxRetries 2
     errorStrategy 'retry'
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
