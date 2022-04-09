@@ -11,8 +11,6 @@ use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import patches
 
-from mwa_pb.mwa_tile import h2e
-
 # vcstools imports
 import vcstools.metadb_utils as meta
 from vcstools.catalogue_utils import get_psrcat_ra_dec
