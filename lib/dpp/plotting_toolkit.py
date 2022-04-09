@@ -142,6 +142,7 @@ def get_data_from_epndb(pulsar):
     -------
     pulsar_dict: dictionary
         A dictionary in which each value is a list corresponding to a different entry on the databse. Keys:
+
         I: list
             An list of stokes I values for the profile
         Q: list
@@ -158,7 +159,6 @@ def get_data_from_epndb(pulsar):
             The measured rotation measure. Returns 0.0 for no rm measurement
         site: string
             The location the pulsar was observed at
-
     """
     #find all directories in epndb
     EPNDB_LOC = os.environ["EPNDB_LOC"]

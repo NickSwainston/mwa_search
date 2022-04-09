@@ -30,6 +30,7 @@ def bestprof_info(filename):
     -------
     info_dict: dictionary
         A dictionary consisting of the following:
+
         obsid: int
             The ID of the observation
         puslar: string
