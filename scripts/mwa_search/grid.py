@@ -157,8 +157,11 @@ if __name__ == "__main__":
                 continue
             names_ra_dec.append(["name", rads[ni], decds[ni]])
         names_ra_dec = np.array(names_ra_dec)
-        power = get_beam_power_over_time(obs_metadata,
-                                         names_ra_dec, degrees=True)
+        power = get_beam_power_over_time(
+            names_ra_dec,
+            common_metadata=obs_metadata,
+            degrees=True,
+        )
 
         #check each pointing is within the tile beam
         radls = []
@@ -309,6 +312,10 @@ if __name__ == "__main__":
             dec_PCAT.append(dec_temp)
         ax.scatter(ra_PCAT, dec_PCAT, s=15, color ='r', zorder=100)
 
+    if args.plot_max_min:
+        plot_radius = 2 #degrees
+        ax.set_xlim([np.degrees(ra)-plot_radius,  np.degrees(ra)+plot_radius])
+        ax.set_ylim([np.degrees(dec)-plot_radius, np.degrees(dec)+plot_radius])
     plt.savefig('{0}.png'.format(out_file_name), bbox_inches='tight', dpi =1000)
 
 
