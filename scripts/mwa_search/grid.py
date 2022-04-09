@@ -156,8 +156,8 @@ if __name__ == "__main__":
                 continue
             names_ra_dec.append(["name", rads[ni], decds[ni]])
         names_ra_dec = np.array(names_ra_dec)
-        power = get_beam_power_over_time(obs_metadata,
-                                         names_ra_dec, degrees=True)
+        power = get_beam_power_over_time(names_ra_dec,
+                common_metadata=obs_metadata, degrees=True)
 
         #check each pointing is within the tile beam
         radls = []
