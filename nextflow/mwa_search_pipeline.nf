@@ -12,6 +12,12 @@ params.begin = 0
 params.end = 0
 params.all = false
 
+params.dm_min = 1
+params.dm_max = 250
+params.dm_min_step = 0.02
+params.dm_max_step = 0.5
+params.max_dms_per_job = 5000
+
 params.summed = true
 params.channels = null
 params.vcstools_version = 'master'
@@ -20,10 +26,6 @@ params.mwa_search_version = 'master'
 params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
-params.dm_min = 1
-params.dm_max = 250
-params.dm_min_step = 0.02
-params.max_dms_per_job = 5000
 params.zmax = 0
 
 params.no_combined_check = false
@@ -58,6 +60,11 @@ if ( params.help ) {
              |Required argurments:
              |  --obsid     Observation ID you want to process [no default]
              |  --calid     Observation ID of calibrator you want to process [no default]
+             |  --begin     First GPS time to process [no default]
+             |  --end       Last GPS time to process [no default]
+             |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
+             |
+             |Pointing arguments (one is required):
              |  --pointings A comma sepertated list of pointings with the RA and Dec seperated
              |              by _ in the format HH:MM:SS_+DD:MM:SS, e.g.
              |              "19:23:48.53_-20:31:52.95,19:23:40.00_-20:31:50.00" [default: None]
@@ -65,18 +72,31 @@ if ( params.help ) {
              |              A file containing pointings with the RA and Dec seperated by _
              |              in the format HH:MM:SS_+DD:MM:SS on each line, e.g.
              |              "19:23:48.53_-20:31:52.95\\n19:23:40.00_-20:31:50.00" [default: None]
-             |  --begin     First GPS time to process [no default]
-             |  --end       Last GPS time to process [no default]
-             |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
+             |  --bestprof_pointings
+             |              A directory that contains bestprof files that you would like to
+             |              follow up. The pipeline will beamform on their pointings, prepfold
+             |              on their DM and period, and perform a blind search. [default: None]
+             |
+             | Dedispersion arguments (optional):
+             |  --dm_min    Minimum DM to search over [default: ${params.dm_min}]
+             |  --dm_max    Maximum DM to search over [default: ${params.dm_max}]
+             |  --dm_min_step
+             |              Minimum DM step size (Delta DM) [default: ${params.dm_min_step }]
+             |  --dm_max_step
+             |              Maximum DM step size (Delta DM) [default: ${params.dm_max_step }]
+             |  --max_dms_per_job
+             |              Maximum number of DM steps a single job will procces.
+             |              Lowering this will reduce memory usage and increase parellelisation.
+             |              [default: ${params.max_dms_per_job}]
+             |
+             |Optional arguments:
              |  --summed    Add this flag if you the beamformer output as summed polarisations
              |              (only Stokes I). This reduces the data size by a factor of 4.
              |              [default: False]
-             |
-             |Optional arguments:
-             |  --dm_min    Minimum DM to search over [default: 1]
-             |  --dm_max    Maximum DM to search over [default: 250]
-             |  --dm_min_step
-             |              Minimum DM step size (Delta DM) [default: 0.1]
+             |  --zmax      The acceleration range to search over. If you would like to perform
+             |              an acceleration search I recomend you use 200 and set
+             |              --max_dms_per_job 32
+             |              [default: 0 (no acceleration search)]
              |  --out_dir   Output directory for the candidates files
              |              [default: ${params.search_dir}/<obsid>_candidates]
              |  --ipfb      Perform an the inverse PFB to produce high time resolution beamformed
