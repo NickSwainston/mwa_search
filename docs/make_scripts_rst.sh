@@ -102,6 +102,7 @@ for script in $(ls ../nextflow/*nf | grep -v module); do
 
 ${base_name}
 ${header_dashes}
+help::
 
 ${description}
 

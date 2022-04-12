@@ -9,18 +9,14 @@ The following guide will teach you how to process SMART data for the shallow fir
 Choosing an observation
 -----------------------
 
-You must first go to [this Google sheet](https://docs.google.com/spreadsheets/d/17ajLmbDpMoPWq-2oZZ00jPN5i3ifgIRny81SiYTPQ7o/edit?usp=sharing) to find an observation that hasn't been processed (No Y in column I).
+You must first go to `this Google sheet <https://docs.google.com/spreadsheets/d/17ajLmbDpMoPWq-2oZZ00jPN5i3ifgIRny81SiYTPQ7o/edit?usp=sharing>`_ to find an observation that hasn't been processed (No Y in column I).
 This is only a view link, so you may have to request edit access. Once you have decided on an observation, write "downloading" in column I.
 You can also see the calibrator ID that we have already processed and left on Garrawarla in Column G and the observation name in column A, note this for later.
-Then log onto Garrawarla and run the following command:
-
-.. code:
+Then log onto Garrawarla and run the following command::
 
     mwa_metadb_utils.py <obsid>
 
-Doing it for obsid 1221399680, for example will output this:
-
-.. code:
+Doing it for obsid 1221399680, for example will output this::
 
     -------------------------    Obs Info    -------------------------
     Obs Name:           SMART_B01
@@ -40,9 +36,7 @@ Doing it for obsid 1221399680, for example will output this:
     Comb files avail:   100.0%  (4914/4914)
 
 We only used the first 10 minutes of an observation for the shallow pass, so the end time we use will be the start time + 599 (because the end time is inclusive).
-So for this example, the end time would be 1221400286. We should now know all the values we plan to use for the processing. Here is the data of our example
-
-.. code:
+So for this example, the end time would be 1221400286. We should now know all the values we plan to use for the processing. Here is the data of our example::
 
     obsid:      1221399680
     calid:      1221342176
@@ -53,21 +47,15 @@ So for this example, the end time would be 1221400286. We should now know all th
 
 Downloading and transferring
 ---------------------------
-You can download this observation on Garrawarla and also transfer it to OZStar with the extra argument :math:`--ozstar_transfer` like so
-
-.. code:
+You can download this observation on Garrawarla and also transfer it to OZStar with the extra argument ``--ozstar_transfer`` like so::
 
     vcs_download.nf --obsid <obsid> --begin <start time> --end <end time> --ozstar_transfer
 
-For this to work, you must have your :math:`~/.ssh/config` set up to be able to ssh into OZStar from Garrawarla with the following command:
-
-.. code:
+For this to work, you must have your ``~/.ssh/config`` set up to be able to ssh into OZStar from Garrawarla with the following command::
 
     ssh ozstar
 
-You also need to transfer the calibration solutions to OZStar. This should be done from OZStar like so
-
-.. code:
+You also need to transfer the calibration solutions to OZStar. This should be done from OZStar like so::
 
     cd /fred/oz125/vcs
     mkdir -p <obsid>/cal/<calid>/rts
@@ -77,18 +65,14 @@ This will download all the calibration solutions and flagged tiles/channels file
 
 Processing
 ----------
-You should make a screen and in it run the following command:
-
-.. code:
+You should make a screen and in it run the following command::
 
     cd /fred/oz125/pulsar_search
     search_launch_loop.sh <obsid> <calid> <obsname> <start time> <end time>
 
 This will create a grid of pointings that cover the field of view and split them into 1080 pointing batches/chunks to be done one at a time by mwa_search_pipeline.nf.
 
-At the same time, you should make another screen and run the following command:
-
-.. code:
+At the same time, you should make another screen and run the following command::
 
     cd /fred/oz125/pulsar_search
     rsync_rm_loop.sh <obsid> <calid> <obsname> <start time> <end time>
