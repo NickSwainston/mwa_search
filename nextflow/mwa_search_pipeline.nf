@@ -65,11 +65,11 @@ if ( params.help ) {
              |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
              |
              |Pointing arguments (one is required):
-             |  --pointings A comma sepertated list of pointings with the RA and Dec seperated
+             |  --pointings A comma-separated list of pointings with the RA and Dec separated
              |              by _ in the format HH:MM:SS_+DD:MM:SS, e.g.
              |              "19:23:48.53_-20:31:52.95,19:23:40.00_-20:31:50.00" [default: None]
              |  --pointing_file
-             |              A file containing pointings with the RA and Dec seperated by _
+             |              A file containing pointings with the RA and Dec separated by _
              |              in the format HH:MM:SS_+DD:MM:SS on each line, e.g.
              |              "19:23:48.53_-20:31:52.95\\n19:23:40.00_-20:31:50.00" [default: None]
              |  --bestprof_pointings

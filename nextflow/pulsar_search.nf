@@ -39,7 +39,7 @@ if ( params.help ) {
              |  --dm_max_step
              |              Maximum DM step size (Delta DM) [default: ${params.dm_max_step }]
              |  --max_dms_per_job
-             |              Maximum number of DM steps a single job will procces.
+             |              Maximum number of DM steps a single job will process.
              |              Lowering this will reduce memory usage and increase parellelisation.
              |              [default: ${params.max_dms_per_job}]
              |
