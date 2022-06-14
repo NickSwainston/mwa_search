@@ -123,8 +123,11 @@ process beamform_setup {
             spamwriter.writerow([chan, "{:0>3}".format(gpubox)])
 
     # Ensure the metafits files is there
-    ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
-                    "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
+    ensure_metafits(
+        "${params.basedir}/${params.obsid}",
+        "${params.obsid}",
+        "${params.obsid}_metafits_ppds.fits",
+    )
 
     # Covert gps time to utc
     with open("${params.obsid}_utc.txt", "w") as outfile:
