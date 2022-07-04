@@ -9,7 +9,7 @@ The following guide will teach you how to process SMART data for the shallow fir
 Choosing an observation
 -----------------------
 
-You must first go to `this Google sheet <https://docs.google.com/spreadsheets/d/17ajLmbDpMoPWq-2oZZ00jPN5i3ifgIRny81SiYTPQ7o/edit?usp=sharing>`_ to find an observation that hasn't been processed (No Y in column I).
+You must first go to `this Google sheet <https://docs.google.com/spreadsheets/d/17ajLmbDpMoPWq-2oZZ00jPN5i3ifgIRny81SiYTPQ7o/edit?usp=sharing/>`_ to find an observation that hasn't been processed (No Y in column I).
 This is only a view link, so you may have to request edit access. Once you have decided on an observation, write "downloading" in column I.
 You can also see the calibrator ID that we have already processed and left on Garrawarla in Column G and the observation name in column A, note this for later.
 Then log onto Garrawarla and run the following command::
