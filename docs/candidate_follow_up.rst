@@ -9,7 +9,7 @@ The following guide will teach you the different stages of following up a candid
 Following Up Multiple candidates
 --------------------------------
 
-Once most of an observation has been classified on the `SMART Pulsar Web Classifier<https://apps.datacentral.org.au/smart/>`_, you can claim/download the promising candidates for follow-up with the full 80 minutes of data.
+Once most of an observation has been classified on the `SMART Pulsar Web Classifier <https://apps.datacentral.org.au/smart/>`_, you can claim/download the promising candidates for follow-up with the full 80 minutes of data.
 
 Put all of the candidates' bestprof files into a directory on Garrawarla (make sure they are from the same obs ID), make sure the combined and calibration are downloaded and then run the command::
 
