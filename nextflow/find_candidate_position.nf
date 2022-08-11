@@ -11,7 +11,6 @@ params.end = 0
 params.all = false
 
 params.pointing_grid = null
-params.fwhm_deg = null
 params.fraction = 0.8
 params.loops = 1
 
@@ -65,7 +64,6 @@ if ( params.help ) {
              | --pointing_grid
              |              Pointing which grid.py will make a loop of pointings around eg.
              |              "19:23:48.53_-20:31:52.95" [default: None]
-             | --fwhm_deg   The FWHM of the observation in degrees (used by grid.py) [default: 0.021]
              | --fraction   The fraction of the FWHM to space the grid by [default: 0.8]
              | --loops      The number of loops of beamd to surround the centre pointing [default: 1]
              |
