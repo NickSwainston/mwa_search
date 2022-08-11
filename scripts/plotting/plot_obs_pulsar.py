@@ -422,11 +422,12 @@ if __name__ == "__main__":
             #print(nx.shape, ny.shape, nz.shape)
             plt.tricontour(nx, ny, nz, levels=levels, alpha = 0.6,
                            colors=colors,
-                           linewidths=linewidths)
+                           linewidths=linewidths,
+                           zorder=0.8)
         # Label plots with id labels for debugging
-        #ra_text = radians(180-(SMART_metadata[i][3]+10))
-        #dec_text = radians(SMART_metadata[i][4])
-        #ax.text(ra_text, dec_text, str(i), fontsize=12, ha='center', va='center')
+        # ra_text = radians(180-(SMART_metadata[i][3]+10))
+        # dec_text = radians(SMART_metadata[i][4])
+        # ax.text(ra_text, dec_text, str(SMART_metadata[i][1]), fontsize=10, ha='center', va='center')
     #write_file.close()
 
     if args.ra_offset:
@@ -553,7 +554,7 @@ if __name__ == "__main__":
             ra_PCAT.append(ra_map)
             dec_PCAT.append(dec_map)
         #print(min(ra_PCAT), max(ra_PCAT))
-        ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color ='b', zorder=1)
+        ax.scatter(ra_PCAT, dec_PCAT, s=0.2, color='grey', alpha=0.5, zorder=0.5)
 
     if args.pulsar_detected:
         #add some pulsars
@@ -600,7 +601,7 @@ if __name__ == "__main__":
             ra_map, dec_map = deg_to_plotmap(ra_temp, dec_temp, ra_offset=args.ra_offset, square=args.square)
             ra_PCAT.append(ra_map)
             dec_PCAT.append(dec_map)
-        ax.scatter(ra_PCAT, dec_PCAT, s=5, color ='r', zorder=120)
+        ax.scatter(ra_PCAT, dec_PCAT, s=10, color ='r', zorder=120)
 
     plt.xlabel("Right Ascension")
     plt.ylabel("Declination")
