@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 params.obsid = null
 params.calid = null
@@ -11,7 +11,6 @@ params.end = 0
 params.all = false
 
 params.pointing_grid = null
-params.fwhm_deg = null
 params.fraction = 0.8
 params.loops = 1
 
@@ -53,9 +52,9 @@ if ( params.help ) {
              |              [default: False]
              |
              |Required pointing arguments:
-             |  --pointings A space sepertated list of pointings with the RA and Dec seperated
+             |  --pointings A comma sepertated list of pointings with the RA and Dec seperated
              |              by _ in the format HH:MM:SS_+DD:MM:SS, e.g.
-             |              "19:23:48.53_-20:31:52.95 19:23:40.00_-20:31:50.00" [default: None]
+             |              "19:23:48.53_-20:31:52.95,19:23:40.00_-20:31:50.00" [default: None]
              |  --pointing_file
              |              A file containing pointings with the RA and Dec seperated by _
              |              in the format HH:MM:SS_+DD:MM:SS on each line, e.g.
@@ -65,7 +64,6 @@ if ( params.help ) {
              | --pointing_grid
              |              Pointing which grid.py will make a loop of pointings around eg.
              |              "19:23:48.53_-20:31:52.95" [default: None]
-             | --fwhm_deg   The FWHM of the observation in degrees (used by grid.py) [default: 0.021]
              | --fraction   The fraction of the FWHM to space the grid by [default: 0.8]
              | --loops      The number of loops of beamd to surround the centre pointing [default: 1]
              |
@@ -220,7 +218,7 @@ process prepfold {
 
 process pdmp {
     label 'cpu'
-    time '6h'
+    time '8h'
     publishDir params.out_dir, mode: 'copy'
 
     when:

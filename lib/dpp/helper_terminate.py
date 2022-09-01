@@ -1,17 +1,21 @@
 import logging
 import sys
 
+from dpp.helper_config import dump_to_yaml
+from dpp.helper_status import status_from_error, message_from_status
+
 logger = logging.getLogger(__name__)
 
+
 def finish_unsuccessful(cfg, e):
+    status = status_from_error(e)
     logger.info("\n")
     logger.info("-------------------------------------------------------------------")
     logger.info(f"Pipeline has completed its run on pulsar {cfg['source']['name']}")
-    logger.info(f"The following tasks were completed")
-    for key in cfg["completed"].keys():
-        if cfg["completed"][key]:
-            logger.info(key)
-    logger.info(f"Pipeline was terminated early: {e}")
+    logger.info(f"Pipeline was terminated early with code {status}: {type(e).__name__}")
+    logger.info(f"Message: {e}")
+    cfg["run_ops"]["exit_status"] = status
+    dump_to_yaml(cfg)
     sys.exit(0)
 
 
@@ -35,4 +39,6 @@ def finish_successful(cfg):
     logger.info(f"beta:                     {cfg['pol']['beta']}")
     logger.info(f"alpha:                    {cfg['pol']['alpha']}")
     logger.info(f"chi:                      {cfg['pol']['chi']}")
+    cfg["run_ops"]["exit_status"] = "100" # Successful finish
+    dump_to_yaml(cfg)
     sys.exit(0)

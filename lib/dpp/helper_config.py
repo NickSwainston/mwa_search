@@ -14,7 +14,6 @@ from vcstools import data_load
 from vcstools.config import load_config_file
 
 
-comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +22,7 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     Adds all available keys to the cfg dictionary and figures out some useful constants
     Takes kwargs from observation_processing_pipeline
     """
+    comp_config = load_config_file()
     cfg = {"obs": {}, "source": {}, "completed": {}, "folds": {}, "run_ops": {}, "pol": {}, "files":{}}
     if query is None:
         query = psrqpy.QueryATNF(loadfromdb=data_load.ATNF_LOC).pandas
@@ -50,6 +50,8 @@ def initiate_cfg(kwargs, psr, pointings, enter, leave, power, query=None, metada
     cfg["run_ops"]["good_sn"] = 20.0
     cfg["run_ops"]["vdif"] = None
     cfg["run_ops"]["mask"] = None
+    cfg["run_ops"]["detection"] = False
+    cfg["run_ops"]["exit_status"] = "300" # should be set appropriately on pipeline termination. 300 means pipelin hasn't begun
 
     cfg["files"]["file_precursor"] = file_precursor(kwargs, psr)
     cfg["files"]["psr_dir"] = join(comp_config["base_data_dir"], str(cfg["obs"]["id"]), "dpp", cfg["files"]["file_precursor"])
@@ -155,6 +157,8 @@ def reset_cfg(cfg):
     cfg["completed"]["RM"] = False
     cfg["completed"]["RVM_initial"] = False
     cfg["completed"]["RVM_final"] = False
+    cfg["run_ops"]["detection"] = False
+    cfg["run_ops"]["exit_status"] = "300" # Pipeline hasn't begun
 
 
 def from_yaml(filepath):

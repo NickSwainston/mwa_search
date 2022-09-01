@@ -9,7 +9,6 @@ from vcstools.job_submit import submit_slurm
 from vcstools.config import load_config_file
 from dpp.helper_bestprof import bestprof_fit
 
-comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
@@ -88,6 +87,7 @@ def remove_baseline(cfg):
 
 
 def ppp_archive_creation(cfg, depends_on=None, depend_type="afterany"):
+    comp_config = load_config_file()
     """Makes commands for converting ot archive file then converting back to fits"""
     fits_dir = join(cfg["files"]["psr_dir"], cfg["source"]["my_pointing"])
     bins = cfg["source"]["my_bins"] if not cfg["run_ops"]["vdif"] else 1024
@@ -109,7 +109,7 @@ def ppp_archive_creation(cfg, depends_on=None, depend_type="afterany"):
     commands.append(archive_to_fits(cfg["files"]["archive"], container=psrchive_container))
     #Submit_job
     name = f"to_archive_{cfg['source']['name']}_{cfg['obs']['id']}"
-    slurm_kwargs = {"time":"08:00:00"} # dspsr folding can take some time
+    slurm_kwargs = {"time":"12:00:00"} # dspsr folding can take some time
     modules = ["singularity"]
     mem=32768
     jid = submit_slurm(name, commands,

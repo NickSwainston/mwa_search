@@ -1,4 +1,4 @@
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
 
@@ -143,8 +143,9 @@ process search_dd_fft_acc {
     time { search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1) < 86400 ? \
                 "${search_dd_fft_acc_dur * (0.006*Float.valueOf(dm_values[3]) + 1)}s" :
                 "86400s"}
-    memory { "${task.attempt * 3} GB"}
+    memory { "${task.attempt * 30} GB"}
     maxRetries 2
+    errorStrategy 'retry'
     if ( "$HOSTNAME".startsWith("garrawarla") ) {
         maxForks 400
     }
@@ -196,7 +197,8 @@ process search_dd_fft_acc {
     realfft *dat
     printf "\\n#Performing the periodic search at \$(date +"%Y-%m-%d_%H:%m:%S") ------------------------------------------\\n"
     for i in \$(ls *.dat); do
-        accelsearch -ncpus $task.cpus -zmax ${params.zmax} -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft
+        # Somtimes this has a 255 error code when data.pow == 0 so ignore it
+        accelsearch -ncpus $task.cpus -zmax ${params.zmax} -flo $min_f_harm -fhi $max_f_harm -numharm $params.nharm \${i%.dat}.fft || true
     done
     ${presto_python_load}
     single_pulse_search.py -p -m 0.5 -b *.dat
@@ -218,14 +220,27 @@ process accelsift {
     output:
     tuple val(name), file("cands_*greped.txt")
 
-    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
-              "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
+    if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ||\
+         "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${params.containerDir}/presto/presto.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        container = "file:///${params.containerDir}/presto/presto_sandbox"
+        // tmp storage for container image
+        clusterOptions { "--tmp=1000MB" }
+        scratch '$JOBFS'
     }
     else {
         container = "nickswainston/presto:realfft_docker"
     }
     """
+    # Remove incomplete or errored files
+    for i in \$(ls *0); do
+        if [ \$(grep " Number of bins in the time series" \$i | wc -l) == 0 ]; then
+            rm \${i%%_ACCEL_0}*
+        fi
+    done
+
     ACCEL_sift.py --file_name ${name}
     if [ -f cands_${name}.txt ]; then
         grep ${name} cands_${name}.txt > cands_${name}_greped.txt
@@ -254,6 +269,12 @@ process single_pulse_searcher {
     if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("x86") ||\
          "$HOSTNAME".startsWith("garrawarla") || "$HOSTNAME".startsWith("galaxy") ) {
         container = "file:///${params.containerDir}/sps/sps.sif"
+    }
+    else if ( "$HOSTNAME".startsWith("farnarkle") ) {
+        container = "file:///${params.containerDir}/sps/sps_sandbox"
+        // tmp storage for container image
+        clusterOptions { "--tmp=2000MB" }
+        scratch '$JOBFS'
     }
     else {
         container = "nickswainston/sps"

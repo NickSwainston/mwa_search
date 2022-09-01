@@ -21,14 +21,16 @@ def getTargetAZZA(ra,dec,time,lat=-26.7033,lon=116.671,height=377.827):
 
     Default lat,lon,height is the centre of  MWA.
 
-    Input:
+    Parameters
+    ----------
       ra - target right ascension in astropy-readable format
       dec - target declination in astropy-readable format
       time - time of observation in UTC (i.e. a string on form: yyyy-mm-dd hh:mm:ss.ssss)
       lat - observatory latitude in degrees
       lon - observatory longitude in degrees
 
-    Returns:
+    Returns
+    -------
       a list containing four elements in the following order:
         list[0] = target azimuth in radians
         list[1] = target zenith angle in radians
@@ -67,14 +69,16 @@ def getTargetradec(az,za,time,lst,lat=-26.7033,lon=116.671,height=377.827):
 
     Default lat,lon,height is the centre of  MWA.
 
-    Input:
+    Parameters
+    ----------
       az - target aximuth in radians
       za - target zenith in radians
       time - time of observation in UTC (i.e. a string on form: yyyy-mm-dd hh:mm:ss.ssss)
       lat - observatory latitude in degrees
       lon - observatory longitude in degrees
 
-    Returns:
+    Returns
+    -------
       a list containing four elements in the following order:
         list[0] = target ra in degrees
         list[1] = target dec in degrees
@@ -90,8 +94,8 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
     """
     Checks to see if all of the recombined files exist on disk
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     obsid: int
         The observation ID to check
     beg: int
@@ -101,8 +105,8 @@ def check_data(obsid, beg=None, dur=None, base_dir=None):
     base_dir: string
         OPTIONAL - The base directory to use. If none, will load from config. Default: None
 
-    Returns:
-    ---------
+    Returns
+    -------
     check: boolean
         True - all files are on disk. False - not all files are on disk
     """
@@ -136,15 +140,15 @@ def calc_ta_fwhm(freq, array_phase='P2C'):
     """
     Calculates the approximate FWHM of the tied array beam in degrees.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     freq: float
         Frequency in MHz
     array_phase: string
         OPTIONAL - The different array phase (from P1, P2C, P2E) to work out the maximum baseline length. Default = 'P2C'
 
-    Returns:
-    --------
+    Returns
+    -------
     fwhm: float
         FWHM in degrees
     """

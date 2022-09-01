@@ -2,6 +2,7 @@
 
 import argparse
 from mwa_search.dispersion_tools import plot_sensitivity, dd_plan
+from vcstools.metadb_utils import get_common_obs_metadata
 
 
 if __name__ == "__main__":
@@ -41,7 +42,7 @@ if __name__ == "__main__":
         beam_meta_data = get_common_obs_metadata(args.obsid)
         obs, ra, dec, dura, [xdelays, ydelays], centrefreq, channels = beam_meta_data
 
-        args.centrefreq = channels
+        args.centrefreq = centrefreq
 
 
     DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM,

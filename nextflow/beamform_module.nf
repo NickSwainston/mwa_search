@@ -1,4 +1,4 @@
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 
 params.obsid = null
@@ -123,8 +123,11 @@ process beamform_setup {
             spamwriter.writerow([chan, "{:0>3}".format(gpubox)])
 
     # Ensure the metafits files is there
-    ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
-                    "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
+    ensure_metafits(
+        "${params.basedir}/${params.obsid}",
+        "${params.obsid}",
+        "${params.obsid}_metafits_ppds.fits",
+    )
 
     # Covert gps time to utc
     with open("${params.obsid}_utc.txt", "w") as outfile:
@@ -293,7 +296,7 @@ process make_beam_ipfb {
 -f ${channel_pair[0]} \${jones_option} \
 -d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
 -r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z $utc
+-p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z $utc -g 11
     ls *
     mv */*fits .
     """

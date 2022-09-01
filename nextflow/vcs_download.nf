@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 params.obsid = 'no_obsid'
 
@@ -9,6 +9,7 @@ params.end = null
 params.all = false
 
 params.no_combined_check = true
+params.ozstar_transfer = false
 
 params.increment = 32
 params.parallel_dl = 3
@@ -16,6 +17,8 @@ params.untar_jobs = 2
 params.keep_tarball = false
 params.keep_raw = false
 params.max_jobs = 12
+
+params.download_dir = null
 
 params.vcstools_version = 'master'
 params.mwa_voltage_version = 'master'
@@ -37,6 +40,8 @@ if ( params.help ) {
              |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
              |
              |Optional arguments:
+             |  --download_dir
+             |              The directory of already downloaded data (with the ASVO).
              |  --increment Increment in seconds (how much we process at once). [default: 64]
              |  --max_jobs  Number of maximum jobs of each type to run at once (to limit IO). [default: 12]
              |  --parallel_dl
@@ -151,11 +156,33 @@ process volt_download {
 
     output:
     val begin_time_increment
-    
+
     beforeScript "module use /group/mwa/software/modulefiles; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}"
     """
     voltdownload.py --obs=$params.obsid --type=$data_type --from=${begin_time_increment[0]} --duration=${begin_time_increment[1] - 1} --parallel=$params.parallel_dl --dir=$dl_dir
     checks.py -m download -o $params.obsid -w $dl_dir -b ${begin_time_increment[0]} -i ${begin_time_increment[1]} --data_type $data_type
+    """
+}
+
+process move_asvo_files {
+
+    input:
+    val data_type
+
+    """
+    if [ ${data_type} == 16 ]; then
+        # Move ics files
+        if compgen -G ${params.download_dir}/*_ics.dat  > /dev/null; then
+            mv ${params.download_dir}/*_ics.dat ${params.scratch_basedir}/${params.obsid}/combined/
+        fi
+    fi
+    # Move metafits files
+    if [ -f ${params.download_dir}/${params.obsid}.metafits ]; then
+        mv ${params.download_dir}/${params.obsid}.metafits ${params.scratch_basedir}/${params.obsid}/combined/
+    fi
+    if [ -f ${params.download_dir}/${params.obsid}_metafits_ppds.fits ]; then
+        mv ${params.download_dir}/${params.obsid}_metafits_ppds.fits ${params.scratch_basedir}/${params.obsid}/combined/
+    fi
     """
 }
 
@@ -172,17 +199,21 @@ process untar {
     val data_type
     val begin_time_increment
 
+    output:
+    val begin_time_increment
+
     when:
     data_type == '16'
 
     """
-    untar.sh -w ${params.scratch_basedir}/${params.obsid}/combined -o $params.obsid -j $params.untar_jobs \
+    untar.sh -w ${params.download_dir} -o $params.obsid -j $params.untar_jobs \
 -b ${begin_time_increment[0]} -e ${begin_time_increment[0] + begin_time_increment[1] - 1} $keep_tarball_command
     """
 }
 
 process recombine {
-    label 'cpu'
+    label 'cpu_large_mem'
+    memory {"${begin_time_increment[1] * 5} GB"}
     time { "${500*params.increment*task.attempt + 900}s" }
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
     maxRetries 3
@@ -190,9 +221,12 @@ process recombine {
     clusterOptions {"--nodes=1 --ntasks-per-node=${begin_time_increment[1]}"}
 
     beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}; module load mwa-voltage/${params.mwa_voltage_version}; module load gcc/8.3.0; module load cfitsio; module load mpi4py"
-    
+
     input:
     val data_type
+    val begin_time_increment
+
+    output:
     val begin_time_increment
 
     when:
@@ -200,14 +234,37 @@ process recombine {
 
     script:
     """
-    srun --export=all recombine.py -o ${params.obsid} -s ${begin_time_increment[0]} -w ${params.scratch_basedir}/${params.obsid} -e recombine
+    srun --export=all recombine.py -o ${params.obsid} -s ${begin_time_increment[0]} -d ${begin_time_increment[1]} -w ${params.download_dir} -p ${params.scratch_basedir}/${params.obsid}
     checks.py -m recombine -o ${params.obsid} -w ${params.scratch_basedir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
     if ! ${params.keep_raw}; then
         # Loop over each second and delete raw files
         for gps in \$(seq ${begin_time_increment[0]} ${begin_time_increment[0] + begin_time_increment[1] - 1}); do
-            rm ${params.scratch_basedir}/${params.obsid}/raw/${params.obsid}_\${gps}_vcs*.dat
+            if compgen -G ${params.download_dir}/${params.obsid}_\${gps}_vcs*.dat  > /dev/null; then
+                rm ${params.download_dir}/${params.obsid}_\${gps}_vcs*.dat
+            fi
         done
     fi
+    """
+}
+
+process ozstar_transfer {
+    label 'download'
+    time { "${500*params.increment*task.attempt + 900}s" }
+    errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
+    maxRetries 3
+    maxForks 3
+
+    input:
+    val begin_time_increment
+
+    """
+    start=${begin_time_increment[0]}
+    end=${begin_time_increment[0] + begin_time_increment[1] - 1}
+    echo "obsid: ${params.obsid} start: \${start} end: \${end}"
+
+    ls --format single-column /astro/mwavcs/vcs/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat | xargs -n1 basename > temp_file_list.txt
+    rsync -vhu --files-from=temp_file_list.txt /astro/mwavcs/vcs/${params.obsid}/combined/ ozstar:/fred/oz125/vcs/${params.obsid}/combined
+    rm /astro/mwavcs/vcs/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat
     """
 }
 
@@ -216,11 +273,24 @@ include { pre_beamform } from './beamform_module'
 workflow {
     pre_beamform()
     check_data_format( pre_beamform.out[0] )
-    volt_download( check_data_format.out[0].splitCsv().collect().map{ it -> it[0] },
-                   check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
-                   check_data_format.out[1].splitCsv().map{ it -> [Integer.valueOf(it[0]), Integer.valueOf(it[1])] } )
-    untar( check_data_format.out[0].splitCsv().collect().map{ it -> it[0] },
-           volt_download.out )
-    recombine( check_data_format.out[0].splitCsv().collect().map{ it -> it[0] },
-               volt_download.out )
+    data_type = check_data_format.out[0].splitCsv().collect().map{ it -> it[0] }
+    begin_time_increment = check_data_format.out[1].splitCsv().map{ it -> [Integer.valueOf(it[0]), Integer.valueOf(it[1])] }
+
+    if ( params.download_dir == null ) {
+        volt_download(
+            data_type,
+            check_data_format.out[0].splitCsv().collect().map{ it -> it[1] },
+            begin_time_increment)
+        begin_time_increment = volt_download.out
+    }
+    else {
+        move_asvo_files( data_type )
+    }
+    untar( data_type,
+           begin_time_increment )
+    recombine( data_type,
+               begin_time_increment )
+    if ( params.ozstar_transfer ) {
+        ozstar_transfer( untar.out.concat( recombine.out ) )
+    }
 }

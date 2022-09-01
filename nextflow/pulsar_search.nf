@@ -1,13 +1,16 @@
 #!/usr/bin/env nextflow
 
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 params.obsid = null
-params.fits_file == null
+params.fits_file = null
 params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
+
 params.dm_min = 1
 params.dm_max = 250
 params.dm_min_step = 0.02
+params.dm_max_step = 0.5
+params.max_dms_per_job = 5000
 
 params.cand = "Blind"
 params.sp = false
@@ -28,13 +31,25 @@ if ( params.help ) {
              |  --fits_file The fits file to search              [no default]
              |  --dur       Duration of the fits file in seconds [no default]
              |
+             | Dedispersion arguments (optional):
+             |  --dm_min    Minimum DM to search over [default: ${params.dm_min}]
+             |  --dm_max    Maximum DM to search over [default: ${params.dm_max}]
+             |  --dm_min_step
+             |              Minimum DM step size (Delta DM) [default: ${params.dm_min_step }]
+             |  --dm_max_step
+             |              Maximum DM step size (Delta DM) [default: ${params.dm_max_step }]
+             |  --max_dms_per_job
+             |              Maximum number of DM steps a single job will process.
+             |              Lowering this will reduce memory usage and increase parellelisation.
+             |              [default: ${params.max_dms_per_job}]
+             |
              |Optional arguments:
              |  --cand      Candidate name to do a targeted search [default: Blind]
              |  --sp        Perform a single pulse search [default false]
-             |  --dm_min    Minimum DM to search over [default: 1]
-             |  --dm_max    Maximum DM to search over [default: 250]
-             |  --dm_min_step
-             |              Minimum DM step size (Delta DM) [default: 0.1]
+             |  --zmax      The acceleration range to search over. If you would like to perform
+             |              an acceleration search I recomend you use 200 and set
+             |              --max_dms_per_job 32
+             |              [default: 0 (no acceleration search)]
              |  --out_dir   Output directory for the candidates files
              |              [default: ${params.search_dir}/<obsid>_candidates]
              |  --mwa_search_version

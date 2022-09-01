@@ -3,13 +3,11 @@ from os.path import join
 from os import chdir, getcwd
 import datetime
 
-from vcstools.config import load_config_file
 from vcstools.job_submit import submit_slurm
 from dpp.helper_config import dump_to_yaml
 from dpp.helper_relaunch import relaunch_ppp
 
 
-comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
@@ -42,7 +40,7 @@ def common_kwargs(cfg, bin_count, pointing):
     if bin_count == 100 or bin_count == 50: #init fold - do large search
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
-    if cfg["source"]["ATNF_P"] < 0.005:  # period less than 50ms
+    if cfg["source"]["ATNF_P"] < 0.05:  # period less than 50ms
         prep_kwargs["-npfact"] = 4
         prep_kwargs["-ndmfact"] = 3
         prep_kwargs["-dmstep"] = 3

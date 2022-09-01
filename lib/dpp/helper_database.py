@@ -6,12 +6,12 @@ from vcstools.config import load_config_file
 from vcstools.job_submit import submit_slurm
 from dpp.helper_files import glob_pfds
 
-comp_config = load_config_file()
 logger = logging.getLogger(__name__)
 
 
 def submit_prepfold_products_db(cfg, dep_id=None, dep_type="afterany"):
     """Submits the best fold profile to the pulsar database. Will also submit .ppps"""
+    comp_config = load_config_file()
     my_pointing = cfg["source"]["my_pointing"]
     # We will upload the init fold and the best post fold
     bin_list = list(cfg["folds"][my_pointing]["init"].keys())

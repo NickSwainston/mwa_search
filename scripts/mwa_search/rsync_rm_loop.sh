@@ -51,6 +51,7 @@ while [ $n_done -lt $n_grids ]; do
         if [ -f "${SMART_job%.txt}_done" ]; then
             n_done=$(expr $n_done + 1)
             if [ -d "${SMART_job%.txt}_cands" ]; then
+                sleep 1800
                 echo "Syncing ${SMART_job%.txt}_cands"
                 rsync --copy-links -zru ${SMART_job%.txt}_cands prometheus:/data/nswainston/SMART_cand_sorting/${OBSID}
                 if [ $? != 0 ]; then

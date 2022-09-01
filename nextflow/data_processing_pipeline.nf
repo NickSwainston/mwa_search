@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-nextflow.preview.dsl = 2
+nextflow.enable.dsl = 2
 
 params.obsid = null
 params.calid = null
@@ -138,10 +138,10 @@ workflow {
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list
-    pulsar_search( find_pointings.out.splitCsv(skip: 5, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 4, limit: 1).flatten()).\
-                   concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> [ "Blind_${params.obsid}_${it[0]}".toString(), it[1][1] ] } )
-    classifier( pulsar_search.out[1].flatten().collate( 600 ) )
-    // Perform a single pulse search on all single pulse candidates
-    single_pulse_search( find_pointings.out.splitCsv(skip: 7, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 6, limit: 1).flatten()).\
-                         concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> it[1] } )
+    // pulsar_search( find_pointings.out.splitCsv(skip: 5, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 4, limit: 1).flatten()).\
+    //                concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> [ "Blind_${params.obsid}_${it[0]}".toString(), it[1][1] ] } )
+    // classifier( pulsar_search.out[1].flatten().collate( 600 ) )
+    // // Perform a single pulse search on all single pulse candidates
+    // single_pulse_search( find_pointings.out.splitCsv(skip: 7, limit: 1).flatten().merge(find_pointings.out.splitCsv(skip: 6, limit: 1).flatten()).\
+    //                      concat(beamform.out[3]).groupTuple( size: 2, remainder: false ).map { it -> it[1] } )
 }
