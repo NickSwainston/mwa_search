@@ -248,6 +248,9 @@ if __name__ == "__main__":
 
     #matplotlib.use('Agg')
     print("Plotting")
+    plt.rc('axes', labelsize=20)
+    plt.rc('xtick', labelsize=14)
+    plt.rc('ytick', labelsize=14)
     fig = plt.figure(figsize=(7, 7))
     if args.aitoff:
         fig.add_subplot(111)
@@ -261,8 +264,8 @@ if __name__ == "__main__":
         #ax.axis([325., 335., -33., -23.])
         #ax.axis([0., 10., -75., -65.])
 
-    plt.xlabel("ra (degrees)")
-    plt.ylabel("dec (degrees)")
+    plt.xlabel("Right Acension (degrees)")
+    plt.ylabel("Declination (degrees)")
 
     for i in range(len(ras)):
         if args.aitoff:
@@ -316,7 +319,7 @@ if __name__ == "__main__":
         plot_radius = 2 #degrees
         ax.set_xlim([np.degrees(ra)-plot_radius,  np.degrees(ra)+plot_radius])
         ax.set_ylim([np.degrees(dec)-plot_radius, np.degrees(dec)+plot_radius])
-    plt.savefig('{0}.png'.format(out_file_name), bbox_inches='tight', dpi =1000)
+    plt.savefig('{0}.png'.format(out_file_name), bbox_inches='tight', dpi=300)
 
 
 

@@ -9,6 +9,7 @@ Welcome to mwa_search's documentation!
    :glob:
 
    smart_processing
+   candidate_follow_up
 
    nextflow_scripts
 

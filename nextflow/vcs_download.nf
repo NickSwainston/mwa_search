@@ -263,7 +263,7 @@ process ozstar_transfer {
     echo "obsid: ${params.obsid} start: \${start} end: \${end}"
 
     ls --format single-column /astro/mwavcs/vcs/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat | xargs -n1 basename > temp_file_list.txt
-    rsync -vhu --files-from=temp_file_list.txt /astro/mwavcs/vcs/${params.obsid}/combined/ ozstar:/fred/oz125/vcs/1221399680/combined
+    rsync -vhu --files-from=temp_file_list.txt /astro/mwavcs/vcs/${params.obsid}/combined/ ozstar:/fred/oz125/vcs/${params.obsid}/combined
     rm /astro/mwavcs/vcs/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat
     """
 }
