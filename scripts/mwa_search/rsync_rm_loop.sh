@@ -50,7 +50,6 @@ while [ $n_done -lt $n_grids ]; do
         cd ${SMART_job%.txt}
         if [ -f "${SMART_job%.txt}_done" ]; then
             n_done=$(expr $n_done + 1)
-            '''
             if [ -d "${SMART_job%.txt}_cands" ]; then
                 sleep 1800
                 echo "Syncing ${SMART_job%.txt}_cands"
@@ -64,7 +63,6 @@ while [ $n_done -lt $n_grids ]; do
                 rm -rf ${SMART_job%.txt}_cands
                 echo "Deleting ${SMART_job%.txt}_cands done"
             fi
-            '''
             if [ -d "${SMART_job%.txt}_work" ]; then
                 echo "Deleting ${SMART_job%.txt}_work"
                 rm -rf ${SMART_job%.txt}_work
@@ -72,13 +70,11 @@ while [ $n_done -lt $n_grids ]; do
             fi
         fi
         # Even if it isn't done start using rysnc update
-        '''
         if [ -d "${SMART_job%.txt}_cands" ]; then
             echo "Syncing ${SMART_job%.txt}_cands"
             rsync --copy-links -zru ${SMART_job%.txt}_cands prometheus:/data/nswainston/SMART_cand_sorting/${OBSID}
             echo "Syncing ${SMART_job%.txt}_cands done"
         fi
-        '''
         cd ..
     done
     sleep 600
