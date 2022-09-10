@@ -12,11 +12,7 @@ params.all = false
 params.summed = false
 params.incoh = false
 params.channels = null
-params.vcstools_version = 'master'
-params.mwa_search_version = 'master'
 
-params.basedir = '/group/mwavcs/vcs'
-params.scratch_basedir = '/astro/mwavcs/vcs'
 params.offringa = false
 if ( params.offringa ) {
     params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/offringa"

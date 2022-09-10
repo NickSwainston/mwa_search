@@ -1,7 +1,5 @@
 nextflow.enable.dsl = 2
 
-params.vcstools_version = 'master'
-params.scratch_basedir = '/astro/mwavcs/vcs'
 params.version_compare = "V2.3_FEE2016"
 params.version_compare_base_dir = "${params.scratch_basedir}/beamformer_tests"
 params.version_compare_dir = "${params.version_compare_base_dir}/${params.version_compare}"
