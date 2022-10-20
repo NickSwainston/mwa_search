@@ -346,7 +346,7 @@ process publish_best_pointing {
     file fits
 
     output:
-    file '*' includeInputs true
+    file '*', includeInputs: true
 
     """
     echo outputing ${fits}
