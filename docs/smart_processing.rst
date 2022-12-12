@@ -1,10 +1,14 @@
 .. _smart_processing:
 
-SMART Pulsar Search Proccessing
+SMART Pulsar Search Processing
 ===============================
 
 The following guide will teach you how to process SMART data for the shallow first pass search.
 
+Overview
+--------
+
+.. image:: first_pass_workflow.png
 
 Choosing an observation
 -----------------------
