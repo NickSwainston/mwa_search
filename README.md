@@ -3,6 +3,10 @@
 
 This repository was written by Nick Swainston to automate pulsar searching using the PRESTO software suite. An explanation of the search procedure can be found on the wiki of the GitHub page. The pipeline uses Nextflow to manage all the required jobs for both beamforming and searching.
 
+## Documentation
+
+Documentation for `mwa_search` is hosted at [this ReadTheDocs link](https://mwa-search.readthedocs.io/en/latest/).
+
 ## Prerequisites
 
 Requires the [PRESTO](https://github.com/scottransom/presto) software suite, [Nextflow](https://www.nextflow.io/) and [_vcstools_](https://github.com/CIRA-Pulsars-and-Transients-Group/vcstools).
