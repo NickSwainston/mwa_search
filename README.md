@@ -5,7 +5,7 @@ This repository was written by Nick Swainston to automate pulsar searching using
 
 ## Documentation
 
-Documentation for `mwa_search` is hosted at [this ReadTheDocs link](https://mwa-search.readthedocs.io/en/latest/).
+Documentation for `mwa_search` is hosted at [this ReadTheDocs link](https://mwa-search-cira.readthedocs.io/en/latest/).
 Source code for this documentation is in the [docs][docs] folder.
 
 ## Prerequisites
