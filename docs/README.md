@@ -1,6 +1,6 @@
 # Documentation
 
-Full documentation for `mwa_search` is hosted at [this ReadTheDocs link](https://mwa-search.readthedocs.io/en/latest/).
+Full documentation for `mwa_search` is hosted at [this ReadTheDocs link](https://mwa-search-cira.readthedocs.io/en/latest/).
 
 ## First pass workflow diagram
 
