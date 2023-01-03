@@ -1,5 +1,4 @@
-# The MWA pulsar search pipeline (deprecated)
-This repository is no longer being actively developed. For an up to date version see https://github.com/CIRA-Pulsars-and-Transients-Group/mwa_search.
+# The MWA pulsar search pipeline
 
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/eedca9f0fca94e7cb67b45059eee1da3)](https://www.codacy.com/app/NickSwainston/blindsearch_scripts?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=NickSwainston/blindsearch_scripts&amp;utm_campaign=Badge_Grade)
 
