@@ -1,7 +1,7 @@
 nextflow.enable.dsl = 2
 
 params.version_compare = "V2.3_FEE2016"
-params.version_compare_base_dir = "${params.scratch_basedir}/beamformer_tests"
+params.version_compare_base_dir = "${params.vcsdir}/beamformer_tests"
 params.version_compare_dir = "${params.version_compare_base_dir}/${params.version_compare}"
 params.publish_version = false
 
@@ -27,7 +27,7 @@ bf_out = " -p "
 
 params.help = false
 if ( params.help ) {
-    help = """test_beamformer.nf: A pipeline that will test the beamformer by comparing the binaires of the output psrfits 
+    help = """test_beamformer.nf: A pipeline that will test the beamformer by comparing the binaires of the output psrfits
              |                    and vdif files with previous runs and the signal-to-noise of pulsar detections
              |
              |Optional arguments:
@@ -118,7 +118,7 @@ process make_beam {
 -d ${params.version_compare_base_dir}/${obsid}/combined -P ${point.join(",")} \
 -r 10000 -m ${params.version_compare_base_dir}/${obsid}/${obsid}_metafits_ppds.fits \
 ${bf_out} -t 6000 -F ${params.version_compare_base_dir}/${obsid}/cal/${calid}/rts/flagged_tiles.txt -z $utc
-    
+
     # Label all outputs
     for i in \$(ls */*); do mv \${i} ${label}_\${i##*/}; done
     """
@@ -139,7 +139,7 @@ process make_beam_ipfb {
     else {
         maxForks 120
     }
-    
+
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
         scratch '$JOBFS'
@@ -220,7 +220,7 @@ process compare_repeats {
     diff no_header_1.fits no_header_3.fits
     if [ \$? != 0 ]; then fits_diff_success=False; fi
     if [ \$fits_diff_success == True ]; then echo "PASS: fits files are repeatable 3 times"; fi
-  
+
     # vdif check
     vdif_diff_success=True
     diff ${vdif_1} ${vdif_2}

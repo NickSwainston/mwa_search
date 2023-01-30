@@ -70,8 +70,17 @@ def calc_nsub(centrefreq, dm):
     return int(nsub)
 
 
-def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM,
-            min_DM_step=0.02, max_DM_step=500.0, max_dms_per_job=5000):
+def dd_plan(
+        centrefreq,
+        bandwidth,
+        nfreqchan,
+        timeres,
+        lowDM,
+        highDM,
+        min_DM_step=0.02,
+        max_DM_step=500.0,
+        max_dms_per_job=5000,
+    ):
     """
     Work out the dedisperion plan
 
@@ -146,12 +155,13 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM,
         #range from last to new
         D_DM = round(D_DM, 2)
         nDM_step = int((D_DM - previous_DM) / DM_step)
+        total_work_factor = nDM_step / downsample
         if D_DM > lowDM:
             nsub = calc_nsub(centrefreq, D_DM)
             if downsample > 16:
-                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, 16, nsub ])
+                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, 16, nsub, total_work_factor ])
             else:
-                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, downsample, nsub ])
+                DD_plan_array.append([ previous_DM, D_DM, DM_step, nDM_step, timeres, downsample, nsub, total_work_factor ])
 
             previous_DM = D_DM
 
@@ -163,14 +173,29 @@ def dd_plan(centrefreq, bandwidth, nfreqchan, timeres, lowDM, highDM,
     new_DD_plan_array = []
     for dd_line in DD_plan_array:
         new_dd_lines = []
-        while dd_line[3] > max_dms_per_job:
+        dm_min, dm_max, dm_step, ndm, timeres, downsamp, nsub, total_work_factor = dd_line
+        while ndm > max_dms_per_job:
             # previous_DM, D_DM, DM_step, nDM_step, timeres, downsample, nsub
-            new_dd_lines.append([dd_line[0], dd_line[0] + dd_line[2] * max_dms_per_job,
-                                dd_line[2], max_dms_per_job, dd_line[4],
-                                dd_line[5], dd_line[6]])
-            dd_line = [dd_line[0] + dd_line[2] * max_dms_per_job, dd_line[1],
-                       dd_line[2], dd_line[3] - max_dms_per_job, dd_line[4],
-                       dd_line[5], dd_line[6]]
+            new_dd_lines.append([
+                dm_min,
+                dm_min + dm_step * max_dms_per_job,
+                dm_step,
+                max_dms_per_job,
+                timeres,
+                downsamp,
+                nsub,
+                total_work_factor
+            ])
+            dd_line = [
+                dm_min + dm_step * max_dms_per_job,
+                dm_max,
+                dm_step,
+                ndm - max_dms_per_job,
+                timeres,
+                downsamp,
+                nsub,
+                total_work_factor
+            ]
         new_dd_lines.append(dd_line)
         for n_line in new_dd_lines:
             new_DD_plan_array.append(n_line)

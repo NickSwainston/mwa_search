@@ -47,44 +47,58 @@ mwa_search_version = get_git_version()
 with open('version.py', 'a') as the_file:
     the_file.write('__version__ = "{}"\n'.format(mwa_search_version))
 
-setup(name="mwa_search",
-      version=mwa_search_version,
-      description="Scripts used to search for pulsars with the Murchison Widefield Array's Voltage Capture System data",
-      url="https://github.com/NickSwainston/mwa_search",
-      #long_description=read('README.md'),
-      python_requires='>=3.6',
-      packages=['dpp', 'mwa_search'],
-      package_dir={'dpp': 'lib/dpp',
-                   'mwa_search': 'lib/mwa_search'},
-      package_data={'mwa_search':['data/*.npy']},
-      install_requires=reqs,
-      scripts=['version.py', 'scripts/calc_beamformer_benchmarks.py',
-               # mwa_search
-               'scripts/mwa_search/cold_storage_mover.py',
-               'scripts/mwa_search/grid.py', 'scripts/mwa_search/lfDDplan.py',
-               'scripts/mwa_search/LOTAAS_wrapper.py',
-               'scripts/mwa_search/search_launch_loop.sh', 'scripts/mwa_search/rsync_rm_loop.sh',
-               'scripts/mwa_search/bestgridpos.py', 'scripts/mwa_search/find_clustered_and_known_pulsar_candidates.py',
-               # dpp
-               'scripts/dpp/pulsars_in_fov.py',
-               'scripts/dpp/observation_processing_pipeline.py',
-               'scripts/dpp/opp_status.py',
-               # plotting
-               'scripts/plotting/plot_obs_pulsar.py',
-               'scripts/plotting/position_sn_heatmap_fwhm.py',
-               # nextflow
-               'nextflow/beamform.nf', 'nextflow/beamform_module.nf',
-               'nextflow/pulsar_search.nf', 'nextflow/pulsar_search_module.nf',
-               'nextflow/classifier.nf', 'nextflow/classifier_module.nf',
-               'nextflow/nextflow.config', 'nextflow/data_processing_pipeline.nf',
-               'nextflow/candidate_TOAs.nf', 'nextflow/find_candidate_position.nf',
-               'nextflow/pdmp.nf', 'nextflow/dspsr_module.nf',
-               'nextflow/pulsar_search.nf', 'nextflow/pulsar_search_module.nf',
-               'nextflow/mwa_search_pipeline.nf', 'nextflow/benchmark_beamformer.nf',
-               'nextflow/vcs_download.nf'],
-      #data_files=[('AegeanTools', [os.path.join(data_dir, 'MOC.fits')]) ],
-      setup_requires=['pytest-runner'],
-      tests_require=['pytest']  # , 'nose']
-      )
+setup(
+    name="mwa_search",
+    version=mwa_search_version,
+    description="Scripts used to search for pulsars with the Murchison Widefield Array's Voltage Capture System data",
+    url="https://github.com/NickSwainston/mwa_search",
+    #long_description=read('README.md'),
+    python_requires='>=3.6',
+    packages=['dpp', 'mwa_search'],
+    package_dir={
+        'dpp': 'dpp',
+        'mwa_search': 'mwa_search',
+    },
+    package_data={'mwa_search':['data/*.npy']},
+    install_requires=reqs,
+    scripts=[
+        'version.py',
+        'scripts/calc_beamformer_benchmarks.py',
+        # mwa_search
+        'scripts/cold_storage_mover.py',
+        'scripts/grid.py',
+        'scripts/lfDDplan.py',
+        'scripts/LOTAAS_wrapper.py',
+        'scripts/search_launch_loop.sh',
+        'scripts/rsync_rm_loop.sh',
+        'scripts/bestgridpos.py',
+        'scripts/find_clustered_and_known_pulsar_candidates.py',
+        # dpp
+        'scripts/pulsars_in_fov.py',
+        'scripts/observation_processing_pipeline.py',
+        'scripts/opp_status.py',
+        # plotting
+        'scripts/plotting/plot_obs_pulsar.py',
+        'scripts/plotting/position_sn_heatmap_fwhm.py',
+        # nextflow
+        'nextflow/mwa_search_pipeline.nf',
+        'nextflow/beamform.nf',
+        'nextflow/beamform_module.nf',
+        'nextflow/pulsar_search.nf',
+        'nextflow/pulsar_search_module.nf',
+        'nextflow/classifier.nf',
+        'nextflow/classifier_module.nf',
+        'nextflow/nextflow.config',
+        'nextflow/data_processing_pipeline.nf',
+        'nextflow/candidate_TOAs.nf',
+        'nextflow/find_candidate_position.nf',
+        'nextflow/pdmp.nf',
+        'nextflow/dspsr_module.nf',
+        'nextflow/benchmark_beamformer.nf',
+        'nextflow/vcs_download.nf',
+    ],
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest']
+)
 
 os.remove('version.py')

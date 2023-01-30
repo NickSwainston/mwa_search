@@ -1,72 +1,3 @@
-nextflow.enable.dsl = 2
-
-
-params.obsid = null
-params.pointings = null
-params.calid = null
-
-params.begin = 0
-params.end = 0
-params.all = false
-
-params.summed = false
-params.incoh = false
-params.channels = null
-
-params.offringa = false
-if ( params.offringa ) {
-    params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/offringa"
-}
-else {
-    params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-}
-params.publish_fits = false
-params.publish_fits_scratch = false
-
-params.no_combined_check = false
-
-//Calculate the max pointings used in the launched jobs
-if ( params.pointings ) {
-    max_job_pointings = params.pointings.split(",").size()
-    if ( max_job_pointings > params.max_pointings ) {
-        max_job_pointings = params.max_pointings
-    }
-}
-else {
-    // No input pointings (this happens in beamform_fov_sources.nf) so assuming max
-    max_job_pointings = params.max_pointings
-}
-
-//Work out total obs time
-if ( params.all ) {
-    // an estimation since there's no easy way to make this work
-    obs_length = 5400
-}
-else {
-    obs_length = params.end - params.begin + 1
-}
-
-//Calculate expected number of fits files
-n_fits = (int) (obs_length/200)
-if ( obs_length % 200 != 0 ) {
-    n_fits = n_fits + 1
-}
-
-
-//Beamforming ipfb duration calc
-mb_ipfb_dur = ( obs_length * (params.bm_read + 3 * (params.bm_cal + params.bm_beam) + params.bm_write) + 200 ) * 1.2
-
-//Beamforming duration calc
-mb_dur = ( obs_length * (params.bm_read + params.bm_cal + max_job_pointings * (params.bm_beam +params.bm_write)) + 200 ) * 1.2
-
-//Required temp SSD mem required for gpu jobs
-temp_mem = (int) (0.0012 * obs_length * max_job_pointings + 1)
-temp_mem_single = (int) (0.0024 * obs_length + 2)
-if ( ! params.summed ) {
-    temp_mem = temp_mem * 4
-    temp_mem_single = temp_mem_single *4
-}
-
 
 // Set up beamformer output types
 bf_out = " -p "
@@ -80,9 +11,9 @@ if ( params.incoh ) {
 
 process beamform_setup {
     output:
-    file "${params.obsid}_beg_end.txt"
-    file "${params.obsid}_channels.txt"
-    file "${params.obsid}_utc.txt"
+    path "${params.obsid}_beg_end_dur.txt",  emit: beg_end_dur
+    path "${params.obsid}_channels.txt", emit: channels
+    path "${params.obsid}_utc.txt",      emit: utc
 
     """
     #!/usr/bin/env python
@@ -96,17 +27,15 @@ process beamform_setup {
     if "${params.all}" == "true":
         beg, end = obs_max_min(${params.obsid})
     else:
-        beg = $params.begin
-        end = $params.end
-    with open("${params.obsid}_beg_end.txt", "w") as outfile:
+        beg = ${params.begin}
+        end = ${params.end}
+    dur = end - beg + 1
+    with open("${params.obsid}_beg_end_dur.txt", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
-        spamwriter.writerow([beg, end])
+        spamwriter.writerow([beg, end, dur])
 
     # Find the channels
-    if "$params.channels" == "null":
-        channels = get_channels($params.obsid)
-    else:
-        channels = [$params.channels]
+    channels = get_channels(${params.obsid})
     # Reorder channels to handle the order switch at 128
     channels = np.array(channels, dtype=np.int)
     hichans = [c for c in channels if c>128]
@@ -120,7 +49,7 @@ process beamform_setup {
 
     # Ensure the metafits files is there
     ensure_metafits(
-        "${params.basedir}/${params.obsid}",
+        "${params.vcsdir}/${params.obsid}",
         "${params.obsid}",
         "${params.obsid}_metafits_ppds.fits",
     )
@@ -131,10 +60,10 @@ process beamform_setup {
         spamwriter.writerow([gps_to_utc(beg)])
 
     # Make sure all the required directories are made
-    mdir("${params.scratch_basedir}/${params.obsid}", "Data")
-    mdir("${params.scratch_basedir}/${params.obsid}", "Products")
-    mdir("${params.scratch_basedir}/batch", "Batch")
-    mdir("${params.scratch_basedir}/${params.obsid}/pointings", "Pointings")
+    mdir("${params.vcsdir}/${params.obsid}", "Data")
+    mdir("${params.vcsdir}/${params.obsid}", "Products")
+    mdir("${params.vcsdir}/batch", "Batch")
+    mdir("${params.vcsdir}/${params.obsid}/pointings", "Pointings")
     """
 }
 
@@ -143,7 +72,7 @@ process combined_data_check {
     params.no_combined_check == false
 
     input:
-    tuple val(begin), val(end)
+    tuple val(begin), val(end), val(dur)
 
     """
     #!/usr/bin/env python
@@ -152,8 +81,8 @@ process combined_data_check {
     from mwa_search.obs_tools import check_data
 
     #Perform data checks
-    dur = $end-$begin + 1
-    check = check_data("$params.obsid", beg=$begin, dur=dur)
+    dur = ${end} - ${begin} + 1
+    check = check_data("${params.obsid}", beg=${begin}, dur=dur)
     if not check:
         print("ERROR: Recombined check has failed. Cannot continue.")
         sys.exit(1)
@@ -165,228 +94,163 @@ process combined_data_check {
 
 process make_beam {
     label 'gpu'
-    //time '2h'
-    time "${mb_dur*task.attempt}s"
+    label 'vcsbeam'
+
+    time "${ task.attempt * ( Float.valueOf(dur) * ( params.bm_read + params.bm_cal + points.size() * ( params.bm_beam + params.bm_write ) ) + 200 ) * 1.2 }s"
     errorStrategy 'retry'
     maxRetries 2
     maxForks params.max_gpu_jobs
 
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
-        scratch '$JOBFS'
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("x86") ) {
-        clusterOptions = "--gres=gpu:1"
-        scratch '/ssd'
-        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem}GB"
-        scratch '/nvmetmp'
-        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else {
-        container = "cirapulsarsandtransients/vcstools:${params.vcstools_version}"
-    }
-
     input:
-    each channel_pair
-    val utc
-    each point
-    tuple val(begin), val(end)
+    tuple val(utc), val(begin), val(end), val(dur)
+    tuple val(channel_id), val(gpubox), val(points)
 
     output:
-    file "*fits"
-
+    tuple val(channel_id), val(points), path("*fits")
 
     """
-    if $params.offringa; then
+    if ${params.offringa}; then
         DI_file="calibration_solution.bin"
-        jones_option="-O ${params.didir}/calibration_solution.bin -C ${channel_pair[1].toInteger() - 1}"
+        jones_option="-O ${params.didir}/calibration_solution.bin -C ${gpubox.toInteger() - 1}"
     else
-        jones_option="-J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat"
+        jones_option="-J ${params.didir}/DI_JonesMatrices_node${gpubox}.dat"
     fi
 
-    make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
--f ${channel_pair[0]} \${jones_option} \
--d ${params.scratch_basedir}/${params.obsid}/combined -P ${point.join(",").replaceAll(~/\s/,"")} \
--r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
-${bf_out} -t 6000 -F ${params.didir}/flagged_tiles.txt  -z $utc
+    make_beam -o ${params.obsid} -b ${begin} -e ${end} -a 128 -n 128 \
+-f ${channel_id} \${jones_option} \
+-d ${params.vcsdir}/${params.obsid}/combined -P ${points.join(",").replaceAll(~/\s/,"")} \
+-r 10000 -m ${params.vcsdir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
+${bf_out} -t 6000 -F ${params.didir}/flagged_tiles.txt  -z ${utc}
     mv */*fits .
     """
 }
 
 
 process make_beam_ipfb {
-    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*hdr"
-    publishDir "${params.basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*vdif"
-    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*hdr"
-    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits_scratch, pattern: "*vdif"
-
     label 'gpu'
-    //time '2h'
-    time "${mb_ipfb_dur*task.attempt}s"
+    label 'vcsbeam'
+    publishDir "${params.vcsdir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*hdr"
+    publishDir "${params.vcsdir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits, pattern: "*vdif"
+
+    time "${ task.attempt * ( Float.valueOf(dur) * ( params.bm_read + params.bm_cal * ( params.bm_beam + params.bm_write ) ) + 200 ) * 1.2 }s"
     errorStrategy 'retry'
     maxRetries 2
     maxForks params.max_gpu_jobs
-
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
-        scratch '$JOBFS'
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("x86") ) {
-        clusterOptions = "--gres=gpu:1"
-        scratch '/ssd'
-        container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
-    }
-    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        clusterOptions = "--gres=gpu:1  --tmp=${temp_mem_single}GB"
-        scratch '/nvmetmp'
-        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else {
-        container = "cirapulsarsandtransients/vcstools:${params.vcstools_version}"
-    }
 
     when:
     point != " " //Don't run if blank pointing given
 
     input:
-    each channel_pair
-    val utc
-    each point
-    tuple val(begin), val(end)
+    tuple val(utc), val(begin), val(end), val(dur)
+    tuple val(channel_id), val(gpubox), val(point)
 
     output:
-    file "*fits"
-    file "*hdr"
-    file "*vdif"
+    tuple val(channel_id), val(point), path("*fits"), emit: fits
+    tuple val(channel_id), val(point), path("*hdr"), path("*vdif"),  emit: vdif
 
     """
-    if $params.offringa; then
+    if ${params.offringa}; then
         DI_file="calibration_solution.bin"
-        jones_option="-O ${params.didir}/calibration_solution.bin -C ${channel_pair[1].toInteger() - 1}"
+        jones_option="-O ${params.didir}/calibration_solution.bin -C ${gpubox.toInteger() - 1}"
     else
-        jones_option="-J ${params.didir}/DI_JonesMatrices_node${channel_pair[1]}.dat"
+        jones_option="-J ${params.didir}/DI_JonesMatrices_node${gpubox}.dat"
     fi
 
-    if $params.publish_fits; then
-        mkdir -p -m 771 ${params.basedir}/${params.obsid}/pointings/${point}
-    fi
-    if $params.publish_fits_scratch; then
-        mkdir -p -m 771 ${params.scratch_basedir}/${params.obsid}/pointings/${point}
+    if ${params.publish_fits}; then
+        mkdir -p -m 771 ${params.vcsdir}/${params.obsid}/pointings/${point}
     fi
 
-    make_beam -o $params.obsid -b $begin -e $end -a 128 -n 128 \
--f ${channel_pair[0]} \${jones_option} \
--d ${params.scratch_basedir}/${params.obsid}/combined -P ${point} \
--r 10000 -m ${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
--p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z $utc -g 11
-    ls *
+    make_beam -o ${params.obsid} -b ${begin} -e ${end} -a 128 -n 128 \
+-f ${channel_id} \${jones_option} \
+-d ${params.vcsdir}/${params.obsid}/combined -P ${point} \
+-r 10000 -m ${params.vcsdir}/${params.obsid}/${params.obsid}_metafits_ppds.fits \
+-p -v -t 6000 -F ${params.didir}/flagged_tiles.txt -z ${utc} -g 11
     mv */*fits .
     """
 }
 
 process splice {
-    publishDir "${params.basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits
-    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}", mode: 'copy', enabled: params.publish_fits_scratch
     label 'cpu'
+    label 'vcstools'
+
+    publishDir "${params.vcsdir}/${params.obsid}/pointings/${point}", mode: 'copy', enabled: params.publish_fits
     time '3h'
     maxForks 300
     errorStrategy 'retry'
     maxRetries 1
 
     input:
-    val chan
-    each file(unspliced)
+    tuple val(chans), val(point), path(unspliced)
 
     output:
-    file "${params.obsid}*fits"
-    val "${unspliced[0].baseName.split("_")[2]}_${unspliced[0].baseName.split("_")[3]}"
-
-    if ( "$HOSTNAME".startsWith("farnarkle") ) {
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("x86") ) {
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("garrawarla") ) {
-        //container = "file:///${params.containerDir}/vcstools/vcstools_${params.vcstools_version}.sif"
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else if ( "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module use ${params.module_dir}; module load vcstools/${params.vcstools_version}"
-    }
-    else {
-        container = "cirapulsarsandtransients/vcstools:${params.vcstools_version}"
-    }
+    tuple val(point), path("${params.obsid}*fits")
 
     """
-    splice_wrapper.py -o ${params.obsid} -c ${chan.join(" ")}
+    splice_wrapper.py -o ${params.obsid} -c ${chans.join(" ")}
     """
 }
 
 
 workflow pre_beamform {
+    // Performs metadata calls and data checks
     main:
         beamform_setup()
-        combined_data_check(beamform_setup.out[0].splitCsv())
+        // Grab outputs from the CSVs
+        beg_end_dur = beamform_setup.out.beg_end_dur.splitCsv()
+        channels    = beamform_setup.out.channels.splitCsv()
+        utc         = beamform_setup.out.utc.splitCsv().flatten()
+
+        combined_data_check(beamform_setup.out.beg_end_dur.splitCsv())
     emit:
-        beamform_setup.out[0].splitCsv()
-        beamform_setup.out[1].splitCsv()
-        beamform_setup.out[2].splitCsv().flatten()
+        // Combine all the constant metadata and make it a value channel (with collect) so it will be used for each job
+        // Format:  [ utc, begin(GPS), end(GPS), duration(s) ]
+        utc_beg_end_dur = utc.concat( beg_end_dur ).collect()
+        // Channel pair in the format [ channel_id, gpubox_id ]
+        channels
 }
 
 
 workflow beamform {
+    // Beamforms MWA voltage data
     take:
-        obs_beg_end
+        // Metadata in the format [ utc, begin(GPS), end(GPS), duration(s) ]
+        utc_beg_end_dur
+        // Channel pair in the format [ channel_id, gpubox_id ]
         channels
-        utc
+        // List of pointings in the format HH:MM:SS_+-DD:MM:SS
         pointings
     main:
-        make_beam( channels,\
-                   utc,\
-                   pointings,\
-                   obs_beg_end )
-        splice( channels.map{ it -> it[0] }.collect(),\
-                make_beam.out.flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
-                groupTuple( size: 24 ).map { it -> it[1] } )
+        // Combine the each channel with each pointing (group) so you make a job for each combination
+        chan_point = channels.combine( pointings.flatten().collate( params.max_pointings ).map{ [ it ] } )
+        make_beam(
+            utc_beg_end_dur,
+            chan_point
+        )
+        // Make sure the pointings and fits are in the same order then transpose to "flatten" out multiple pointings then group by the pointing for splicing
+        splice( make_beam.out.map{ chan, pointings, fits -> [ chan, pointings.sort(), fits.sort() ] }.transpose().groupTuple( by: 1, size: 24 ) )
     emit:
-        make_beam.out.flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
-        splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
-        splice.out[1]
-        splice.out[0] | flatten() | map { it -> [it.baseName.split("_ch")[0].split("${params.obsid}_")[-1], it ] } | groupTuple()
+        splice.out // [ pointing, fits_file ]
 }
 
 workflow beamform_ipfb {
+    // Beamforms MWA voltage data and performs and Inverse Polyphase Filter Bank to increase time resolution
     take:
-        obs_beg_end
+        // Metadata in the format [ utc, begin(GPS), end(GPS), duration(s) ]
+        utc_beg_end_dur
+        // Channel pair in the format [ channel_id, gpubox_id ]
         channels
-        utc
+        // List of pointings in the format HH:MM:SS_+-DD:MM:SS
         pointings
     main:
-        make_beam_ipfb( channels,\
-                        utc,\
-                        pointings.flatten(),\
-                        obs_beg_end )
-        splice( channels.map{ it -> it[0] }.collect(),\
-                make_beam_ipfb.out[0].flatten().map { it -> [it.baseName.split("ch")[0], it ] }.\
-                groupTuple( size: 24 ).map { it -> it[1] } )
+        // Combine the each channel with each pointing so you make a job for each combination
+        chan_point = channels.combine( pointings.flatten().map{ [ it ] } )
+        make_beam_ipfb(
+            utc_beg_end_dur,
+            chan_point
+        )
+        // Group by the pointing for splicing
+        splice( make_beam_ipfb.out.fits.groupTuple( by: 1, size: 24 ) )
     emit:
-        make_beam_ipfb.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
-        splice.out[0].flatten().map{ it -> [it.baseName.split("ch")[0], it ] }.groupTuple().map{ it -> it[1] }
-        splice.out[1]
-        splice.out[0] | flatten() | map { it -> [it.baseName.split("_ch")[0].split("${params.obsid}_")[-1], it ] } | groupTuple()
+        fits = splice.out // [ pointing, fits_file ]
+        vdif = make_beam_ipfb.out.vdif // [ channel_id, point, hdr, vdif ]
 }

@@ -1,28 +1,5 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl = 2
-
-params.obsid = null
-params.pointings = null
-params.fitsdir = "${params.basedir}/${params.obsid}/pointings"
-params.fits_files
-params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
-params.dm_min = 0
-params.dm_max = 0.02
-params.dm_min_step = 0.02
-
-params.scratch = false
-params.fits_file_dir = false
-
-params.cand = "Blind"
-params.sp = false
-params.publish_all_prepfold = true
-
-//Defaults for the accelsearch command
-params.nharm = 16 // number of harmonics to search
-params.min_period = 0.001 // min period to search for in sec (ANTF min = 0.0013)
-params.max_period = 30 // max period to search for in sec  (ANTF max = 23.5)
-params.zmax = 0
 
 //Some math for the accelsearch command
 //convert to freq
@@ -52,12 +29,12 @@ else if ( params.fits_files ) {
 }
 else {
     if ( params.scratch ) {
-        fits_files = Channel.fromPath( "${params.scratch_basedir}/${params.obsid}/dpp_pointings/${params.pointings}/${params.obsid}_*.fits", checkIfExists: true )
-        nfiles = new File("${params.scratch_basedir}/${params.obsid}/dpp_pointings/${params.pointings}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+        fits_files = Channel.fromPath( "${params.vcsdir}/${params.obsid}/dpp_pointings/${params.pointings}/${params.obsid}_*.fits", checkIfExists: true )
+        nfiles = new File("${params.vcsdir}/${params.obsid}/dpp_pointings/${params.pointings}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
     }
     else {
-        fits_files = Channel.fromPath( "${params.basedir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}_*.fits", checkIfExists: true )
-        nfiles = new File("${params.basedir}/${params.obsid}/pointings/${params.pointings}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
+        fits_files = Channel.fromPath( "${params.vcsdir}/${params.obsid}/pointings/${params.pointings}/${params.obsid}_*.fits", checkIfExists: true )
+        nfiles = new File("${params.vcsdir}/${params.obsid}/pointings/${params.pointings}").listFiles().findAll { it.name ==~ /.*1*fits/ }.size()
     }
 }
 
@@ -79,9 +56,9 @@ if ( params.help ) {
              |  --fits_file_dir
              |              Directory containing the fits files. Use this if the fits files
              |              are not in the default directory :
-             |              ${params.basedir}/<obsid>/pointings/${params.pointings}
+             |              ${params.vcsdir}/<obsid>/pointings/${params.pointings}
              |  --scratch   Change the default directory to:
-             |              ${params.scratch_basedir}/<obsid>/pointings/${params.pointings}
+             |              ${params.vcsdir}/<obsid>/pointings/${params.pointings}
              |  --dm_min    Minimum DM to search over [default: 1]
              |  --dm_max    Maximum DM to search over [default: 250]
              |  --dm_min_step
@@ -102,7 +79,7 @@ process search_dd_fft_acc {
     //Will ignore errors for now because I have no idea why it dies sometimes
     errorStrategy { task.attempt > 1 ? 'ignore' : 'retry' }
     maxForks 800
-    publishDir "${params.scratch_basedir}/${params.obsid}/pointings/${name.split("${params.obsid}_")[1]}", mode: 'copy'
+    publishDir "${params.vcsdir}/${params.obsid}/pointings/${name.split("${params.obsid}_")[1]}", mode: 'copy'
 
     input:
     tuple val(name), val(dm_values), file(fits_files)
@@ -131,7 +108,7 @@ process search_dd_fft_acc {
     }
 
     //numout=${(int)(obs_length*10000/Float.valueOf(dm_values[5]))}
-    // -numout \${numout} 
+    // -numout \${numout}
     """
     echo "lowdm highdm dmstep ndms timeres downsamp"
     echo ${dm_values}
@@ -181,7 +158,8 @@ process accelsift {
 }
 
 process single_pulse_searcher {
-    label 'cpu_large_mem'
+    label 'cpu'
+    label 'large_mem'
     time '2h'
     stageInMode = 'copy'
     publishDir params.out_dir, mode: 'copy'
