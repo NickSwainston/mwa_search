@@ -1,13 +1,5 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl = 2
-
-params.obsid = null
-params.calid = null
-
-params.begin = null
-params.end = null
-params.all = false
 
 params.search_radius = 0.00001
 params.fwhm_deg = null
@@ -15,18 +7,6 @@ params.only_cand_search = false
 params.offset = 0.0
 params.angle_offset = 0.0
 
-params.vcstools_version = 'master'
-params.mwa_search_version = 'master'
-
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.publish_fits = false
-params.publish_fits_scratch = true
-params.publish_all_classifer_cands = false
-
-params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
-
-params.no_combined_check = false
-params.max_gpu_jobs = 24
 
 params.help = false
 if ( params.help ) {
@@ -47,11 +27,7 @@ if ( params.help ) {
              |              Only search for pulsar candidates (no known pulsar processing
              |              [default: False]
              |  --publish_fits
-             |              Publish to the fits directory (/group on Galaxy). Use this instead
-             |              of --publish_fits_scratch
-             |  --publish_fits_scratch
-             |              Publish to the scratch fits directory (/astro on Galaxy). Include
-             |              this option.
+             |              Publish to the fits directory (/astro on Galaxy).
              |  --vcstools_version
              |              The vcstools module version to use [default: master]
              |  --mwa_search_version
@@ -78,7 +54,7 @@ process fwhm_calc {
     val channels
 
     output:
-    file "${params.obsid}_fwhm.txt"
+    path "${params.obsid}_fwhm.txt"
 
     """
     #!/usr/bin/env python3
@@ -106,10 +82,10 @@ process find_pointings {
     val fwhm
 
     output:
-    file "${params.obsid}_fov_sources.csv"
+    path "${params.obsid}_fov_sources.csv"
 
     """
-    pulsars_in_fov.py -o $params.obsid -b $begin -e $end --fwhm $fwhm --search_radius ${params.search_radius} \
+    pulsars_in_fov.py -o ${params.obsid} -b ${begin} -e ${end} --fwhm ${fwhm} --search_radius ${params.search_radius} \
 ${no_known_pulsar_command} --offset ${params.offset} --angle_offset ${params.angle_offset}
     """
 }
@@ -120,21 +96,23 @@ include { classifier } from './classifier_module'
 
 workflow {
     pre_beamform()
-    fwhm_calc( pre_beamform.out[1].map{ it -> it[0] }.collect() )
-    find_pointings( pre_beamform.out[0],
-                    fwhm_calc.out.splitCsv().flatten() )
-    beamform( pre_beamform.out[0],\
-              pre_beamform.out[1],\
-              pre_beamform.out[2],\
-              //Grab the pointings for slow pulsars and single pulses
-              find_pointings.out.splitCsv(skip: 1, limit: 1).concat(\
-              find_pointings.out.splitCsv(skip: 5, limit: 1),\
-              find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().filter{ it != " " }.collate( params.max_pointings ) )
-    beamform_ipfb( pre_beamform.out[0],\
-                   pre_beamform.out[1],\
-                   pre_beamform.out[2],\
-                   //Grab the pointings for slow pulsars and single pulses
-                   find_pointings.out.splitCsv(skip: 3, limit: 1) )
+    fwhm_calc( pre_beamform.out.channels.map{ it -> it[0] }.collect() )
+    find_pointings(
+        pre_beamform.out.utc_beg_end_dur.map{ [ it[1], it[2] ] },
+        fwhm_calc.out.splitCsv().flatten(),
+    )
+    // beamform( pre_beamform.out[0],\
+    //           pre_beamform.out[1],\
+    //           pre_beamform.out[2],\
+    //           //Grab the pointings for slow pulsars and single pulses
+    //           find_pointings.out.splitCsv(skip: 1, limit: 1).concat(\
+    //           find_pointings.out.splitCsv(skip: 5, limit: 1),\
+    //           find_pointings.out.splitCsv(skip: 7, limit: 1)).collect().flatten().unique().filter{ it != " " }.collate( params.max_pointings ) )
+    // beamform_ipfb( pre_beamform.out[0],\
+    //                pre_beamform.out[1],\
+    //                pre_beamform.out[2],\
+    //                //Grab the pointings for slow pulsars and single pulses
+    //                find_pointings.out.splitCsv(skip: 3, limit: 1) )
 
     // Perform a search on all candidates (not known pulsars)
     // if pointing in fits file name is in pulsar search pointing list

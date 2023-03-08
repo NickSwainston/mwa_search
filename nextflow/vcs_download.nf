@@ -1,14 +1,6 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl = 2
 
-params.obsid = 'no_obsid'
-
-params.begin = null
-params.end = null
-params.all = false
-
-params.no_combined_check = true
 params.ozstar_transfer = false
 
 params.increment = 32
@@ -17,11 +9,7 @@ params.untar_jobs = 2
 params.keep_tarball = false
 params.keep_raw = false
 params.max_jobs = 12
-
 params.download_dir = null
-
-params.vcstools_version = 'master'
-params.mwa_voltage_version = 'master'
 
 if ( params.keep_tarball ) {
     keep_tarball_command = "-k"
@@ -98,10 +86,10 @@ process check_data_format {
     from vcstools.general_utils import mdir
 
     # Ensure the metafits files is there
-    meta.ensure_metafits("${params.basedir}/${params.obsid}", "${params.obsid}",\
-                         "${params.scratch_basedir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
+    meta.ensure_metafits("${params.vcsdir}/${params.obsid}", "${params.obsid}",\
+                         "${params.vcsdir}/${params.obsid}/${params.obsid}_metafits_ppds.fits")
 
-    data_dir = '${params.scratch_basedir}/${params.obsid}'
+    data_dir = '${params.vcsdir}/${params.obsid}'
     obsinfo = meta.getmeta(service='obs', params={'obs_id':'${params.obsid}'})
     comb_del_check = meta.combined_deleted_check(${params.obsid}, begin=${begin}, end=${end})
     data_format = obsinfo['dataquality']
@@ -173,15 +161,15 @@ process move_asvo_files {
     if [ ${data_type} == 16 ]; then
         # Move ics files
         if compgen -G ${params.download_dir}/*_ics.dat  > /dev/null; then
-            mv ${params.download_dir}/*_ics.dat ${params.scratch_basedir}/${params.obsid}/combined/
+            mv ${params.download_dir}/*_ics.dat ${params.vcsdir}/${params.obsid}/combined/
         fi
     fi
     # Move metafits files
     if [ -f ${params.download_dir}/${params.obsid}.metafits ]; then
-        mv ${params.download_dir}/${params.obsid}.metafits ${params.scratch_basedir}/${params.obsid}/combined/
+        mv ${params.download_dir}/${params.obsid}.metafits ${params.vcsdir}/${params.obsid}/combined/
     fi
     if [ -f ${params.download_dir}/${params.obsid}_metafits_ppds.fits ]; then
-        mv ${params.download_dir}/${params.obsid}_metafits_ppds.fits ${params.scratch_basedir}/${params.obsid}/combined/
+        mv ${params.download_dir}/${params.obsid}_metafits_ppds.fits ${params.vcsdir}/${params.obsid}/combined/
     fi
     """
 }
@@ -212,7 +200,7 @@ process untar {
 }
 
 process recombine {
-    label 'cpu_large_mem'
+    label 'cpu'
     memory {"${begin_time_increment[1] * 5} GB"}
     time { "${500*params.increment*task.attempt + 900}s" }
     errorStrategy { task.attempt > 3 ? 'finish' : 'retry' }
@@ -234,8 +222,8 @@ process recombine {
 
     script:
     """
-    srun --export=all recombine.py -o ${params.obsid} -s ${begin_time_increment[0]} -d ${begin_time_increment[1]} -w ${params.download_dir} -p ${params.scratch_basedir}/${params.obsid}
-    checks.py -m recombine -o ${params.obsid} -w ${params.scratch_basedir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
+    srun --export=all recombine.py -o ${params.obsid} -s ${begin_time_increment[0]} -d ${begin_time_increment[1]} -w ${params.download_dir} -p ${params.vcsdir}/${params.obsid}
+    checks.py -m recombine -o ${params.obsid} -w ${params.vcsdir}/${params.obsid}/combined/ -b ${begin_time_increment[0]} -i ${begin_time_increment[1]}
     if ! ${params.keep_raw}; then
         # Loop over each second and delete raw files
         for gps in \$(seq ${begin_time_increment[0]} ${begin_time_increment[0] + begin_time_increment[1] - 1}); do
@@ -262,9 +250,9 @@ process ozstar_transfer {
     end=${begin_time_increment[0] + begin_time_increment[1] - 1}
     echo "obsid: ${params.obsid} start: \${start} end: \${end}"
 
-    ls --format single-column /astro/mwavcs/vcs/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat | xargs -n1 basename > temp_file_list.txt
-    rsync -vhu --files-from=temp_file_list.txt /astro/mwavcs/vcs/${params.obsid}/combined/ ozstar:/fred/oz125/vcs/${params.obsid}/combined
-    rm /astro/mwavcs/vcs/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat
+    ls --format single-column ${params.vcsdir}/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat | xargs -n1 basename > temp_file_list.txt
+    rsync -vhu --files-from=temp_file_list.txt ${params.vcsdir}/${params.obsid}/combined/ ozstar:/fred/oz125/vcs/${params.obsid}/combined
+    munlink ${params.vcsdir}/${params.obsid}/combined/*{${begin_time_increment[0]}..${begin_time_increment[0] + begin_time_increment[1] - 1}}*dat
     """
 }
 

@@ -1,17 +1,31 @@
-# The MWA pulsar search pipeline (deprecated)
-This repository is no longer being actively developed. For an up to date version see https://github.com/CIRA-Pulsars-and-Transients-Group/mwa_search.
+# The MWA pulsar search pipeline
 
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/eedca9f0fca94e7cb67b45059eee1da3)](https://www.codacy.com/app/NickSwainston/blindsearch_scripts?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=NickSwainston/blindsearch_scripts&amp;utm_campaign=Badge_Grade)
 
 This repository was written by Nick Swainston to automate pulsar searching using the PRESTO software suite. An explanation of the search procedure can be found on the wiki of the GitHub page. The pipeline uses Nextflow to manage all the required jobs for both beamforming and searching.
 
+## Documentation
+
+Documentation for `mwa_search` is hosted at [this ReadTheDocs link](https://mwa-search-cira.readthedocs.io/en/latest/).
+Source code for this documentation is in the [docs][docs] folder.
+
 ## Prerequisites
 
-Requires the [PRESTO](https://github.com/scottransom/presto) software suite, [Nextflow](https://www.nextflow.io/) and [_vcstools_](https://github.com/CIRA-Pulsars-and-Transients-Group/vcstools).
+To run the pipelines contained in the `nextflow` directory requires [Nextflow](https://www.nextflow.io/).
+The dependancies of the pipeline are containerised so you will need container software such as Docker installed. If you would like an explanation of the depenancies see the dependancy section below.
 
 ## Installing
 
-On Swinburne's Ozstar supercomputer you can load the module using
+The repository's scripts can be installed using either:
+```
+pip install .
+```
+or
+```
+python setup.py install.
+```
+
+On Swinburne's Ozstar supercomputer, the pipeline is already installed so you can load the module using
 ```
 module use /fred/oz125/software/modulefiles
 module load vcstools/master
@@ -25,21 +39,30 @@ module load vcstools
 module load mwa_search
 ```
 
-If you want to install this pipeline on your supercomputer I will likely need to assistant the installation and the writing of your config file. If you would like to try yourself, I recommend installing the _vcstools_ beamformer [docker image](https://hub.docker.com/repository/docker/cirapulsarsandtransients/vcstools) and then installing the python scripts with the setup.py If you would like to attempt it yourself do the following. Make a directory called mwa\_search and then move into it. Then clone the repository and move into the directory it creates. Run the build script using 
-```
-./build.sh
-```
-This will move all the python scripts to a directory called master. Then create a module that does the following.
-```
-export PATH=${PATH}:<your_install_directory>/master
-export PYTHONPATH=${PYTHONPATH}:<your_install_directory>/master
-```
-where \<your\_install_directory\> is the directory where you ran the git clone command, and \<search\_directory\> is where you would like your search pipeline products (make sure this directory exists).
+If you want to install this pipeline on your supercomputer you will need to edit the `nextflow.config` based on your cluster.
+To do this, copy one of the `if ( hostname.startsWith("<cluster>") ) {` sections of the config
+and edit to describe your clusters' directories structure and dependancy installation.
+I will likely need to assistant the installation and the writing of your config file so feel free to make a GitHub issue to ask for assistance.
 
-You will also need to edit _config.py_ in _vcstools_ to comply with the modules and directory structure of your supercomputer.
+
+## Dependancies
+The following is all the software we use in the `mwa_search_pipeline.nf`. The following will describe the version of the software we use, the location of Docker images and any changes we have made to the software.
+
+### PRESTO
+[PRESTO](https://github.com/scottransom/presto) pulsar search software suite.
+We use [this fork](https://github.com/NickSwainston/presto) which includes out custom `ACCEL_sift.py` script.
+We use version [v4.0_7ec3c83](https://hub.docker.com/repository/docker/nickswainston/presto/general)
+
+
+### vcstools
+[vcstools](https://github.com/CIRA-Pulsars-and-Transients-Group/vcstools).
+
+I recommend installing the _vcstools_ beamformer [docker image](https://hub.docker.com/repository/docker/cirapulsarsandtransients/vcstools) and then installing the python scripts with the setup.py If you would like to attempt it yourself do the following.
 
 ## Developing
-If you create a new branch of the git repo then when you use the _build.sh_ script it will make a directory based on your branch name which can be used to test changes to the code without disrupting currently running versions. _mwa\_search\_pipeline.nf_ has an option --mwa_search_version which can use a different module version (which you will have to create) and used to test it, You can then submit a pull request to the GitHub.
+If you create a new branch of the git repo then when you use the _build.sh_ script it will make a directory based on your branch name which can be used to test changes to the code without disrupting currently running versions.
+_mwa\_search\_pipeline.nf_ has an option --mwa_search_version which can use a different module version (which you will have to create) and used to test it.
+You can then submit a pull request to the GitHub.
 
 ## Common Use Cases
 All Nextflow scripts have a --help option to explain all the available arguments.

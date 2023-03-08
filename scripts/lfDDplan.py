@@ -45,15 +45,23 @@ if __name__ == "__main__":
         args.centrefreq = centrefreq
 
 
-    DD_plan_array = dd_plan( args.centrefreq, args.bandwidth, args.nfreqchan, args.timeres, args.lowDM, args.highDM,
-                             min_DM_step=args.min_DM_step, max_DM_step=args.max_DM_step,
-                             max_dms_per_job=args.max_dms_per_job)
-    print(" low DM | high DM | DeltaDM | Nsteps | Downsamp | nsub | Effective time resolution (ms) ")
+    DD_plan_array = dd_plan(
+        args.centrefreq,
+        args.bandwidth,
+        args.nfreqchan,
+        args.timeres,
+        args.lowDM,
+        args.highDM,
+        min_DM_step=args.min_DM_step,
+        max_DM_step=args.max_DM_step,
+        max_dms_per_job=args.max_dms_per_job
+    )
+    print(" low DM | high DM | DeltaDM | Nsteps | Downsamp | nsub | workfactor | Effective time resolution (ms) ")
     total_steps = 0
-    for d in DD_plan_array:
-        print("{0:7.1f} | {1:7.1f} | {2:7.2f} | {3:6d} | {4:8d} | {5:4d} | {6:7.3f}".\
-               format(d[0], d[1], d[2], d[3], d[5], d[6], d[4]))
-        total_steps += d[3]
+    for dd_line in DD_plan_array:
+        dm_min, dm_max, dm_step, ndm, timeres, downsamp, nsub, total_work_factor = dd_line
+        print(f"{dm_min:7.1f} | {dm_max:7.1f} | {dm_step:7.2f} | {ndm:6d} | {downsamp:8d} | {nsub:4d} | {total_work_factor:10.2f} | {timeres:7.3f}")
+        total_steps += ndm
     print("Total DM steps required: {}".format(total_steps))
 
     if args.plot:

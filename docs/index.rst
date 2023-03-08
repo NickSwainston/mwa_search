@@ -17,5 +17,7 @@ Welcome to mwa_search's documentation!
    mwa_search_scripts
    plotting_scripts
 
+   test_commands
+
    dpp_modules
    mwa_search_modules

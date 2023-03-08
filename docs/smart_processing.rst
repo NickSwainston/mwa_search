@@ -1,10 +1,14 @@
 .. _smart_processing:
 
-SMART Pulsar Search Proccessing
+SMART Pulsar Search Processing
 ===============================
 
 The following guide will teach you how to process SMART data for the shallow first pass search.
 
+Overview
+--------
+
+.. image:: first_pass_workflow.png
 
 Choosing an observation
 -----------------------
@@ -59,7 +63,7 @@ You also need to transfer the calibration solutions to OZStar. This should be do
 
     cd /fred/oz125/vcs
     mkdir -p <obsid>/cal/<calid>/rts
-    rsync garrawarla:/astro/mwavcs/vcs/<obsid>/cal/<calid>/rts/*{dat,txt} <obsid>/cal/<calid>/rts
+    rsync garrawarla:/astro/mwavcs/${USER}/<obsid>/cal/<calid>/rts/*{dat,txt} <obsid>/cal/<calid>/rts
 
 This will download all the calibration solutions and flagged tiles/channels files we need. Once both downloads are complete, update the google sheet so that this observation is marked as "processing" and continue to the next step.
 

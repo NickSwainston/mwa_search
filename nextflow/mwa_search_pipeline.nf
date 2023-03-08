@@ -1,57 +1,6 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl = 2
-
-params.obsid = null
-params.calid = null
-params.pointings = null
-params.pointing_file = null
-params.bestprof_pointings = null
-
-params.begin = 0
-params.end = 0
-params.all = false
-
-params.dm_min = 1
-params.dm_max = 250
-params.dm_min_step = 0.02
-params.dm_max_step = 0.5
-params.max_dms_per_job = 5000
-
-params.summed = true
-params.channels = null
-params.vcstools_version = 'master'
-params.mwa_search_version = 'master'
-
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
-params.out_dir = "${params.search_dir}/${params.obsid}_candidates"
-
-params.zmax = 0
-
-params.no_combined_check = false
-
-
-if ( params.max_dms_per_job != 5000 ) {
-    // If using non default max_dms_per_job then use a make the groupTuple size sudo infinite
-    total_dm_jobs = 10000
-}
-// If doing an acceleration search, lower the number of DMs per job so the jobs don't time out
-else if ( params.zmax == 0 ) {
-    // Periodic search defaults
-    total_dm_jobs = 6
-}
-else {
-    // Accel search defaults
-    total_dm_jobs = 24
-    params.max_dms_per_job = 128
-}
-
-if ( params.bestprof_pointings ) {
-    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
-}
-else {
-    bestprof_files = Channel.from(" ")
-}
+nextflow.enable.dsl=2
 
 params.help = false
 if ( params.help ) {
@@ -62,7 +11,7 @@ if ( params.help ) {
              |  --calid     Observation ID of calibrator you want to process [no default]
              |  --begin     First GPS time to process [no default]
              |  --end       Last GPS time to process [no default]
-             |  --all       Use entire observation span. Use instead of -b & -e. [default: false]
+             |  --all       Use entire observation span. Use instead of -b & -e. [default: ${params.all}]
              |
              |Pointing arguments (one is required):
              |  --pointings A comma-separated list of pointings with the RA and Dec separated
@@ -77,7 +26,14 @@ if ( params.help ) {
              |              follow up. The pipeline will beamform on their pointings, prepfold
              |              on their DM and period, and perform a blind search. [default: None]
              |
-             | Dedispersion arguments (optional):
+             |Beamforming types arguments (optional):
+             |  --summed   Sum the Stoke paramters [default: ${params.summed}]
+             |  --incoh    Also produce an incoherent beam [default: ${params.incoh}]
+             |  --ipfb     Also produce a high time resolution Inverse Polyphase Filter Bank beam
+             |             [default: ${params.ipfb}]
+             |  --offringa Use offringa calibration solution instead of RTS [default: ${params.offringa}]
+             |
+             |Dedispersion arguments (optional):
              |  --dm_min    Minimum DM to search over [default: ${params.dm_min}]
              |  --dm_max    Maximum DM to search over [default: ${params.dm_max}]
              |  --dm_min_step
@@ -89,41 +45,73 @@ if ( params.help ) {
              |              Lowering this will reduce memory usage and increase parellelisation.
              |              [default: ${params.max_dms_per_job}]
              |
-             |Optional arguments:
-             |  --summed    Add this flag if you the beamformer output as summed polarisations
-             |              (only Stokes I). This reduces the data size by a factor of 4.
-             |              [default: False]
-             |  --zmax      The acceleration range to search over. If you would like to perform
-             |              an acceleration search I recomend you use 200 and set
-             |              --max_dms_per_job 32
-             |              [default: 0 (no acceleration search)]
+             |Pulsar search arguments (optional):
+             |  --sp        Perform only a single pulse search [default: ${params.sp }]
+             |  --cand      Label given to output files [default: ${params.cand }]
+             |  --nharm     Number of harmonics to search [default: ${params.nharm }]
+             |  --min_period
+             |              Min period to search for in sec (ANTF min = 0.0013)
+             |              [default: ${params.min_period }]
+             |  --max_period
+             |              Max period to search for in sec (ANTF max = 23.5)
+             |              [default: ${params.max_period }]
+             |  --zmax      Maximum acceleration to search (0 will do a simpler periodic search).
+             |              I recomend you use 200 and set --max_dms_per_job 32
+             |              [default: ${params.zmax }]
+             |
+             |Other arguments (optional):
              |  --out_dir   Output directory for the candidates files
-             |              [default: ${params.search_dir}/<obsid>_candidates]
-             |  --ipfb      Perform an the inverse PFB to produce high time resolution beamformed
-             |              vdif files [default: false]
+             |              [default: ${params.out_dir}]
              |  --publish_fits
-             |              Publish to the fits directory (/group on Galaxy).
-             |  --publish_fits_scratch
-             |              Publish to the scratch fits directory (/astro on Galaxy).
+             |              Publish to the fits files to the vcs subdirectory.
              |  --vcstools_version
-             |              The vcstools module version to use [default: master]
+             |              The vcstools module version to use [default: ${params.vcstools_version}]
              |  --mwa_search_version
-             |              The mwa_search module bersion to use [default: master]
+             |              The mwa_search module bersion to use [default: ${params.mwa_search_version}]
              |  --no_combined_check
-             |              Don't check if all the combined files are available [default: false]
+             |              Don't check if all the combined files are available [default: ${params.no_combined_check}]
              |  -w          The Nextflow work directory. Delete the directory once the processs
              |              is finished [default: ${workDir}]""".stripMargin()
     println(help)
     exit(0)
 }
 
+// Command line argument parsing
+
+// if ( params.bestprof_pointings ) {
+//     bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
+// }
+// else {
+//     bestprof_files = Channel.empty()
+// }
+bestprof_files = Channel.empty()
+if ( params.pointing_file ) {
+    // Grab the pointings from a pointing file
+    pointings = Channel
+        .fromPath(params.pointing_file)
+        .splitCsv()
+}
+else if ( params.pointings ) {
+    // Grab the pointings from the command line
+    pointings = Channel
+        .of(params.pointings.split(","))
+}
+else if ( params.bestprof_pointings ) {
+    // Grab the pointings from the bestprof files
+    bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
+}
+else {
+    println "No pointings given. Either use --pointing_file or --pointings. Exiting"
+    exit(1)
+}
+
+
 process bestprof_pointings {
     input:
-    val pointings
-    file bestprof_files
+    path bestprof_files
 
     output:
-    file "${params.obsid}_DM_pointing.csv"
+    path "${params.obsid}_DM_pointing.csv"
 
     """
     #!/usr/bin/env python
@@ -133,22 +121,16 @@ process bestprof_pointings {
     from vcstools.pointing_utils import format_ra_dec
 
     dm_pointings = []
-    if "${params.bestprof_pointings}" == "null":
-        pointings = ["${pointings.join('", "')}"]
-        for p in pointings:
-            ra, dec = format_ra_dec([[p.split("_")[0], p.split("_")[1]]])[0]
-            dm_pointings.append(["{}_{}".format(ra, dec), "Blind", "None"])
-    else:
-        bestprof_files = glob.glob("*.bestprof")
-        for bfile_loc in bestprof_files:
-            pointing = bfile_loc.split("${params.obsid}_")[-1].split("_DM")[0]
-            ra, dec = format_ra_dec([[pointing.split("_")[0], pointing.split("_")[1]]])[0]
-            with open(bfile_loc,"r") as bestprof:
-                lines = bestprof.readlines()
-                dm = lines[14][22:-1]
-                period = lines[15][22:-1]
-                period, period_uncer = period.split('  +/- ')
-            dm_pointings.append(["{}_{}".format(ra, dec), "dm_{}".format(dm), period])
+    bestprof_files = ["${bestprof_files.join('", "')}"]
+    for bfile_loc in bestprof_files:
+        pointing = bfile_loc.split("${params.obsid}_")[-1].split("_DM")[0]
+        ra, dec = format_ra_dec([[pointing.split("_")[0], pointing.split("_")[1]]])[0]
+        with open(bfile_loc,"r") as bestprof:
+            lines = bestprof.readlines()
+            dm = lines[14][22:-1]
+            period = lines[15][22:-1]
+            period, period_uncer = period.split('  +/- ')
+        dm_pointings.append([f"{ra}_{dec}", f"dm_{dm}_{ra}_{dec}", dm, period])
 
     with open("${params.obsid}_DM_pointing.csv", "w") as outfile:
         spamwriter = csv.writer(outfile, delimiter=',')
@@ -159,6 +141,8 @@ process bestprof_pointings {
 
 process follow_up_fold {
     label 'cpu'
+    label 'presto'
+
     time "6h"
     publishDir params.out_dir, mode: 'copy'
     errorStrategy 'retry'
@@ -168,20 +152,11 @@ process follow_up_fold {
     params.bestprof_pointings != null
 
     input:
-    tuple file(fits_files), val(dm), val(period)
+    tuple path(fits_files), val(dm), val(period)
 
     output:
-    file "*pfd*"
+    path "*pfd*"
 
-    if ( "$HOSTNAME".startsWith("farnarkle") || "$HOSTNAME".startsWith("galaxy") ) {
-        beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
-    }
-    else if ( "$HOSTNAME".startsWith("x86") || "$HOSTNAME".startsWith("garrawarla") ) {
-        container = "file:///${params.containerDir}/presto/presto.sif"
-    }
-    else {
-        container = "nickswainston/presto:realfft_docker"
-    }
     """
     # Set up the prepfold options to match the ML candidate profiler
     temp_period=${Float.valueOf(period)/1000}
@@ -204,47 +179,63 @@ process follow_up_fold {
     ndmfact=`echo "1 + 1/(\$ddm*\$nbins)" | bc`
     echo "ndmfact: \$ndmfact   ddm: \$ddm"
 
-    prepfold -ncpus $task.cpus -o follow_up_${params.obsid}_P${period.replaceAll(~/\s/,"")}_DM${dm} -n \$nbins -dm ${dm} -p \$period -noxwin -noclip -nsub 256 \
+    prepfold -ncpus ${task.cpus} -o follow_up_${params.obsid}_P${period.replaceAll(~/\s/,"")}_DM${dm} -n \$nbins -dm ${dm} -p \$period -noxwin -noclip -nsub 256 \
 -npart \$ntimechunk -dmstep \$dmstep -pstep 1 -pdstep 2 -npfact \$period_search_n -ndmfact \$ndmfact -runavg *.fits
     """
 }
 
-if ( params.pointing_file ) {
-    pointings = Channel
-        .fromPath(params.pointing_file)
-        .splitCsv()
-        .collect()
-}
-else if ( params.pointings ) {
-    pointings = Channel
-        .from(params.pointings.split(","))
-        .collect()
-}
-else if ( params.bestprof_pointings ) {
-    pointings = Channel.from("null")
-}
-else {
-    println "No pointings given. Either use --pointing_file or --pointings. Exiting"
-    exit(1)
-}
-
 include { pre_beamform; beamform } from './beamform_module'
-include { pulsar_search } from './pulsar_search_module'
-include { classifier }   from './classifier_module'
+include { pulsar_search          } from './pulsar_search_module'
+include { classifier             } from './classifier_module'
 
 workflow {
-    bestprof_pointings( pointings,
-                        bestprof_files )
+    // Parse pointing input
+    if ( params.pointing_file ) {
+        // Grab the pointings from a pointing file
+        pointings = Channel.fromPath(params.pointing_file).splitCsv()
+    }
+    else if ( params.pointings ) {
+        // Grab the pointings from the command line
+        pointings = Channel.of(params.pointings.split(","))
+    }
+    else if ( params.bestprof_pointings ) {
+        // Grab the pointings from the bestprof files
+        bestprof_files = Channel.fromPath("${params.bestprof_pointings}/*.bestprof").collect()
+        // If given bestprof files, extract pointings from them
+        bestprof_pointings( bestprof_files )
+        bestprof_data = bestprof_pointings.out.splitCsv()
+        // Only grab the pointings
+        pointings = bestprof_data.map{ point, name, dm, period -> point }
+    }
+    else {
+        println "No pointings given. Either use --pointing_file or --pointings. Exiting"
+        exit(1)
+    }
+
+    // Beamform
     pre_beamform()
-    beamform( pre_beamform.out[0],\
-              pre_beamform.out[1],\
-              pre_beamform.out[2],\
-              bestprof_pointings.out.splitCsv().map{ it -> it[0] }.flatten().unique().collate( params.max_pointings ) )
-    follow_up_fold( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.cross(
-                    bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1], it[2]]}.map{ it -> [it[0].toString(), [it[1], it[2]]] }).\
-                    map{ it -> [it[0][1], it[1][1][0].split("_")[-1], it[1][1][1]] } )
-    pulsar_search( beamform.out[1].map{ it -> [ it[0].getBaseName().split("/")[-1].split("_ch")[0], it ] }.concat(
-                   bestprof_pointings.out.splitCsv().map{ it -> ["${params.obsid}_"+it[0], it[1]]}).map{ it -> [it[0].toString(), it[1]] }.\
-                   groupTuple( size: 2 ).map{ it -> [it[1][1]+"_"+it[0], it[1][0]] } )
-    classifier( pulsar_search.out[1].flatten().collate( 120 ) )
+    beamform(
+        pre_beamform.out.utc_beg_end_dur,
+        pre_beamform.out.channels,
+        pointings
+    )
+
+    // If doing follow up also do a fold
+    if ( params.bestprof_pointings ) {
+        // Grab name that includes DM so the ddplan will only use nearby DMs
+        bestprof_data_fits = bestprof_data.concat( beamform.out ).groupTuple()
+        // Do a follow up fold if bestprofs given
+        follow_up_fold(
+            bestprof_data_fits.map{ pointing, name_fits, dm, period -> [ name_fits[1], dm[0], period[0] ] }
+        )
+        name_fits = bestprof_data_fits.map{ pointing, name_fits, dm, period -> name_fits }
+    }
+    else {
+        // Make a name for each fits file
+        name_fits = beamform.out.map{ pointing, fits -> [ "${params.cand}_${params.obsid}_${pointing}".toString(), fits ] }
+    }
+
+    // Perform pulsar search
+    pulsar_search( name_fits )
+    classifier( pulsar_search.out )
 }

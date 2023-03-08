@@ -1,12 +1,8 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl = 2
-params.no_combined_check = true
 include { pre_beamform; beamform } from './beamform_module'
 
-//params.out_dir = "${params.search_dir}/${params.obsid}_toas"
-//params.out_dir = "${params.search_dir}/psr2_timing/${params.obsid}_toas"
-params.out_dir = "${params.search_dir}/psr2_timing"
+params.out_dir = "${params.search_dir}/timing"
 
 params.bins = 256
 params.period = ""
@@ -49,7 +45,7 @@ if ( params.help ) {
              |              [default: 1]
              |
              |  --eph       The ephermis file to fold on the obs. If you don't have one use --period and --dm
-             |  --period    The topo period of the pulsar in seconds. 
+             |  --period    The topo period of the pulsar in seconds.
              |  --dm        The dispersion measure of the pulsar.
              |
              |  --out_dir   Where the TOAs will be output
@@ -92,13 +88,13 @@ process prepfold_ch {
     time '2h'
 
     input:
-    file fits_files
+    path fits_files
     each chans
 
     output:
-    file "*bestprof"
-    file fits_files
-    
+    path "*bestprof"
+    path fits_files
+
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
     }
@@ -122,10 +118,10 @@ process dspsr_ch {
     time '2h'
 
     input:
-    file fits_files
+    path fits_files
 
     output:
-    file "*pTDF"
+    path "*pTDF"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
@@ -152,11 +148,11 @@ process dspsr_time {
     time '12h'
 
     input:
-    file fits_files
+    path fits_files
 
     output:
-    file "*pTDF"
-    file "*subint"
+    path "*pTDF"
+    path "*subint"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
@@ -181,13 +177,13 @@ process get_toas {
     publishDir "${params.out_dir}/${archive.baseName.split("_")[0]}", pattern: "*ps", mode: 'copy'
 
     input:
-    //each file(archive)
+    //each path(archive)
     //file std_profile
-    tuple file(archive), file(std_profile)
+    tuple path(archive), path(std_profile)
 
     output:
-    file "*tim"
-    file "*ps"
+    path "*tim"
+    path "*ps"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
@@ -209,11 +205,11 @@ process combine_obs_toas {
     input:
     //file toa_tims
     //file subints
-    file toa_tims_and_subints
+    path toa_tims_and_subints
 
     output:
-    file "*_${params.label}.tim"
-    file "*.ar"
+    path "*_${params.label}.tim"
+    path "*.ar"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"
@@ -234,10 +230,10 @@ process combine_all_toas {
     when params.fits_file_dir != "None"
 
     input:
-    file toa_tims
+    path toa_tims
 
     output:
-    file "*all.tim"
+    path "*all.tim"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master; module load tempo2"

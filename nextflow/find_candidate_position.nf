@@ -1,30 +1,8 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl = 2
-
-params.obsid = null
-params.calid = null
-params.pointings = null
-params.pointing_file = null
-params.begin = 0
-params.end = 0
-params.all = false
-
 params.pointing_grid = null
 params.fraction = 0.8
 params.loops = 1
-
-params.summed = true
-params.channels = null
-params.vcstools_version = 'master'
-params.mwa_search_version = 'master'
-
-params.bins = 128
-params.subint = 60
-params.nchan = 48
-params.pulsar = 0
-params.period = 0.90004
-params.dm = 23.123
 
 params.no_pdmp = false
 params.fwhm_ra = "None"
@@ -81,8 +59,6 @@ if ( params.help ) {
              |              vdif files [default: false]
              |  --publish_fits
              |              Publish to the fits directory (/group on Galaxy).
-             |  --publish_fits_scratch
-             |              Publish to the scratch fits directory (/astro on Galaxy).
              |  --vcstools_version
              |              The vcstools module version to use [default: master]
              |  --mwa_search_version
@@ -108,7 +84,7 @@ else {
 include { pre_beamform; beamform } from './beamform_module'
 include { fwhm_calc } from './data_processing_pipeline'
 
-params.didir = "${params.scratch_basedir}/${params.obsid}/cal/${params.calid}/rts"
+params.didir = "${params.vcsdir}/${params.obsid}/cal/${params.calid}/rts"
 params.out_dir = "${params.search_dir}/${params.obsid}_candidate_follow_up"
 params.final_dir = "${params.search_dir}/psr2_J0024-1932/${params.obsid}"
 
@@ -145,7 +121,7 @@ else {
 
 process get_pulsar_ra_dec {
     output:
-    file 'pulsar_ra_dec.txt'
+    path 'pulsar_ra_dec.txt'
 
     """
     #!/usr/bin/env python3
@@ -173,7 +149,7 @@ process grid {
     tuple val(pulsar), val(pointings), val(fwhm)
 
     output:
-    file "*txt"
+    path "*txt"
 
     """
     grid.py -o $params.obsid -d $fwhm -f $params.fraction -p $pointings -l $params.loops --label ${pulsar}
@@ -187,11 +163,11 @@ process prepfold {
     publishDir params.out_dir, mode: 'copy'
 
     input:
-    tuple val(pointing), file(fits_files), val(pulsar)
+    tuple val(pointing), path(fits_files), val(pulsar)
 
     output:
-    file "*bestprof"
-    file "*ps"
+    path "*bestprof"
+    path "*ps"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load presto/${params.presto_module}"
@@ -225,12 +201,12 @@ process pdmp {
     params.no_pdmp == false
 
     input:
-    tuple val(pointings), file(bestprof), file(fits_files)
+    tuple val(pointings), path(bestprof), path(fits_files)
 
     output:
-    file "*ps"
-    file "*posn"
-    file "*ar"
+    path "*ps"
+    path "*posn"
+    path "*ar"
 
     if ( "$HOSTNAME".startsWith("farnarkle") ) {
         beforeScript "module use ${params.presto_module_dir}; module load dspsr/master"
@@ -267,12 +243,12 @@ process bestgridpos {
     publishDir params.out_dir, mode: 'copy'
 
     input:
-    tuple val(pulsar), file(posn_or_bestprof), val(fwhm), val(orig_pointing)
+    tuple val(pulsar), path(posn_or_bestprof), val(fwhm), val(orig_pointing)
 
     output:
-    file "*predicted_pos.txt"
-    file "*png"
-    file "*orig_best_SN.txt"
+    path "*predicted_pos.txt"
+    path "*png"
+    path "*orig_best_SN.txt"
 
     """
     if [[ ${params.fwhm_ra} == None || ${params.fwhm_dec} == None ]]; then
@@ -289,10 +265,10 @@ process format_output {
     echo true
 
     input:
-    tuple file(orig_best_file), file(posn_or_bestprof)
+    tuple path(orig_best_file), path(posn_or_bestprof)
 
     output:
-    file "*orig_best_predicted_sn.csv"
+    path "*orig_best_predicted_sn.csv"
 
     """
     #!/usr/bin/env python3
@@ -343,10 +319,10 @@ process publish_best_pointing {
     publishDir params.final_dir, mode: 'copy'
 
     input:
-    file fits
+    path fits
 
     output:
-    file '*' includeInputs true
+    path '*' includeInputs true
 
     """
     echo outputing ${fits}
@@ -393,7 +369,7 @@ workflow find_pos {
             }
         }
         bestgridpos( bestprof_or_pdmp.combine(fwhm).combine(orig_pointing.toList()) )
-        //tuple val(pulsar), file(posn_or_bestprof), val(fwhm), val(orig_pointing)
+        //tuple val(pulsar), path(posn_or_bestprof), val(fwhm), val(orig_pointing)
     emit:
         bestgridpos.out[0] // label and new pointing
         bestgridpos.out[2] // orig and best pointing SN file
